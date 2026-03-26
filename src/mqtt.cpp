@@ -5,16 +5,29 @@
 
 #include <Arduino.h>
 #include <WiFi.h>
+#include <WiFiClientSecure.h>
+#include <PubSubClient.h>
 #include <algorithm>
 #include <cstdio>
 #include <cstring>
 #include <esp_random.h>
 
-WiFiClientSecure espClient;
-PubSubClient client(espClient);
+#if defined(CORE_DEBUG_LEVEL) && CORE_DEBUG_LEVEL > 0
+#define MQTT_DBG_PRINT(x) Serial.print(x)
+#define MQTT_DBG_PRINTLN(x) Serial.println(x)
+#else
+#define MQTT_DBG_PRINT(x) ((void)0)
+#define MQTT_DBG_PRINTLN(x) ((void)0)
+#endif
+
+static WiFiClientSecure espClient;
+static PubSubClient client(espClient);
 
 static constexpr unsigned long kMqttBackoffInitialMs = 5000;
 static constexpr unsigned long kMqttBackoffMaxMs = 60000;
+
+static constexpr unsigned kPublishMaxAttempts = 5;
+static constexpr unsigned long kPublishRetryDelayMs = 25;
 
 static unsigned long lastMqttAttemptAt = 0;
 static unsigned long mqttBackoffMs = 0;
@@ -22,45 +35,45 @@ static unsigned long mqttCurrentBackoffMs = kMqttBackoffInitialMs;
 
 /** Eine Verbindungsrunde; Rückgabe: Millisekunden bis zum nächsten Versuch. */
 static unsigned long mqttTryConnectSinglePass() {
-    Serial.print("Verbinde mit MQTT (TLS)...");
+    MQTT_DBG_PRINT("Verbinde mit MQTT (TLS)...");
     char clientId[24];
     snprintf(clientId, sizeof(clientId), "ESP32Heart-%04lX", static_cast<unsigned long>(random(0xffff)));
 
-    Serial.print("Client ID: ");
-    Serial.println(clientId);
-    Serial.print("Server: ");
-    Serial.print(mqtt_server);
-    Serial.print(":");
-    Serial.println(mqtt_port);
+    MQTT_DBG_PRINT("Client ID: ");
+    MQTT_DBG_PRINTLN(clientId);
+    MQTT_DBG_PRINT("Server: ");
+    MQTT_DBG_PRINT(mqtt_server);
+    MQTT_DBG_PRINT(":");
+    MQTT_DBG_PRINTLN(mqtt_port);
 
     if (strlen(mqtt_server) == 0) {
-        Serial.println(
+        MQTT_DBG_PRINTLN(
             "Kein MQTT-Server konfiguriert. Bitte Captive Portal erneut öffnen (Reset: Taste 5s halten).");
         return 10000;
     }
 
     if (WiFi.status() != WL_CONNECTED) { // NOLINT(readability-static-accessed-through-instance)
-        Serial.println("WiFi nicht verbunden! Warte auf Reconnect in main loop...");
+        MQTT_DBG_PRINTLN("WiFi nicht verbunden! Warte auf Reconnect in main loop...");
         return 5000;
     }
 
     if (client.connect(clientId, mqtt_username, mqtt_password)) {
-        Serial.println("MQTT verbunden!");
+        MQTT_DBG_PRINTLN("MQTT verbunden!");
         mqttCurrentBackoffMs = kMqttBackoffInitialMs;
-        Serial.print("Subscribing zu Topic (QoS 1): ");
-        Serial.println(mqtt_topic_sub);
+        MQTT_DBG_PRINT("Subscribing zu Topic (QoS 1): ");
+        MQTT_DBG_PRINTLN(mqtt_topic_sub);
         client.subscribe(mqtt_topic_sub, 1);
         return 0;
     }
 
-    Serial.print("MQTT fehlgeschlagen, rc=");
-    Serial.print(client.state());
-    Serial.println(" (0=Connection timeout, -1=Connection lost, -2=Connect failed, ...)");
+    MQTT_DBG_PRINT("MQTT fehlgeschlagen, rc=");
+    MQTT_DBG_PRINT(client.state());
+    MQTT_DBG_PRINTLN(" (0=Connection timeout, -1=Connection lost, -2=Connect failed, ...)");
     const unsigned long waitMs = mqttCurrentBackoffMs;
     mqttCurrentBackoffMs = std::min(mqttCurrentBackoffMs * 2UL, kMqttBackoffMaxMs);
-    Serial.print("Nächster Versuch in ");
-    Serial.print(waitMs / 1000UL);
-    Serial.println(" s (exponentieller Backoff)...");
+    MQTT_DBG_PRINT("Nächster Versuch in ");
+    MQTT_DBG_PRINT(waitMs / 1000UL);
+    MQTT_DBG_PRINTLN(" s (exponentieller Backoff)...");
     return waitMs;
 }
 
@@ -70,13 +83,15 @@ static void mqttCallback(char* topic, byte* payload, unsigned int length) {
     static constexpr char kHeartPayload[] = "heart";
     static constexpr unsigned int kHeartLen = sizeof(kHeartPayload) - 1U;
     if (length != kHeartLen || memcmp(payload, kHeartPayload, kHeartLen) != 0) {
-        Serial.println("MQTT: unerwarteter Payload ignoriert.");
+        MQTT_DBG_PRINTLN("MQTT: unerwarteter Payload ignoriert.");
         return;
     }
 
-    Serial.print("Nachricht empfangen: ");
+    MQTT_DBG_PRINT("Nachricht empfangen: ");
+#if defined(CORE_DEBUG_LEVEL) && CORE_DEBUG_LEVEL > 0
     Serial.write(reinterpret_cast<const char*>(payload), length);
     Serial.println();
+#endif
 
     counter++;
     requestHeartRedraw();
@@ -84,10 +99,19 @@ static void mqttCallback(char* topic, byte* payload, unsigned int length) {
 
 bool mqttPublishHeart() {
     if (!client.connected()) {
-        Serial.println("MQTT nicht verbunden!");
+        MQTT_DBG_PRINTLN("MQTT nicht verbunden!");
         return false;
     }
-    return client.publish(mqtt_topic_pub, "heart");
+    // PubSubClient unterstuetzt kein QoS-1-Publish; mehrere Versuche mit loop() fuer TCP-Stack.
+    static constexpr char kPayload[] = "heart";
+    for (unsigned attempt = 0; attempt < kPublishMaxAttempts; ++attempt) {
+        if (client.publish(mqtt_topic_pub, kPayload)) {
+            return true;
+        }
+        client.loop();
+        delay(kPublishRetryDelayMs);
+    }
+    return false;
 }
 
 void mqttSetup() {
@@ -95,6 +119,7 @@ void mqttSetup() {
     randomSeed(static_cast<unsigned long>(esp_random()));
     // Heimnetz: keine Zertifikatsprüfung (Man-in-the-Middle möglich). Für Produktion Root-CA einbinden.
     espClient.setInsecure();
+    client.setBufferSize(512);
     client.setServer(mqtt_server, mqtt_port);
     client.setCallback(mqttCallback);
     // E-Paper Full-Refresh blockiert ~8s; längeres Keep-Alive verhindert Broker-Timeout bei zwei Refreshes hintereinander.

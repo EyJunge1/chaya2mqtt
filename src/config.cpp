@@ -40,6 +40,9 @@ void loadMQTTConfig() {
     preferences.begin("mqtt", true);
     safeStrCopy(mqtt_server, sizeof(mqtt_server), preferences.getString("server", "").c_str());
     mqtt_port = preferences.getInt("port", 8883);
+    if (mqtt_port <= 0 || mqtt_port > 65535) {
+        mqtt_port = 8883;
+    }
     safeStrCopy(mqtt_username, sizeof(mqtt_username), preferences.getString("user", "").c_str());
     safeStrCopy(mqtt_password, sizeof(mqtt_password), preferences.getString("pass", "").c_str());
     safeStrCopy(mqtt_topic_pub, sizeof(mqtt_topic_pub),
@@ -126,12 +129,14 @@ void setupWiFi() {
     char portStr[8];
     snprintf(portStr, sizeof(portStr), "%d", mqtt_port);
 
-    WiFiManagerParameter param_server("mqtt_server", "MQTT Server", mqtt_server, 128);
-    WiFiManagerParameter param_port("mqtt_port", "MQTT Port", portStr, 6);
-    WiFiManagerParameter param_user("mqtt_user", "MQTT Username", mqtt_username, 64);
-    WiFiManagerParameter param_pass("mqtt_pass", "MQTT Password", mqtt_password, 64);
-    WiFiManagerParameter param_topic_pub("mqtt_topic_pub", "MQTT Sende-Topic", mqtt_topic_pub, 128);
-    WiFiManagerParameter param_topic_sub("mqtt_topic_sub", "MQTT Empfangs-Topic", mqtt_topic_sub, 128);
+    // static: Lebensdauer ueber autoConnect() hinaus, damit Save-Params-Callback sichere Zeiger hat.
+    // g_param_* werden nur waehrend autoConnect() gesetzt; Callback laeuft nur dort.
+    static WiFiManagerParameter param_server("mqtt_server", "MQTT Server", mqtt_server, 128);
+    static WiFiManagerParameter param_port("mqtt_port", "MQTT Port", portStr, 6);
+    static WiFiManagerParameter param_user("mqtt_user", "MQTT Username", mqtt_username, 64);
+    static WiFiManagerParameter param_pass("mqtt_pass", "MQTT Password", mqtt_password, 64);
+    static WiFiManagerParameter param_topic_pub("mqtt_topic_pub", "MQTT Sende-Topic", mqtt_topic_pub, 128);
+    static WiFiManagerParameter param_topic_sub("mqtt_topic_sub", "MQTT Empfangs-Topic", mqtt_topic_sub, 128);
 
     wifiManager.addParameter(&param_server);
     wifiManager.addParameter(&param_port);

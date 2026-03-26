@@ -62,7 +62,7 @@ flowchart LR
 Beim **Empfang** einer Nachricht auf dem Empfangs-Topic wird der lokale `counter` nur erhoeht, wenn der Payload exakt **`heart`** ist (5 Bytes); sonst wird die Nachricht ignoriert. Anschliessend wird das Herz-Display neu gezeichnet.
 
 - **Transport:** `WiFiClientSecure` + `PubSubClient`
-- **TLS:** `espClient.setInsecure()` -- keine Server-Zertifikatsvalidierung
+- **TLS:** In `mqtt.cpp`: `WiFiClientSecure::setInsecure()` -- keine Server-Zertifikatsvalidierung
 - **Standard-Port in Konfiguration:** 8883
 
 ## Setup-Ablauf (`setup()`)

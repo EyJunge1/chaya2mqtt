@@ -5,6 +5,12 @@
 
 #include <Arduino.h>
 
+#if defined(CORE_DEBUG_LEVEL) && CORE_DEBUG_LEVEL > 0
+#define BUTTON_DBG_PRINTLN(x) Serial.println(x)
+#else
+#define BUTTON_DBG_PRINTLN(x) ((void)0)
+#endif
+
 static const int BUTTON_PIN = 2;
 static const int BUTTON_LED_PIN = 4;
 
@@ -41,8 +47,8 @@ static bool ledSendSequenceActive() {
 }
 
 static void startMqttSendLedSequence() {
-    Serial.println("Button-Druck erkannt!");
-    Serial.println("Sende MQTT-Nachricht (LED-Sequenz)...");
+    BUTTON_DBG_PRINTLN("Button-Druck erkannt!");
+    BUTTON_DBG_PRINTLN("Sende MQTT-Nachricht (LED-Sequenz)...");
     ledTxPhase = LedTxPhase::PreOn1;
     digitalWrite(BUTTON_LED_PIN, HIGH);
     ledPhaseUntilMs = millis() + 100;
@@ -103,11 +109,11 @@ void checkLEDStatus() {
         case LedTxPhase::PublishTry: {
             const bool ok = mqttPublishHeart();
             if (ok) {
-                Serial.println("MQTT Nachricht erfolgreich gesendet!");
+                BUTTON_DBG_PRINTLN("MQTT Nachricht erfolgreich gesendet!");
                 ledTxPhase = LedTxPhase::PostWait;
                 ledPhaseUntilMs = now + 500;
             } else {
-                Serial.println("MQTT Sendung fehlgeschlagen!");
+                BUTTON_DBG_PRINTLN("MQTT Sendung fehlgeschlagen!");
                 digitalWrite(BUTTON_LED_PIN, LOW);
                 ledTxPhase = LedTxPhase::Idle;
             }

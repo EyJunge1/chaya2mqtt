@@ -55,13 +55,13 @@ Uebersicht aller Quelldateien unter `src/`: oeffentliche API, globale Symbole un
 
 | Funktion | Beschreibung |
 |----------|--------------|
-| `loadMQTTConfig()` | Liest Namespace `"mqtt"` (readonly): `server`, `port`, `user`, `pass`, `topic_pub`, `topic_sub` |
+| `loadMQTTConfig()` | Liest Namespace `"mqtt"` (readonly): `server`, `port`, `user`, `pass`, `topic_pub`, `topic_sub`; **Port** wird auf 1--65535 validiert (sonst **8883**) |
 | `saveMQTTConfig()` | Schreibt dieselben Keys |
 | `loadHeartCounter()` | Liest `counter` aus Namespace `"heart"` (Key `counter`) |
 | `saveHeartCounter()` | Schreibt aktuellen `counter` nach `"heart"` |
 | `maybeSaveHeartCounter()` | Schreibt nur, wenn `counter` sich geaendert hat und seit letztem Schreiben mindestens **30 s** vergangen sind (weniger Flash-Verschleiss) |
 | `flushHeartCounterIfDirty()` | Sofortiges NVS-Schreiben bei Dirty-`counter` (z. B. vor `ESP.restart()` nach fehlgeschlagenem Portal) |
-| `setupWiFi()` | WiFiManager: Timeout **180 s**, AP-Name **`HeartESP32-Setup`**, sechs Custom-Parameter fuer MQTT (inkl. Sende-/Empfangs-Topic); `setSaveParamsCallback(saveParamsFromPortal)`; bei Fehlschlag `flushHeartCounterIfDirty()`, dann `ESP.restart()` |
+| `setupWiFi()` | WiFiManager: Timeout **180 s**, AP-Name **`HeartESP32-Setup`**, sechs **static** Custom-Parameter fuer MQTT (Lebensdauer fuer Save-Callback); `setSaveParamsCallback(saveParamsFromPortal)`; bei Fehlschlag `flushHeartCounterIfDirty()`, dann `ESP.restart()` |
 | `resetAllSettings()` | `WiFiManager::resetSettings()`, Namespaces `mqtt` und `heart` `clear()`, Neustart |
 
 ### Implementierungsdetails
@@ -69,7 +69,7 @@ Uebersicht aller Quelldateien unter `src/`: oeffentliche API, globale Symbole un
 - `Preferences preferences` ist **file-static** in `config.cpp` (kein globales Symbol in `config.h`).
 - `safeStrCopy(dst, dstSize, src)` -- begrenztes `strncpy`, immer nullterminiert.
 - `saveParamsFromPortal()` -- liest Werte aus `WiFiManagerParameter*`, validiert Port (1--65535, sonst 8883), ruft `saveMQTTConfig()` auf.
-- Nach erfolgreichem `autoConnect` werden die globalen Parameter-Zeiger auf `nullptr` gesetzt (Lebensdauer der lokalen `WiFiManagerParameter`-Objekte).
+- `WiFiManagerParameter`-Instanzen sind **function-static**; `g_param_*` zeigen nur waehrend `autoConnect()` darauf (Callback laeuft nur dort). Nach `autoConnect` werden die globalen Zeiger auf `nullptr` gesetzt.
 
 ---
 
@@ -90,15 +90,16 @@ Der Zaehlerstand kommt aus **`config.h`** (`extern int counter`).
 | Funktion | Beschreibung |
 |----------|--------------|
 | `displayInit()` | `SPI.begin(13, 12, 14, 15)`; `display.init(115200, true, 2, false)` |
-| `drawHeartWithNumber()` | Vollbild-Refresh: weisser Hintergrund, rotes Herz aus zwei Kreisen, `fillTriangle` fuer die Spitze, gefuellter Bereich, schwarze Zahl (`setTextSize(4)`) unten mittig |
+| `drawHeartWithNumber()` | Vollbild-Refresh: weisser Hintergrund, rotes Herz aus zwei Kreisen, `fillTriangle` fuer die Spitze, gefuellter Bereich, schwarze Zahl unten mittig (`setTextSize` **2--4** je nach Stellenzahl) |
 | `requestHeartRedraw()` | Setzt internes Flag (nach MQTT-Empfang) |
 | `consumeHeartRedraw()` | Liefert `true` einmalig wenn Neuzeichnen angefordert; loescht das Flag |
 
 ### Implementierungsdetails
 
 - Zeichnung in `firstPage()` / `nextPage()`-Schleife (partial window = full window).
-- Herz-Geometrie: parametrisiert um `centerX`, `centerY`, `heartSize` (siehe Quellcode fuer Feintuning).
-- `getTextBounds()` fuer die Zahl **nach** `setTextSize(4)` (korrekte Zentrierung); Randpruefung fuer das Dreieck mit einmalig gecachtem `display.width()` / `display.height()`.
+- Herz-Geometrie: `static constexpr` Konstanten im Quellcode (Feintuning dort).
+- `getTextBounds()` fuer die Zahl **nach** dynamischem `setTextSize` (korrekte Zentrierung); Randpruefung fuer das Dreieck mit `display.width()` / `display.height()`.
+- Zeichenfortschritt-Serial nur bei `CORE_DEBUG_LEVEL > 0`.
 
 ---
 
@@ -106,31 +107,29 @@ Der Zaehlerstand kommt aus **`config.h`** (`extern int counter`).
 
 **Zweck:** MQTT ueber TLS; Verbindung halten; bei Nachricht Counter erhoehen und Display aktualisieren.
 
-### Globale Symbole
+### Kapselung
 
-| Symbol | Beschreibung |
-|--------|--------------|
-| `espClient` | `WiFiClientSecure`, `setInsecure()` (keine TLS-Zertifikatspruefung; fuer Heimnetz) |
-| `client` | `PubSubClient(espClient)` |
+`WiFiClientSecure` und `PubSubClient` sind **nur in `mqtt.cpp`** (file-static), nicht in `mqtt.h` exportiert.
 
 ### Oeffentliche Funktionen
 
 | Funktion | Beschreibung |
 |----------|--------------|
-| `mqttSetup()` | `setServer`, `setCallback`, `setKeepAlive(60)`, `setSocketTimeout(5)` (s) |
+| `mqttSetup()` | `setBufferSize(512)`, `setServer`, `setCallback`, `setKeepAlive(60)`, `setSocketTimeout(5)` (s), `setInsecure()` |
 | `mqttLoop()` | Wenn nicht verbunden: Connect-Versuch wenn `millis() - lastAttempt >= backoff` (overflow-sicher); bei Connect-Fehler exponentieller Backoff 5 s bis max. 60 s; leerer Server / kein WLAN: feste Wartezeiten; bei **Uebergang** zu verbunden: Backoff zuruecksetzen; danach `client.loop()` |
-| `mqttPublishHeart()` | Publiziert Payload **`heart`** auf `mqtt_topic_pub`, wenn verbunden |
+| `mqttPublishHeart()` | Publiziert Payload **`heart`** auf `mqtt_topic_pub`, wenn verbunden; bis zu **5** Versuche mit `client.loop()` (PubSubClient hat kein QoS-1-Publish) |
 
 ### Callback `mqttCallback`
 
 - Nur Payload exakt **`heart`** (5 Bytes) wird akzeptiert; alles andere wird ignoriert.
-- Serial-Ausgabe mit `Serial.write(payload, length)` (ohne `String`-Allokation).
+- Bei `CORE_DEBUG_LEVEL > 0`: Serial mit `Serial.write(payload, length)` (ohne `String`-Allokation).
 - **Ignoriert** den Topic-Namen (`(void)topic`).
 - **`counter++`**, `requestHeartRedraw()`; NVS-Schreiben laeuft throttled ueber `maybeSaveHeartCounter()` in `loop()` (kein E-Paper im Callback).
 
 ### Implementierungsdetails
 
 - Subscribe: `client.subscribe(mqtt_topic_sub, 1)` (QoS 1).
+- Verbindungs-/Debug-Serial nur bei `CORE_DEBUG_LEVEL > 0`.
 - Client-ID: `ESP32Heart-` + zufaelliger Hex-Wert (`snprintf`, kein Arduino-`String`).
 - Keine separate DNS-Vorabfrage; Aufloesung erfolgt im TLS-/TCP-Stack beim Connect.
 - Ohne WLAN: nur Warte-Backoff (**kein** `WiFi.reconnect()` hier; `main` uebernimmt Reconnect).
