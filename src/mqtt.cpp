@@ -5,6 +5,7 @@
 
 #include <Arduino.h>
 #include <WiFi.h>
+#include <cstdio>
 #include <cstring>
 
 WiFiClientSecure espClient;
@@ -16,8 +17,8 @@ static unsigned long mqttBackoffMs = 0;
 /** Eine Verbindungsrunde; Rückgabe: Millisekunden bis zum nächsten Versuch. */
 static unsigned long mqttTryConnectSinglePass() {
     Serial.print("Verbinde mit MQTT (TLS)...");
-    String clientId = "ESP32Heart-";
-    clientId += String(random(0xffff), HEX);
+    char clientId[24];
+    snprintf(clientId, sizeof(clientId), "ESP32Heart-%04lX", static_cast<unsigned long>(random(0xffff)));
 
     Serial.print("Client ID: ");
     Serial.println(clientId);
@@ -33,23 +34,11 @@ static unsigned long mqttTryConnectSinglePass() {
     }
 
     if (WiFi.status() != WL_CONNECTED) { // NOLINT(readability-static-accessed-through-instance)
-        Serial.println("WiFi nicht verbunden! Versuche Wiederherstellung...");
-        WiFi.reconnect();
+        Serial.println("WiFi nicht verbunden! Warte auf Reconnect in main loop...");
         return 5000;
     }
 
-    IPAddress serverIP;
-    // NOLINTNEXTLINE(readability-static-accessed-through-instance,readability-implicit-bool-conversion)
-    if (WiFi.hostByName(mqtt_server, serverIP) != 0) {
-        Serial.print("DNS erfolgreich aufgelöst: ");
-        Serial.println(serverIP);
-    } else {
-        Serial.println("DNS Auflösung fehlgeschlagen!");
-        WiFi.reconnect();
-        return 10000;
-    }
-
-    if (client.connect(clientId.c_str(), mqtt_username, mqtt_password)) {
+    if (client.connect(clientId, mqtt_username, mqtt_password)) {
         Serial.println("MQTT verbunden!");
         Serial.print("Subscribing zu Topic: ");
         Serial.println(mqtt_topic_sub);
@@ -102,15 +91,20 @@ void mqttSetup() {
 
 void mqttLoop() {
     const unsigned long now = millis();
+    const bool connected = client.connected();
 
-    if (!client.connected()) {
+    static bool wasConnected = false;
+    if (connected && !wasConnected) {
+        lastMqttAttemptAt = 0;
+        mqttBackoffMs = 0;
+    }
+    wasConnected = connected;
+
+    if (!connected) {
         if (now - lastMqttAttemptAt >= mqttBackoffMs) {
             lastMqttAttemptAt = now;
             mqttBackoffMs = mqttTryConnectSinglePass();
         }
-    } else {
-        lastMqttAttemptAt = 0;
-        mqttBackoffMs = 0;
     }
 
     client.loop();

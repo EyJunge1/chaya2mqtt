@@ -7,7 +7,7 @@ Die Firmware ist in **vier logische Module** plus `main.cpp` aufgeteilt:
 | Modul | Dateien | Aufgabe |
 |--------|---------|---------|
 | **config** | `config.h`, `config.cpp` | MQTT-Werte aus NVS (`Preferences`), WiFiManager-Captive-Portal, Factory Reset |
-| **display** | `display.h`, `display.cpp` | GxEPD2-Initialisierung, globale Variable `counter`, Zeichnen Herz + Zahl |
+| **display** | `display.h`, `display.cpp` | GxEPD2-Initialisierung, Zeichnen Herz + Zahl |
 | **mqtt** | `mqtt.h`, `mqtt.cpp` | TLS-Client, Broker-Verbindung, Subscribe/Publish, Callback erhoeht Counter |
 | **button** | `button.h`, `button.cpp` | GPIO Taster + LED, Kurzdruck -> Publish, Langdruck -> Reset |
 
@@ -28,14 +28,15 @@ flowchart LR
     main --> mq
     main --> btn
     btn --> cfg
-    btn --> dsp
     btn --> mq
     mq --> cfg
     mq --> dsp
+    dsp --> cfg
 ```
 
-- **mqtt** nutzt `mqtt_server`, `mqtt_port`, ... aus **config** und ruft **display** auf (`drawHeartWithNumber`).
-- **button** nutzt **config** (Reset), **mqtt** (`client`, Topic), **display** (`counter` fuer den Payload).
+- **mqtt** nutzt `mqtt_server`, `mqtt_port`, ... und `counter` aus **config** und ruft **display** auf (`requestHeartRedraw` / indirekt Zeichnung).
+- **display** liest `counter` aus **config** fuer die Zahlendarstellung.
+- **button** nutzt **config** (Reset, `counter`, Topic) und **mqtt** (`client`).
 
 ## Kommunikation: zwei Geraete ueber MQTT
 
@@ -123,7 +124,7 @@ flowchart TD
 |--------|------|
 | Sende-Topic | Konfigurierbar, Default `heart/to_b` |
 | Empfangs-Topic | Konfigurierbar, Default `heart/to_a` |
-| Publish (Knopf) | Payload = `String(counter)` (ASCII-Ziffern) auf Sende-Topic |
+| Publish (Knopf) | Payload = ASCII-Ziffern (`snprintf` aus `counter`) auf Sende-Topic |
 | Subscribe | Empfangs-Topic |
 | Callback | Jede empfangene Nachricht -> `counter++`, NVS speichern, `requestHeartRedraw()`; Zeichnung in `loop()` |
 

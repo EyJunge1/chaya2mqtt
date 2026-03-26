@@ -43,7 +43,7 @@ Uebersicht aller Quelldateien unter `src/`: oeffentliche API, globale Symbole un
 
 | Symbol | Typ | Beschreibung |
 |--------|-----|----------------|
-| `preferences` | `Preferences` | NVS-Zugriff |
+| `counter` | `int` | Herz-Zaehler (Anzeige + MQTT); Persistenz Namespace `heart` |
 | `mqtt_server` | `char[128]` | Broker-Hostname oder IP |
 | `mqtt_port` | `int` | Broker-Port (Default **8883**) |
 | `mqtt_username` | `char[64]` | optional |
@@ -66,6 +66,7 @@ Uebersicht aller Quelldateien unter `src/`: oeffentliche API, globale Symbole un
 
 ### Implementierungsdetails
 
+- `Preferences preferences` ist **file-static** in `config.cpp` (kein globales Symbol in `config.h`).
 - `safeStrCopy(dst, dstSize, src)` -- begrenztes `strncpy`, immer nullterminiert.
 - `saveParamsFromPortal()` -- liest Werte aus `WiFiManagerParameter*`, validiert Port (1--65535, sonst 8883), ruft `saveMQTTConfig()` auf.
 - Nach erfolgreichem `autoConnect` werden die globalen Parameter-Zeiger auf `nullptr` gesetzt (Lebensdauer der lokalen `WiFiManagerParameter`-Objekte).
@@ -81,7 +82,8 @@ Uebersicht aller Quelldateien unter `src/`: oeffentliche API, globale Symbole un
 | Symbol | Beschreibung |
 |--------|--------------|
 | `display` | `GxEPD2_3C<GxEPD2_154_Z90c, ...>` -- CS=15, DC=27, RST=26, BUSY=25 |
-| `counter` | `int` -- angezeigter und fuer MQTT genutzter Zaehler |
+
+Der Zaehlerstand kommt aus **`config.h`** (`extern int counter`).
 
 ### Oeffentliche Funktionen
 
@@ -116,7 +118,7 @@ Uebersicht aller Quelldateien unter `src/`: oeffentliche API, globale Symbole un
 | Funktion | Beschreibung |
 |----------|--------------|
 | `mqttSetup()` | `setServer(mqtt_server, mqtt_port)`, `setCallback(mqttCallback)` |
-| `mqttLoop()` | Wenn nicht verbunden: Connect-Versuch wenn `millis() - lastAttempt >= backoff` (overflow-sicher), Backoff 0 / 5 s / 10 s je nach Fehlerfall; verbunden: Backoff zuruecksetzen; danach `client.loop()` |
+| `mqttLoop()` | Wenn nicht verbunden: Connect-Versuch wenn `millis() - lastAttempt >= backoff` (overflow-sicher), Backoff 0 / 5 s / 10 s je nach Fehlerfall; bei **Uebergang** zu verbunden: Backoff einmalig zuruecksetzen; danach `client.loop()` |
 
 ### Callback `mqttCallback`
 
@@ -127,8 +129,9 @@ Uebersicht aller Quelldateien unter `src/`: oeffentliche API, globale Symbole un
 
 ### Implementierungsdetails
 
-- Client-ID: `ESP32Heart-` + zufaelliger Hex-Wert.
-- DNS: `WiFi.hostByName(mqtt_server, serverIP)` vor Connect-Versuch.
+- Client-ID: `ESP32Heart-` + zufaelliger Hex-Wert (`snprintf`, kein Arduino-`String`).
+- Keine separate DNS-Vorabfrage; Aufloesung erfolgt im TLS-/TCP-Stack beim Connect.
+- Ohne WLAN: nur Warte-Backoff (**kein** `WiFi.reconnect()` hier; `main` uebernimmt Reconnect).
 
 ---
 
@@ -158,8 +161,7 @@ Uebersicht aller Quelldateien unter `src/`: oeffentliche API, globale Symbole un
 ### Abhaengigkeiten
 
 - `#include "mqtt.h"` fuer `client`
-- `#include "display.h"` fuer `counter`
-- `#include "config.h"` fuer `mqtt_topic_pub`, `resetAllSettings`
+- `#include "config.h"` fuer `counter`, `mqtt_topic_pub`, `resetAllSettings`
 
 ---
 

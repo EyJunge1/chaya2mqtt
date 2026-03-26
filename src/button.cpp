@@ -1,10 +1,10 @@
 #include "button.h"
 
 #include "config.h"
-#include "display.h"
 #include "mqtt.h"
 
 #include <Arduino.h>
+#include <cstdio>
 
 static const int BUTTON_PIN = 2;
 static const int BUTTON_LED_PIN = 4;
@@ -102,8 +102,9 @@ void checkLEDStatus() {
         case LedTxPhase::PublishTry: {
             bool ok = false;
             if (client.connected()) {
-                const String message = String(counter);
-                ok = client.publish(mqtt_topic_pub, message.c_str());
+                char message[16];
+                snprintf(message, sizeof(message), "%d", counter);
+                ok = client.publish(mqtt_topic_pub, message);
             } else {
                 Serial.println("MQTT nicht verbunden!");
             }

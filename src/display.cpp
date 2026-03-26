@@ -1,12 +1,13 @@
 #include "display.h"
 
+#include "config.h"
+
 #include <Arduino.h>
 #include <SPI.h>
+#include <cstdio>
 
 GxEPD2_3C<GxEPD2_154_Z90c, GxEPD2_154_Z90c::HEIGHT> display(
     GxEPD2_154_Z90c(/*CS=*/ 15, /*DC=*/ 27, /*RST=*/ 26, /*BUSY=*/ 25));
-
-int counter = 0;
 
 static bool g_heartRedrawPending = false;
 
@@ -69,20 +70,21 @@ void drawHeartWithNumber() {
                          static_cast<int16_t>((heartSize * 2) / 3),
                          static_cast<int16_t>(heartSize / 2), GxEPD_RED);
 
-        String numberStr = String(counter);
+        char numberBuf[16];
+        snprintf(numberBuf, sizeof(numberBuf), "%d", counter);
         int16_t x1;
         int16_t y1;
         uint16_t w;
         uint16_t h;
         display.setTextColor(GxEPD_BLACK);
         display.setTextSize(4);
-        display.getTextBounds(numberStr, 0, 0, &x1, &y1, &w, &h);
+        display.getTextBounds(numberBuf, 0, 0, &x1, &y1, &w, &h);
 
         int textX = centerX - static_cast<int>(w / 2);
         int textY = 165;
 
         display.setCursor(static_cast<int16_t>(textX), static_cast<int16_t>(textY));
-        display.print(numberStr);
+        display.print(numberBuf);
 
     } while (display.nextPage());
 

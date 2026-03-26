@@ -1,16 +1,16 @@
 #include "config.h"
 
-#include "display.h"
-
 #include <WiFi.h>
 #include <WiFiManager.h>
 #include <Arduino.h>
+#include <Preferences.h>
 #include <cstdio>
 #include <cstring>
 #include <cstdlib>
 
-Preferences preferences;
+static Preferences preferences;
 char mqtt_server[128] = "";
+int counter = 0;
 int mqtt_port = 8883;
 char mqtt_username[64] = "";
 char mqtt_password[64] = "";
