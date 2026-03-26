@@ -106,7 +106,7 @@ flowchart TD
     wifi{WiFi verbunden?}
     recon[WiFi.reconnect max 1x/30s]
     dbg[buttonDebugStatus alle 5s]
-    wait[light sleep adaptiv 10ms oder 150ms]
+    wait[light sleep adaptiv 10ms oder 500ms]
 
     start --> btn --> led --> mq
     mq --> wifi
@@ -118,7 +118,7 @@ flowchart TD
 - **mqttLoop:** Bei Verbindungsverlust **nicht-blockierender** Reconnect (ein Versuch pro Abstand, exponentieller Backoff 5 s bis max. 60 s bei Connect-Fehlern; leerer Server / kein WLAN: feste Intervalle)
 - **WiFi:** bei Verlust Reconnect (max. alle **30 s**, sofort beim ersten Verlust); nach **3** fehlgeschlagenen Versuchen `disconnect`, nach **>= 100 ms** (naechste Loop-Iterationen) `WiFi.begin()` ohne blockierendes `delay(100)`
 - **Display:** nach MQTT-Empfang nur Flag; `drawHeartWithNumber()` laeuft in `loop()` wenn `consumeHeartRedraw()`; NVS-Zaehler wird **nicht** bei jedem Redraw geflusht, sondern throttled ueber `maybeSaveHeartCounter()` (~30 s)
-- **Light-Sleep:** Timer **10 ms**, wenn `buttonIsLedTxSequenceActive()` (LED-Sequenz), sonst **150 ms**; Taster weiter per GPIO-Wakeup
+- **Light-Sleep:** Timer **10 ms**, wenn `buttonIsLedTxSequenceActive()` (LED-Sequenz), sonst **500 ms**; Taster weiter per GPIO-Wakeup
 - **Debug:** alle 5 s Button-/LED-Zustand auf Serial
 
 ## MQTT-Protokoll (praktisch)
@@ -137,6 +137,6 @@ Authentifizierung: optional ueber `mqtt_username` / `mqtt_password` aus dem Port
 
 - **WiFi:** WiFiManager speichert Zugangsdaten intern.
 - **MQTT:** Namespace `mqtt` in `Preferences` (`server`, `port`, `user`, `pass`, `topic_pub`, `topic_sub`).
-- **Zaehler:** Namespace `heart`, Key `counter` (wird bei MQTT-Empfang aktualisiert; Factory Reset loescht mit).
+- **Zaehler:** Namespace `heart`, Key `counter` (wird bei MQTT-Empfang aktualisiert; Factory Reset **loescht den Zaehler nicht**).
 
 Siehe [MODULES.md](MODULES.md) fuer Funktionsdetails.

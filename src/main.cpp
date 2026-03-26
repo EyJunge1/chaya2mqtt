@@ -1,5 +1,6 @@
 #include <Arduino.h>
 #include <WiFi.h>
+#include <cstdint>
 #include <driver/gpio.h>
 #include <esp_sleep.h>
 
@@ -8,12 +9,20 @@
 #include "display.h"
 #include "mqtt.h"
 
+#if defined(CORE_DEBUG_LEVEL) && CORE_DEBUG_LEVEL > 0
+#define MAIN_DBG_PRINT(x) Serial.print(x)
+#define MAIN_DBG_PRINTLN(x) Serial.println(x)
+#else
+#define MAIN_DBG_PRINT(x) ((void)0)
+#define MAIN_DBG_PRINTLN(x) ((void)0)
+#endif
+
 static constexpr unsigned long kWifiReconnectIntervalMs = 30000;
 static constexpr unsigned long kWifiHardReconnectGapMs = 100;
 
 /** Light-Sleep: kurz bei aktiver LED-Sequenz, laenger im Idle (Taster weiter per GPIO-Wakeup). */
 static constexpr uint64_t kLightSleepActiveUs = 10000ULL;   // 10 ms
-static constexpr uint64_t kLightSleepIdleUs = 150000ULL;    // 150 ms
+static constexpr uint64_t kLightSleepIdleUs = 500000ULL;    // 500 ms
 
 static uint64_t computeLightSleepTimerUs() {
     if (buttonIsLedTxSequenceActive()) {
@@ -30,10 +39,10 @@ static void armLightSleepWakeupSources(uint64_t timerUs) {
 
 void setup() {
     Serial.begin(115200);
-    Serial.println("=== ESP32 Rotes Herz Display mit MQTT ===");
+    MAIN_DBG_PRINTLN("=== ESP32 Rotes Herz Display mit MQTT ===");
 
     displayInit();
-    Serial.println("Display initialisiert...");
+    MAIN_DBG_PRINTLN("Display initialisiert...");
 
     buttonInit();
 
@@ -45,7 +54,7 @@ void setup() {
 
     armLightSleepWakeupSources(computeLightSleepTimerUs());
 
-    Serial.println("Setup abgeschlossen");
+    MAIN_DBG_PRINTLN("Setup abgeschlossen");
 
     drawHeartWithNumber();
 
@@ -81,7 +90,7 @@ void loop() {
         } else if (wifiReconnectDueImmediately || now - lastWifiReconnectMs >= kWifiReconnectIntervalMs) {
             wifiReconnectDueImmediately = false;
             lastWifiReconnectMs = now;
-            Serial.println("WiFi verloren! Versuche Reconnect...");
+            MAIN_DBG_PRINTLN("WiFi verloren! Versuche Reconnect...");
             if (wifiReconnectAttempts >= 3) {
                 WiFi.disconnect(false);
                 wifiHardReconnectPending = true;
@@ -113,6 +122,11 @@ void loop() {
     }
 #endif
 
-    armLightSleepWakeupSources(computeLightSleepTimerUs());
+    static uint64_t lastArmedLightSleepTimerUs = UINT64_MAX;
+    const uint64_t lightSleepTimerUs = computeLightSleepTimerUs();
+    if (lightSleepTimerUs != lastArmedLightSleepTimerUs) {
+        armLightSleepWakeupSources(lightSleepTimerUs);
+        lastArmedLightSleepTimerUs = lightSleepTimerUs;
+    }
     esp_light_sleep_start();
 }

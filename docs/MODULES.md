@@ -18,7 +18,7 @@ Uebersicht aller Quelldateien unter `src/`: oeffentliche API, globale Symbole un
 6. `loadHeartCounter()` -- Zaehler aus NVS (Namespace `heart`)
 7. `setupWiFi()` -- WiFiManager inkl. Portal-Parameter; danach `WiFi.setSleep(true)` und `esp_wifi_set_ps(WIFI_PS_MAX_MODEM)` (aggressiver Modem-Sleep)
 8. `mqttSetup()` -- TLS-Client mit eingebautem CA-Bundle, Broker, Callback
-9. Light-Sleep-Wakeup-Quellen (**adaptiver** Timer: **10 ms** bei aktiver MQTT-Sende-LED-Sequenz, **150 ms** im Idle + GPIO Taster) fuer `loop()`
+9. Light-Sleep-Wakeup-Quellen (**adaptiver** Timer: **10 ms** bei aktiver MQTT-Sende-LED-Sequenz, **500 ms** im Idle + GPIO Taster) fuer `loop()`
 10. `drawHeartWithNumber()` -- erste Darstellung (mit geladenem `heartCounter`); danach `display.hibernate()`
 11. `buttonStartupBlink()` -- 3x LED-Blitz
 
@@ -64,7 +64,7 @@ Uebersicht aller Quelldateien unter `src/`: oeffentliche API, globale Symbole un
 | `maybeSaveHeartCounter()` | Schreibt nur, wenn `heartCounter` sich geaendert hat und seit letztem Schreiben mindestens **30 s** vergangen sind (weniger Flash-Verschleiss) |
 | `flushHeartCounterIfDirty()` | Sofortiges NVS-Schreiben bei Dirty-`heartCounter` (nach MQTT-Neuzeichnen in `main`, vor `ESP.restart()` nach fehlgeschlagenem Portal) |
 | `setupWiFi()` | WiFiManager: Timeout **180 s**, AP-Name **`HeartESP32-Setup`**, sechs Custom-Parameter fuer MQTT (Stack-Lebensdauer; Save-Callback nur waehrend `autoConnect()`); `setSaveParamsCallback(saveParamsFromPortal)`; bei Fehlschlag `flushHeartCounterIfDirty()`, **delay(500)**, dann `ESP.restart()`; nach Erfolg `WiFi.setSleep(true)` und `esp_wifi_set_ps(WIFI_PS_MAX_MODEM)` |
-| `resetAllSettings()` | `WiFiManager::resetSettings()`, Namespaces `mqtt` und `heart` `clear()` (jeweils mit `begin`-Fehlerpruefung), Neustart |
+| `resetAllSettings()` | `WiFiManager::resetSettings()`, Namespace `mqtt` `clear()` (mit `begin`-Fehlerpruefung); **Herz-Zaehler** (Namespace `heart`) bleibt erhalten; vor Neustart `flushHeartCounterIfDirty()` |
 
 ### Implementierungsdetails
 
@@ -118,8 +118,8 @@ Der Zaehlerstand kommt aus **`config.h`** (`extern int heartCounter`).
 | Funktion | Beschreibung |
 |----------|--------------|
 | `mqttSetup()` | `setBufferSize(512)`, `setServer`, `setCallback`, `setKeepAlive(60)`, `setSocketTimeout(5)` (s), `setCACertBundle()` mit eingebettetem Mozilla-Bundle |
-| `mqttLoop()` | Wenn nicht verbunden: Connect-Versuch wenn `millis() - lastAttempt >= backoff` (overflow-sicher); bei Connect-Fehler exponentieller Backoff 5 s bis max. 60 s; leerer Server / kein WLAN: feste Wartezeiten; bei **Uebergang** zu verbunden: Backoff zuruecksetzen; danach `client.loop()` |
-| `mqttPublishHeart()` | Publiziert Payload **`heart`** auf `mqtt_topic_pub`, wenn verbunden; bis zu **2** Versuche mit `client.loop()` (PubSubClient hat kein QoS-1-Publish) |
+| `mqttLoop()` | Wenn nicht verbunden: Connect-Versuch wenn `millis() - lastAttempt >= backoff` (overflow-sicher); bei Connect-Fehler exponentieller Backoff 5 s bis max. 60 s; **leerer MQTT-Server:** Warteintervall **60 s**; kein WLAN: **5 s**; bei **Uebergang** zu verbunden: Backoff zuruecksetzen; danach `client.loop()` |
+| `mqttPublishHeart()` | Ein Publish-Versuch **`heart`** auf `mqtt_topic_pub`, wenn verbunden; bei Fehlschlag ein `client.loop()`. **2** Versuche laufen nicht-blockierend in `button.cpp` (LED-State-Machine, Phase `PublishRetryWait`) |
 
 ### Callback `mqttCallback`
 

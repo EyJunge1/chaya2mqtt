@@ -9,6 +9,14 @@
 #include <cstring>
 #include <cstdlib>
 
+#if defined(CORE_DEBUG_LEVEL) && CORE_DEBUG_LEVEL > 0
+#define CONFIG_DBG_PRINT(x) Serial.print(x)
+#define CONFIG_DBG_PRINTLN(x) Serial.println(x)
+#else
+#define CONFIG_DBG_PRINT(x) ((void)0)
+#define CONFIG_DBG_PRINTLN(x) ((void)0)
+#endif
+
 static Preferences preferences;
 char mqtt_server[128] = "";
 int heartCounter = 0;
@@ -39,7 +47,7 @@ static void safeStrCopy(char* dst, size_t dstSize, const char* src) {
 
 void loadMQTTConfig() {
     if (!preferences.begin("mqtt", true)) {
-        Serial.println("NVS: Namespace mqtt lesen fehlgeschlagen, nutze Defaults.");
+        CONFIG_DBG_PRINTLN("NVS: Namespace mqtt lesen fehlgeschlagen, nutze Defaults.");
         return;
     }
 
@@ -65,7 +73,7 @@ void loadMQTTConfig() {
 
 void loadHeartCounter() {
     if (!preferences.begin("heart", true)) {
-        Serial.println("NVS: Namespace heart lesen fehlgeschlagen, Zaehler = 0.");
+        CONFIG_DBG_PRINTLN("NVS: Namespace heart lesen fehlgeschlagen, Zaehler = 0.");
         heartCounter = 0;
         lastCommittedHeartCounter = 0;
         lastHeartCounterSaveMs = millis();
@@ -79,7 +87,7 @@ void loadHeartCounter() {
 
 void saveHeartCounter() {
     if (!preferences.begin("heart", false)) {
-        Serial.println("NVS: Namespace heart schreiben fehlgeschlagen (Zaehler nicht gespeichert).");
+        CONFIG_DBG_PRINTLN("NVS: Namespace heart schreiben fehlgeschlagen (Zaehler nicht gespeichert).");
         return;
     }
     preferences.putInt("counter", heartCounter);
@@ -108,7 +116,7 @@ void flushHeartCounterIfDirty() {
 
 void saveMQTTConfig() {
     if (!preferences.begin("mqtt", false)) {
-        Serial.println("NVS: Namespace mqtt schreiben fehlgeschlagen.");
+        CONFIG_DBG_PRINTLN("NVS: Namespace mqtt schreiben fehlgeschlagen.");
         return;
     }
     preferences.putString("server", mqtt_server);
@@ -177,9 +185,9 @@ void setupWiFi() {
 
     wifiManager.setSaveParamsCallback(saveParamsFromPortal);
 
-    Serial.print("Starte WiFi (Captive Portal bei Bedarf: HeartESP32-Setup)...");
+    CONFIG_DBG_PRINT("Starte WiFi (Captive Portal bei Bedarf: HeartESP32-Setup)...");
     if (!wifiManager.autoConnect("HeartESP32-Setup")) {
-        Serial.println("Konfiguration fehlgeschlagen, Neustart...");
+        CONFIG_DBG_PRINTLN("Konfiguration fehlgeschlagen, Neustart...");
         g_param_mqtt_server = nullptr;
         g_param_mqtt_port = nullptr;
         g_param_mqtt_user = nullptr;
@@ -198,35 +206,30 @@ void setupWiFi() {
     g_param_mqtt_topic_pub = nullptr;
     g_param_mqtt_topic_sub = nullptr;
 
-    Serial.println("");
-    Serial.println("WiFi verbunden!");
-    Serial.print("IP Adresse: ");
-    Serial.println(WiFi.localIP());
-    Serial.print("Gateway: ");
-    Serial.println(WiFi.gatewayIP());
-    Serial.print("DNS: ");
-    Serial.println(WiFi.dnsIP());
+    CONFIG_DBG_PRINTLN("");
+    CONFIG_DBG_PRINTLN("WiFi verbunden!");
+    CONFIG_DBG_PRINT("IP Adresse: ");
+    CONFIG_DBG_PRINTLN(WiFi.localIP());
+    CONFIG_DBG_PRINT("Gateway: ");
+    CONFIG_DBG_PRINTLN(WiFi.gatewayIP());
+    CONFIG_DBG_PRINT("DNS: ");
+    CONFIG_DBG_PRINTLN(WiFi.dnsIP());
 
     WiFi.setSleep(true);
     esp_wifi_set_ps(WIFI_PS_MAX_MODEM);
 }
 
 void resetAllSettings() {
-    Serial.println("Alle Einstellungen werden gelöscht (WLAN + MQTT)...");
+    CONFIG_DBG_PRINTLN("Alle Einstellungen werden gelöscht (WLAN + MQTT)...");
     WiFiManager wm;
     wm.resetSettings();
     if (preferences.begin("mqtt", false)) {
         preferences.clear();
         preferences.end();
     } else {
-        Serial.println("NVS: mqtt loeschen fehlgeschlagen.");
+        CONFIG_DBG_PRINTLN("NVS: mqtt loeschen fehlgeschlagen.");
     }
-    if (preferences.begin("heart", false)) {
-        preferences.clear();
-        preferences.end();
-    } else {
-        Serial.println("NVS: heart loeschen fehlgeschlagen.");
-    }
+    flushHeartCounterIfDirty();
     delay(500);
     ESP.restart();
 }

@@ -8,6 +8,7 @@
 #include <WiFiClientSecure.h>
 #include <PubSubClient.h>
 #include <algorithm>
+#include <climits>
 #include <cstdio>
 #include <cstring>
 #include <esp_random.h>
@@ -28,9 +29,6 @@ static PubSubClient client(espClient);
 
 static constexpr unsigned long kMqttBackoffInitialMs = 5000;
 static constexpr unsigned long kMqttBackoffMaxMs = 60000;
-
-static constexpr unsigned kPublishMaxAttempts = 2;
-static constexpr unsigned long kPublishRetryDelayMs = 25;
 
 static unsigned long lastMqttAttemptAt = 0;
 static unsigned long mqttBackoffMs = 0;
@@ -53,7 +51,7 @@ static unsigned long mqttTryConnectSinglePass() {
     if (strlen(mqtt_server) == 0) {
         MQTT_DBG_PRINTLN(
             "Kein MQTT-Server konfiguriert. Bitte Captive Portal erneut öffnen (Reset: Taste 5s halten).");
-        return 10000;
+        return 60000;
     }
 
     if (WiFi.status() != WL_CONNECTED) { // NOLINT(readability-static-accessed-through-instance)
@@ -103,7 +101,9 @@ static void mqttCallback(char* topic, byte* payload, unsigned int length) {
     Serial.println();
 #endif
 
-    heartCounter++;
+    if (heartCounter < INT_MAX) {
+        heartCounter++;
+    }
     requestHeartRedraw();
 }
 
@@ -112,15 +112,12 @@ bool mqttPublishHeart() {
         MQTT_DBG_PRINTLN("MQTT nicht verbunden!");
         return false;
     }
-    // PubSubClient unterstuetzt kein QoS-1-Publish; mehrere Versuche mit loop() fuer TCP-Stack.
+    // Ein Publish-Versuch; Retries laufen nicht-blockierend in button.cpp (LED-State-Machine).
     static constexpr char kPayload[] = "heart";
-    for (unsigned attempt = 0; attempt < kPublishMaxAttempts; ++attempt) {
-        if (client.publish(mqtt_topic_pub, kPayload)) {
-            return true;
-        }
-        client.loop();
-        delay(kPublishRetryDelayMs);
+    if (client.publish(mqtt_topic_pub, kPayload)) {
+        return true;
     }
+    client.loop();
     return false;
 }
 

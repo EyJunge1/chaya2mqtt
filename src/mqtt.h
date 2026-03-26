@@ -3,5 +3,5 @@
 void mqttSetup();
 void mqttLoop();
 
-/** Sendet festen Payload "heart" auf mqtt_topic_pub (TLS); mehrere Versuche mit client.loop(). */
+/** Sendet einen Publish-Versuch "heart" auf mqtt_topic_pub (TLS); bei Fehlschlag ein client.loop(). */
 bool mqttPublishHeart();

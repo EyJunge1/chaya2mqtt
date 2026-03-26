@@ -11,12 +11,14 @@
 #define BUTTON_DBG_PRINTLN(x) ((void)0)
 #endif
 
-static const int BUTTON_LED_PIN = 4;
+static constexpr int kButtonLedPin = 4;
 
 static constexpr unsigned long kDebounceStableMs = 20;
 
-static const unsigned long LONG_PRESS_MS = 5000;
-static const unsigned long SHORT_PRESS_MIN_MS = 50;
+static constexpr unsigned long kLongPressMs = 5000;
+static constexpr unsigned long kShortPressMinMs = 50;
+static constexpr unsigned kPublishMaxAttempts = 2;
+static constexpr unsigned long kPublishRetryDelayMs = 25;
 static bool buttonHeldDown = false;
 static unsigned long buttonPressStartMs = 0;
 static bool longPressResetTriggered = false;
@@ -37,6 +39,7 @@ enum class LedTxPhase : uint8_t {
     PreOn2,
     PreOff2,
     PublishTry,
+    PublishRetryWait,
     PostWait,
     PostOn1,
     PostOff1,
@@ -47,6 +50,7 @@ enum class LedTxPhase : uint8_t {
 static LedTxPhase ledTxPhase = LedTxPhase::Idle;
 static unsigned long ledPhaseStartMs = 0;
 static unsigned long ledPhaseDurationMs = 0;
+static unsigned publishFailCount = 0;
 
 static void armLedPhase(unsigned long durationMs) {
     ledPhaseStartMs = millis();
@@ -65,13 +69,13 @@ static void startMqttSendLedSequence() {
     BUTTON_DBG_PRINTLN("Button-Druck erkannt!");
     BUTTON_DBG_PRINTLN("Sende MQTT-Nachricht (LED-Sequenz)...");
     ledTxPhase = LedTxPhase::PreOn1;
-    digitalWrite(BUTTON_LED_PIN, HIGH);
+    digitalWrite(kButtonLedPin, HIGH);
     armLedPhase(100);
 }
 
 void buttonInit() {
     pinMode(kButtonGpio, INPUT_PULLDOWN);
-    pinMode(BUTTON_LED_PIN, OUTPUT);
+    pinMode(kButtonLedPin, OUTPUT);
     buttonLastRawReading = digitalRead(kButtonGpio);
     buttonDebouncedLevel = buttonLastRawReading;
     buttonLastDebounceChangeMs = millis();
@@ -79,12 +83,12 @@ void buttonInit() {
 
 void buttonStartupBlink() {
     for (int i = 0; i < 3; i++) {
-        digitalWrite(BUTTON_LED_PIN, HIGH);
+        digitalWrite(kButtonLedPin, HIGH);
         delay(200);
-        digitalWrite(BUTTON_LED_PIN, LOW);
+        digitalWrite(kButtonLedPin, LOW);
         delay(200);
     }
-    digitalWrite(BUTTON_LED_PIN, LOW);
+    digitalWrite(kButtonLedPin, LOW);
 }
 
 void checkLEDStatus() {
@@ -102,24 +106,25 @@ void checkLEDStatus() {
             break;
 
         case LedTxPhase::PreOn1:
-            digitalWrite(BUTTON_LED_PIN, LOW);
+            digitalWrite(kButtonLedPin, LOW);
             ledTxPhase = LedTxPhase::PreOff1;
             armLedPhase(100);
             break;
 
         case LedTxPhase::PreOff1:
-            digitalWrite(BUTTON_LED_PIN, HIGH);
+            digitalWrite(kButtonLedPin, HIGH);
             ledTxPhase = LedTxPhase::PreOn2;
             armLedPhase(100);
             break;
 
         case LedTxPhase::PreOn2:
-            digitalWrite(BUTTON_LED_PIN, LOW);
+            digitalWrite(kButtonLedPin, LOW);
             ledTxPhase = LedTxPhase::PreOff2;
             armLedPhase(100);
             break;
 
         case LedTxPhase::PreOff2:
+            publishFailCount = 0;
             ledTxPhase = LedTxPhase::PublishTry;
             armLedPhase(0);
             break;
@@ -131,39 +136,50 @@ void checkLEDStatus() {
                 ledTxPhase = LedTxPhase::PostWait;
                 armLedPhase(500);
             } else {
-                BUTTON_DBG_PRINTLN("MQTT Sendung fehlgeschlagen!");
-                digitalWrite(BUTTON_LED_PIN, LOW);
-                ledTxPhase = LedTxPhase::Idle;
+                publishFailCount++;
+                if (publishFailCount >= kPublishMaxAttempts) {
+                    BUTTON_DBG_PRINTLN("MQTT Sendung fehlgeschlagen!");
+                    digitalWrite(kButtonLedPin, LOW);
+                    ledTxPhase = LedTxPhase::Idle;
+                } else {
+                    ledTxPhase = LedTxPhase::PublishRetryWait;
+                    armLedPhase(kPublishRetryDelayMs);
+                }
             }
             break;
         }
 
+        case LedTxPhase::PublishRetryWait:
+            ledTxPhase = LedTxPhase::PublishTry;
+            armLedPhase(0);
+            break;
+
         case LedTxPhase::PostWait:
-            digitalWrite(BUTTON_LED_PIN, HIGH);
+            digitalWrite(kButtonLedPin, HIGH);
             ledTxPhase = LedTxPhase::PostOn1;
             armLedPhase(100);
             break;
 
         case LedTxPhase::PostOn1:
-            digitalWrite(BUTTON_LED_PIN, LOW);
+            digitalWrite(kButtonLedPin, LOW);
             ledTxPhase = LedTxPhase::PostOff1;
             armLedPhase(100);
             break;
 
         case LedTxPhase::PostOff1:
-            digitalWrite(BUTTON_LED_PIN, HIGH);
+            digitalWrite(kButtonLedPin, HIGH);
             ledTxPhase = LedTxPhase::PostOn2;
             armLedPhase(100);
             break;
 
         case LedTxPhase::PostOn2:
-            digitalWrite(BUTTON_LED_PIN, LOW);
+            digitalWrite(kButtonLedPin, LOW);
             ledTxPhase = LedTxPhase::PostOff2;
             armLedPhase(100);
             break;
 
         case LedTxPhase::PostOff2:
-            digitalWrite(BUTTON_LED_PIN, LOW);
+            digitalWrite(kButtonLedPin, LOW);
             ledTxPhase = LedTxPhase::Idle;
             break;
     }
@@ -186,15 +202,15 @@ void buttonLoop() {
             buttonHeldDown = true;
             buttonPressStartMs = nowMs;
             longPressResetTriggered = false;
-        } else if (!longPressResetTriggered && (nowMs - buttonPressStartMs >= LONG_PRESS_MS)) {
+        } else if (!longPressResetTriggered && (nowMs - buttonPressStartMs >= kLongPressMs)) {
             longPressResetTriggered = true;
-            digitalWrite(BUTTON_LED_PIN, LOW);
+            digitalWrite(kButtonLedPin, LOW);
             resetAllSettings();
         }
     } else {
         if (buttonHeldDown) {
             const unsigned long held = nowMs - buttonPressStartMs;
-            if (!longPressResetTriggered && held >= SHORT_PRESS_MIN_MS && held < LONG_PRESS_MS) {
+            if (!longPressResetTriggered && held >= kShortPressMinMs && held < kLongPressMs) {
                 if (!ledSendSequenceActive()) {
                     startMqttSendLedSequence();
                 }
@@ -214,7 +230,7 @@ void buttonDebugStatus() {
     Serial.print("Button State: ");
     Serial.println(digitalRead(kButtonGpio));
     Serial.print("LED State: ");
-    Serial.println(digitalRead(BUTTON_LED_PIN));
+    Serial.println(digitalRead(kButtonLedPin));
     Serial.println("==================");
 #endif
 }

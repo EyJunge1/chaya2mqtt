@@ -24,7 +24,8 @@ Zwei ESP32-Geräte mit einem 3-Farben-E-Paper-Display zeigen jeweils ein **rotes
 
 ```bash
 # Im Projektverzeichnis
-pio run                    # Bauen
+pio run                    # Bauen (Debug: CORE_DEBUG_LEVEL=3)
+pio run -e esp32dev-release   # Optional: Produktion ohne Serial-Debug-Ausgaben
 pio run -t upload          # Flashen
 pio device monitor         # Serieller Monitor (115200 Baud)
 ```
@@ -59,7 +60,7 @@ So gilt: Knopf auf A → publiziert auf `heart/to_b` → B empfängt → **Count
 
 ## Factory Reset
 
-Knopf **mindestens 5 Sekunden** gedrückt halten → `resetAllSettings()` löscht WiFiManager-Daten und den Preferences-Namespace `mqtt`, anschließend **Neustart**. Danach wieder Captive Portal.
+Knopf **mindestens 5 Sekunden** gedrückt halten → `resetAllSettings()` löscht WiFiManager-Daten und den Preferences-Namespace `mqtt` (der **Herz-Zähler** in `heart` bleibt erhalten), anschließend **Neustart**. Danach wieder Captive Portal.
 
 ## Projektstruktur (Firmware)
 
