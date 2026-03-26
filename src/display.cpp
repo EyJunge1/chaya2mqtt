@@ -2,11 +2,12 @@
 
 #include "config.h"
 
+#include <GxEPD2_3C.h>
 #include <Arduino.h>
 #include <SPI.h>
 #include <cstdio>
 
-GxEPD2_3C<GxEPD2_154_Z90c, GxEPD2_154_Z90c::HEIGHT> display(
+static GxEPD2_3C<GxEPD2_154_Z90c, GxEPD2_154_Z90c::HEIGHT> display(
     GxEPD2_154_Z90c(/*CS=*/ 15, /*DC=*/ 27, /*RST=*/ 26, /*BUSY=*/ 25));
 
 static bool g_heartRedrawPending = false;

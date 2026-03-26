@@ -115,16 +115,15 @@ bool mqttPublishHeart() {
     }
     // Ein Publish-Versuch; Retries laufen nicht-blockierend in button.cpp (LED-State-Machine).
     static constexpr char kPayload[] = "heart";
-    if (client.publish(mqtt_topic_pub, kPayload)) {
-        return true;
-    }
-    client.loop();
-    return false;
+    return client.publish(mqtt_topic_pub, kPayload);
 }
 
 void mqttSetup() {
     espClient.setCACertBundle(x509_crt_bundle_start);
-    client.setBufferSize(384);
+    // 256 B: typische Nutzlast; bei max. Portal-Längen (128-Zeichen-Topics + User/Pass + LWT) ggf. >256 nötig.
+    if (!client.setBufferSize(256)) {
+        MQTT_DBG_PRINTLN("MQTT: setBufferSize(256) fehlgeschlagen, PubSubClient nutzt vorhandenen Buffer.");
+    }
     client.setServer(mqtt_server, mqtt_port);
     client.setCallback(mqttCallback);
     // E-Paper Full-Refresh blockiert ~8s; längeres Keep-Alive verhindert Broker-Timeout bei zwei Refreshes hintereinander.

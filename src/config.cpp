@@ -155,6 +155,12 @@ static void saveParamsFromPortal() {
     if (g_param_mqtt_topic_sub != nullptr) {
         safeStrCopy(mqtt_topic_sub, sizeof(mqtt_topic_sub), g_param_mqtt_topic_sub->getValue());
     }
+    if (strcmp(mqtt_topic_pub, mqtt_topic_sub) == 0) {
+        CONFIG_DBG_PRINTLN(
+            "MQTT: Sende- und Empfangs-Topic identisch (Selbstempfang) -- nutze Defaults heart/to_b und heart/to_a.");
+        safeStrCopy(mqtt_topic_pub, sizeof(mqtt_topic_pub), "heart/to_b");
+        safeStrCopy(mqtt_topic_sub, sizeof(mqtt_topic_sub), "heart/to_a");
+    }
     saveMQTTConfig();
 }
 
@@ -222,6 +228,7 @@ void setupWiFi() {
 
     WiFi.setSleep(true);
     esp_wifi_set_ps(WIFI_PS_MAX_MODEM);
+    (void)esp_wifi_set_bandwidth(WIFI_IF_STA, WIFI_BW_HT20);
 }
 
 void resetAllSettings() {

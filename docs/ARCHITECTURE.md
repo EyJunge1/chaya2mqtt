@@ -93,7 +93,7 @@ sequenceDiagram
 3. Display hardware initialisieren
 4. Button/LED-Pins
 5. Gespeicherte MQTT-Parameter laden; Zaehler aus NVS (`loadHeartCounter`)
-6. WiFi (ggf. Captive Portal) + Speichern der Portal-Parameter; danach **WiFi Modem Sleep** (`WiFi.setSleep(true)`) und **`esp_wifi_set_ps(WIFI_PS_MAX_MODEM)`** (aggressiverer Stromsparmodus)
+6. WiFi (ggf. Captive Portal) + Speichern der Portal-Parameter; bei **identischem** Sende- und Empfangs-Topic werden Defaults `heart/to_b` / `heart/to_a` gespeichert (kein Selbstempfang). Danach **WiFi Modem Sleep** (`WiFi.setSleep(true)`), **`esp_wifi_set_ps(WIFI_PS_MAX_MODEM)`** und **HT20** (`esp_wifi_set_bandwidth(WIFI_IF_STA, WIFI_BW_HT20)`)
 7. MQTT-Client konfigurieren (Server, Callback, TLS mit CA-Bundle)
 8. **Light-Sleep-Wakeup:** `armLightSleepStaticWakeups()` (GPIO Taster, WiFi), danach `armLightSleepTimerWakeup()` (adaptiver Timer)
 9. Erste Zeichnung mit `heartCounter` (Start: 0); nach Refresh **Display Hibernate** (Controller Deep Sleep)

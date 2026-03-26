@@ -93,7 +93,7 @@ Uebersicht aller Quelldateien unter `src/`: oeffentliche API, globale Symbole un
 
 | Symbol | Beschreibung |
 |--------|--------------|
-| `display` | `GxEPD2_3C<GxEPD2_154_Z90c, ...>` -- CS=15, DC=27, RST=26, BUSY=25 |
+| Display-Instanz | nur in `display.cpp` (`static`), nicht exportiert -- CS=15, DC=27, RST=26, BUSY=25 |
 
 Der Zaehlerstand kommt aus **`config.h`** (`extern int heartCounter`).
 
@@ -127,7 +127,7 @@ Der Zaehlerstand kommt aus **`config.h`** (`extern int heartCounter`).
 
 | Funktion | Beschreibung |
 |----------|--------------|
-| `mqttSetup()` | `setBufferSize(384)` (gross genug fuer Worst-Case CONNECT mit langen Topics/Credentials), `setServer`, `setCallback`, `setKeepAlive(60)`, `setSocketTimeout(5)` (s), `setCACertBundle()` mit eingebettetem Mozilla-Bundle |
+| `mqttSetup()` | `setBufferSize(256)` mit Pruefung des Rueckgabewerts; `setServer`, `setCallback`, `setKeepAlive(60)`, `setSocketTimeout(5)` (s), `setCACertBundle()` mit eingebettetem Mozilla-Bundle (bei sehr langen Portal-Strings ggf. Buffer in Code erhoehen) |
 | `mqttLoop()` | Wenn nicht verbunden: Connect-Versuch wenn `millis() - lastAttempt >= backoff` (overflow-sicher); bei Connect-Fehler exponentieller Backoff 5 s bis max. 60 s; **leerer MQTT-Server:** Warteintervall **60 s**; kein WLAN: **5 s**; bei **Uebergang** zu verbunden: Backoff zuruecksetzen; danach `client.loop()` |
 | `mqttPublishHeart()` | Ein Publish-Versuch **`heart`** auf `mqtt_topic_pub`, wenn verbunden; bei Fehlschlag ein `client.loop()`. **2** Versuche laufen nicht-blockierend in `button.cpp` (LED-State-Machine, Phase `PublishRetryWait`) |
 

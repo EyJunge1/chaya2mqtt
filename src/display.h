@@ -1,9 +1,5 @@
 #pragma once
 
-#include <GxEPD2_3C.h>
-
-extern GxEPD2_3C<GxEPD2_154_Z90c, GxEPD2_154_Z90c::HEIGHT> display;
-
 void displayInit();
 void drawHeartWithNumber();
 
