@@ -10,6 +10,7 @@ CompileFlags:
     - -march=*
     - -mfix-esp32-psram-cache-*
   Add:
+    - -std=gnu++17
     - -Wno-unknown-attributes
     - -Wno-unknown-pragmas
     - -ferror-limit=200
