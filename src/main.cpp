@@ -31,32 +31,44 @@ void setup() {
 }
 
 void loop() {
+    const unsigned long now = millis();
+
     buttonLoop();
     checkLEDStatus();
     mqttLoop();
     maybeSaveHeartCounter();
 
     static unsigned long lastWifiReconnectMs = 0;
+    static bool wifiWasConnected = true;
+    static bool wifiReconnectDueImmediately = false;
     if (WiFi.status() != WL_CONNECTED) { // NOLINT(readability-static-accessed-through-instance)
-        const unsigned long now = millis();
-        if (now - lastWifiReconnectMs >= kWifiReconnectIntervalMs) {
+        if (wifiWasConnected) {
+            wifiReconnectDueImmediately = true;
+            wifiWasConnected = false;
+        }
+        if (wifiReconnectDueImmediately || now - lastWifiReconnectMs >= kWifiReconnectIntervalMs) {
+            wifiReconnectDueImmediately = false;
             lastWifiReconnectMs = now;
             Serial.println("WiFi verloren! Versuche Reconnect...");
             WiFi.reconnect();
         }
     } else {
-        lastWifiReconnectMs = millis();
+        wifiWasConnected = true;
+        lastWifiReconnectMs = now;
     }
 
     if (consumeHeartRedraw()) {
         drawHeartWithNumber();
+        flushHeartCounterIfDirty();
     }
 
+#if defined(CORE_DEBUG_LEVEL) && CORE_DEBUG_LEVEL > 0
     static unsigned long lastDbg = 0;
-    if (millis() - lastDbg > 5000) {
+    if (now - lastDbg > 5000) {
         buttonDebugStatus();
-        lastDbg = millis();
+        lastDbg = now;
     }
+#endif
 
     delay(5);
 }

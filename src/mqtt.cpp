@@ -7,6 +7,7 @@
 #include <WiFi.h>
 #include <cstdio>
 #include <cstring>
+#include <esp_random.h>
 
 WiFiClientSecure espClient;
 PubSubClient client(espClient);
@@ -81,10 +82,14 @@ static void mqttCallback(char* topic, byte* payload, unsigned int length) {
 }
 
 void mqttSetup() {
+    // Echte Zufallswerte für Arduino random() (Client-ID), nicht nur libc-rand().
+    randomSeed(static_cast<unsigned long>(esp_random()));
     // Heimnetz: keine Zertifikatsprüfung (Man-in-the-Middle möglich). Für Produktion Root-CA einbinden.
     espClient.setInsecure();
     client.setServer(mqtt_server, mqtt_port);
     client.setCallback(mqttCallback);
+    // E-Paper Full-Refresh blockiert ~8s; längeres Keep-Alive verhindert Broker-Timeout bei zwei Refreshes hintereinander.
+    client.setKeepAlive(60);
     lastMqttAttemptAt = 0;
     mqttBackoffMs = 0;
 }
@@ -105,7 +110,7 @@ void mqttLoop() {
             lastMqttAttemptAt = now;
             mqttBackoffMs = mqttTryConnectSinglePass();
         }
+    } else {
+        client.loop();
     }
-
-    client.loop();
 }

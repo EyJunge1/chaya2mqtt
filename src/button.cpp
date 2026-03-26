@@ -15,7 +15,9 @@ static bool buttonHeldDown = false;
 static unsigned long buttonPressStartMs = 0;
 static bool longPressResetTriggered = false;
 
+#if defined(CORE_DEBUG_LEVEL) && CORE_DEBUG_LEVEL > 0
 static int debugCounter = 0;
+#endif
 
 /** Nicht-blockierende MQTT-Sende-LED-Sequenz (2x Blink, Publish, Pause, 2x Blink). */
 enum class LedTxPhase : uint8_t {
@@ -178,6 +180,7 @@ void buttonLoop() {
 }
 
 void buttonDebugStatus() {
+#if defined(CORE_DEBUG_LEVEL) && CORE_DEBUG_LEVEL > 0
     debugCounter++;
     Serial.println("=== DEBUG STATUS ===");
     Serial.print("Debug Counter: ");
@@ -187,4 +190,5 @@ void buttonDebugStatus() {
     Serial.print("LED State: ");
     Serial.println(digitalRead(BUTTON_LED_PIN));
     Serial.println("==================");
+#endif
 }
