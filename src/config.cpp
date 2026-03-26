@@ -3,6 +3,7 @@
 #include <WiFi.h>
 #include <WiFiManager.h>
 #include <Arduino.h>
+#include <esp_wifi.h>
 #include <Preferences.h>
 #include <cstdio>
 #include <cstring>
@@ -186,7 +187,7 @@ void setupWiFi() {
         g_param_mqtt_topic_pub = nullptr;
         g_param_mqtt_topic_sub = nullptr;
         flushHeartCounterIfDirty();
-        delay(3000);
+        delay(500);
         ESP.restart();
     }
 
@@ -207,6 +208,7 @@ void setupWiFi() {
     Serial.println(WiFi.dnsIP());
 
     WiFi.setSleep(true);
+    esp_wifi_set_ps(WIFI_PS_MAX_MODEM);
 }
 
 void resetAllSettings() {

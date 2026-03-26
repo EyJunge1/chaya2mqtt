@@ -57,6 +57,10 @@ static bool ledSendSequenceActive() {
     return ledTxPhase != LedTxPhase::Idle;
 }
 
+bool buttonIsLedTxSequenceActive() {
+    return ledSendSequenceActive();
+}
+
 static void startMqttSendLedSequence() {
     BUTTON_DBG_PRINTLN("Button-Druck erkannt!");
     BUTTON_DBG_PRINTLN("Sende MQTT-Nachricht (LED-Sequenz)...");
@@ -180,16 +184,16 @@ void buttonLoop() {
     if (reading == HIGH) {
         if (!buttonHeldDown) {
             buttonHeldDown = true;
-            buttonPressStartMs = millis();
+            buttonPressStartMs = nowMs;
             longPressResetTriggered = false;
-        } else if (!longPressResetTriggered && (millis() - buttonPressStartMs >= LONG_PRESS_MS)) {
+        } else if (!longPressResetTriggered && (nowMs - buttonPressStartMs >= LONG_PRESS_MS)) {
             longPressResetTriggered = true;
             digitalWrite(BUTTON_LED_PIN, LOW);
             resetAllSettings();
         }
     } else {
         if (buttonHeldDown) {
-            const unsigned long held = millis() - buttonPressStartMs;
+            const unsigned long held = nowMs - buttonPressStartMs;
             if (!longPressResetTriggered && held >= SHORT_PRESS_MIN_MS && held < LONG_PRESS_MS) {
                 if (!ledSendSequenceActive()) {
                     startMqttSendLedSequence();

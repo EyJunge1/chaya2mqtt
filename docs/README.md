@@ -10,7 +10,7 @@ Zwei ESP32-Geräte mit einem 3-Farben-E-Paper-Display zeigen jeweils ein **rotes
 - **Web-/Captive-Portal**: WiFi-Zugang und MQTT-Daten (Server, Port, Benutzer, Passwort, Topic) über **WiFiManager** („HeartESP32-Setup“)
 - **Knopf mit LED**: Kurzer Druck → MQTT senden + LED blinkt; nach erfolgreichem Senden nochmals Blinken
 - **Factory Reset**: Knopf **5 Sekunden** halten → WLAN- und MQTT-Einstellungen löschen, Neustart
-- **Energieeffizienz**: CPU **80 MHz**, **WiFi Modem Sleep** nach Verbindung, E-Paper-Controller **`hibernate()`** nach jedem Zeichnen (Bild bleibt sichtbar)
+- **Energieeffizienz**: CPU **80 MHz**, **WiFi Modem Sleep** plus **`WIFI_PS_MAX_MODEM`** nach Verbindung, **adaptiver Light-Sleep** in der Hauptschleife (kürzer während der Sende-LED-Sequenz, länger im Leerlauf), E-Paper-Controller **`hibernate()`** nach jedem Zeichnen (Bild bleibt sichtbar)
 
 ## Voraussetzungen
 

@@ -61,18 +61,18 @@ static unsigned long mqttTryConnectSinglePass() {
         return 5000;
     }
 
-    char willTopic[128];
-    // Begrenzte Basislaenge vermeidet -Wformat-truncation (pub-Topic und Puffer sind je 128 Byte).
-    static constexpr int kLwtSuffixLen = 4; // "/lwt" ohne NUL
-    const int maxPubLen = static_cast<int>(sizeof(willTopic)) - kLwtSuffixLen - 1; // + NUL
-    snprintf(willTopic, sizeof(willTopic), "%.*s/lwt", maxPubLen, mqtt_topic_pub);
+    // mqtt_topic_pub bis 127 Zeichen + "/lwt" (4) + NUL -> mind. 132 Byte; 140 fuer Rand.
+    char willTopic[140];
+    snprintf(willTopic, sizeof(willTopic), "%s/lwt", mqtt_topic_pub);
 
     if (client.connect(clientId, mqtt_username, mqtt_password, willTopic, 1, true, "offline", true)) {
         MQTT_DBG_PRINTLN("MQTT verbunden!");
         mqttCurrentBackoffMs = kMqttBackoffInitialMs;
         MQTT_DBG_PRINT("Subscribing zu Topic (QoS 1): ");
         MQTT_DBG_PRINTLN(mqtt_topic_sub);
-        client.subscribe(mqtt_topic_sub, 1);
+        if (!client.subscribe(mqtt_topic_sub, 1)) {
+            MQTT_DBG_PRINTLN("MQTT: Subscribe fehlgeschlagen.");
+        }
         return 0;
     }
 

@@ -5,7 +5,6 @@
 #include <Arduino.h>
 #include <SPI.h>
 #include <cstdio>
-#include <cstring>
 
 GxEPD2_3C<GxEPD2_154_Z90c, GxEPD2_154_Z90c::HEIGHT> display(
     GxEPD2_154_Z90c(/*CS=*/ 15, /*DC=*/ 27, /*RST=*/ 26, /*BUSY=*/ 25));
@@ -77,8 +76,8 @@ void drawHeartWithNumber() {
                          static_cast<int16_t>(kHeartSize / 2), GxEPD_RED);
 
         char numberBuf[16];
-        snprintf(numberBuf, sizeof(numberBuf), "%d", heartCounter);
-        const size_t digitLen = strlen(numberBuf);
+        const int sn = snprintf(numberBuf, sizeof(numberBuf), "%d", heartCounter);
+        const size_t digitLen = (sn > 0) ? static_cast<size_t>(sn) : size_t{1};
         uint8_t textSize = 4;
         if (digitLen >= 7) {
             textSize = 2;
