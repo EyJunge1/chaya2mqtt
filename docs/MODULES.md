@@ -61,7 +61,7 @@ Uebersicht aller Quelldateien unter `src/`: oeffentliche API, globale Symbole un
 | `saveHeartCounter()` | Schreibt aktuellen `counter` nach `"heart"` |
 | `maybeSaveHeartCounter()` | Schreibt nur, wenn `counter` sich geaendert hat und seit letztem Schreiben mindestens **30 s** vergangen sind (weniger Flash-Verschleiss) |
 | `flushHeartCounterIfDirty()` | Sofortiges NVS-Schreiben bei Dirty-`counter` (z. B. vor `ESP.restart()` nach fehlgeschlagenem Portal) |
-| `setupWiFi()` | WiFiManager: Timeout **180 s**, AP-Name **`HeartESP32-Setup`**, sechs **static** Custom-Parameter fuer MQTT (Lebensdauer fuer Save-Callback); `setSaveParamsCallback(saveParamsFromPortal)`; bei Fehlschlag `flushHeartCounterIfDirty()`, dann `ESP.restart()` |
+| `setupWiFi()` | WiFiManager: Timeout **180 s**, AP-Name **`HeartESP32-Setup`**, sechs Custom-Parameter fuer MQTT (Stack-Lebensdauer; Save-Callback nur waehrend `autoConnect()`); `setSaveParamsCallback(saveParamsFromPortal)`; bei Fehlschlag `flushHeartCounterIfDirty()`, dann `ESP.restart()` |
 | `resetAllSettings()` | `WiFiManager::resetSettings()`, Namespaces `mqtt` und `heart` `clear()`, Neustart |
 
 ### Implementierungsdetails
@@ -69,7 +69,7 @@ Uebersicht aller Quelldateien unter `src/`: oeffentliche API, globale Symbole un
 - `Preferences preferences` ist **file-static** in `config.cpp` (kein globales Symbol in `config.h`).
 - `safeStrCopy(dst, dstSize, src)` -- begrenztes `strncpy`, immer nullterminiert.
 - `saveParamsFromPortal()` -- liest Werte aus `WiFiManagerParameter*`, validiert Port (1--65535, sonst 8883), ruft `saveMQTTConfig()` auf.
-- `WiFiManagerParameter`-Instanzen sind **function-static**; `g_param_*` zeigen nur waehrend `autoConnect()` darauf (Callback laeuft nur dort). Nach `autoConnect` werden die globalen Zeiger auf `nullptr` gesetzt.
+- `WiFiManagerParameter`-Instanzen sind **lokal auf dem Stack** in `setupWiFi()`; `g_param_*` zeigen nur waehrend `autoConnect()` darauf (Save-Callback laeuft nur dort). Nach `autoConnect` werden die globalen Zeiger auf `nullptr` gesetzt.
 
 ---
 

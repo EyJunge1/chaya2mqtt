@@ -129,14 +129,14 @@ void setupWiFi() {
     char portStr[8];
     snprintf(portStr, sizeof(portStr), "%d", mqtt_port);
 
-    // static: Lebensdauer ueber autoConnect() hinaus, damit Save-Params-Callback sichere Zeiger hat.
-    // g_param_* werden nur waehrend autoConnect() gesetzt; Callback laeuft nur dort.
-    static WiFiManagerParameter param_server("mqtt_server", "MQTT Server", mqtt_server, 128);
-    static WiFiManagerParameter param_port("mqtt_port", "MQTT Port", portStr, 6);
-    static WiFiManagerParameter param_user("mqtt_user", "MQTT Username", mqtt_username, 64);
-    static WiFiManagerParameter param_pass("mqtt_pass", "MQTT Password", mqtt_password, 64);
-    static WiFiManagerParameter param_topic_pub("mqtt_topic_pub", "MQTT Sende-Topic", mqtt_topic_pub, 128);
-    static WiFiManagerParameter param_topic_sub("mqtt_topic_sub", "MQTT Empfangs-Topic", mqtt_topic_sub, 128);
+    // WiFiManagerParameter leben auf dem Stack; g_param_* zeigen nur waehrend autoConnect() darauf.
+    // Der Save-Params-Callback wird nur innerhalb autoConnect() aufgerufen -- danach nullptr setzen.
+    WiFiManagerParameter param_server("mqtt_server", "MQTT Server", mqtt_server, 128);
+    WiFiManagerParameter param_port("mqtt_port", "MQTT Port", portStr, 6);
+    WiFiManagerParameter param_user("mqtt_user", "MQTT Username", mqtt_username, 64);
+    WiFiManagerParameter param_pass("mqtt_pass", "MQTT Password", mqtt_password, 64);
+    WiFiManagerParameter param_topic_pub("mqtt_topic_pub", "MQTT Sende-Topic", mqtt_topic_pub, 128);
+    WiFiManagerParameter param_topic_sub("mqtt_topic_sub", "MQTT Empfangs-Topic", mqtt_topic_sub, 128);
 
     wifiManager.addParameter(&param_server);
     wifiManager.addParameter(&param_port);
