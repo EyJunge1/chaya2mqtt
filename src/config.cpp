@@ -21,7 +21,9 @@ static WiFiManagerParameter* g_param_mqtt_pass = nullptr;
 static WiFiManagerParameter* g_param_mqtt_topic = nullptr;
 
 static void safeStrCopy(char* dst, size_t dstSize, const char* src) {
-    if (!dst || dstSize == 0) return;
+    if (dst == nullptr || dstSize == 0) {
+        return;
+    }
     strncpy(dst, src, dstSize - 1);
     dst[dstSize - 1] = '\0';
 }
@@ -48,22 +50,22 @@ void saveMQTTConfig() {
 }
 
 static void saveParamsFromPortal() {
-    if (g_param_mqtt_server) {
+    if (g_param_mqtt_server != nullptr) {
         safeStrCopy(mqtt_server, sizeof(mqtt_server), g_param_mqtt_server->getValue());
     }
-    if (g_param_mqtt_port) {
+    if (g_param_mqtt_port != nullptr) {
         mqtt_port = atoi(g_param_mqtt_port->getValue());
         if (mqtt_port <= 0 || mqtt_port > 65535) {
             mqtt_port = 8883;
         }
     }
-    if (g_param_mqtt_user) {
+    if (g_param_mqtt_user != nullptr) {
         safeStrCopy(mqtt_username, sizeof(mqtt_username), g_param_mqtt_user->getValue());
     }
-    if (g_param_mqtt_pass) {
+    if (g_param_mqtt_pass != nullptr) {
         safeStrCopy(mqtt_password, sizeof(mqtt_password), g_param_mqtt_pass->getValue());
     }
-    if (g_param_mqtt_topic) {
+    if (g_param_mqtt_topic != nullptr) {
         safeStrCopy(mqtt_topic, sizeof(mqtt_topic), g_param_mqtt_topic->getValue());
     }
     saveMQTTConfig();

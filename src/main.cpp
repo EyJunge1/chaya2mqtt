@@ -32,7 +32,7 @@ void loop() {
     checkLEDStatus();
     mqttLoop();
 
-    if (WiFi.status() != WL_CONNECTED) {
+    if (WiFi.status() != WL_CONNECTED) { // NOLINT(readability-static-accessed-through-instance)
         Serial.println("WiFi verloren! Versuche Reconnect...");
         WiFi.reconnect();
     }

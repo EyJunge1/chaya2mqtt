@@ -25,12 +25,16 @@ void drawHeartWithNumber() {
         int centerY = 65;
         int heartSize = 70;
 
-        int circleRadius = heartSize / 2 + 4;
-        int circleY = centerY - heartSize / 3;
-        int circleSpacing = heartSize / 2 - 3;
+        int circleRadius = (heartSize / 2) + 4;
+        int circleY = centerY - (heartSize / 3);
+        int circleSpacing = (heartSize / 2) - 3;
 
-        display.fillCircle(centerX - circleSpacing, circleY, circleRadius, GxEPD_RED);
-        display.fillCircle(centerX + circleSpacing, circleY, circleRadius, GxEPD_RED);
+        display.fillCircle(static_cast<int16_t>(centerX - circleSpacing),
+                           static_cast<int16_t>(circleY),
+                           static_cast<int16_t>(circleRadius), GxEPD_RED);
+        display.fillCircle(static_cast<int16_t>(centerX + circleSpacing),
+                           static_cast<int16_t>(circleY),
+                           static_cast<int16_t>(circleRadius), GxEPD_RED);
 
         int triangleTop = centerY - 2;
         int triangleBottom = centerY + heartSize + 20;
@@ -40,28 +44,34 @@ void drawHeartWithNumber() {
             int maxWidth = heartSize + 61;
             int currentWidth = maxWidth - (progress * maxWidth / (triangleBottom - triangleTop));
 
-            int leftX = centerX - currentWidth / 2;
-            int rightX = centerX + currentWidth / 2;
+            int leftX = centerX - (currentWidth / 2);
+            int rightX = centerX + (currentWidth / 2);
 
             if (y < 200 && leftX >= 0 && rightX < 200) {
-                display.drawLine(leftX, y, rightX, y, GxEPD_RED);
+                display.drawLine(static_cast<int16_t>(leftX), static_cast<int16_t>(y),
+                                 static_cast<int16_t>(rightX), static_cast<int16_t>(y),
+                                 GxEPD_RED);
             }
         }
 
-        display.fillRect(centerX - heartSize / 3, circleY - heartSize / 6, heartSize * 2 / 3,
-                         heartSize / 2, GxEPD_RED);
+        display.fillRect(static_cast<int16_t>(centerX - (heartSize / 3)),
+                         static_cast<int16_t>(circleY - (heartSize / 6)),
+                         static_cast<int16_t>((heartSize * 2) / 3),
+                         static_cast<int16_t>(heartSize / 2), GxEPD_RED);
 
         String numberStr = String(counter);
-        int16_t x1, y1;
-        uint16_t w, h;
+        int16_t x1;
+        int16_t y1;
+        uint16_t w;
+        uint16_t h;
         display.getTextBounds(numberStr, 0, 0, &x1, &y1, &w, &h);
 
-        int textX = centerX - w / 2 - 6;
+        int textX = centerX - (w / 2) - 6;
         int textY = 165;
 
         display.setTextColor(GxEPD_BLACK);
         display.setTextSize(4);
-        display.setCursor(textX, textY);
+        display.setCursor(static_cast<int16_t>(textX), static_cast<int16_t>(textY));
         display.print(numberStr);
 
     } while (display.nextPage());

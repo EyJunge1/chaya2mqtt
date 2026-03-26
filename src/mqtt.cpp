@@ -10,6 +10,7 @@
 WiFiClientSecure espClient;
 PubSubClient client(espClient);
 
+// NOLINTNEXTLINE(readability-non-const-parameter) - PubSubClient callback signature is fixed
 static void mqttCallback(char* topic, byte* payload, unsigned int length) {
     (void)topic;
     String message = "";
@@ -50,7 +51,7 @@ void mqttReconnect() {
             continue;
         }
 
-        if (WiFi.status() != WL_CONNECTED) {
+        if (WiFi.status() != WL_CONNECTED) { // NOLINT(readability-static-accessed-through-instance)
             Serial.println("WiFi nicht verbunden! Versuche Wiederherstellung...");
             WiFi.reconnect();
             delay(5000);
@@ -58,7 +59,8 @@ void mqttReconnect() {
         }
 
         IPAddress serverIP;
-        if (WiFi.hostByName(mqtt_server, serverIP)) {
+        // NOLINTNEXTLINE(readability-static-accessed-through-instance,readability-implicit-bool-conversion)
+        if (WiFi.hostByName(mqtt_server, serverIP) != 0) {
             Serial.print("DNS erfolgreich aufgelöst: ");
             Serial.println(serverIP);
         } else {
