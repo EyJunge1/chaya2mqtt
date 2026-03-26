@@ -12,6 +12,9 @@
 #include <cstring>
 #include <esp_random.h>
 
+// ESP-IDF hat ein eingebautes Mozilla-CA-Bundle in libmbedtls.a (CONFIG_MBEDTLS_CERTIFICATE_BUNDLE).
+extern const uint8_t x509_crt_bundle_start[] asm("_binary_x509_crt_bundle_start");
+
 #if defined(CORE_DEBUG_LEVEL) && CORE_DEBUG_LEVEL > 0
 #define MQTT_DBG_PRINT(x) Serial.print(x)
 #define MQTT_DBG_PRINTLN(x) Serial.println(x)
@@ -93,7 +96,7 @@ static void mqttCallback(char* topic, byte* payload, unsigned int length) {
     Serial.println();
 #endif
 
-    counter++;
+    heartCounter++;
     requestHeartRedraw();
 }
 
@@ -117,8 +120,7 @@ bool mqttPublishHeart() {
 void mqttSetup() {
     // Echte Zufallswerte für Arduino random() (Client-ID), nicht nur libc-rand().
     randomSeed(static_cast<unsigned long>(esp_random()));
-    // Heimnetz: keine Zertifikatsprüfung (Man-in-the-Middle möglich). Für Produktion Root-CA einbinden.
-    espClient.setInsecure();
+    espClient.setCACertBundle(x509_crt_bundle_start);
     client.setBufferSize(512);
     client.setServer(mqtt_server, mqtt_port);
     client.setCallback(mqttCallback);

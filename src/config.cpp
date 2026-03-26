@@ -10,7 +10,7 @@
 
 static Preferences preferences;
 char mqtt_server[128] = "";
-int counter = 0;
+int heartCounter = 0;
 int mqtt_port = 8883;
 char mqtt_username[64] = "";
 char mqtt_password[64] = "";
@@ -54,34 +54,34 @@ void loadMQTTConfig() {
 
 void loadHeartCounter() {
     preferences.begin("heart", true);
-    counter = preferences.getInt("counter", 0);
+    heartCounter = preferences.getInt("counter", 0);
     preferences.end();
-    lastCommittedHeartCounter = counter;
+    lastCommittedHeartCounter = heartCounter;
     lastHeartCounterSaveMs = millis();
 }
 
 void saveHeartCounter() {
     preferences.begin("heart", false);
-    preferences.putInt("counter", counter);
+    preferences.putInt("counter", heartCounter);
     preferences.end();
 }
 
 void maybeSaveHeartCounter() {
-    if (counter == lastCommittedHeartCounter) {
+    if (heartCounter == lastCommittedHeartCounter) {
         return;
     }
     const unsigned long now = millis();
     if (now - lastHeartCounterSaveMs >= kHeartCounterSaveMinIntervalMs) {
         saveHeartCounter();
-        lastCommittedHeartCounter = counter;
+        lastCommittedHeartCounter = heartCounter;
         lastHeartCounterSaveMs = now;
     }
 }
 
 void flushHeartCounterIfDirty() {
-    if (counter != lastCommittedHeartCounter) {
+    if (heartCounter != lastCommittedHeartCounter) {
         saveHeartCounter();
-        lastCommittedHeartCounter = counter;
+        lastCommittedHeartCounter = heartCounter;
         lastHeartCounterSaveMs = millis();
     }
 }
@@ -183,6 +183,8 @@ void setupWiFi() {
     Serial.println(WiFi.gatewayIP());
     Serial.print("DNS: ");
     Serial.println(WiFi.dnsIP());
+
+    WiFi.setSleep(true);
 }
 
 void resetAllSettings() {

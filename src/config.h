@@ -8,7 +8,7 @@ extern char mqtt_topic_pub[128];
 extern char mqtt_topic_sub[128];
 
 /** Herz-Zähler (Anzeige + MQTT); Persistenz in config.cpp. */
-extern int counter;
+extern int heartCounter;
 
 void loadMQTTConfig();
 void saveMQTTConfig();

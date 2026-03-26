@@ -6,10 +6,11 @@ Zwei ESP32-Geräte mit einem 3-Farben-E-Paper-Display zeigen jeweils ein **rotes
 
 - **E-Ink-Display**: Rotes Herz mit schwarzer Zahl auf dem Waveshare 1.54inch e-Paper (B), 200x200, 3-Farben (GxEPD2, Treiber `GxEPD2_154_Z90c`)
 - **MQTT-Synchronisation**: Publish beim Knopfdruck, Subscribe empfängt und erhöht den Counter
-- **TLS**: Verbindung zum Broker über `WiFiClientSecure` (Port typisch **8883**)
+- **TLS**: Verbindung zum Broker über `WiFiClientSecure` mit dem **eingebauten Mozilla-CA-Bundle** des ESP-IDF (Zertifikatsprüfung; Port typisch **8883**)
 - **Web-/Captive-Portal**: WiFi-Zugang und MQTT-Daten (Server, Port, Benutzer, Passwort, Topic) über **WiFiManager** („HeartESP32-Setup“)
 - **Knopf mit LED**: Kurzer Druck → MQTT senden + LED blinkt; nach erfolgreichem Senden nochmals Blinken
 - **Factory Reset**: Knopf **5 Sekunden** halten → WLAN- und MQTT-Einstellungen löschen, Neustart
+- **Energieeffizienz**: CPU **80 MHz**, **WiFi Modem Sleep** nach Verbindung, E-Paper-Controller **`hibernate()`** nach jedem Zeichnen (Bild bleibt sichtbar)
 
 ## Voraussetzungen
 
@@ -17,7 +18,7 @@ Zwei ESP32-Geräte mit einem 3-Farben-E-Paper-Display zeigen jeweils ein **rotes
 - **Waveshare e-Paper ESP32 Driver Board** (SKU 15823) – ESP32 ist auf dem Board integriert
 - **Waveshare 1.54inch e-Paper (B)** – 200x200 px, 3-Farben (schwarz/weiß/rot), ca. 8 s Full Refresh
 - Beleuchteter Taster + Verkabelung (siehe [HARDWARE.md](HARDWARE.md))
-- MQTT-Broker mit TLS (z. B. Mosquitto, HiveMQ Cloud); aktuell `setInsecure()` – keine Zertifikatsprüfung auf dem Client
+- MQTT-Broker mit TLS und gültigem Server-Zertifikat von einer **öffentlichen CA** (Let's Encrypt, DigiCert, …), die im Mozilla-CA-Store enthalten ist (Bundle ist im ESP-IDF Framework eingebaut)
 
 ## Schnellstart
 

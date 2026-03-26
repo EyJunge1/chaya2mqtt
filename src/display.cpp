@@ -77,7 +77,7 @@ void drawHeartWithNumber() {
                          static_cast<int16_t>(kHeartSize / 2), GxEPD_RED);
 
         char numberBuf[16];
-        snprintf(numberBuf, sizeof(numberBuf), "%d", counter);
+        snprintf(numberBuf, sizeof(numberBuf), "%d", heartCounter);
         const size_t digitLen = strlen(numberBuf);
         uint8_t textSize = 4;
         if (digitLen >= 7) {
@@ -101,6 +101,8 @@ void drawHeartWithNumber() {
         display.print(numberBuf);
 
     } while (display.nextPage());
+
+    display.hibernate();
 
     DISPLAY_DBG_PRINTLN("Rotes Herz mit Zahl gezeichnet!");
 }

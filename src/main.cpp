@@ -9,6 +9,8 @@
 static constexpr unsigned long kWifiReconnectIntervalMs = 30000;
 
 void setup() {
+    setCpuFrequencyMhz(80);
+
     Serial.begin(115200);
     Serial.println("=== ESP32 Rotes Herz Display mit MQTT ===");
 
@@ -59,7 +61,6 @@ void loop() {
 
     if (consumeHeartRedraw()) {
         drawHeartWithNumber();
-        flushHeartCounterIfDirty();
     }
 
 #if defined(CORE_DEBUG_LEVEL) && CORE_DEBUG_LEVEL > 0

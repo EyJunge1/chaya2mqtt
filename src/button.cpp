@@ -40,7 +40,13 @@ enum class LedTxPhase : uint8_t {
 };
 
 static LedTxPhase ledTxPhase = LedTxPhase::Idle;
-static unsigned long ledPhaseUntilMs = 0;
+static unsigned long ledPhaseStartMs = 0;
+static unsigned long ledPhaseDurationMs = 0;
+
+static void armLedPhase(unsigned long durationMs) {
+    ledPhaseStartMs = millis();
+    ledPhaseDurationMs = durationMs;
+}
 
 static bool ledSendSequenceActive() {
     return ledTxPhase != LedTxPhase::Idle;
@@ -51,7 +57,7 @@ static void startMqttSendLedSequence() {
     BUTTON_DBG_PRINTLN("Sende MQTT-Nachricht (LED-Sequenz)...");
     ledTxPhase = LedTxPhase::PreOn1;
     digitalWrite(BUTTON_LED_PIN, HIGH);
-    ledPhaseUntilMs = millis() + 100;
+    armLedPhase(100);
 }
 
 void buttonInit() {
@@ -75,7 +81,7 @@ void checkLEDStatus() {
     }
 
     const unsigned long now = millis();
-    if (now < ledPhaseUntilMs) {
+    if (now - ledPhaseStartMs < ledPhaseDurationMs) {
         return;
     }
 
@@ -86,24 +92,24 @@ void checkLEDStatus() {
         case LedTxPhase::PreOn1:
             digitalWrite(BUTTON_LED_PIN, LOW);
             ledTxPhase = LedTxPhase::PreOff1;
-            ledPhaseUntilMs = now + 100;
+            armLedPhase(100);
             break;
 
         case LedTxPhase::PreOff1:
             digitalWrite(BUTTON_LED_PIN, HIGH);
             ledTxPhase = LedTxPhase::PreOn2;
-            ledPhaseUntilMs = now + 100;
+            armLedPhase(100);
             break;
 
         case LedTxPhase::PreOn2:
             digitalWrite(BUTTON_LED_PIN, LOW);
             ledTxPhase = LedTxPhase::PreOff2;
-            ledPhaseUntilMs = now + 100;
+            armLedPhase(100);
             break;
 
         case LedTxPhase::PreOff2:
             ledTxPhase = LedTxPhase::PublishTry;
-            ledPhaseUntilMs = now;
+            armLedPhase(0);
             break;
 
         case LedTxPhase::PublishTry: {
@@ -111,7 +117,7 @@ void checkLEDStatus() {
             if (ok) {
                 BUTTON_DBG_PRINTLN("MQTT Nachricht erfolgreich gesendet!");
                 ledTxPhase = LedTxPhase::PostWait;
-                ledPhaseUntilMs = now + 500;
+                armLedPhase(500);
             } else {
                 BUTTON_DBG_PRINTLN("MQTT Sendung fehlgeschlagen!");
                 digitalWrite(BUTTON_LED_PIN, LOW);
@@ -123,25 +129,25 @@ void checkLEDStatus() {
         case LedTxPhase::PostWait:
             digitalWrite(BUTTON_LED_PIN, HIGH);
             ledTxPhase = LedTxPhase::PostOn1;
-            ledPhaseUntilMs = now + 100;
+            armLedPhase(100);
             break;
 
         case LedTxPhase::PostOn1:
             digitalWrite(BUTTON_LED_PIN, LOW);
             ledTxPhase = LedTxPhase::PostOff1;
-            ledPhaseUntilMs = now + 100;
+            armLedPhase(100);
             break;
 
         case LedTxPhase::PostOff1:
             digitalWrite(BUTTON_LED_PIN, HIGH);
             ledTxPhase = LedTxPhase::PostOn2;
-            ledPhaseUntilMs = now + 100;
+            armLedPhase(100);
             break;
 
         case LedTxPhase::PostOn2:
             digitalWrite(BUTTON_LED_PIN, LOW);
             ledTxPhase = LedTxPhase::PostOff2;
-            ledPhaseUntilMs = now + 100;
+            armLedPhase(100);
             break;
 
         case LedTxPhase::PostOff2:
