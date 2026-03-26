@@ -1,5 +1,6 @@
 #include <Arduino.h>
 #include <WiFi.h>
+#include <algorithm>
 #include <cstdint>
 #include <driver/gpio.h>
 #include <esp_bt.h>
@@ -20,15 +21,29 @@
 #endif
 
 static constexpr unsigned long kWifiReconnectIntervalMs = 30000;
+static constexpr unsigned long kWifiReconnectBackoffMaxMs = 300000;
 static constexpr unsigned long kWifiHardReconnectGapMs = 100;
 
 /** Light-Sleep: kurz bei aktiver LED-Sequenz, laenger im Idle (Taster per GPIO-, WiFi per Event-Wakeup). */
 static constexpr uint64_t kLightSleepActiveUs = 10000ULL;   // 10 ms
 static constexpr uint64_t kLightSleepIdleUs = 2000000ULL;  // 2 s (WiFi-Wakeup weckt bei Bedarf frueher)
+static constexpr uint64_t kLightSleepWifiHardReconnectGapUs =
+    static_cast<uint64_t>(kWifiHardReconnectGapMs) * 1000ULL;
+
+static unsigned long lastWifiReconnectMs = 0;
+static bool wifiWasConnected = true;
+static bool wifiReconnectDueImmediately = false;
+static int wifiReconnectAttempts = 0;
+static bool wifiHardReconnectPending = false;
+static unsigned long wifiHardReconnectSinceMs = 0;
+static unsigned long wifiReconnectBackoffMs = kWifiReconnectIntervalMs;
 
 static uint64_t computeLightSleepTimerUs() {
     if (buttonIsLedTxSequenceActive()) {
         return kLightSleepActiveUs;
+    }
+    if (wifiHardReconnectPending) {
+        return kLightSleepWifiHardReconnectGapUs;
     }
     return kLightSleepIdleUs;
 }
@@ -83,13 +98,6 @@ void loop() {
     mqttLoop();
     maybeSaveHeartCounter();
 
-    static unsigned long lastWifiReconnectMs = 0;
-    static bool wifiWasConnected = true;
-    static bool wifiReconnectDueImmediately = false;
-    static int wifiReconnectAttempts = 0;
-    static bool wifiHardReconnectPending = false;
-    static unsigned long wifiHardReconnectSinceMs = 0;
-
     if (WiFi.status() != WL_CONNECTED) { // NOLINT(readability-static-accessed-through-instance)
         if (wifiWasConnected) {
             wifiReconnectDueImmediately = true;
@@ -101,9 +109,14 @@ void loop() {
                 wifiHardReconnectPending = false;
                 wifiReconnectAttempts = 0;
             }
-        } else if (wifiReconnectDueImmediately || now - lastWifiReconnectMs >= kWifiReconnectIntervalMs) {
+        } else if (wifiReconnectDueImmediately || now - lastWifiReconnectMs >= wifiReconnectBackoffMs) {
+            const bool triggeredByImmediate = wifiReconnectDueImmediately;
             wifiReconnectDueImmediately = false;
             lastWifiReconnectMs = now;
+            if (!triggeredByImmediate) {
+                wifiReconnectBackoffMs =
+                    std::min(wifiReconnectBackoffMs * 2UL, kWifiReconnectBackoffMaxMs);
+            }
             MAIN_DBG_PRINTLN("WiFi verloren! Versuche Reconnect...");
             if (wifiReconnectAttempts >= 3) {
                 WiFi.disconnect(false);
@@ -117,6 +130,7 @@ void loop() {
     } else {
         wifiHardReconnectPending = false;
         wifiReconnectAttempts = 0;
+        wifiReconnectBackoffMs = kWifiReconnectIntervalMs;
         if (!wifiWasConnected) {
             lastWifiReconnectMs = now;
         }

@@ -246,6 +246,11 @@ void buttonLoop() {
             longPressResetTriggered = false;
         } else if (!longPressResetTriggered && (nowMs - buttonPressStartMs >= kLongPressMs)) {
             longPressResetTriggered = true;
+            // Kurzes Blinkmuster als Bestaetigung vor Factory-Reset (blockierend, Geraet startet neu).
+            for (int i = 0; i < 6; i++) {
+                digitalWrite(kButtonLedPin, (i % 2) == 0 ? HIGH : LOW);
+                delay(120);
+            }
             digitalWrite(kButtonLedPin, LOW);
             resetAllSettings();
         }

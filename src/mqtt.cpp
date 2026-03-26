@@ -70,7 +70,14 @@ static unsigned long mqttTryConnectSinglePass() {
         MQTT_DBG_PRINT("Subscribing zu Topic (QoS 1): ");
         MQTT_DBG_PRINTLN(mqtt_topic_sub);
         if (!client.subscribe(mqtt_topic_sub, 1)) {
-            MQTT_DBG_PRINTLN("MQTT: Subscribe fehlgeschlagen.");
+            MQTT_DBG_PRINTLN("MQTT: Subscribe fehlgeschlagen, disconnect fuer Retry.");
+            client.disconnect();
+            const unsigned long waitMs = mqttCurrentBackoffMs;
+            mqttCurrentBackoffMs = std::min(mqttCurrentBackoffMs * 2UL, kMqttBackoffMaxMs);
+            MQTT_DBG_PRINT("Naechster MQTT-Versuch in ");
+            MQTT_DBG_PRINT(waitMs / 1000UL);
+            MQTT_DBG_PRINTLN(" s (nach Subscribe-Fehler)...");
+            return waitMs;
         }
         return 0;
     }
@@ -120,9 +127,9 @@ bool mqttPublishHeart() {
 
 void mqttSetup() {
     espClient.setCACertBundle(x509_crt_bundle_start);
-    // 256 B: typische Nutzlast; bei max. Portal-Längen (128-Zeichen-Topics + User/Pass + LWT) ggf. >256 nötig.
-    if (!client.setBufferSize(256)) {
-        MQTT_DBG_PRINTLN("MQTT: setBufferSize(256) fehlgeschlagen, PubSubClient nutzt vorhandenen Buffer.");
+    // 512 B: CONNECT mit max. Portal-Längen (128-Zeichen-Topics + User/Pass + LWT) >256 B.
+    if (!client.setBufferSize(512)) {
+        MQTT_DBG_PRINTLN("MQTT: setBufferSize(512) fehlgeschlagen, PubSubClient nutzt vorhandenen Buffer.");
     }
     client.setServer(mqtt_server, mqtt_port);
     client.setCallback(mqttCallback);

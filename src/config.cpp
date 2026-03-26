@@ -88,13 +88,14 @@ void loadHeartCounter() {
     lastHeartCounterSaveMs = millis();
 }
 
-void saveHeartCounter() {
+bool saveHeartCounter() {
     if (!preferences.begin("heart", false)) {
         CONFIG_DBG_PRINTLN("NVS: Namespace heart schreiben fehlgeschlagen (Zaehler nicht gespeichert).");
-        return;
+        return false;
     }
     preferences.putInt("counter", heartCounter);
     preferences.end();
+    return true;
 }
 
 void maybeSaveHeartCounter() {
@@ -103,17 +104,19 @@ void maybeSaveHeartCounter() {
     }
     const unsigned long now = millis();
     if (now - lastHeartCounterSaveMs >= kHeartCounterSaveMinIntervalMs) {
-        saveHeartCounter();
-        lastCommittedHeartCounter = heartCounter;
-        lastHeartCounterSaveMs = now;
+        if (saveHeartCounter()) {
+            lastCommittedHeartCounter = heartCounter;
+            lastHeartCounterSaveMs = now;
+        }
     }
 }
 
 void flushHeartCounterIfDirty() {
     if (heartCounter != lastCommittedHeartCounter) {
-        saveHeartCounter();
-        lastCommittedHeartCounter = heartCounter;
-        lastHeartCounterSaveMs = millis();
+        if (saveHeartCounter()) {
+            lastCommittedHeartCounter = heartCounter;
+            lastHeartCounterSaveMs = millis();
+        }
     }
 }
 
