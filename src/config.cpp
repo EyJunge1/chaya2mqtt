@@ -7,6 +7,7 @@
 #include <Preferences.h>
 #include <cstdio>
 #include <cstring>
+#include <algorithm>
 #include <cstdlib>
 
 #if defined(CORE_DEBUG_LEVEL) && CORE_DEBUG_LEVEL > 0
@@ -79,7 +80,7 @@ void loadHeartCounter() {
         lastHeartCounterSaveMs = millis();
         return;
     }
-    heartCounter = preferences.getInt("counter", 0);
+    heartCounter = std::max(preferences.getInt("counter", 0), 0);
     preferences.end();
     lastCommittedHeartCounter = heartCounter;
     lastHeartCounterSaveMs = millis();

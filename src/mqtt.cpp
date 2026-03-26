@@ -65,6 +65,7 @@ static unsigned long mqttTryConnectSinglePass() {
 
     if (client.connect(clientId, mqtt_username, mqtt_password, willTopic, 1, true, "offline", true)) {
         MQTT_DBG_PRINTLN("MQTT verbunden!");
+        (void)client.publish(willTopic, "online", true);
         mqttCurrentBackoffMs = kMqttBackoffInitialMs;
         MQTT_DBG_PRINT("Subscribing zu Topic (QoS 1): ");
         MQTT_DBG_PRINTLN(mqtt_topic_sub);

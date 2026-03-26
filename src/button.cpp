@@ -189,7 +189,6 @@ void checkLEDStatus() {
             break;
 
         case LedTxPhase::PostOff2:
-            digitalWrite(kButtonLedPin, LOW);
             ledTxPhase = LedTxPhase::Idle;
             break;
 
@@ -224,7 +223,6 @@ void checkLEDStatus() {
             break;
 
         case LedTxPhase::FailOff3:
-            digitalWrite(kButtonLedPin, LOW);
             ledTxPhase = LedTxPhase::Idle;
             break;
     }

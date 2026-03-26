@@ -18,7 +18,7 @@ Uebersicht aller Quelldateien unter `src/`: oeffentliche API, globale Symbole un
 6. `loadHeartCounter()` -- Zaehler aus NVS (Namespace `heart`)
 7. `setupWiFi()` -- WiFiManager inkl. Portal-Parameter; danach `WiFi.setSleep(true)` und `esp_wifi_set_ps(WIFI_PS_MAX_MODEM)` (aggressiver Modem-Sleep)
 8. `mqttSetup()` -- TLS-Client mit eingebautem CA-Bundle, Broker, Callback
-9. Light-Sleep-Wakeup-Quellen (**adaptiver** Timer: **10 ms** bei aktiver MQTT-Sende-LED-Sequenz, **500 ms** im Idle + GPIO Taster) fuer `loop()`
+9. Light-Sleep-Wakeup-Quellen (**adaptiver** Timer: **10 ms** bei aktiver MQTT-Sende-LED-Sequenz, **2 s** im Idle + GPIO Taster) fuer `loop()`
 10. `drawHeartWithNumber()` -- erste Darstellung (mit geladenem `heartCounter`); danach `display.hibernate()`
 11. `buttonStartupBlink()` -- 3x LED-Blitz
 
@@ -117,7 +117,7 @@ Der Zaehlerstand kommt aus **`config.h`** (`extern int heartCounter`).
 
 | Funktion | Beschreibung |
 |----------|--------------|
-| `mqttSetup()` | `setBufferSize(512)`, `setServer`, `setCallback`, `setKeepAlive(60)`, `setSocketTimeout(5)` (s), `setCACertBundle()` mit eingebettetem Mozilla-Bundle |
+| `mqttSetup()` | `setBufferSize(256)`, `setServer`, `setCallback`, `setKeepAlive(60)`, `setSocketTimeout(5)` (s), `setCACertBundle()` mit eingebettetem Mozilla-Bundle |
 | `mqttLoop()` | Wenn nicht verbunden: Connect-Versuch wenn `millis() - lastAttempt >= backoff` (overflow-sicher); bei Connect-Fehler exponentieller Backoff 5 s bis max. 60 s; **leerer MQTT-Server:** Warteintervall **60 s**; kein WLAN: **5 s**; bei **Uebergang** zu verbunden: Backoff zuruecksetzen; danach `client.loop()` |
 | `mqttPublishHeart()` | Ein Publish-Versuch **`heart`** auf `mqtt_topic_pub`, wenn verbunden; bei Fehlschlag ein `client.loop()`. **2** Versuche laufen nicht-blockierend in `button.cpp` (LED-State-Machine, Phase `PublishRetryWait`) |
 
@@ -134,7 +134,7 @@ Der Zaehlerstand kommt aus **`config.h`** (`extern int heartCounter`).
 - Last-Will-Topic: Puffer **140** Zeichen fuer `mqtt_topic_pub` + `"/lwt"`.
 - Verbindungs-/Debug-Serial nur bei `CORE_DEBUG_LEVEL > 0`.
 - Client-ID: `ESP32Heart-` + `esp_random()`-Hex (`snprintf`, kein Arduino-`String`).
-- Connect mit **Last Will**: Topic = Sende-Topic + Suffix `/lwt`, Payload `offline`, QoS 1, retain.
+- Connect mit **Last Will**: Topic = Sende-Topic + Suffix `/lwt`, Payload `offline`, QoS 1, retain. Nach erfolgreichem Connect wird retained `"online"` auf dasselbe LWT-Topic gepublished.
 - CA-Bundle: Eingebautes Linker-Symbol `_binary_x509_crt_bundle_start` aus `libmbedtls.a` (ESP-IDF `CONFIG_MBEDTLS_CERTIFICATE_BUNDLE`). Kein externes Bundle noetig.
 - Keine separate DNS-Vorabfrage; Aufloesung erfolgt im TLS-/TCP-Stack beim Connect.
 - Ohne WLAN: nur Warte-Backoff (**kein** `WiFi.reconnect()` hier; `main` uebernimmt Reconnect).
@@ -150,15 +150,15 @@ Der Zaehlerstand kommt aus **`config.h`** (`extern int heartCounter`).
 | Name | Wert | Bedeutung |
 |------|------|-----------|
 | `kButtonGpio` | 2 | Taster (in `button.h`; auch fuer Light-Sleep-Wakeup in `main`) |
-| `BUTTON_LED_PIN` | 4 | LED |
-| `LONG_PRESS_MS` | 5000 | Factory Reset |
-| `SHORT_PRESS_MIN_MS` | 50 | Mindestdauer fuer Kurzdruck |
+| `kButtonLedPin` | 4 | LED |
+| `kLongPressMs` | 5000 | Factory Reset |
+| `kShortPressMinMs` | 50 | Mindestdauer fuer Kurzdruck |
 
 ### Oeffentliche Funktionen
 
 | Funktion | Beschreibung |
 |----------|--------------|
-| `buttonInit()` | `pinMode(kButtonGpio, INPUT_PULLDOWN)`, `pinMode(BUTTON_LED_PIN, OUTPUT)` |
+| `buttonInit()` | `pinMode(kButtonGpio, INPUT_PULLDOWN)`, `pinMode(kButtonLedPin, OUTPUT)` |
 | `buttonStartupBlink()` | 3x 200 ms an/aus (blockierend, nur beim Start) |
 | `buttonLoop()` | Zeitdebounce (~20 ms stabiler Pegel); Zustandslogik: `HIGH` = gedrueckt; bei 5 s ohne Loslassen LED aus, dann `resetAllSettings()`; beim Loslassen nach kurzem Druck Start der **nicht-blockierenden** Sende-/LED-Sequenz (wenn keine Sequenz aktiv) |
 | `checkLEDStatus()` | Taktet die LED-Sequenz (2x Blink, MQTT-Publish, 500 ms Pause, 2x Blink) ohne `delay()` in der Hauptschleife; Phasen mit `ledPhaseStartMs` / `ledPhaseDurationMs` (millis()-overflow-sicher) |

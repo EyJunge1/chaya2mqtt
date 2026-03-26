@@ -43,6 +43,7 @@ static void armLightSleepWakeupSources(uint64_t timerUs) {
 void setup() {
     setCpuFrequencyMhz(80);
     btStop();
+    esp_bt_controller_mem_release(ESP_BT_MODE_BTDM);
 
 #if defined(CORE_DEBUG_LEVEL) && CORE_DEBUG_LEVEL > 0
     Serial.begin(115200);
