@@ -10,7 +10,7 @@ Uebersicht aller Quelldateien unter `src/`: oeffentliche API, globale Symbole un
 
 ### Ablauf `setup()`
 
-1. `setCpuFrequencyMhz(80)` -- niedrigere CPU-Taktfrequenz (weniger Strom)
+1. CPU **80 MHz** ueber `board_build.f_cpu` in `platformio.ini` (weniger Strom als Default 240 MHz)
 2. `Serial.begin(115200)`
 3. `displayInit()` -- SPI + E-Paper
 4. `buttonInit()` -- GPIO Button & LED
@@ -18,8 +18,9 @@ Uebersicht aller Quelldateien unter `src/`: oeffentliche API, globale Symbole un
 6. `loadHeartCounter()` -- Zaehler aus NVS (Namespace `heart`)
 7. `setupWiFi()` -- WiFiManager inkl. Portal-Parameter; danach `WiFi.setSleep(true)` (Modem Sleep)
 8. `mqttSetup()` -- TLS-Client mit eingebautem CA-Bundle, Broker, Callback
-9. `drawHeartWithNumber()` -- erste Darstellung (mit geladenem `heartCounter`); danach `display.hibernate()`
-10. `buttonStartupBlink()` -- 3x LED-Blitz
+9. Light-Sleep-Wakeup-Quellen (Timer 10 ms + GPIO Taster) fuer `loop()`
+10. `drawHeartWithNumber()` -- erste Darstellung (mit geladenem `heartCounter`); danach `display.hibernate()`
+11. `buttonStartupBlink()` -- 3x LED-Blitz
 
 ### Ablauf `loop()`
 
@@ -29,10 +30,10 @@ Uebersicht aller Quelldateien unter `src/`: oeffentliche API, globale Symbole un
 | `checkLEDStatus()` | nicht-blockierende MQTT-Sende-LED-Sequenz (State Machine; millis()-overflow-sicheres Phasen-Timing) |
 | `mqttLoop()` | nicht-blockierender Reconnect mit exponentiellem Backoff, dann `client.loop()` |
 | `maybeSaveHeartCounter()` | Zaehler throttled (~30 s) nach NVS, wenn seit letztem Save geaendert |
-| `consumeHeartRedraw()` / `drawHeartWithNumber()` | wenn nach MQTT ein Neuzeichnen angefordert wurde (ohne sofortiges `flushHeartCounterIfDirty`) |
-| `WiFi.reconnect()` | bei getrenntem WLAN hoechstens alle **30 s** |
+| `consumeHeartRedraw()` / `drawHeartWithNumber()` | bei MQTT-Neuzeichnung; danach `flushHeartCounterIfDirty()` (Zaehler sofort in NVS) |
+| `WiFi.reconnect()` / Fallback | bei getrenntem WLAN: bis zu **3x** `reconnect()`, danach `disconnect` + `begin`; hoechstens alle **30 s** (plus sofort beim ersten Verlust) |
 | `buttonDebugStatus()` | alle 5 s Serial-Status (nur noch ein Timer in `main`) |
-| `delay(10)` | kurze Pause |
+| `esp_light_sleep_start()` | Light-Sleep (Timer 10 ms + GPIO-Wakeup Taster) statt `delay(10)` |
 
 ---
 
@@ -56,14 +57,14 @@ Uebersicht aller Quelldateien unter `src/`: oeffentliche API, globale Symbole un
 
 | Funktion | Beschreibung |
 |----------|--------------|
-| `loadMQTTConfig()` | Liest Namespace `"mqtt"` (readonly): `server`, `port`, `user`, `pass`, `topic_pub`, `topic_sub`; **Port** wird auf 1--65535 validiert (sonst **8883**) |
-| `saveMQTTConfig()` | Schreibt dieselben Keys |
-| `loadHeartCounter()` | Liest `heartCounter` aus Namespace `"heart"` (Key `counter`) |
-| `saveHeartCounter()` | Schreibt aktuellen `heartCounter` nach `"heart"` |
+| `loadMQTTConfig()` | `preferences.begin` mit Fehlerpruefung; Liest Namespace `"mqtt"` (readonly) ohne temporaere `String`-Heap-Objekte (`getString` in feste Buffer); **Port** 1--65535 (sonst **8883**); Default-Topics wenn Key fehlt/leer |
+| `saveMQTTConfig()` | Schreibt dieselben Keys; `begin` mit Fehlerpruefung |
+| `loadHeartCounter()` | Liest `heartCounter` aus Namespace `"heart"` (Key `counter`); `begin` mit Fehlerpruefung |
+| `saveHeartCounter()` | Schreibt aktuellen `heartCounter` nach `"heart"`; `begin` mit Fehlerpruefung |
 | `maybeSaveHeartCounter()` | Schreibt nur, wenn `heartCounter` sich geaendert hat und seit letztem Schreiben mindestens **30 s** vergangen sind (weniger Flash-Verschleiss) |
-| `flushHeartCounterIfDirty()` | Sofortiges NVS-Schreiben bei Dirty-`heartCounter` (z. B. vor `ESP.restart()` nach fehlgeschlagenem Portal) |
+| `flushHeartCounterIfDirty()` | Sofortiges NVS-Schreiben bei Dirty-`heartCounter` (nach MQTT-Neuzeichnen in `main`, vor `ESP.restart()` nach fehlgeschlagenem Portal) |
 | `setupWiFi()` | WiFiManager: Timeout **180 s**, AP-Name **`HeartESP32-Setup`**, sechs Custom-Parameter fuer MQTT (Stack-Lebensdauer; Save-Callback nur waehrend `autoConnect()`); `setSaveParamsCallback(saveParamsFromPortal)`; bei Fehlschlag `flushHeartCounterIfDirty()`, dann `ESP.restart()`; nach Erfolg `WiFi.setSleep(true)` |
-| `resetAllSettings()` | `WiFiManager::resetSettings()`, Namespaces `mqtt` und `heart` `clear()`, Neustart |
+| `resetAllSettings()` | `WiFiManager::resetSettings()`, Namespaces `mqtt` und `heart` `clear()` (jeweils mit `begin`-Fehlerpruefung), Neustart |
 
 ### Implementierungsdetails
 
@@ -118,20 +119,21 @@ Der Zaehlerstand kommt aus **`config.h`** (`extern int heartCounter`).
 |----------|--------------|
 | `mqttSetup()` | `setBufferSize(512)`, `setServer`, `setCallback`, `setKeepAlive(60)`, `setSocketTimeout(5)` (s), `setCACertBundle()` mit eingebettetem Mozilla-Bundle |
 | `mqttLoop()` | Wenn nicht verbunden: Connect-Versuch wenn `millis() - lastAttempt >= backoff` (overflow-sicher); bei Connect-Fehler exponentieller Backoff 5 s bis max. 60 s; leerer Server / kein WLAN: feste Wartezeiten; bei **Uebergang** zu verbunden: Backoff zuruecksetzen; danach `client.loop()` |
-| `mqttPublishHeart()` | Publiziert Payload **`heart`** auf `mqtt_topic_pub`, wenn verbunden; bis zu **5** Versuche mit `client.loop()` (PubSubClient hat kein QoS-1-Publish) |
+| `mqttPublishHeart()` | Publiziert Payload **`heart`** auf `mqtt_topic_pub`, wenn verbunden; bis zu **2** Versuche mit `client.loop()` (PubSubClient hat kein QoS-1-Publish) |
 
 ### Callback `mqttCallback`
 
 - Nur Payload exakt **`heart`** (5 Bytes) wird akzeptiert; alles andere wird ignoriert.
 - Bei `CORE_DEBUG_LEVEL > 0`: Serial mit `Serial.write(payload, length)` (ohne `String`-Allokation).
 - **Ignoriert** den Topic-Namen (`(void)topic`).
-- **`heartCounter++`**, `requestHeartRedraw()`; NVS-Schreiben laeuft throttled ueber `maybeSaveHeartCounter()` in `loop()` (kein E-Paper im Callback).
+- **`heartCounter++`**, `requestHeartRedraw()`; NVS: throttled `maybeSaveHeartCounter()` in `loop()`; nach Neuzeichnen in `main` zusaetzlich `flushHeartCounterIfDirty()` (kein E-Paper im Callback).
 
 ### Implementierungsdetails
 
 - Subscribe: `client.subscribe(mqtt_topic_sub, 1)` (QoS 1).
 - Verbindungs-/Debug-Serial nur bei `CORE_DEBUG_LEVEL > 0`.
-- Client-ID: `ESP32Heart-` + zufaelliger Hex-Wert (`snprintf`, kein Arduino-`String`).
+- Client-ID: `ESP32Heart-` + `esp_random()`-Hex (`snprintf`, kein Arduino-`String`).
+- Connect mit **Last Will**: Topic = Sende-Topic + Suffix `/lwt`, Payload `offline`, QoS 1, retain.
 - CA-Bundle: Eingebautes Linker-Symbol `_binary_x509_crt_bundle_start` aus `libmbedtls.a` (ESP-IDF `CONFIG_MBEDTLS_CERTIFICATE_BUNDLE`). Kein externes Bundle noetig.
 - Keine separate DNS-Vorabfrage; Aufloesung erfolgt im TLS-/TCP-Stack beim Connect.
 - Ohne WLAN: nur Warte-Backoff (**kein** `WiFi.reconnect()` hier; `main` uebernimmt Reconnect).
@@ -146,7 +148,7 @@ Der Zaehlerstand kommt aus **`config.h`** (`extern int heartCounter`).
 
 | Name | Wert | Bedeutung |
 |------|------|-----------|
-| `BUTTON_PIN` | 2 | Taster |
+| `kButtonGpio` | 2 | Taster (in `button.h`; auch fuer Light-Sleep-Wakeup in `main`) |
 | `BUTTON_LED_PIN` | 4 | LED |
 | `LONG_PRESS_MS` | 5000 | Factory Reset |
 | `SHORT_PRESS_MIN_MS` | 50 | Mindestdauer fuer Kurzdruck |
@@ -155,9 +157,9 @@ Der Zaehlerstand kommt aus **`config.h`** (`extern int heartCounter`).
 
 | Funktion | Beschreibung |
 |----------|--------------|
-| `buttonInit()` | `pinMode(BUTTON_PIN, INPUT_PULLDOWN)`, `pinMode(BUTTON_LED_PIN, OUTPUT)` |
+| `buttonInit()` | `pinMode(kButtonGpio, INPUT_PULLDOWN)`, `pinMode(BUTTON_LED_PIN, OUTPUT)` |
 | `buttonStartupBlink()` | 3x 200 ms an/aus (blockierend, nur beim Start) |
-| `buttonLoop()` | Zustandslogik: `HIGH` = gedrueckt; bei 5 s ohne Loslassen `resetAllSettings()`; beim Loslassen nach kurzem Druck Start der **nicht-blockierenden** Sende-/LED-Sequenz (wenn keine Sequenz aktiv) |
+| `buttonLoop()` | Zeitdebounce (~20 ms stabiler Pegel); Zustandslogik: `HIGH` = gedrueckt; bei 5 s ohne Loslassen LED aus, dann `resetAllSettings()`; beim Loslassen nach kurzem Druck Start der **nicht-blockierenden** Sende-/LED-Sequenz (wenn keine Sequenz aktiv) |
 | `checkLEDStatus()` | Taktet die LED-Sequenz (2x Blink, MQTT-Publish, 500 ms Pause, 2x Blink) ohne `delay()` in der Hauptschleife; Phasen mit `ledPhaseStartMs` / `ledPhaseDurationMs` (millis()-overflow-sicher) |
 | `buttonDebugStatus()` | Serial: Debug-Zaehler, Button- und LED-Pegel (Aufrufrhythmus nur noch in `main`, alle 5 s) |
 

@@ -29,6 +29,8 @@ pio run -t upload          # Flashen
 pio device monitor         # Serieller Monitor (115200 Baud)
 ```
 
+Falls `pio: command not found`: PlatformIO-Core liegt unter `~/.platformio/penv/bin/pio`. Entweder **`export PATH="$HOME/.platformio/penv/bin:$PATH"`** in die Shell-Konfiguration (z. B. `~/.zshrc`) eintragen, oder im Repo **`make`** / **`make build`** nutzen (ruft dieselbe `pio`-Binary auf).
+
 ## Ersteinrichtung (WiFi & MQTT)
 
 1. Gerät mit Strom versorgen bzw. nach Flash neu starten.

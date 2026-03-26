@@ -37,23 +37,39 @@ static void safeStrCopy(char* dst, size_t dstSize, const char* src) {
 }
 
 void loadMQTTConfig() {
-    preferences.begin("mqtt", true);
-    safeStrCopy(mqtt_server, sizeof(mqtt_server), preferences.getString("server", "").c_str());
+    if (!preferences.begin("mqtt", true)) {
+        Serial.println("NVS: Namespace mqtt lesen fehlgeschlagen, nutze Defaults.");
+        return;
+    }
+
+    preferences.getString("server", mqtt_server, sizeof(mqtt_server));
     mqtt_port = preferences.getInt("port", 8883);
     if (mqtt_port <= 0 || mqtt_port > 65535) {
         mqtt_port = 8883;
     }
-    safeStrCopy(mqtt_username, sizeof(mqtt_username), preferences.getString("user", "").c_str());
-    safeStrCopy(mqtt_password, sizeof(mqtt_password), preferences.getString("pass", "").c_str());
-    safeStrCopy(mqtt_topic_pub, sizeof(mqtt_topic_pub),
-                preferences.getString("topic_pub", "heart/to_b").c_str());
-    safeStrCopy(mqtt_topic_sub, sizeof(mqtt_topic_sub),
-                preferences.getString("topic_sub", "heart/to_a").c_str());
+    preferences.getString("user", mqtt_username, sizeof(mqtt_username));
+    preferences.getString("pass", mqtt_password, sizeof(mqtt_password));
+
+    if (preferences.getString("topic_pub", mqtt_topic_pub, sizeof(mqtt_topic_pub)) == 0 ||
+        mqtt_topic_pub[0] == '\0') {
+        safeStrCopy(mqtt_topic_pub, sizeof(mqtt_topic_pub), "heart/to_b");
+    }
+    if (preferences.getString("topic_sub", mqtt_topic_sub, sizeof(mqtt_topic_sub)) == 0 ||
+        mqtt_topic_sub[0] == '\0') {
+        safeStrCopy(mqtt_topic_sub, sizeof(mqtt_topic_sub), "heart/to_a");
+    }
+
     preferences.end();
 }
 
 void loadHeartCounter() {
-    preferences.begin("heart", true);
+    if (!preferences.begin("heart", true)) {
+        Serial.println("NVS: Namespace heart lesen fehlgeschlagen, Zaehler = 0.");
+        heartCounter = 0;
+        lastCommittedHeartCounter = 0;
+        lastHeartCounterSaveMs = millis();
+        return;
+    }
     heartCounter = preferences.getInt("counter", 0);
     preferences.end();
     lastCommittedHeartCounter = heartCounter;
@@ -61,7 +77,10 @@ void loadHeartCounter() {
 }
 
 void saveHeartCounter() {
-    preferences.begin("heart", false);
+    if (!preferences.begin("heart", false)) {
+        Serial.println("NVS: Namespace heart schreiben fehlgeschlagen (Zaehler nicht gespeichert).");
+        return;
+    }
     preferences.putInt("counter", heartCounter);
     preferences.end();
 }
@@ -87,7 +106,10 @@ void flushHeartCounterIfDirty() {
 }
 
 void saveMQTTConfig() {
-    preferences.begin("mqtt", false);
+    if (!preferences.begin("mqtt", false)) {
+        Serial.println("NVS: Namespace mqtt schreiben fehlgeschlagen.");
+        return;
+    }
     preferences.putString("server", mqtt_server);
     preferences.putInt("port", mqtt_port);
     preferences.putString("user", mqtt_username);
@@ -191,12 +213,18 @@ void resetAllSettings() {
     Serial.println("Alle Einstellungen werden gelöscht (WLAN + MQTT)...");
     WiFiManager wm;
     wm.resetSettings();
-    preferences.begin("mqtt", false);
-    preferences.clear();
-    preferences.end();
-    preferences.begin("heart", false);
-    preferences.clear();
-    preferences.end();
+    if (preferences.begin("mqtt", false)) {
+        preferences.clear();
+        preferences.end();
+    } else {
+        Serial.println("NVS: mqtt loeschen fehlgeschlagen.");
+    }
+    if (preferences.begin("heart", false)) {
+        preferences.clear();
+        preferences.end();
+    } else {
+        Serial.println("NVS: heart loeschen fehlgeschlagen.");
+    }
     delay(500);
     ESP.restart();
 }

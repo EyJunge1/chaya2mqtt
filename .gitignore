@@ -2,3 +2,5 @@
 .DS_Store
 .cache
 .vscode
+compile_commands.json
+.cursor

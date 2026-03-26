@@ -85,7 +85,7 @@ sequenceDiagram
     M->>B: buttonStartupBlink
 ```
 
-1. CPU **80 MHz** (`setCpuFrequencyMhz(80)` -- geringerer Stromverbrauch)
+1. CPU **80 MHz** (Build-Flag `board_build.f_cpu` in `platformio.ini`)
 2. Serial 115200
 3. Display hardware initialisieren
 4. Button/LED-Pins
@@ -106,7 +106,7 @@ flowchart TD
     wifi{WiFi verbunden?}
     recon[WiFi.reconnect max 1x/30s]
     dbg[buttonDebugStatus alle 5s]
-    wait[delay 10ms]
+    wait[light sleep 10ms]
 
     start --> btn --> led --> mq
     mq --> wifi
@@ -116,7 +116,7 @@ flowchart TD
 ```
 
 - **mqttLoop:** Bei Verbindungsverlust **nicht-blockierender** Reconnect (ein Versuch pro Abstand, exponentieller Backoff 5 s bis max. 60 s bei Connect-Fehlern; leerer Server / kein WLAN: feste Intervalle)
-- **WiFi:** bei Verlust `WiFi.reconnect()` hoechstens alle **30 s**
+- **WiFi:** bei Verlust Reconnect (max. alle **30 s**, sofort beim ersten Verlust); nach **3** fehlgeschlagenen Versuchen `disconnect` + `WiFi.begin()`
 - **Display:** nach MQTT-Empfang nur Flag; `drawHeartWithNumber()` laeuft in `loop()` wenn `consumeHeartRedraw()`; NVS-Zaehler wird **nicht** bei jedem Redraw geflusht, sondern throttled ueber `maybeSaveHeartCounter()` (~30 s)
 - **Debug:** alle 5 s Button-/LED-Zustand auf Serial
 

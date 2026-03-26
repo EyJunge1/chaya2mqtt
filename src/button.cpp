@@ -11,14 +11,19 @@
 #define BUTTON_DBG_PRINTLN(x) ((void)0)
 #endif
 
-static const int BUTTON_PIN = 2;
 static const int BUTTON_LED_PIN = 4;
+
+static constexpr unsigned long kDebounceStableMs = 20;
 
 static const unsigned long LONG_PRESS_MS = 5000;
 static const unsigned long SHORT_PRESS_MIN_MS = 50;
 static bool buttonHeldDown = false;
 static unsigned long buttonPressStartMs = 0;
 static bool longPressResetTriggered = false;
+
+static int buttonLastRawReading = LOW;
+static unsigned long buttonLastDebounceChangeMs = 0;
+static int buttonDebouncedLevel = LOW;
 
 #if defined(CORE_DEBUG_LEVEL) && CORE_DEBUG_LEVEL > 0
 static int debugCounter = 0;
@@ -61,8 +66,11 @@ static void startMqttSendLedSequence() {
 }
 
 void buttonInit() {
-    pinMode(BUTTON_PIN, INPUT_PULLDOWN);
+    pinMode(kButtonGpio, INPUT_PULLDOWN);
     pinMode(BUTTON_LED_PIN, OUTPUT);
+    buttonLastRawReading = digitalRead(kButtonGpio);
+    buttonDebouncedLevel = buttonLastRawReading;
+    buttonLastDebounceChangeMs = millis();
 }
 
 void buttonStartupBlink() {
@@ -158,7 +166,16 @@ void checkLEDStatus() {
 }
 
 void buttonLoop() {
-    const int reading = digitalRead(BUTTON_PIN);
+    const int raw = digitalRead(kButtonGpio);
+    const unsigned long nowMs = millis();
+    if (raw != buttonLastRawReading) {
+        buttonLastRawReading = raw;
+        buttonLastDebounceChangeMs = nowMs;
+    }
+    if (nowMs - buttonLastDebounceChangeMs >= kDebounceStableMs) {
+        buttonDebouncedLevel = buttonLastRawReading;
+    }
+    const int reading = buttonDebouncedLevel;
 
     if (reading == HIGH) {
         if (!buttonHeldDown) {
@@ -167,6 +184,7 @@ void buttonLoop() {
             longPressResetTriggered = false;
         } else if (!longPressResetTriggered && (millis() - buttonPressStartMs >= LONG_PRESS_MS)) {
             longPressResetTriggered = true;
+            digitalWrite(BUTTON_LED_PIN, LOW);
             resetAllSettings();
         }
     } else {
@@ -190,7 +208,7 @@ void buttonDebugStatus() {
     Serial.print("Debug Counter: ");
     Serial.println(debugCounter);
     Serial.print("Button State: ");
-    Serial.println(digitalRead(BUTTON_PIN));
+    Serial.println(digitalRead(kButtonGpio));
     Serial.print("LED State: ");
     Serial.println(digitalRead(BUTTON_LED_PIN));
     Serial.println("==================");

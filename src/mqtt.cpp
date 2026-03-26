@@ -29,7 +29,7 @@ static PubSubClient client(espClient);
 static constexpr unsigned long kMqttBackoffInitialMs = 5000;
 static constexpr unsigned long kMqttBackoffMaxMs = 60000;
 
-static constexpr unsigned kPublishMaxAttempts = 5;
+static constexpr unsigned kPublishMaxAttempts = 2;
 static constexpr unsigned long kPublishRetryDelayMs = 25;
 
 static unsigned long lastMqttAttemptAt = 0;
@@ -40,7 +40,8 @@ static unsigned long mqttCurrentBackoffMs = kMqttBackoffInitialMs;
 static unsigned long mqttTryConnectSinglePass() {
     MQTT_DBG_PRINT("Verbinde mit MQTT (TLS)...");
     char clientId[24];
-    snprintf(clientId, sizeof(clientId), "ESP32Heart-%04lX", static_cast<unsigned long>(random(0xffff)));
+    snprintf(clientId, sizeof(clientId), "ESP32Heart-%04lX",
+             static_cast<unsigned long>(esp_random() & 0xffffU));
 
     MQTT_DBG_PRINT("Client ID: ");
     MQTT_DBG_PRINTLN(clientId);
@@ -60,7 +61,13 @@ static unsigned long mqttTryConnectSinglePass() {
         return 5000;
     }
 
-    if (client.connect(clientId, mqtt_username, mqtt_password)) {
+    char willTopic[128];
+    // Begrenzte Basislaenge vermeidet -Wformat-truncation (pub-Topic und Puffer sind je 128 Byte).
+    static constexpr int kLwtSuffixLen = 4; // "/lwt" ohne NUL
+    const int maxPubLen = static_cast<int>(sizeof(willTopic)) - kLwtSuffixLen - 1; // + NUL
+    snprintf(willTopic, sizeof(willTopic), "%.*s/lwt", maxPubLen, mqtt_topic_pub);
+
+    if (client.connect(clientId, mqtt_username, mqtt_password, willTopic, 1, true, "offline", true)) {
         MQTT_DBG_PRINTLN("MQTT verbunden!");
         mqttCurrentBackoffMs = kMqttBackoffInitialMs;
         MQTT_DBG_PRINT("Subscribing zu Topic (QoS 1): ");
@@ -118,8 +125,6 @@ bool mqttPublishHeart() {
 }
 
 void mqttSetup() {
-    // Echte Zufallswerte für Arduino random() (Client-ID), nicht nur libc-rand().
-    randomSeed(static_cast<unsigned long>(esp_random()));
     espClient.setCACertBundle(x509_crt_bundle_start);
     client.setBufferSize(512);
     client.setServer(mqtt_server, mqtt_port);
