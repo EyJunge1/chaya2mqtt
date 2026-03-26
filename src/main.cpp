@@ -20,9 +20,9 @@
 static constexpr unsigned long kWifiReconnectIntervalMs = 30000;
 static constexpr unsigned long kWifiHardReconnectGapMs = 100;
 
-/** Light-Sleep: kurz bei aktiver LED-Sequenz, laenger im Idle (Taster weiter per GPIO-Wakeup). */
+/** Light-Sleep: kurz bei aktiver LED-Sequenz, laenger im Idle (Taster per GPIO-, WiFi per Event-Wakeup). */
 static constexpr uint64_t kLightSleepActiveUs = 10000ULL;   // 10 ms
-static constexpr uint64_t kLightSleepIdleUs = 500000ULL;    // 500 ms
+static constexpr uint64_t kLightSleepIdleUs = 2000000ULL;  // 2 s (WiFi-Wakeup weckt bei Bedarf frueher)
 
 static uint64_t computeLightSleepTimerUs() {
     if (buttonIsLedTxSequenceActive()) {
@@ -35,10 +35,13 @@ static void armLightSleepWakeupSources(uint64_t timerUs) {
     esp_sleep_enable_timer_wakeup(timerUs);
     gpio_wakeup_enable(static_cast<gpio_num_t>(kButtonGpio), GPIO_INTR_HIGH_LEVEL);
     esp_sleep_enable_gpio_wakeup();
+    esp_sleep_enable_wifi_wakeup();
 }
 
 void setup() {
+#if defined(CORE_DEBUG_LEVEL) && CORE_DEBUG_LEVEL > 0
     Serial.begin(115200);
+#endif
     MAIN_DBG_PRINTLN("=== ESP32 Rotes Herz Display mit MQTT ===");
 
     displayInit();

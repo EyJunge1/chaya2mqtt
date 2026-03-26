@@ -123,7 +123,7 @@ bool mqttPublishHeart() {
 
 void mqttSetup() {
     espClient.setCACertBundle(x509_crt_bundle_start);
-    client.setBufferSize(512);
+    client.setBufferSize(256);
     client.setServer(mqtt_server, mqtt_port);
     client.setCallback(mqttCallback);
     // E-Paper Full-Refresh blockiert ~8s; längeres Keep-Alive verhindert Broker-Timeout bei zwei Refreshes hintereinander.

@@ -19,6 +19,7 @@ static constexpr unsigned long kLongPressMs = 5000;
 static constexpr unsigned long kShortPressMinMs = 50;
 static constexpr unsigned kPublishMaxAttempts = 2;
 static constexpr unsigned long kPublishRetryDelayMs = 25;
+static constexpr unsigned long kFailFlashMs = 50;
 static bool buttonHeldDown = false;
 static unsigned long buttonPressStartMs = 0;
 static bool longPressResetTriggered = false;
@@ -45,6 +46,13 @@ enum class LedTxPhase : uint8_t {
     PostOff1,
     PostOn2,
     PostOff2,
+    /** 3x kurzes Flackern nach fehlgeschlagenem Publish (je kFailFlashMs an/aus). */
+    FailOn1,
+    FailOff1,
+    FailOn2,
+    FailOff2,
+    FailOn3,
+    FailOff3,
 };
 
 static LedTxPhase ledTxPhase = LedTxPhase::Idle;
@@ -139,8 +147,9 @@ void checkLEDStatus() {
                 publishFailCount++;
                 if (publishFailCount >= kPublishMaxAttempts) {
                     BUTTON_DBG_PRINTLN("MQTT Sendung fehlgeschlagen!");
-                    digitalWrite(kButtonLedPin, LOW);
-                    ledTxPhase = LedTxPhase::Idle;
+                    digitalWrite(kButtonLedPin, HIGH);
+                    ledTxPhase = LedTxPhase::FailOn1;
+                    armLedPhase(kFailFlashMs);
                 } else {
                     ledTxPhase = LedTxPhase::PublishRetryWait;
                     armLedPhase(kPublishRetryDelayMs);
@@ -179,6 +188,41 @@ void checkLEDStatus() {
             break;
 
         case LedTxPhase::PostOff2:
+            digitalWrite(kButtonLedPin, LOW);
+            ledTxPhase = LedTxPhase::Idle;
+            break;
+
+        case LedTxPhase::FailOn1:
+            digitalWrite(kButtonLedPin, LOW);
+            ledTxPhase = LedTxPhase::FailOff1;
+            armLedPhase(kFailFlashMs);
+            break;
+
+        case LedTxPhase::FailOff1:
+            digitalWrite(kButtonLedPin, HIGH);
+            ledTxPhase = LedTxPhase::FailOn2;
+            armLedPhase(kFailFlashMs);
+            break;
+
+        case LedTxPhase::FailOn2:
+            digitalWrite(kButtonLedPin, LOW);
+            ledTxPhase = LedTxPhase::FailOff2;
+            armLedPhase(kFailFlashMs);
+            break;
+
+        case LedTxPhase::FailOff2:
+            digitalWrite(kButtonLedPin, HIGH);
+            ledTxPhase = LedTxPhase::FailOn3;
+            armLedPhase(kFailFlashMs);
+            break;
+
+        case LedTxPhase::FailOn3:
+            digitalWrite(kButtonLedPin, LOW);
+            ledTxPhase = LedTxPhase::FailOff3;
+            armLedPhase(kFailFlashMs);
+            break;
+
+        case LedTxPhase::FailOff3:
             digitalWrite(kButtonLedPin, LOW);
             ledTxPhase = LedTxPhase::Idle;
             break;

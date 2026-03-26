@@ -47,6 +47,9 @@ void drawHeartWithNumber() {
     static constexpr int kTriangleBottom = kCenterY + kHeartSize + 20;
     static constexpr int kMaxWidth = kHeartSize + 61;
 
+    const int dw = display.width();
+    const int dh = display.height();
+
     display.setFullWindow();
     display.firstPage();
     do {
@@ -59,8 +62,6 @@ void drawHeartWithNumber() {
                            static_cast<int16_t>(kCircleY),
                            static_cast<int16_t>(kCircleRadius), GxEPD_RED);
 
-        const int dw = display.width();
-        const int dh = display.height();
         const int16_t triLeftX = static_cast<int16_t>(kCenterX - (kMaxWidth / 2));
         const int16_t triRightX = static_cast<int16_t>(kCenterX + (kMaxWidth / 2));
         const int16_t triBottomY = static_cast<int16_t>(kTriangleBottom);
