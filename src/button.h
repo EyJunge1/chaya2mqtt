@@ -5,6 +5,8 @@ inline constexpr int kButtonGpio = 2;
 
 void buttonInit();
 void buttonStartupBlink();
+/** Nach Startup-Blink: LED-Pegel im Light-Sleep halten (weniger Glitches). */
+void buttonEnableLedGpioHoldForLightSleep();
 void buttonLoop();
 void checkLEDStatus();
 void buttonDebugStatus();

@@ -26,7 +26,8 @@ static constexpr unsigned long kWifiHardReconnectGapMs = 100;
 
 /** Light-Sleep: kurz bei aktiver LED-Sequenz, laenger im Idle (Taster per GPIO-, WiFi per Event-Wakeup). */
 static constexpr uint64_t kLightSleepActiveUs = 10000ULL;   // 10 ms
-static constexpr uint64_t kLightSleepIdleUs = 2000000ULL;  // 2 s (WiFi-Wakeup weckt bei Bedarf frueher)
+/** Idle: 15 s -- genug fuer MQTT-Keepalive (60 s); WiFi-/GPIO-Wakeup wecken bei Bedarf frueher. */
+static constexpr uint64_t kLightSleepIdleUs = 15000000ULL;  // 15 s
 static constexpr uint64_t kLightSleepWifiHardReconnectGapUs =
     static_cast<uint64_t>(kWifiHardReconnectGapMs) * 1000ULL;
 
@@ -44,6 +45,13 @@ static uint64_t computeLightSleepTimerUs() {
     }
     if (wifiHardReconnectPending) {
         return kLightSleepWifiHardReconnectGapUs;
+    }
+    const unsigned long mqttWaitMs = mqttMillisUntilNextConnectAttempt();
+    if (mqttWaitMs > 0) {
+        uint64_t alignUs = static_cast<uint64_t>(mqttWaitMs) * 1000ULL;
+        constexpr uint64_t kMinAlignUs = 10000ULL;
+        alignUs = std::max(kMinAlignUs, std::min(alignUs, kLightSleepIdleUs));
+        return alignUs;
     }
     return kLightSleepIdleUs;
 }
@@ -81,13 +89,13 @@ void setup() {
     mqttSetup();
 
     armLightSleepStaticWakeups();
-    armLightSleepTimerWakeup(computeLightSleepTimerUs());
 
     MAIN_DBG_PRINTLN("Setup abgeschlossen");
 
     drawHeartWithNumber();
 
     buttonStartupBlink();
+    buttonEnableLedGpioHoldForLightSleep();
 }
 
 void loop() {
@@ -139,7 +147,6 @@ void loop() {
 
     if (consumeHeartRedraw()) {
         drawHeartWithNumber();
-        flushHeartCounterIfDirty();
     }
 
 #if defined(CORE_DEBUG_LEVEL) && CORE_DEBUG_LEVEL > 0

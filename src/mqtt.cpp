@@ -162,3 +162,15 @@ void mqttLoop() {
         client.loop();
     }
 }
+
+unsigned long mqttMillisUntilNextConnectAttempt() {
+    if (client.connected()) {
+        return 0;
+    }
+    const unsigned long now = millis();
+    const unsigned long elapsed = now - lastMqttAttemptAt;
+    if (elapsed >= mqttBackoffMs) {
+        return 0;
+    }
+    return mqttBackoffMs - elapsed;
+}

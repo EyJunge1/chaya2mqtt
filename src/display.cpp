@@ -10,7 +10,7 @@
 static GxEPD2_3C<GxEPD2_154_Z90c, GxEPD2_154_Z90c::HEIGHT> display(
     GxEPD2_154_Z90c(/*CS=*/ 15, /*DC=*/ 27, /*RST=*/ 26, /*BUSY=*/ 25));
 
-static bool g_heartRedrawPending = false;
+static volatile bool g_heartRedrawPending = false;
 
 #if defined(CORE_DEBUG_LEVEL) && CORE_DEBUG_LEVEL > 0
 #define DISPLAY_DBG_PRINTLN(x) Serial.println(x)

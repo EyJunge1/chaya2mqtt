@@ -4,6 +4,7 @@
 #include "mqtt.h"
 
 #include <Arduino.h>
+#include <driver/gpio.h>
 
 #if defined(CORE_DEBUG_LEVEL) && CORE_DEBUG_LEVEL > 0
 #define BUTTON_DBG_PRINTLN(x) Serial.println(x)
@@ -65,6 +66,16 @@ static void armLedPhase(unsigned long durationMs) {
     ledPhaseDurationMs = durationMs;
 }
 
+/** Vor jeder Aenderung: Hold loesen, damit digitalWrite wirkt; im Idle wieder halten. */
+static void ledOutput(int level) {
+    gpio_hold_dis(static_cast<gpio_num_t>(kButtonLedPin));
+    digitalWrite(kButtonLedPin, level);
+}
+
+static void ledHoldWhenIdle() {
+    gpio_hold_en(static_cast<gpio_num_t>(kButtonLedPin));
+}
+
 static bool ledSendSequenceActive() {
     return ledTxPhase != LedTxPhase::Idle;
 }
@@ -73,11 +84,34 @@ bool buttonIsLedTxSequenceActive() {
     return ledSendSequenceActive();
 }
 
+struct LedPhaseRow {
+    LedTxPhase from;
+    int ledLevel;
+    LedTxPhase next;
+    unsigned long durationMs;
+};
+
+/** Einfache Phasen: LED setzen, naechste Phase, Dauer. */
+static constexpr LedPhaseRow kLedPhaseRows[] = {
+    {LedTxPhase::PreOn1, LOW, LedTxPhase::PreOff1, 100},
+    {LedTxPhase::PreOff1, HIGH, LedTxPhase::PreOn2, 100},
+    {LedTxPhase::PreOn2, LOW, LedTxPhase::PreOff2, 100},
+    {LedTxPhase::PostWait, HIGH, LedTxPhase::PostOn1, 100},
+    {LedTxPhase::PostOn1, LOW, LedTxPhase::PostOff1, 100},
+    {LedTxPhase::PostOff1, HIGH, LedTxPhase::PostOn2, 100},
+    {LedTxPhase::PostOn2, LOW, LedTxPhase::PostOff2, 100},
+    {LedTxPhase::FailOn1, LOW, LedTxPhase::FailOff1, kFailFlashMs},
+    {LedTxPhase::FailOff1, HIGH, LedTxPhase::FailOn2, kFailFlashMs},
+    {LedTxPhase::FailOn2, LOW, LedTxPhase::FailOff2, kFailFlashMs},
+    {LedTxPhase::FailOff2, HIGH, LedTxPhase::FailOn3, kFailFlashMs},
+    {LedTxPhase::FailOn3, LOW, LedTxPhase::FailOff3, kFailFlashMs},
+};
+
 static void startMqttSendLedSequence() {
     BUTTON_DBG_PRINTLN("Button-Druck erkannt!");
     BUTTON_DBG_PRINTLN("Sende MQTT-Nachricht (LED-Sequenz)...");
     ledTxPhase = LedTxPhase::PreOn1;
-    digitalWrite(kButtonLedPin, HIGH);
+    ledOutput(HIGH);
     armLedPhase(100);
 }
 
@@ -91,12 +125,16 @@ void buttonInit() {
 
 void buttonStartupBlink() {
     for (int i = 0; i < 3; i++) {
-        digitalWrite(kButtonLedPin, HIGH);
+        ledOutput(HIGH);
         delay(200);
-        digitalWrite(kButtonLedPin, LOW);
+        ledOutput(LOW);
         delay(200);
     }
-    digitalWrite(kButtonLedPin, LOW);
+    ledOutput(LOW);
+}
+
+void buttonEnableLedGpioHoldForLightSleep() {
+    ledHoldWhenIdle();
 }
 
 void checkLEDStatus() {
@@ -109,25 +147,16 @@ void checkLEDStatus() {
         return;
     }
 
+    for (const LedPhaseRow& row : kLedPhaseRows) {
+        if (ledTxPhase == row.from) {
+            ledOutput(row.ledLevel);
+            ledTxPhase = row.next;
+            armLedPhase(row.durationMs);
+            return;
+        }
+    }
+
     switch (ledTxPhase) {
-        case LedTxPhase::PreOn1:
-            digitalWrite(kButtonLedPin, LOW);
-            ledTxPhase = LedTxPhase::PreOff1;
-            armLedPhase(100);
-            break;
-
-        case LedTxPhase::PreOff1:
-            digitalWrite(kButtonLedPin, HIGH);
-            ledTxPhase = LedTxPhase::PreOn2;
-            armLedPhase(100);
-            break;
-
-        case LedTxPhase::PreOn2:
-            digitalWrite(kButtonLedPin, LOW);
-            ledTxPhase = LedTxPhase::PreOff2;
-            armLedPhase(100);
-            break;
-
         case LedTxPhase::PreOff2:
             publishFailCount = 0;
             ledTxPhase = LedTxPhase::PublishTry;
@@ -144,7 +173,7 @@ void checkLEDStatus() {
                 publishFailCount++;
                 if (publishFailCount >= kPublishMaxAttempts) {
                     BUTTON_DBG_PRINTLN("MQTT Sendung fehlgeschlagen!");
-                    digitalWrite(kButtonLedPin, HIGH);
+                    ledOutput(HIGH);
                     ledTxPhase = LedTxPhase::FailOn1;
                     armLedPhase(kFailFlashMs);
                 } else {
@@ -160,66 +189,10 @@ void checkLEDStatus() {
             armLedPhase(0);
             break;
 
-        case LedTxPhase::PostWait:
-            digitalWrite(kButtonLedPin, HIGH);
-            ledTxPhase = LedTxPhase::PostOn1;
-            armLedPhase(100);
-            break;
-
-        case LedTxPhase::PostOn1:
-            digitalWrite(kButtonLedPin, LOW);
-            ledTxPhase = LedTxPhase::PostOff1;
-            armLedPhase(100);
-            break;
-
-        case LedTxPhase::PostOff1:
-            digitalWrite(kButtonLedPin, HIGH);
-            ledTxPhase = LedTxPhase::PostOn2;
-            armLedPhase(100);
-            break;
-
-        case LedTxPhase::PostOn2:
-            digitalWrite(kButtonLedPin, LOW);
-            ledTxPhase = LedTxPhase::PostOff2;
-            armLedPhase(100);
-            break;
-
-        case LedTxPhase::PostOff2:
-            ledTxPhase = LedTxPhase::Idle;
-            break;
-
-        case LedTxPhase::FailOn1:
-            digitalWrite(kButtonLedPin, LOW);
-            ledTxPhase = LedTxPhase::FailOff1;
-            armLedPhase(kFailFlashMs);
-            break;
-
-        case LedTxPhase::FailOff1:
-            digitalWrite(kButtonLedPin, HIGH);
-            ledTxPhase = LedTxPhase::FailOn2;
-            armLedPhase(kFailFlashMs);
-            break;
-
-        case LedTxPhase::FailOn2:
-            digitalWrite(kButtonLedPin, LOW);
-            ledTxPhase = LedTxPhase::FailOff2;
-            armLedPhase(kFailFlashMs);
-            break;
-
-        case LedTxPhase::FailOff2:
-            digitalWrite(kButtonLedPin, HIGH);
-            ledTxPhase = LedTxPhase::FailOn3;
-            armLedPhase(kFailFlashMs);
-            break;
-
-        case LedTxPhase::FailOn3:
-            digitalWrite(kButtonLedPin, LOW);
-            ledTxPhase = LedTxPhase::FailOff3;
-            armLedPhase(kFailFlashMs);
-            break;
-
+        case LedTxPhase::PostOff2:  // NOLINT(bugprone-branch-clone)
         case LedTxPhase::FailOff3:
             ledTxPhase = LedTxPhase::Idle;
+            ledHoldWhenIdle();
             break;
 
         default:
@@ -248,10 +221,10 @@ void buttonLoop() {
             longPressResetTriggered = true;
             // Kurzes Blinkmuster als Bestaetigung vor Factory-Reset (blockierend, Geraet startet neu).
             for (int i = 0; i < 6; i++) {
-                digitalWrite(kButtonLedPin, (i % 2) == 0 ? HIGH : LOW);
+                ledOutput((i % 2) == 0 ? HIGH : LOW);
                 delay(120);
             }
-            digitalWrite(kButtonLedPin, LOW);
+            ledOutput(LOW);
             resetAllSettings();
         }
     } else {
