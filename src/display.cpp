@@ -31,7 +31,11 @@ bool consumeHeartRedraw() {
 
 void displayInit() {
     SPI.begin(/*SCK=*/ 13, /*MISO=*/ 12, /*MOSI=*/ 14, /*SS=*/ 15);
+#if defined(CORE_DEBUG_LEVEL) && CORE_DEBUG_LEVEL > 0
     display.init(115200, true, 2, false);
+#else
+    display.init(0, true, 2, false);
+#endif
 }
 
 void drawHeartWithNumber() {

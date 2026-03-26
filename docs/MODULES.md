@@ -19,7 +19,7 @@ Uebersicht aller Quelldateien unter `src/`: oeffentliche API, globale Symbole un
 7. `loadHeartCounter()` -- Zaehler aus NVS (Namespace `heart`)
 8. `setupWiFi()` -- WiFiManager inkl. Portal-Parameter; danach `WiFi.setSleep(true)` und `esp_wifi_set_ps(WIFI_PS_MAX_MODEM)` (aggressiver Modem-Sleep)
 9. `mqttSetup()` -- TLS-Client mit eingebautem CA-Bundle, Broker, Callback
-10. `armLightSleepWakeupSources(computeLightSleepTimerUs())` -- Wakeup: adaptiver Timer (**10 ms** bei aktiver Sende-LED-Sequenz, **2 s** im Idle), GPIO Taster (HIGH), **WiFi-Wakeup**
+10. `armLightSleepStaticWakeups()` einmalig (GPIO Taster HIGH, **WiFi-Wakeup**), danach `armLightSleepTimerWakeup(computeLightSleepTimerUs())` -- adaptiver Timer (**10 ms** / **2 s**)
 11. `drawHeartWithNumber()` -- erste Darstellung (mit geladenem `heartCounter`); danach `display.hibernate()`
 12. `buttonStartupBlink()` -- 3x LED-Blitz
 
@@ -28,7 +28,8 @@ Uebersicht aller Quelldateien unter `src/`: oeffentliche API, globale Symbole un
 | Funktion | Beschreibung |
 |----------|--------------|
 | `computeLightSleepTimerUs()` | Liefert **10 ms** (Mikrosekunden), wenn `buttonIsLedTxSequenceActive()`, sonst **2 s** |
-| `armLightSleepWakeupSources(timerUs)` | `esp_sleep_enable_timer_wakeup`, GPIO-Wakeup Taster, `esp_sleep_enable_gpio_wakeup`, `esp_sleep_enable_wifi_wakeup` |
+| `armLightSleepStaticWakeups()` | Einmalig: GPIO-Wakeup Taster, `esp_sleep_enable_gpio_wakeup`, `esp_sleep_enable_wifi_wakeup` |
+| `armLightSleepTimerWakeup(timerUs)` | Nur `esp_sleep_enable_timer_wakeup` (bei Timerwechsel in `loop()`) |
 
 ### Ablauf `loop()`
 
@@ -41,7 +42,7 @@ Uebersicht aller Quelldateien unter `src/`: oeffentliche API, globale Symbole un
 | `consumeHeartRedraw()` / `drawHeartWithNumber()` | bei MQTT-Neuzeichnung; danach `flushHeartCounterIfDirty()` (Zaehler sofort in NVS) |
 | `WiFi.reconnect()` / Fallback | bei getrenntem WLAN: bis zu **3x** `reconnect()`, danach `disconnect` und in einer **folgenden** Iteration (nach **>= 100 ms** ohne `delay`) `WiFi.begin()`; hoechstens alle **30 s** (plus sofort beim ersten Verlust) |
 | `buttonDebugStatus()` | alle 5 s Serial-Status (nur noch ein Timer in `main`, nur bei `CORE_DEBUG_LEVEL > 0`) |
-| `armLightSleepWakeupSources` / Timer-Neuarmierung | Wenn sich `computeLightSleepTimerUs()` gegenueber letzter Iteration aendert, Wakeup-Quellen mit neuem Timer neu setzen |
+| `armLightSleepTimerWakeup` / Timer-Neuarmierung | Wenn sich `computeLightSleepTimerUs()` gegenueber letzter Iteration aendert, nur den Timer neu setzen (GPIO/WiFi bleiben) |
 | `esp_light_sleep_start()` | Light-Sleep (adaptiver Timer + GPIO-Wakeup Taster + **WiFi-Wakeup**) |
 
 ---
@@ -56,7 +57,7 @@ Uebersicht aller Quelldateien unter `src/`: oeffentliche API, globale Symbole un
 |--------|-----|----------------|
 | `heartCounter` | `int` | Herz-Zaehler (Anzeige + MQTT); Persistenz Namespace `heart`, NVS-Key weiterhin `counter` |
 | `mqtt_server` | `char[128]` | Broker-Hostname oder IP |
-| `mqtt_port` | `int` | Broker-Port (Default **8883**) |
+| `mqtt_port` | `uint16_t` | Broker-Port (Default **8883**) |
 | `mqtt_username` | `char[64]` | optional |
 | `mqtt_password` | `char[64]` | optional |
 | `mqtt_topic_pub` | `char[128]` | Sende-Topic (Default `heart/to_b`) |
@@ -100,7 +101,7 @@ Der Zaehlerstand kommt aus **`config.h`** (`extern int heartCounter`).
 
 | Funktion | Beschreibung |
 |----------|--------------|
-| `displayInit()` | `SPI.begin(13, 12, 14, 15)`; `display.init(115200, true, 2, false)` |
+| `displayInit()` | `SPI.begin(13, 12, 14, 15)`; `display.init(...)` mit **115200** nur wenn `CORE_DEBUG_LEVEL > 0`, sonst **0** (kein `Serial.begin` durch GxEPD2 im Release) |
 | `drawHeartWithNumber()` | Vollbild-Refresh: weisser Hintergrund, rotes Herz aus zwei Kreisen, `fillTriangle` fuer die Spitze, gefuellter Bereich, schwarze Zahl unten mittig (`setTextSize` **2--4** je nach Stellenzahl); danach `display.hibernate()` (Controller Deep Sleep, Bild bleibt bistabil) |
 | `requestHeartRedraw()` | Setzt internes Flag (nach MQTT-Empfang) |
 | `consumeHeartRedraw()` | Liefert `true` einmalig wenn Neuzeichnen angefordert; loescht das Flag |
@@ -126,7 +127,7 @@ Der Zaehlerstand kommt aus **`config.h`** (`extern int heartCounter`).
 
 | Funktion | Beschreibung |
 |----------|--------------|
-| `mqttSetup()` | `setBufferSize(256)`, `setServer`, `setCallback`, `setKeepAlive(60)`, `setSocketTimeout(5)` (s), `setCACertBundle()` mit eingebettetem Mozilla-Bundle |
+| `mqttSetup()` | `setBufferSize(384)` (gross genug fuer Worst-Case CONNECT mit langen Topics/Credentials), `setServer`, `setCallback`, `setKeepAlive(60)`, `setSocketTimeout(5)` (s), `setCACertBundle()` mit eingebettetem Mozilla-Bundle |
 | `mqttLoop()` | Wenn nicht verbunden: Connect-Versuch wenn `millis() - lastAttempt >= backoff` (overflow-sicher); bei Connect-Fehler exponentieller Backoff 5 s bis max. 60 s; **leerer MQTT-Server:** Warteintervall **60 s**; kein WLAN: **5 s**; bei **Uebergang** zu verbunden: Backoff zuruecksetzen; danach `client.loop()` |
 | `mqttPublishHeart()` | Ein Publish-Versuch **`heart`** auf `mqtt_topic_pub`, wenn verbunden; bei Fehlschlag ein `client.loop()`. **2** Versuche laufen nicht-blockierend in `button.cpp` (LED-State-Machine, Phase `PublishRetryWait`) |
 
@@ -135,7 +136,7 @@ Der Zaehlerstand kommt aus **`config.h`** (`extern int heartCounter`).
 - Nur Payload exakt **`heart`** (5 Bytes) wird akzeptiert; alles andere wird ignoriert.
 - Bei `CORE_DEBUG_LEVEL > 0`: Serial mit `Serial.write(payload, length)` (ohne `String`-Allokation).
 - **Ignoriert** den Topic-Namen (`(void)topic`).
-- **`heartCounter++`**, `requestHeartRedraw()`; NVS: throttled `maybeSaveHeartCounter()` in `loop()`; nach Neuzeichnen in `main` zusaetzlich `flushHeartCounterIfDirty()` (kein E-Paper im Callback).
+- **`heartCounter++`**, `requestHeartRedraw()`; kein E-Paper im Callback; in `main` nach Redraw `flushHeartCounterIfDirty()`; zusaetzlich `maybeSaveHeartCounter()` in `loop()` als Safety-Net.
 
 ### Implementierungsdetails
 

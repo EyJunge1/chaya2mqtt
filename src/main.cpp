@@ -33,11 +33,15 @@ static uint64_t computeLightSleepTimerUs() {
     return kLightSleepIdleUs;
 }
 
-static void armLightSleepWakeupSources(uint64_t timerUs) {
-    esp_sleep_enable_timer_wakeup(timerUs);
+/** Einmalig in setup(): GPIO- und WiFi-Wakeup aendern sich nicht. */
+static void armLightSleepStaticWakeups() {
     gpio_wakeup_enable(static_cast<gpio_num_t>(kButtonGpio), GPIO_INTR_HIGH_LEVEL);
     esp_sleep_enable_gpio_wakeup();
     esp_sleep_enable_wifi_wakeup();
+}
+
+static void armLightSleepTimerWakeup(uint64_t timerUs) {
+    esp_sleep_enable_timer_wakeup(timerUs);
 }
 
 void setup() {
@@ -61,7 +65,8 @@ void setup() {
 
     mqttSetup();
 
-    armLightSleepWakeupSources(computeLightSleepTimerUs());
+    armLightSleepStaticWakeups();
+    armLightSleepTimerWakeup(computeLightSleepTimerUs());
 
     MAIN_DBG_PRINTLN("Setup abgeschlossen");
 
@@ -134,7 +139,7 @@ void loop() {
     static uint64_t lastArmedLightSleepTimerUs = UINT64_MAX;
     const uint64_t lightSleepTimerUs = computeLightSleepTimerUs();
     if (lightSleepTimerUs != lastArmedLightSleepTimerUs) {
-        armLightSleepWakeupSources(lightSleepTimerUs);
+        armLightSleepTimerWakeup(lightSleepTimerUs);
         lastArmedLightSleepTimerUs = lightSleepTimerUs;
     }
     esp_light_sleep_start();

@@ -21,7 +21,7 @@
 static Preferences preferences;
 char mqtt_server[128] = "";
 int heartCounter = 0;
-int mqtt_port = 8883;
+uint16_t mqtt_port = 8883;
 char mqtt_username[64] = "";
 char mqtt_password[64] = "";
 char mqtt_topic_pub[128] = "heart/to_b";
@@ -53,9 +53,11 @@ void loadMQTTConfig() {
     }
 
     preferences.getString("server", mqtt_server, sizeof(mqtt_server));
-    mqtt_port = preferences.getInt("port", 8883);
-    if (mqtt_port <= 0 || mqtt_port > 65535) {
+    const int portFromNvs = preferences.getInt("port", 8883);
+    if (portFromNvs <= 0 || portFromNvs > 65535) {
         mqtt_port = 8883;
+    } else {
+        mqtt_port = static_cast<uint16_t>(portFromNvs);
     }
     preferences.getString("user", mqtt_username, sizeof(mqtt_username));
     preferences.getString("pass", mqtt_password, sizeof(mqtt_password));
@@ -134,9 +136,11 @@ static void saveParamsFromPortal() {
         safeStrCopy(mqtt_server, sizeof(mqtt_server), g_param_mqtt_server->getValue());
     }
     if (g_param_mqtt_port != nullptr) {
-        mqtt_port = atoi(g_param_mqtt_port->getValue());
-        if (mqtt_port <= 0 || mqtt_port > 65535) {
+        const int parsedPort = atoi(g_param_mqtt_port->getValue());
+        if (parsedPort <= 0 || parsedPort > 65535) {
             mqtt_port = 8883;
+        } else {
+            mqtt_port = static_cast<uint16_t>(parsedPort);
         }
     }
     if (g_param_mqtt_user != nullptr) {
