@@ -1,5 +1,7 @@
 #include "config.h"
 
+#include "display.h"
+
 #include <WiFi.h>
 #include <WiFiManager.h>
 #include <Arduino.h>
@@ -40,6 +42,18 @@ void loadMQTTConfig() {
                 preferences.getString("topic_pub", "heart/to_b").c_str());
     safeStrCopy(mqtt_topic_sub, sizeof(mqtt_topic_sub),
                 preferences.getString("topic_sub", "heart/to_a").c_str());
+    preferences.end();
+}
+
+void loadHeartCounter() {
+    preferences.begin("heart", true);
+    counter = preferences.getInt("counter", 0);
+    preferences.end();
+}
+
+void saveHeartCounter() {
+    preferences.begin("heart", false);
+    preferences.putInt("counter", counter);
     preferences.end();
 }
 
@@ -144,6 +158,9 @@ void resetAllSettings() {
     WiFiManager wm;
     wm.resetSettings();
     preferences.begin("mqtt", false);
+    preferences.clear();
+    preferences.end();
+    preferences.begin("heart", false);
     preferences.clear();
     preferences.end();
     delay(500);

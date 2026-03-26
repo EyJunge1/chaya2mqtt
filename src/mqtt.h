@@ -7,5 +7,4 @@ extern WiFiClientSecure espClient;
 extern PubSubClient client;
 
 void mqttSetup();
-void mqttReconnect();
 void mqttLoop();

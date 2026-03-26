@@ -101,7 +101,7 @@ flowchart TD
     led[checkLEDStatus]
     mq[mqttLoop]
     wifi{WiFi verbunden?}
-    recon[WiFi.reconnect]
+    recon[WiFi.reconnect max 1x/30s]
     dbg[buttonDebugStatus alle 5s]
     wait[delay 5ms]
 
@@ -112,8 +112,9 @@ flowchart TD
     dbg --> wait --> start
 ```
 
-- **mqttLoop:** Bei Verbindungsverlust blockierender Reconnect (`mqttReconnect`)
-- **WiFi:** bei Verlust `WiFi.reconnect()`
+- **mqttLoop:** Bei Verbindungsverlust **nicht-blockierender** Reconnect (ein Versuch pro Abstand, Backoff 5--10 s)
+- **WiFi:** bei Verlust `WiFi.reconnect()` hoechstens alle **30 s**
+- **Display:** nach MQTT-Empfang nur Flag; `drawHeartWithNumber()` laeuft in `loop()` wenn `consumeHeartRedraw()`
 - **Debug:** alle 5 s Button-/LED-Zustand auf Serial
 
 ## MQTT-Protokoll (praktisch)
@@ -124,7 +125,7 @@ flowchart TD
 | Empfangs-Topic | Konfigurierbar, Default `heart/to_a` |
 | Publish (Knopf) | Payload = `String(counter)` (ASCII-Ziffern) auf Sende-Topic |
 | Subscribe | Empfangs-Topic |
-| Callback | Jede empfangene Nachricht -> `counter++`, `drawHeartWithNumber()` |
+| Callback | Jede empfangene Nachricht -> `counter++`, NVS speichern, `requestHeartRedraw()`; Zeichnung in `loop()` |
 
 Authentifizierung: optional ueber `mqtt_username` / `mqtt_password` aus dem Portal.
 
@@ -132,5 +133,6 @@ Authentifizierung: optional ueber `mqtt_username` / `mqtt_password` aus dem Port
 
 - **WiFi:** WiFiManager speichert Zugangsdaten intern.
 - **MQTT:** Namespace `mqtt` in `Preferences` (`server`, `port`, `user`, `pass`, `topic_pub`, `topic_sub`).
+- **Zaehler:** Namespace `heart`, Key `counter` (wird bei MQTT-Empfang aktualisiert; Factory Reset loescht mit).
 
 Siehe [MODULES.md](MODULES.md) fuer Funktionsdetails.

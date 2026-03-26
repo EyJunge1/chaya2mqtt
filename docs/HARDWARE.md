@@ -52,7 +52,7 @@ Das Board hat den **ESP32 direkt integriert** – es ist kein separates DevKit n
 
 | Funktion | GPIO | Modus im Code |
 |----------|------|----------------|
-| **Button** | **2** | `INPUT` – `digitalRead`: `HIGH` = gedrückt |
+| **Button** | **2** | `INPUT_PULLDOWN` – offen = LOW, gedrückt (nach 3,3 V) = `HIGH` |
 | **Button-LED** | **4** | `OUTPUT`, `HIGH` = LED an |
 
 Der Taster ist ein **beleuchteter Knopf** – die LED im Taster wird über GPIO 4 angesteuert und dient als visuelles Feedback (Blinken bei Senden, Startsequenz).

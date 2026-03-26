@@ -12,5 +12,9 @@ extern char mqtt_topic_sub[128];
 
 void loadMQTTConfig();
 void saveMQTTConfig();
+
+/** Zählerstand aus NVS laden/speichern (Namespace heart). */
+void loadHeartCounter();
+void saveHeartCounter();
 void setupWiFi();
 void resetAllSettings();

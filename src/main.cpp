@@ -6,6 +6,8 @@
 #include "display.h"
 #include "mqtt.h"
 
+static constexpr unsigned long kWifiReconnectIntervalMs = 30000;
+
 void setup() {
     Serial.begin(115200);
     Serial.println("=== ESP32 Rotes Herz Display mit MQTT ===");
@@ -16,6 +18,7 @@ void setup() {
     buttonInit();
 
     loadMQTTConfig();
+    loadHeartCounter();
     setupWiFi();
 
     mqttSetup();
@@ -32,9 +35,20 @@ void loop() {
     checkLEDStatus();
     mqttLoop();
 
+    static unsigned long lastWifiReconnectMs = 0;
     if (WiFi.status() != WL_CONNECTED) { // NOLINT(readability-static-accessed-through-instance)
-        Serial.println("WiFi verloren! Versuche Reconnect...");
-        WiFi.reconnect();
+        const unsigned long now = millis();
+        if (now - lastWifiReconnectMs >= kWifiReconnectIntervalMs) {
+            lastWifiReconnectMs = now;
+            Serial.println("WiFi verloren! Versuche Reconnect...");
+            WiFi.reconnect();
+        }
+    } else {
+        lastWifiReconnectMs = millis();
+    }
+
+    if (consumeHeartRedraw()) {
+        drawHeartWithNumber();
     }
 
     static unsigned long lastDbg = 0;

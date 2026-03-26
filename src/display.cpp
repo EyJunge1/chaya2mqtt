@@ -8,6 +8,20 @@ GxEPD2_3C<GxEPD2_154_Z90c, GxEPD2_154_Z90c::HEIGHT> display(
 
 int counter = 0;
 
+static bool g_heartRedrawPending = false;
+
+void requestHeartRedraw() {
+    g_heartRedrawPending = true;
+}
+
+bool consumeHeartRedraw() {
+    if (!g_heartRedrawPending) {
+        return false;
+    }
+    g_heartRedrawPending = false;
+    return true;
+}
+
 void displayInit() {
     SPI.begin(/*SCK=*/ 13, /*MISO=*/ 12, /*MOSI=*/ 14, /*SS=*/ 15);
     display.init(115200, true, 2, false);
@@ -47,7 +61,9 @@ void drawHeartWithNumber() {
             int leftX = centerX - (currentWidth / 2);
             int rightX = centerX + (currentWidth / 2);
 
-            if (y < 200 && leftX >= 0 && rightX < 200) {
+            const int dw = display.width();
+            const int dh = display.height();
+            if (y < dh && leftX >= 0 && rightX < dw) {
                 display.drawLine(static_cast<int16_t>(leftX), static_cast<int16_t>(y),
                                  static_cast<int16_t>(rightX), static_cast<int16_t>(y),
                                  GxEPD_RED);
@@ -64,13 +80,13 @@ void drawHeartWithNumber() {
         int16_t y1;
         uint16_t w;
         uint16_t h;
-        display.getTextBounds(numberStr, 0, 0, &x1, &y1, &w, &h);
-
-        int textX = centerX - (w / 2) - 6;
-        int textY = 165;
-
         display.setTextColor(GxEPD_BLACK);
         display.setTextSize(4);
+        display.getTextBounds(numberStr, 0, 0, &x1, &y1, &w, &h);
+
+        int textX = centerX - static_cast<int>(w / 2);
+        int textY = 165;
+
         display.setCursor(static_cast<int16_t>(textX), static_cast<int16_t>(textY));
         display.print(numberStr);
 
