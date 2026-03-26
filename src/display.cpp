@@ -50,6 +50,31 @@ void drawHeartWithNumber() {
     const int dw = display.width();
     const int dh = display.height();
 
+    const int16_t triLeftX = static_cast<int16_t>(kCenterX - (kMaxWidth / 2));
+    const int16_t triRightX = static_cast<int16_t>(kCenterX + (kMaxWidth / 2));
+    const int16_t triBottomY = static_cast<int16_t>(kTriangleBottom);
+
+    char numberBuf[16];
+    const int sn = snprintf(numberBuf, sizeof(numberBuf), "%d", heartCounter);
+    const size_t digitLen = (sn > 0) ? static_cast<size_t>(sn) : size_t{1};
+    uint8_t textSize = 4;
+    if (digitLen >= 7) {
+        textSize = 2;
+    } else if (digitLen >= 5) {
+        textSize = 3;
+    }
+
+    int16_t x1;
+    int16_t y1;
+    uint16_t w;
+    uint16_t h;
+    display.setTextColor(GxEPD_BLACK);
+    display.setTextSize(textSize);
+    display.getTextBounds(numberBuf, 0, 0, &x1, &y1, &w, &h);
+
+    const int textX = kCenterX - static_cast<int>(w / 2);
+    static constexpr int kTextY = 165;
+
     display.setFullWindow();
     display.firstPage();
     do {
@@ -62,9 +87,6 @@ void drawHeartWithNumber() {
                            static_cast<int16_t>(kCircleY),
                            static_cast<int16_t>(kCircleRadius), GxEPD_RED);
 
-        const int16_t triLeftX = static_cast<int16_t>(kCenterX - (kMaxWidth / 2));
-        const int16_t triRightX = static_cast<int16_t>(kCenterX + (kMaxWidth / 2));
-        const int16_t triBottomY = static_cast<int16_t>(kTriangleBottom);
         if (kTriangleTop >= 0 && kTriangleBottom < dh && triLeftX >= 0 && triRightX < dw) {
             display.fillTriangle(triLeftX, static_cast<int16_t>(kTriangleTop), triRightX,
                                  static_cast<int16_t>(kTriangleTop), static_cast<int16_t>(kCenterX), triBottomY,
@@ -75,27 +97,6 @@ void drawHeartWithNumber() {
                          static_cast<int16_t>(kCircleY - (kHeartSize / 6)),
                          static_cast<int16_t>((kHeartSize * 2) / 3),
                          static_cast<int16_t>(kHeartSize / 2), GxEPD_RED);
-
-        char numberBuf[16];
-        const int sn = snprintf(numberBuf, sizeof(numberBuf), "%d", heartCounter);
-        const size_t digitLen = (sn > 0) ? static_cast<size_t>(sn) : size_t{1};
-        uint8_t textSize = 4;
-        if (digitLen >= 7) {
-            textSize = 2;
-        } else if (digitLen >= 5) {
-            textSize = 3;
-        }
-
-        int16_t x1;
-        int16_t y1;
-        uint16_t w;
-        uint16_t h;
-        display.setTextColor(GxEPD_BLACK);
-        display.setTextSize(textSize);
-        display.getTextBounds(numberBuf, 0, 0, &x1, &y1, &w, &h);
-
-        int textX = kCenterX - static_cast<int>(w / 2);
-        static constexpr int kTextY = 165;
 
         display.setCursor(static_cast<int16_t>(textX), static_cast<int16_t>(kTextY));
         display.print(numberBuf);

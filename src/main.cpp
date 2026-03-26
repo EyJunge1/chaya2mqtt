@@ -2,7 +2,9 @@
 #include <WiFi.h>
 #include <cstdint>
 #include <driver/gpio.h>
+#include <esp_bt.h>
 #include <esp_sleep.h>
+#include <esp32-hal-cpu.h>
 
 #include "button.h"
 #include "config.h"
@@ -39,6 +41,9 @@ static void armLightSleepWakeupSources(uint64_t timerUs) {
 }
 
 void setup() {
+    setCpuFrequencyMhz(80);
+    btStop();
+
 #if defined(CORE_DEBUG_LEVEL) && CORE_DEBUG_LEVEL > 0
     Serial.begin(115200);
 #endif

@@ -109,10 +109,11 @@ void checkLEDStatus() {
         return;
     }
 
+#if defined(__GNUC__)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wswitch"
+#endif
     switch (ledTxPhase) {
-        case LedTxPhase::Idle:
-            break;
-
         case LedTxPhase::PreOn1:
             digitalWrite(kButtonLedPin, LOW);
             ledTxPhase = LedTxPhase::PreOff1;
@@ -227,6 +228,9 @@ void checkLEDStatus() {
             ledTxPhase = LedTxPhase::Idle;
             break;
     }
+#if defined(__GNUC__)
+#pragma GCC diagnostic pop
+#endif
 }
 
 void buttonLoop() {
