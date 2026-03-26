@@ -5,6 +5,7 @@
 
 #include <Arduino.h>
 #include <WiFi.h>
+#include <algorithm>
 #include <cstdio>
 #include <cstring>
 #include <esp_random.h>
@@ -12,8 +13,12 @@
 WiFiClientSecure espClient;
 PubSubClient client(espClient);
 
+static constexpr unsigned long kMqttBackoffInitialMs = 5000;
+static constexpr unsigned long kMqttBackoffMaxMs = 60000;
+
 static unsigned long lastMqttAttemptAt = 0;
 static unsigned long mqttBackoffMs = 0;
+static unsigned long mqttCurrentBackoffMs = kMqttBackoffInitialMs;
 
 /** Eine Verbindungsrunde; Rückgabe: Millisekunden bis zum nächsten Versuch. */
 static unsigned long mqttTryConnectSinglePass() {
@@ -41,35 +46,31 @@ static unsigned long mqttTryConnectSinglePass() {
 
     if (client.connect(clientId, mqtt_username, mqtt_password)) {
         Serial.println("MQTT verbunden!");
-        Serial.print("Subscribing zu Topic: ");
+        mqttCurrentBackoffMs = kMqttBackoffInitialMs;
+        Serial.print("Subscribing zu Topic (QoS 1): ");
         Serial.println(mqtt_topic_sub);
-        client.subscribe(mqtt_topic_sub);
+        client.subscribe(mqtt_topic_sub, 1);
         return 0;
     }
 
     Serial.print("MQTT fehlgeschlagen, rc=");
     Serial.print(client.state());
     Serial.println(" (0=Connection timeout, -1=Connection lost, -2=Connect failed, ...)");
-    Serial.println("Versuche es in 5 Sekunden erneut...");
-    return 5000;
-}
-
-static bool isValidHeartMessage(const byte* payload, unsigned int length) {
-    if (length == 0) {
-        return false;
-    }
-    unsigned int i = 0;
-    while (i < length && (payload[i] == ' ' || payload[i] == '\t' || payload[i] == '\r' || payload[i] == '\n')) {
-        i++;
-    }
-    return i < length;
+    const unsigned long waitMs = mqttCurrentBackoffMs;
+    mqttCurrentBackoffMs = std::min(mqttCurrentBackoffMs * 2UL, kMqttBackoffMaxMs);
+    Serial.print("Nächster Versuch in ");
+    Serial.print(waitMs / 1000UL);
+    Serial.println(" s (exponentieller Backoff)...");
+    return waitMs;
 }
 
 // NOLINTNEXTLINE(readability-non-const-parameter) - PubSubClient callback signature is fixed
 static void mqttCallback(char* topic, byte* payload, unsigned int length) {
     (void)topic;
-    if (!isValidHeartMessage(payload, length)) {
-        Serial.println("MQTT: leere oder ungültige Nachricht ignoriert.");
+    static constexpr char kHeartPayload[] = "heart";
+    static constexpr unsigned int kHeartLen = sizeof(kHeartPayload) - 1U;
+    if (length != kHeartLen || memcmp(payload, kHeartPayload, kHeartLen) != 0) {
+        Serial.println("MQTT: unerwarteter Payload ignoriert.");
         return;
     }
 
@@ -81,6 +82,14 @@ static void mqttCallback(char* topic, byte* payload, unsigned int length) {
     requestHeartRedraw();
 }
 
+bool mqttPublishHeart() {
+    if (!client.connected()) {
+        Serial.println("MQTT nicht verbunden!");
+        return false;
+    }
+    return client.publish(mqtt_topic_pub, "heart");
+}
+
 void mqttSetup() {
     // Echte Zufallswerte für Arduino random() (Client-ID), nicht nur libc-rand().
     randomSeed(static_cast<unsigned long>(esp_random()));
@@ -90,8 +99,10 @@ void mqttSetup() {
     client.setCallback(mqttCallback);
     // E-Paper Full-Refresh blockiert ~8s; längeres Keep-Alive verhindert Broker-Timeout bei zwei Refreshes hintereinander.
     client.setKeepAlive(60);
+    client.setSocketTimeout(5);
     lastMqttAttemptAt = 0;
     mqttBackoffMs = 0;
+    mqttCurrentBackoffMs = kMqttBackoffInitialMs;
 }
 
 void mqttLoop() {
@@ -102,6 +113,7 @@ void mqttLoop() {
     if (connected && !wasConnected) {
         lastMqttAttemptAt = 0;
         mqttBackoffMs = 0;
+        mqttCurrentBackoffMs = kMqttBackoffInitialMs;
     }
     wasConnected = connected;
 

@@ -26,12 +26,12 @@ Uebersicht aller Quelldateien unter `src/`: oeffentliche API, globale Symbole un
 |--------|-----------|
 | `buttonLoop()` | Taster entprellen, Kurz-/Langdruck |
 | `checkLEDStatus()` | nicht-blockierende MQTT-Sende-LED-Sequenz (State Machine) |
-| `mqttLoop()` | nicht-blockierender Reconnect mit Backoff, dann `client.loop()` |
+| `mqttLoop()` | nicht-blockierender Reconnect mit exponentiellem Backoff, dann `client.loop()` |
 | `maybeSaveHeartCounter()` | Zaehler throttled (~30 s) nach NVS, wenn seit letztem Save geaendert |
 | `consumeHeartRedraw()` / `drawHeartWithNumber()` | wenn nach MQTT ein Neuzeichnen angefordert wurde |
 | `WiFi.reconnect()` | bei getrenntem WLAN hoechstens alle **30 s** |
 | `buttonDebugStatus()` | alle 5 s Serial-Status (nur noch ein Timer in `main`) |
-| `delay(5)` | kurze Pause |
+| `delay(10)` | kurze Pause |
 
 ---
 
@@ -117,18 +117,20 @@ Der Zaehlerstand kommt aus **`config.h`** (`extern int counter`).
 
 | Funktion | Beschreibung |
 |----------|--------------|
-| `mqttSetup()` | `setServer(mqtt_server, mqtt_port)`, `setCallback(mqttCallback)` |
-| `mqttLoop()` | Wenn nicht verbunden: Connect-Versuch wenn `millis() - lastAttempt >= backoff` (overflow-sicher), Backoff 0 / 5 s / 10 s je nach Fehlerfall; bei **Uebergang** zu verbunden: Backoff einmalig zuruecksetzen; danach `client.loop()` |
+| `mqttSetup()` | `setServer`, `setCallback`, `setKeepAlive(60)`, `setSocketTimeout(5)` (s) |
+| `mqttLoop()` | Wenn nicht verbunden: Connect-Versuch wenn `millis() - lastAttempt >= backoff` (overflow-sicher); bei Connect-Fehler exponentieller Backoff 5 s bis max. 60 s; leerer Server / kein WLAN: feste Wartezeiten; bei **Uebergang** zu verbunden: Backoff zuruecksetzen; danach `client.loop()` |
+| `mqttPublishHeart()` | Publiziert Payload **`heart`** auf `mqtt_topic_pub`, wenn verbunden |
 
 ### Callback `mqttCallback`
 
-- Leere oder rein-whitespace-Payloads werden ignoriert.
+- Nur Payload exakt **`heart`** (5 Bytes) wird akzeptiert; alles andere wird ignoriert.
 - Serial-Ausgabe mit `Serial.write(payload, length)` (ohne `String`-Allokation).
 - **Ignoriert** den Topic-Namen (`(void)topic`).
 - **`counter++`**, `requestHeartRedraw()`; NVS-Schreiben laeuft throttled ueber `maybeSaveHeartCounter()` in `loop()` (kein E-Paper im Callback).
 
 ### Implementierungsdetails
 
+- Subscribe: `client.subscribe(mqtt_topic_sub, 1)` (QoS 1).
 - Client-ID: `ESP32Heart-` + zufaelliger Hex-Wert (`snprintf`, kein Arduino-`String`).
 - Keine separate DNS-Vorabfrage; Aufloesung erfolgt im TLS-/TCP-Stack beim Connect.
 - Ohne WLAN: nur Warte-Backoff (**kein** `WiFi.reconnect()` hier; `main` uebernimmt Reconnect).
@@ -160,8 +162,8 @@ Der Zaehlerstand kommt aus **`config.h`** (`extern int counter`).
 
 ### Abhaengigkeiten
 
-- `#include "mqtt.h"` fuer `client`
-- `#include "config.h"` fuer `counter`, `mqtt_topic_pub`, `resetAllSettings`
+- `#include "mqtt.h"` fuer `mqttPublishHeart()`
+- `#include "config.h"` fuer `resetAllSettings`
 
 ---
 

@@ -59,7 +59,7 @@ flowchart LR
     broker -->|"subscribe heart/to_a"| devA
 ```
 
-Beim **Empfang** einer Nachricht auf dem Empfangs-Topic wird der lokale `counter` um 1 erhoeht und das Herz-Display neu gezeichnet. Der Payload (Counter-Wert des Senders als ASCII-String) wird nicht ausgewertet -- allein der Empfang loest `counter++` aus.
+Beim **Empfang** einer Nachricht auf dem Empfangs-Topic wird der lokale `counter` nur erhoeht, wenn der Payload exakt **`heart`** ist (5 Bytes); sonst wird die Nachricht ignoriert. Anschliessend wird das Herz-Display neu gezeichnet.
 
 - **Transport:** `WiFiClientSecure` + `PubSubClient`
 - **TLS:** `espClient.setInsecure()` -- keine Server-Zertifikatsvalidierung
@@ -104,7 +104,7 @@ flowchart TD
     wifi{WiFi verbunden?}
     recon[WiFi.reconnect max 1x/30s]
     dbg[buttonDebugStatus alle 5s]
-    wait[delay 5ms]
+    wait[delay 10ms]
 
     start --> btn --> led --> mq
     mq --> wifi
@@ -113,7 +113,7 @@ flowchart TD
     dbg --> wait --> start
 ```
 
-- **mqttLoop:** Bei Verbindungsverlust **nicht-blockierender** Reconnect (ein Versuch pro Abstand, Backoff 5--10 s)
+- **mqttLoop:** Bei Verbindungsverlust **nicht-blockierender** Reconnect (ein Versuch pro Abstand, exponentieller Backoff 5 s bis max. 60 s bei Connect-Fehlern; leerer Server / kein WLAN: feste Intervalle)
 - **WiFi:** bei Verlust `WiFi.reconnect()` hoechstens alle **30 s**
 - **Display:** nach MQTT-Empfang nur Flag; `drawHeartWithNumber()` laeuft in `loop()` wenn `consumeHeartRedraw()`
 - **Debug:** alle 5 s Button-/LED-Zustand auf Serial
@@ -124,9 +124,9 @@ flowchart TD
 |--------|------|
 | Sende-Topic | Konfigurierbar, Default `heart/to_b` |
 | Empfangs-Topic | Konfigurierbar, Default `heart/to_a` |
-| Publish (Knopf) | Payload = ASCII-Ziffern (`snprintf` aus `counter`) auf Sende-Topic |
-| Subscribe | Empfangs-Topic |
-| Callback | Jede empfangene Nachricht -> `counter++`, NVS speichern, `requestHeartRedraw()`; Zeichnung in `loop()` |
+| Publish (Knopf) | Payload = **`heart`** auf Sende-Topic (`mqttPublishHeart()`) |
+| Subscribe | Empfangs-Topic mit **QoS 1** |
+| Callback | Nur Payload `heart` -> `counter++`, NVS speichern, `requestHeartRedraw()`; Zeichnung in `loop()` |
 
 Authentifizierung: optional ueber `mqtt_username` / `mqtt_password` aus dem Portal.
 

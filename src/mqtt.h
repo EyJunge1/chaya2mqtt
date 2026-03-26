@@ -8,3 +8,6 @@ extern PubSubClient client;
 
 void mqttSetup();
 void mqttLoop();
+
+/** Sendet festen Payload "heart" auf mqtt_topic_pub (TLS). */
+bool mqttPublishHeart();

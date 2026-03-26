@@ -4,7 +4,6 @@
 #include "mqtt.h"
 
 #include <Arduino.h>
-#include <cstdio>
 
 static const int BUTTON_PIN = 2;
 static const int BUTTON_LED_PIN = 4;
@@ -102,14 +101,7 @@ void checkLEDStatus() {
             break;
 
         case LedTxPhase::PublishTry: {
-            bool ok = false;
-            if (client.connected()) {
-                char message[16];
-                snprintf(message, sizeof(message), "%d", counter);
-                ok = client.publish(mqtt_topic_pub, message);
-            } else {
-                Serial.println("MQTT nicht verbunden!");
-            }
+            const bool ok = mqttPublishHeart();
             if (ok) {
                 Serial.println("MQTT Nachricht erfolgreich gesendet!");
                 ledTxPhase = LedTxPhase::PostWait;
