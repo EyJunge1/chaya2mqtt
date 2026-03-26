@@ -10,12 +10,11 @@
 WiFiClientSecure espClient;
 PubSubClient client(espClient);
 
-namespace {
-
-unsigned long nextMqttTryAt = 0;
+static unsigned long lastMqttAttemptAt = 0;
+static unsigned long mqttBackoffMs = 0;
 
 /** Eine Verbindungsrunde; Rückgabe: Millisekunden bis zum nächsten Versuch. */
-unsigned long mqttTryConnectSinglePass() {
+static unsigned long mqttTryConnectSinglePass() {
     Serial.print("Verbinde mit MQTT (TLS)...");
     String clientId = "ESP32Heart-";
     clientId += String(random(0xffff), HEX);
@@ -65,42 +64,53 @@ unsigned long mqttTryConnectSinglePass() {
     return 5000;
 }
 
-} // namespace
+static bool isValidHeartMessage(const byte* payload, unsigned int length) {
+    if (length == 0) {
+        return false;
+    }
+    unsigned int i = 0;
+    while (i < length && (payload[i] == ' ' || payload[i] == '\t' || payload[i] == '\r' || payload[i] == '\n')) {
+        i++;
+    }
+    return i < length;
+}
 
 // NOLINTNEXTLINE(readability-non-const-parameter) - PubSubClient callback signature is fixed
 static void mqttCallback(char* topic, byte* payload, unsigned int length) {
     (void)topic;
-    String message;
-    message.reserve(length);
-    for (unsigned int i = 0; i < length; i++) {
-        message += static_cast<char>(payload[i]);
+    if (!isValidHeartMessage(payload, length)) {
+        Serial.println("MQTT: leere oder ungültige Nachricht ignoriert.");
+        return;
     }
 
     Serial.print("Nachricht empfangen: ");
-    Serial.println(message);
+    Serial.write(reinterpret_cast<const char*>(payload), length);
+    Serial.println();
 
     counter++;
-    saveHeartCounter();
     requestHeartRedraw();
 }
 
 void mqttSetup() {
+    // Heimnetz: keine Zertifikatsprüfung (Man-in-the-Middle möglich). Für Produktion Root-CA einbinden.
     espClient.setInsecure();
     client.setServer(mqtt_server, mqtt_port);
     client.setCallback(mqttCallback);
-    nextMqttTryAt = 0;
+    lastMqttAttemptAt = 0;
+    mqttBackoffMs = 0;
 }
 
 void mqttLoop() {
     const unsigned long now = millis();
 
     if (!client.connected()) {
-        if (nextMqttTryAt == 0 || now >= nextMqttTryAt) {
-            const unsigned long backoffMs = mqttTryConnectSinglePass();
-            nextMqttTryAt = now + backoffMs;
+        if (now - lastMqttAttemptAt >= mqttBackoffMs) {
+            lastMqttAttemptAt = now;
+            mqttBackoffMs = mqttTryConnectSinglePass();
         }
     } else {
-        nextMqttTryAt = 0;
+        lastMqttAttemptAt = 0;
+        mqttBackoffMs = 0;
     }
 
     client.loop();

@@ -50,24 +50,18 @@ void drawHeartWithNumber() {
                            static_cast<int16_t>(circleY),
                            static_cast<int16_t>(circleRadius), GxEPD_RED);
 
-        int triangleTop = centerY - 2;
-        int triangleBottom = centerY + heartSize + 20;
-
-        for (int y = triangleTop; y <= triangleBottom; y++) {
-            int progress = y - triangleTop;
-            int maxWidth = heartSize + 61;
-            int currentWidth = maxWidth - (progress * maxWidth / (triangleBottom - triangleTop));
-
-            int leftX = centerX - (currentWidth / 2);
-            int rightX = centerX + (currentWidth / 2);
-
-            const int dw = display.width();
-            const int dh = display.height();
-            if (y < dh && leftX >= 0 && rightX < dw) {
-                display.drawLine(static_cast<int16_t>(leftX), static_cast<int16_t>(y),
-                                 static_cast<int16_t>(rightX), static_cast<int16_t>(y),
+        const int triangleTop = centerY - 2;
+        const int triangleBottom = centerY + heartSize + 20;
+        const int maxWidth = heartSize + 61;
+        const int dw = display.width();
+        const int dh = display.height();
+        const int16_t triLeftX = static_cast<int16_t>(centerX - (maxWidth / 2));
+        const int16_t triRightX = static_cast<int16_t>(centerX + (maxWidth / 2));
+        const int16_t triBottomY = static_cast<int16_t>(triangleBottom);
+        if (triangleTop >= 0 && triangleBottom < dh && triLeftX >= 0 && triRightX < dw) {
+            display.fillTriangle(triLeftX, static_cast<int16_t>(triangleTop), triRightX,
+                                 static_cast<int16_t>(triangleTop), static_cast<int16_t>(centerX), triBottomY,
                                  GxEPD_RED);
-            }
         }
 
         display.fillRect(static_cast<int16_t>(centerX - (heartSize / 3)),

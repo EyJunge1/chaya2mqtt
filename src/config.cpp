@@ -17,6 +17,10 @@ char mqtt_password[64] = "";
 char mqtt_topic_pub[128] = "heart/to_b";
 char mqtt_topic_sub[128] = "heart/to_a";
 
+static int lastCommittedHeartCounter = 0;
+static unsigned long lastHeartCounterSaveMs = 0;
+static constexpr unsigned long kHeartCounterSaveMinIntervalMs = 30000;
+
 static WiFiManagerParameter* g_param_mqtt_server = nullptr;
 static WiFiManagerParameter* g_param_mqtt_port = nullptr;
 static WiFiManagerParameter* g_param_mqtt_user = nullptr;
@@ -49,12 +53,34 @@ void loadHeartCounter() {
     preferences.begin("heart", true);
     counter = preferences.getInt("counter", 0);
     preferences.end();
+    lastCommittedHeartCounter = counter;
+    lastHeartCounterSaveMs = millis();
 }
 
 void saveHeartCounter() {
     preferences.begin("heart", false);
     preferences.putInt("counter", counter);
     preferences.end();
+}
+
+void maybeSaveHeartCounter() {
+    if (counter == lastCommittedHeartCounter) {
+        return;
+    }
+    const unsigned long now = millis();
+    if (now - lastHeartCounterSaveMs >= kHeartCounterSaveMinIntervalMs) {
+        saveHeartCounter();
+        lastCommittedHeartCounter = counter;
+        lastHeartCounterSaveMs = now;
+    }
+}
+
+void flushHeartCounterIfDirty() {
+    if (counter != lastCommittedHeartCounter) {
+        saveHeartCounter();
+        lastCommittedHeartCounter = counter;
+        lastHeartCounterSaveMs = millis();
+    }
 }
 
 void saveMQTTConfig() {
@@ -132,6 +158,7 @@ void setupWiFi() {
         g_param_mqtt_pass = nullptr;
         g_param_mqtt_topic_pub = nullptr;
         g_param_mqtt_topic_sub = nullptr;
+        flushHeartCounterIfDirty();
         delay(3000);
         ESP.restart();
     }

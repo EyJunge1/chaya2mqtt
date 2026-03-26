@@ -27,6 +27,7 @@ Uebersicht aller Quelldateien unter `src/`: oeffentliche API, globale Symbole un
 | `buttonLoop()` | Taster entprellen, Kurz-/Langdruck |
 | `checkLEDStatus()` | nicht-blockierende MQTT-Sende-LED-Sequenz (State Machine) |
 | `mqttLoop()` | nicht-blockierender Reconnect mit Backoff, dann `client.loop()` |
+| `maybeSaveHeartCounter()` | Zaehler throttled (~30 s) nach NVS, wenn seit letztem Save geaendert |
 | `consumeHeartRedraw()` / `drawHeartWithNumber()` | wenn nach MQTT ein Neuzeichnen angefordert wurde |
 | `WiFi.reconnect()` | bei getrenntem WLAN hoechstens alle **30 s** |
 | `buttonDebugStatus()` | alle 5 s Serial-Status (nur noch ein Timer in `main`) |
@@ -58,7 +59,9 @@ Uebersicht aller Quelldateien unter `src/`: oeffentliche API, globale Symbole un
 | `saveMQTTConfig()` | Schreibt dieselben Keys |
 | `loadHeartCounter()` | Liest `counter` aus Namespace `"heart"` (Key `counter`) |
 | `saveHeartCounter()` | Schreibt aktuellen `counter` nach `"heart"` |
-| `setupWiFi()` | WiFiManager: Timeout **180 s**, AP-Name **`HeartESP32-Setup`**, sechs Custom-Parameter fuer MQTT (inkl. Sende-/Empfangs-Topic); `setSaveParamsCallback(saveParamsFromPortal)`; bei Fehlschlag `ESP.restart()` |
+| `maybeSaveHeartCounter()` | Schreibt nur, wenn `counter` sich geaendert hat und seit letztem Schreiben mindestens **30 s** vergangen sind (weniger Flash-Verschleiss) |
+| `flushHeartCounterIfDirty()` | Sofortiges NVS-Schreiben bei Dirty-`counter` (z. B. vor `ESP.restart()` nach fehlgeschlagenem Portal) |
+| `setupWiFi()` | WiFiManager: Timeout **180 s**, AP-Name **`HeartESP32-Setup`**, sechs Custom-Parameter fuer MQTT (inkl. Sende-/Empfangs-Topic); `setSaveParamsCallback(saveParamsFromPortal)`; bei Fehlschlag `flushHeartCounterIfDirty()`, dann `ESP.restart()` |
 | `resetAllSettings()` | `WiFiManager::resetSettings()`, Namespaces `mqtt` und `heart` `clear()`, Neustart |
 
 ### Implementierungsdetails
@@ -85,7 +88,7 @@ Uebersicht aller Quelldateien unter `src/`: oeffentliche API, globale Symbole un
 | Funktion | Beschreibung |
 |----------|--------------|
 | `displayInit()` | `SPI.begin(13, 12, 14, 15)`; `display.init(115200, true, 2, false)` |
-| `drawHeartWithNumber()` | Vollbild-Refresh: weisser Hintergrund, rotes Herz aus zwei Kreisen, gefuellter Bereich und Linien-Trapez, schwarze Zahl (`setTextSize(4)`) unten mittig |
+| `drawHeartWithNumber()` | Vollbild-Refresh: weisser Hintergrund, rotes Herz aus zwei Kreisen, `fillTriangle` fuer die Spitze, gefuellter Bereich, schwarze Zahl (`setTextSize(4)`) unten mittig |
 | `requestHeartRedraw()` | Setzt internes Flag (nach MQTT-Empfang) |
 | `consumeHeartRedraw()` | Liefert `true` einmalig wenn Neuzeichnen angefordert; loescht das Flag |
 
@@ -93,7 +96,7 @@ Uebersicht aller Quelldateien unter `src/`: oeffentliche API, globale Symbole un
 
 - Zeichnung in `firstPage()` / `nextPage()`-Schleife (partial window = full window).
 - Herz-Geometrie: parametrisiert um `centerX`, `centerY`, `heartSize` (siehe Quellcode fuer Feintuning).
-- `getTextBounds()` fuer die Zahl **nach** `setTextSize(4)` (korrekte Zentrierung); Randpruefung mit `display.width()` / `display.height()`.
+- `getTextBounds()` fuer die Zahl **nach** `setTextSize(4)` (korrekte Zentrierung); Randpruefung fuer das Dreieck mit einmalig gecachtem `display.width()` / `display.height()`.
 
 ---
 
@@ -105,7 +108,7 @@ Uebersicht aller Quelldateien unter `src/`: oeffentliche API, globale Symbole un
 
 | Symbol | Beschreibung |
 |--------|--------------|
-| `espClient` | `WiFiClientSecure`, `setInsecure()` |
+| `espClient` | `WiFiClientSecure`, `setInsecure()` (keine TLS-Zertifikatspruefung; fuer Heimnetz) |
 | `client` | `PubSubClient(espClient)` |
 
 ### Oeffentliche Funktionen
@@ -113,13 +116,14 @@ Uebersicht aller Quelldateien unter `src/`: oeffentliche API, globale Symbole un
 | Funktion | Beschreibung |
 |----------|--------------|
 | `mqttSetup()` | `setServer(mqtt_server, mqtt_port)`, `setCallback(mqttCallback)` |
-| `mqttLoop()` | Wenn nicht verbunden: ein Connect-Versuch pro Backoff-Intervall (5 s / 10 s je nach Fehlerfall), dann `client.loop()` |
+| `mqttLoop()` | Wenn nicht verbunden: Connect-Versuch wenn `millis() - lastAttempt >= backoff` (overflow-sicher), Backoff 0 / 5 s / 10 s je nach Fehlerfall; verbunden: Backoff zuruecksetzen; danach `client.loop()` |
 
 ### Callback `mqttCallback`
 
-- Baut `String` aus Payload-Bytes (`reserve(length)`).
+- Leere oder rein-whitespace-Payloads werden ignoriert.
+- Serial-Ausgabe mit `Serial.write(payload, length)` (ohne `String`-Allokation).
 - **Ignoriert** den Topic-Namen (`(void)topic`).
-- **`counter++`**, `saveHeartCounter()`, `requestHeartRedraw()` (kein E-Paper im Callback).
+- **`counter++`**, `requestHeartRedraw()`; NVS-Schreiben laeuft throttled ueber `maybeSaveHeartCounter()` in `loop()` (kein E-Paper im Callback).
 
 ### Implementierungsdetails
 

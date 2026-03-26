@@ -34,6 +34,7 @@ void loop() {
     buttonLoop();
     checkLEDStatus();
     mqttLoop();
+    maybeSaveHeartCounter();
 
     static unsigned long lastWifiReconnectMs = 0;
     if (WiFi.status() != WL_CONNECTED) { // NOLINT(readability-static-accessed-through-instance)
