@@ -75,25 +75,28 @@ sequenceDiagram
     participant C as config
     participant Q as mqtt
 
+    M->>M: CPU 80MHz btStop BT Speicher frei
     M->>D: displayInit
     M->>B: buttonInit
     M->>C: loadMQTTConfig
     M->>C: loadHeartCounter
     M->>C: setupWiFi
     M->>Q: mqttSetup
+    M->>M: armLightSleepWakeupSources
     M->>D: drawHeartWithNumber
     M->>B: buttonStartupBlink
 ```
 
-1. CPU **80 MHz** (Build-Flag `board_build.f_cpu` in `platformio.ini`)
-2. Serial 115200
+1. CPU **80 MHz** (Build-Flag `board_build.f_cpu` in `platformio.ini`); **Bluetooth aus:** `btStop()` und `esp_bt_controller_mem_release()` (weniger RAM/Strom)
+2. **Serial** 115200 nur wenn `CORE_DEBUG_LEVEL > 0` (Debug-Build)
 3. Display hardware initialisieren
 4. Button/LED-Pins
 5. Gespeicherte MQTT-Parameter laden; Zaehler aus NVS (`loadHeartCounter`)
 6. WiFi (ggf. Captive Portal) + Speichern der Portal-Parameter; danach **WiFi Modem Sleep** (`WiFi.setSleep(true)`) und **`esp_wifi_set_ps(WIFI_PS_MAX_MODEM)`** (aggressiverer Stromsparmodus)
 7. MQTT-Client konfigurieren (Server, Callback, TLS mit CA-Bundle)
-8. Erste Zeichnung mit `heartCounter` (Start: 0); nach Refresh **Display Hibernate** (Controller Deep Sleep)
-9. LED-Startsequenz (3x Blink)
+8. **Light-Sleep-Wakeup:** `armLightSleepWakeupSources()` (Timer, GPIO Taster, WiFi-Wakeup)
+9. Erste Zeichnung mit `heartCounter` (Start: 0); nach Refresh **Display Hibernate** (Controller Deep Sleep)
+10. LED-Startsequenz (3x Blink)
 
 ## Hauptschleife (`loop()`)
 
@@ -103,22 +106,20 @@ flowchart TD
     btn[buttonLoop]
     led[checkLEDStatus]
     mq[mqttLoop]
-    wifi{WiFi verbunden?}
-    recon[WiFi.reconnect max 1x/30s]
+    save[maybeSaveHeartCounter]
+    wifi[WiFi Reconnect Logik]
+    redraw[bei Flag drawHeartWithNumber flushHeartCounterIfDirty]
     dbg[buttonDebugStatus alle 5s]
-    wait[light sleep adaptiv 10ms oder 500ms]
+    arm[armLightSleepWakeupSources bei Timerwechsel]
+    wait[esp_light_sleep_start 10ms oder 2s Idle]
 
-    start --> btn --> led --> mq
-    mq --> wifi
-    wifi -->|nein| recon --> dbg
-    wifi -->|ja| dbg
-    dbg --> wait --> start
+    start --> btn --> led --> mq --> save --> wifi --> redraw --> dbg --> arm --> wait --> start
 ```
 
 - **mqttLoop:** Bei Verbindungsverlust **nicht-blockierender** Reconnect (ein Versuch pro Abstand, exponentieller Backoff 5 s bis max. 60 s bei Connect-Fehlern; leerer Server / kein WLAN: feste Intervalle)
 - **WiFi:** bei Verlust Reconnect (max. alle **30 s**, sofort beim ersten Verlust); nach **3** fehlgeschlagenen Versuchen `disconnect`, nach **>= 100 ms** (naechste Loop-Iterationen) `WiFi.begin()` ohne blockierendes `delay(100)`
 - **Display:** nach MQTT-Empfang nur Flag; `drawHeartWithNumber()` laeuft in `loop()` wenn `consumeHeartRedraw()`; NVS-Zaehler wird **nicht** bei jedem Redraw geflusht, sondern throttled ueber `maybeSaveHeartCounter()` (~30 s)
-- **Light-Sleep:** Timer **10 ms**, wenn `buttonIsLedTxSequenceActive()` (LED-Sequenz), sonst **2 s**; Taster weiter per GPIO-Wakeup
+- **Light-Sleep:** Timer **10 ms**, wenn `buttonIsLedTxSequenceActive()` (LED-Sequenz), sonst **2 s**; Wakeup-Quellen: **Timer**, **GPIO** (Taster HIGH), **WiFi** (`esp_sleep_enable_wifi_wakeup`)
 - **Debug:** alle 5 s Button-/LED-Zustand auf Serial
 
 ## MQTT-Protokoll (praktisch)
@@ -130,6 +131,7 @@ flowchart TD
 | Publish (Knopf) | Payload = **`heart`** auf Sende-Topic (`mqttPublishHeart()`) |
 | Subscribe | Empfangs-Topic mit **QoS 1** |
 | Callback | Nur Payload `heart` -> `heartCounter++`, `requestHeartRedraw()`; NVS throttled in `loop()` via `maybeSaveHeartCounter()`; Zeichnung in `loop()` |
+| LWT | Topic = Sende-Topic + **`/lwt`**, Payload **`offline`**, QoS 1, retain; nach Connect retained **`online`** auf dasselbe Topic |
 
 Authentifizierung: optional ueber `mqtt_username` / `mqtt_password` aus dem Portal.
 

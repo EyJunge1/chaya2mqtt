@@ -10,17 +10,25 @@ Uebersicht aller Quelldateien unter `src/`: oeffentliche API, globale Symbole un
 
 ### Ablauf `setup()`
 
-1. CPU **80 MHz** ueber `board_build.f_cpu` in `platformio.ini` (weniger Strom als Default 240 MHz)
-2. `Serial.begin(115200)`
-3. `displayInit()` -- SPI + E-Paper
-4. `buttonInit()` -- GPIO Button & LED
-5. `loadMQTTConfig()` -- MQTT-Werte aus NVS
-6. `loadHeartCounter()` -- Zaehler aus NVS (Namespace `heart`)
-7. `setupWiFi()` -- WiFiManager inkl. Portal-Parameter; danach `WiFi.setSleep(true)` und `esp_wifi_set_ps(WIFI_PS_MAX_MODEM)` (aggressiver Modem-Sleep)
-8. `mqttSetup()` -- TLS-Client mit eingebautem CA-Bundle, Broker, Callback
-9. Light-Sleep-Wakeup-Quellen (**adaptiver** Timer: **10 ms** bei aktiver MQTT-Sende-LED-Sequenz, **2 s** im Idle + GPIO Taster) fuer `loop()`
-10. `drawHeartWithNumber()` -- erste Darstellung (mit geladenem `heartCounter`); danach `display.hibernate()`
-11. `buttonStartupBlink()` -- 3x LED-Blitz
+1. CPU **80 MHz** ueber `setCpuFrequencyMhz(80)` / `board_build.f_cpu` in `platformio.ini` (weniger Strom als Default 240 MHz)
+2. **Bluetooth aus:** `btStop()`, `esp_bt_controller_mem_release(ESP_BT_MODE_BTDM)` (weniger RAM/Strom)
+3. `Serial.begin(115200)` nur wenn `CORE_DEBUG_LEVEL > 0` (Release-Build ohne Serial-Init)
+4. `displayInit()` -- SPI + E-Paper
+5. `buttonInit()` -- GPIO Button & LED
+6. `loadMQTTConfig()` -- MQTT-Werte aus NVS
+7. `loadHeartCounter()` -- Zaehler aus NVS (Namespace `heart`)
+8. `setupWiFi()` -- WiFiManager inkl. Portal-Parameter; danach `WiFi.setSleep(true)` und `esp_wifi_set_ps(WIFI_PS_MAX_MODEM)` (aggressiver Modem-Sleep)
+9. `mqttSetup()` -- TLS-Client mit eingebautem CA-Bundle, Broker, Callback
+10. `armLightSleepWakeupSources(computeLightSleepTimerUs())` -- Wakeup: adaptiver Timer (**10 ms** bei aktiver Sende-LED-Sequenz, **2 s** im Idle), GPIO Taster (HIGH), **WiFi-Wakeup**
+11. `drawHeartWithNumber()` -- erste Darstellung (mit geladenem `heartCounter`); danach `display.hibernate()`
+12. `buttonStartupBlink()` -- 3x LED-Blitz
+
+### Hilfsfunktionen in `main.cpp` (file-static)
+
+| Funktion | Beschreibung |
+|----------|--------------|
+| `computeLightSleepTimerUs()` | Liefert **10 ms** (Mikrosekunden), wenn `buttonIsLedTxSequenceActive()`, sonst **2 s** |
+| `armLightSleepWakeupSources(timerUs)` | `esp_sleep_enable_timer_wakeup`, GPIO-Wakeup Taster, `esp_sleep_enable_gpio_wakeup`, `esp_sleep_enable_wifi_wakeup` |
 
 ### Ablauf `loop()`
 
@@ -32,8 +40,9 @@ Uebersicht aller Quelldateien unter `src/`: oeffentliche API, globale Symbole un
 | `maybeSaveHeartCounter()` | Zaehler throttled (~30 s) nach NVS, wenn seit letztem Save geaendert |
 | `consumeHeartRedraw()` / `drawHeartWithNumber()` | bei MQTT-Neuzeichnung; danach `flushHeartCounterIfDirty()` (Zaehler sofort in NVS) |
 | `WiFi.reconnect()` / Fallback | bei getrenntem WLAN: bis zu **3x** `reconnect()`, danach `disconnect` und in einer **folgenden** Iteration (nach **>= 100 ms** ohne `delay`) `WiFi.begin()`; hoechstens alle **30 s** (plus sofort beim ersten Verlust) |
-| `buttonDebugStatus()` | alle 5 s Serial-Status (nur noch ein Timer in `main`) |
-| `esp_light_sleep_start()` | Light-Sleep (adaptiver Timer + GPIO-Wakeup Taster) |
+| `buttonDebugStatus()` | alle 5 s Serial-Status (nur noch ein Timer in `main`, nur bei `CORE_DEBUG_LEVEL > 0`) |
+| `armLightSleepWakeupSources` / Timer-Neuarmierung | Wenn sich `computeLightSleepTimerUs()` gegenueber letzter Iteration aendert, Wakeup-Quellen mit neuem Timer neu setzen |
+| `esp_light_sleep_start()` | Light-Sleep (adaptiver Timer + GPIO-Wakeup Taster + **WiFi-Wakeup**) |
 
 ---
 

@@ -66,6 +66,7 @@ Knopf **mindestens 5 Sekunden** gedrückt halten → `resetAllSettings()` lösch
 
 ```
 heart-esp32/
+├── README.md              # Kurzer Einstieg, verweist hierher
 ├── platformio.ini
 ├── docs/
 │   ├── README.md          # Diese Datei
