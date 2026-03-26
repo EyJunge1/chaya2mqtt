@@ -1,6 +1,6 @@
 # Architektur
 
-## Modulübersicht
+## Moduluebersicht
 
 Die Firmware ist in **vier logische Module** plus `main.cpp` aufgeteilt:
 
@@ -8,12 +8,12 @@ Die Firmware ist in **vier logische Module** plus `main.cpp` aufgeteilt:
 |--------|---------|---------|
 | **config** | `config.h`, `config.cpp` | MQTT-Werte aus NVS (`Preferences`), WiFiManager-Captive-Portal, Factory Reset |
 | **display** | `display.h`, `display.cpp` | GxEPD2-Initialisierung, globale Variable `counter`, Zeichnen Herz + Zahl |
-| **mqtt** | `mqtt.h`, `mqtt.cpp` | TLS-Client, Broker-Verbindung, Subscribe/Publish, Callback erhöht Counter |
-| **button** | `button.h`, `button.cpp` | GPIO Taster + LED, Kurzdruck → Publish, Langdruck → Reset |
+| **mqtt** | `mqtt.h`, `mqtt.cpp` | TLS-Client, Broker-Verbindung, Subscribe/Publish, Callback erhoeht Counter |
+| **button** | `button.h`, `button.cpp` | GPIO Taster + LED, Kurzdruck -> Publish, Langdruck -> Reset |
 
 `main.cpp` **orchestriert** die Initialisierung und ruft in `loop()` die Modul-Loops auf.
 
-## Abhängigkeiten zwischen Modulen
+## Abhaengigkeiten zwischen Modulen
 
 ```mermaid
 flowchart LR
@@ -34,12 +34,17 @@ flowchart LR
     mq --> dsp
 ```
 
-- **mqtt** nutzt `mqtt_server`, `mqtt_port`, … aus **config** und ruft **display** auf (`drawHeartWithNumber`).
-- **button** nutzt **config** (Reset), **mqtt** (`client`, Topic), **display** (`counter` für den Payload).
+- **mqtt** nutzt `mqtt_server`, `mqtt_port`, ... aus **config** und ruft **display** auf (`drawHeartWithNumber`).
+- **button** nutzt **config** (Reset), **mqtt** (`client`, Topic), **display** (`counter` fuer den Payload).
 
-## Kommunikation: zwei Geräte über MQTT
+## Kommunikation: zwei Geraete ueber MQTT
 
-Beide ESP32 verbinden sich mit dem **gleichen Broker** und abonnieren **dasselbe Topic**. Beim **Kurzdruck** publiziert das Gerät den **aktuellen** `counter` als String. Beim **Empfang** einer beliebigen Nachricht auf dem Topic wird der **lokale** `counter` **um 1 erhöht** (Inhalt der Nachricht wird für die Zählerlogik nicht ausgewertet).
+Jedes Geraet hat **zwei getrennte Topics** -- ein **Sende-Topic** (`mqtt_topic_pub`) und ein **Empfangs-Topic** (`mqtt_topic_sub`). Diese werden im Captive Portal konfiguriert und **gekreuzt** eingerichtet:
+
+- Geraet A publisht auf `heart/to_b`, subscribt auf `heart/to_a`
+- Geraet B publisht auf `heart/to_a`, subscribt auf `heart/to_b`
+
+Dadurch empfaengt jedes Geraet **nur die Nachrichten vom anderen** -- der eigene Knopfdruck erhoeht nicht den eigenen Counter.
 
 ```mermaid
 flowchart LR
@@ -47,16 +52,16 @@ flowchart LR
     devB[ESP32_GeraetB]
     broker[MQTT_Broker]
 
-    devA -->|"publish counter als String"| broker
-    devB -->|"publish counter als String"| broker
-    broker -->|"subscribe gleiches Topic"| devA
-    broker -->|"subscribe gleiches Topic"| devB
+    devA -->|"publish auf heart/to_b"| broker
+    broker -->|"subscribe heart/to_b"| devB
+    devB -->|"publish auf heart/to_a"| broker
+    broker -->|"subscribe heart/to_a"| devA
 ```
 
-**Wichtig:** Da jeder Empfang `counter++` auslöst, erhöhen sich die Zähler bei jedem empfangenen Event – das ist die gewünschte Kopplung „Knopf auf dem einen → Anzeige auf dem anderen“ (und ggf. auch Reflexion auf dem sendenden Gerät, wenn der Broker die eigene Nachricht zurückspiegelt – je nach Broker-Konfiguration).
+Beim **Empfang** einer Nachricht auf dem Empfangs-Topic wird der lokale `counter` um 1 erhoeht und das Herz-Display neu gezeichnet. Der Payload (Counter-Wert des Senders als ASCII-String) wird nicht ausgewertet -- allein der Empfang loest `counter++` aus.
 
 - **Transport:** `WiFiClientSecure` + `PubSubClient`
-- **TLS:** `espClient.setInsecure()` – keine Server-Zertifikatsvalidierung
+- **TLS:** `espClient.setInsecure()` -- keine Server-Zertifikatsvalidierung
 - **Standard-Port in Konfiguration:** 8883
 
 ## Setup-Ablauf (`setup()`)
@@ -85,7 +90,7 @@ sequenceDiagram
 5. WiFi (ggf. Captive Portal) + Speichern der Portal-Parameter
 6. MQTT-Client konfigurieren (Server, Callback)
 7. Erste Zeichnung mit `counter` (Start: 0)
-8. LED-Startsequenz (3× Blink)
+8. LED-Startsequenz (3x Blink)
 
 ## Hauptschleife (`loop()`)
 
@@ -115,16 +120,17 @@ flowchart TD
 
 | Aspekt | Wert |
 |--------|------|
-| Topic | Konfigurierbar, Default `esp32/heart_counter` |
-| Publish (Knopf) | Payload = `String(counter)` (ASCII-Ziffern) |
-| Subscribe | Gleiches Topic wie Publish |
-| Callback | Jede empfangene Nachricht → `counter++`, `drawHeartWithNumber()` |
+| Sende-Topic | Konfigurierbar, Default `heart/to_b` |
+| Empfangs-Topic | Konfigurierbar, Default `heart/to_a` |
+| Publish (Knopf) | Payload = `String(counter)` (ASCII-Ziffern) auf Sende-Topic |
+| Subscribe | Empfangs-Topic |
+| Callback | Jede empfangene Nachricht -> `counter++`, `drawHeartWithNumber()` |
 
-Authentifizierung: optional über `mqtt_username` / `mqtt_password` aus dem Portal.
+Authentifizierung: optional ueber `mqtt_username` / `mqtt_password` aus dem Portal.
 
 ## Persistenz
 
 - **WiFi:** WiFiManager speichert Zugangsdaten intern.
-- **MQTT:** Namespace `mqtt` in `Preferences` (`server`, `port`, `user`, `pass`, `topic`).
+- **MQTT:** Namespace `mqtt` in `Preferences` (`server`, `port`, `user`, `pass`, `topic_pub`, `topic_sub`).
 
-Siehe [MODULES.md](MODULES.md) für Funktionsdetails.
+Siehe [MODULES.md](MODULES.md) fuer Funktionsdetails.

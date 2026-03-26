@@ -73,8 +73,8 @@ void mqttReconnect() {
         if (client.connect(clientId.c_str(), mqtt_username, mqtt_password)) {
             Serial.println("MQTT verbunden!");
             Serial.print("Subscribing zu Topic: ");
-            Serial.println(mqtt_topic);
-            client.subscribe(mqtt_topic);
+            Serial.println(mqtt_topic_sub);
+            client.subscribe(mqtt_topic_sub);
         } else {
             Serial.print("MQTT fehlgeschlagen, rc=");
             Serial.print(client.state());

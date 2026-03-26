@@ -12,13 +12,15 @@ char mqtt_server[128] = "";
 int mqtt_port = 8883;
 char mqtt_username[64] = "";
 char mqtt_password[64] = "";
-char mqtt_topic[128] = "esp32/heart_counter";
+char mqtt_topic_pub[128] = "heart/to_b";
+char mqtt_topic_sub[128] = "heart/to_a";
 
 static WiFiManagerParameter* g_param_mqtt_server = nullptr;
 static WiFiManagerParameter* g_param_mqtt_port = nullptr;
 static WiFiManagerParameter* g_param_mqtt_user = nullptr;
 static WiFiManagerParameter* g_param_mqtt_pass = nullptr;
-static WiFiManagerParameter* g_param_mqtt_topic = nullptr;
+static WiFiManagerParameter* g_param_mqtt_topic_pub = nullptr;
+static WiFiManagerParameter* g_param_mqtt_topic_sub = nullptr;
 
 static void safeStrCopy(char* dst, size_t dstSize, const char* src) {
     if (dst == nullptr || dstSize == 0) {
@@ -34,8 +36,10 @@ void loadMQTTConfig() {
     mqtt_port = preferences.getInt("port", 8883);
     safeStrCopy(mqtt_username, sizeof(mqtt_username), preferences.getString("user", "").c_str());
     safeStrCopy(mqtt_password, sizeof(mqtt_password), preferences.getString("pass", "").c_str());
-    safeStrCopy(mqtt_topic, sizeof(mqtt_topic),
-                preferences.getString("topic", "esp32/heart_counter").c_str());
+    safeStrCopy(mqtt_topic_pub, sizeof(mqtt_topic_pub),
+                preferences.getString("topic_pub", "heart/to_b").c_str());
+    safeStrCopy(mqtt_topic_sub, sizeof(mqtt_topic_sub),
+                preferences.getString("topic_sub", "heart/to_a").c_str());
     preferences.end();
 }
 
@@ -45,7 +49,8 @@ void saveMQTTConfig() {
     preferences.putInt("port", mqtt_port);
     preferences.putString("user", mqtt_username);
     preferences.putString("pass", mqtt_password);
-    preferences.putString("topic", mqtt_topic);
+    preferences.putString("topic_pub", mqtt_topic_pub);
+    preferences.putString("topic_sub", mqtt_topic_sub);
     preferences.end();
 }
 
@@ -65,8 +70,11 @@ static void saveParamsFromPortal() {
     if (g_param_mqtt_pass != nullptr) {
         safeStrCopy(mqtt_password, sizeof(mqtt_password), g_param_mqtt_pass->getValue());
     }
-    if (g_param_mqtt_topic != nullptr) {
-        safeStrCopy(mqtt_topic, sizeof(mqtt_topic), g_param_mqtt_topic->getValue());
+    if (g_param_mqtt_topic_pub != nullptr) {
+        safeStrCopy(mqtt_topic_pub, sizeof(mqtt_topic_pub), g_param_mqtt_topic_pub->getValue());
+    }
+    if (g_param_mqtt_topic_sub != nullptr) {
+        safeStrCopy(mqtt_topic_sub, sizeof(mqtt_topic_sub), g_param_mqtt_topic_sub->getValue());
     }
     saveMQTTConfig();
 }
@@ -82,19 +90,22 @@ void setupWiFi() {
     WiFiManagerParameter param_port("mqtt_port", "MQTT Port", portStr, 6);
     WiFiManagerParameter param_user("mqtt_user", "MQTT Username", mqtt_username, 64);
     WiFiManagerParameter param_pass("mqtt_pass", "MQTT Password", mqtt_password, 64);
-    WiFiManagerParameter param_topic("mqtt_topic", "MQTT Topic", mqtt_topic, 128);
+    WiFiManagerParameter param_topic_pub("mqtt_topic_pub", "MQTT Sende-Topic", mqtt_topic_pub, 128);
+    WiFiManagerParameter param_topic_sub("mqtt_topic_sub", "MQTT Empfangs-Topic", mqtt_topic_sub, 128);
 
     wifiManager.addParameter(&param_server);
     wifiManager.addParameter(&param_port);
     wifiManager.addParameter(&param_user);
     wifiManager.addParameter(&param_pass);
-    wifiManager.addParameter(&param_topic);
+    wifiManager.addParameter(&param_topic_pub);
+    wifiManager.addParameter(&param_topic_sub);
 
     g_param_mqtt_server = &param_server;
     g_param_mqtt_port = &param_port;
     g_param_mqtt_user = &param_user;
     g_param_mqtt_pass = &param_pass;
-    g_param_mqtt_topic = &param_topic;
+    g_param_mqtt_topic_pub = &param_topic_pub;
+    g_param_mqtt_topic_sub = &param_topic_sub;
 
     wifiManager.setSaveParamsCallback(saveParamsFromPortal);
 
@@ -105,7 +116,8 @@ void setupWiFi() {
         g_param_mqtt_port = nullptr;
         g_param_mqtt_user = nullptr;
         g_param_mqtt_pass = nullptr;
-        g_param_mqtt_topic = nullptr;
+        g_param_mqtt_topic_pub = nullptr;
+        g_param_mqtt_topic_sub = nullptr;
         delay(3000);
         ESP.restart();
     }
@@ -114,7 +126,8 @@ void setupWiFi() {
     g_param_mqtt_port = nullptr;
     g_param_mqtt_user = nullptr;
     g_param_mqtt_pass = nullptr;
-    g_param_mqtt_topic = nullptr;
+    g_param_mqtt_topic_pub = nullptr;
+    g_param_mqtt_topic_sub = nullptr;
 
     Serial.println("");
     Serial.println("WiFi verbunden!");

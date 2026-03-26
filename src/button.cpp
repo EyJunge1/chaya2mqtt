@@ -41,7 +41,7 @@ static void handleButtonPress() {
 
     if (client.connected()) {
         String message = String(counter);
-        if (client.publish(mqtt_topic, message.c_str())) {
+        if (client.publish(mqtt_topic_pub, message.c_str())) {
             Serial.println("MQTT Nachricht erfolgreich gesendet!");
             delay(500);
             blinkLEDTwice();
