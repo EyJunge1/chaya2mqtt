@@ -17,7 +17,7 @@ Uebersicht aller Quelldateien unter `src/`: oeffentliche API, globale Symbole un
 5. `buttonInit()` -- GPIO Button & LED
 6. `loadMQTTConfig()` -- MQTT-Werte aus NVS
 7. `loadHeartCounter()` -- Zaehler aus NVS (Namespace `heart`)
-8. `setupWiFi()` -- WiFiManager inkl. Portal-Parameter; danach `WiFi.setSleep(true)` und `esp_wifi_set_ps(WIFI_PS_MAX_MODEM)` (aggressiver Modem-Sleep)
+8. `setupWiFi()` -- WiFiManager inkl. Portal-Menue (**MQTT Settings** nach `/param`, MQTT-Felder auf eigener Parameter-Seite); danach `WiFi.setSleep(true)` und `esp_wifi_set_ps(WIFI_PS_MAX_MODEM)` (aggressiver Modem-Sleep)
 9. `mqttSetup()` -- TLS-Client mit eingebautem CA-Bundle, Broker, Callback
 10. `armLightSleepStaticWakeups()` einmalig (GPIO Taster HIGH, **WiFi-Wakeup**); Timer-Wakeup wird erst in `loop()` gesetzt (`armLightSleepTimerWakeup`)
 11. `drawHeartWithNumber()` -- erste Darstellung (mit geladenem `heartCounter`); danach `display.hibernate()`
@@ -73,7 +73,7 @@ Uebersicht aller Quelldateien unter `src/`: oeffentliche API, globale Symbole un
 | `saveHeartCounter()` | Schreibt aktuellen `heartCounter` nach `"heart"`; `begin` mit Fehlerpruefung; `true` bei Erfolg |
 | `maybeSaveHeartCounter()` | Schreibt nur, wenn `heartCounter` sich geaendert hat und seit letztem Schreiben mindestens **30 s** vergangen sind (weniger Flash-Verschleiss) |
 | `flushHeartCounterIfDirty()` | Sofortiges NVS-Schreiben bei Dirty-`heartCounter` (vor `ESP.restart()` / Factory-Reset, nicht nach jedem Display-Redraw) |
-| `setupWiFi()` | WiFiManager: Timeout **180 s**, AP-Name **`HeartESP32-Setup`**, sechs Custom-Parameter fuer MQTT (Stack-Lebensdauer; Save-Callback nur waehrend `autoConnect()`); `setSaveParamsCallback(saveParamsFromPortal)`; bei Fehlschlag `flushHeartCounterIfDirty()`, **delay(500)**, dann `ESP.restart()`; nach Erfolg `WiFi.setSleep(true)` und `esp_wifi_set_ps(WIFI_PS_MAX_MODEM)` |
+| `setupWiFi()` | WiFiManager: Timeout **180 s**, AP-Name **`HeartESP32-Setup`**, Portal-Titel **HeartESP32 Setup**; Menue per `setMenu`: **wifi**, **param**, **info**, **update**, **exit** (Custom-Parameter auf eigener Seite `/param`, da **param** im Menue laut WM2 `_paramsInWifi=false` setzt); `setCustomHeadElement`: benennt den `/param`-Button und die Parameter-Seite per kleinem Script in **MQTT Settings** um; sechs MQTT-`WiFiManagerParameter` (Stack-Lebensdauer; Save-Callback nur waehrend `autoConnect()`); `setSaveParamsCallback(saveParamsFromPortal)`; bei Fehlschlag `flushHeartCounterIfDirty()`, **delay(500)**, dann `ESP.restart()`; nach Erfolg `WiFi.setSleep(true)` und `esp_wifi_set_ps(WIFI_PS_MAX_MODEM)` |
 | `resetAllSettings()` | `WiFiManager::resetSettings()`, Namespace `mqtt` `clear()` (mit `begin`-Fehlerpruefung); **Herz-Zaehler** (Namespace `heart`) bleibt erhalten; vor Neustart `flushHeartCounterIfDirty()` |
 
 ### Implementierungsdetails
@@ -82,6 +82,7 @@ Uebersicht aller Quelldateien unter `src/`: oeffentliche API, globale Symbole un
 - `safeStrCopy(dst, dstSize, src)` -- begrenztes `strncpy`, immer nullterminiert.
 - `saveParamsFromPortal()` -- liest Werte aus `WiFiManagerParameter*`, validiert Port (1--65535, sonst 8883), ruft `saveMQTTConfig()` auf.
 - `WiFiManagerParameter`-Instanzen sind **lokal auf dem Stack** in `setupWiFi()`; `g_param_*` zeigen nur waehrend `autoConnect()` darauf (Save-Callback laeuft nur dort). Nach `autoConnect` werden die globalen Zeiger auf `nullptr` gesetzt.
+- Portal-Startseite: Der WM-Standardbutton fuer `/param` wird per `setCustomHeadElement`/Script von **Setup** zu **MQTT Settings** umbenannt (Kunden muessen den URL-Pfad `/param` nicht kennen).
 
 ---
 

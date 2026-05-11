@@ -171,6 +171,21 @@ void setupWiFi() {
     WiFiManager wifiManager;
     wifiManager.setConfigPortalTimeout(180);
 
+    wifiManager.setTitle("HeartESP32 Setup");
+    // "param" im Menue setzt laut WM2 _paramsInWifi=false und zeigt die MQTT-Felder auf /param.
+    const char* portalMenu[] = {"wifi", "param", "info", "update", "exit"};
+    wifiManager.setMenu(portalMenu, sizeof(portalMenu) / sizeof(portalMenu[0]));
+    static const char kPortalMqttHeadHtml[] =
+        "<script>"
+        "window.addEventListener('load',function(){"
+        "var b=document.querySelector(\"form[action='/param'] button\");"
+        "if(b)b.textContent='MQTT Settings';"
+        "var h=document.querySelector('h1');"
+        "if(h&&h.textContent==='Setup')h.textContent='MQTT Settings';"
+        "});"
+        "</script>";
+    wifiManager.setCustomHeadElement(kPortalMqttHeadHtml);
+
     char portStr[8];
     snprintf(portStr, sizeof(portStr), "%d", mqtt_port);
 
