@@ -49,19 +49,14 @@ Uebersicht aller Quelldateien unter `src/`: oeffentliche API, globale Symbole un
 
 ## `config.h` / `config.cpp`
 
-**Zweck:** Persistente MQTT-Konfiguration und WLAN-Einrichtung ueber **WiFiManager**; Factory Reset.
+**Zweck:** Persistente MQTT-Konfiguration und WLAN-Einrichtung ueber **MycilaESPConnect** (Captive Portal); Factory Reset; gemeinsamer **AsyncWebServer** mit `web_admin` (siehe unten).
 
 ### Globale Variablen (in `config.cpp` definiert, in `config.h` deklariert)
 
 | Symbol | Typ | Beschreibung |
 |--------|-----|----------------|
-| `heartCounter` | `int` | Herz-Zaehler (Anzeige + MQTT); Persistenz Namespace `heart`, NVS-Key weiterhin `counter` |
-| `mqtt_server` | `char[128]` | Broker-Hostname oder IP |
-| `mqtt_port` | `uint16_t` | Broker-Port (Default **8883**) |
-| `mqtt_username` | `char[64]` | optional |
-| `mqtt_password` | `char[64]` | optional |
-| `mqtt_topic_pub` | `char[128]` | Sende-Topic (Default `heart/to_b`) |
-| `mqtt_topic_sub` | `char[128]` | Empfangs-Topic (Default `heart/to_a`) |
+| `heartCounter` | `int` | Herz-Zaehler (Anzeige + MQTT); Persistenz Namespace `heart`, NVS-Key `counter` |
+| `mqttCfg` | `MqttConfig` | Broker, Port, User, Pass, Pub/Sub-Topics (Felder wie `server`, `port`, …) |
 
 ### Oeffentliche Funktionen
 
@@ -83,6 +78,21 @@ Uebersicht aller Quelldateien unter `src/`: oeffentliche API, globale Symbole un
 - `saveParamsFromPortal()` -- liest Werte aus `WiFiManagerParameter*`, validiert Port (1--65535, sonst 8883), ruft `saveMQTTConfig()` auf.
 - `WiFiManagerParameter`-Instanzen sind **lokal auf dem Stack** in `setupWiFi()`; `g_param_*` zeigen nur waehrend `autoConnect()` darauf (Save-Callback laeuft nur dort). Nach `autoConnect` werden die globalen Zeiger auf `nullptr` gesetzt.
 - Portal-Startseite: Der WM-Standardbutton fuer `/param` wird per `setCustomHeadElement`/Script von **Setup** zu **MQTT Settings** umbenannt (Kunden muessen den URL-Pfad `/param` nicht kennen).
+
+---
+
+## `web_admin.h` / `web_admin.cpp`
+
+**Zweck:** Kleine **HTTP-Wartungs-UI** fuer MQTT (`/mqtt` GET/POST, `/heart-setup-exit`), wenn kein Broker konfiguriert ist und WLAN verbunden ist. Nutzt dieselbe `AsyncWebServer`-Instanz (Port 80) wie **MycilaESPConnect** (`webAdminWebServer()`).
+
+| Funktion | Kurzbeschreibung |
+|----------|------------------|
+| `webAdminWebServer()` | Referenz auf den gemeinsamen `AsyncWebServer` (Singleton) |
+| `webAdminRegisterMqttRoutes()` | Routen einmal registrieren (vor `ESPConnect::begin`) |
+| `webAdminMaybeStopMaintenanceIfBrokerConfigured()` | Wartungs-HTTP beenden, sobald ein Broker gesetzt ist |
+| `webAdminMaybeStartMaintenance(espConnect)` | Wartungs-HTTP starten bei leerem Broker und `NETWORK_CONNECTED` |
+| `webAdminIsMaintenanceHttpActive()` | fuer Light-Sleep-/Portal-Erkennung |
+| `webAdminStopMaintenanceHttp()` | explizit beenden (z. B. Factory Reset) |
 
 ---
 

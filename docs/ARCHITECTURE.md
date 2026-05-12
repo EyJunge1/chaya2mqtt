@@ -6,7 +6,8 @@ Die Firmware ist in **vier logische Module** plus `main.cpp` aufgeteilt:
 
 | Modul | Dateien | Aufgabe |
 |--------|---------|---------|
-| **config** | `config.h`, `config.cpp` | MQTT-Werte aus NVS (`Preferences`), WiFiManager-Captive-Portal, Factory Reset |
+| **config** | `config.h`, `config.cpp` | MQTT/Herz-Zaehler in NVS, MycilaESPConnect (WLAN/Portal), Factory Reset |
+| **web_admin** | `web_admin.h`, `web_admin.cpp` | HTTP `/mqtt` Wartungsseite (gemeinsamer `AsyncWebServer` mit ESPConnect) |
 | **display** | `display.h`, `display.cpp` | GxEPD2-Initialisierung, Zeichnen Herz + Zahl |
 | **mqtt** | `mqtt.h`, `mqtt.cpp` | TLS-Client, Broker-Verbindung, Subscribe/Publish, Callback erhoeht Counter |
 | **button** | `button.h`, `button.cpp` | GPIO Taster + LED, Kurzdruck -> Publish, Langdruck -> Reset |
