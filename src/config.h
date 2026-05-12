@@ -6,12 +6,16 @@ namespace Mycila {
 class ESPConnect;
 }
 
-extern char mqtt_server[128];
-extern uint16_t mqtt_port;
-extern char mqtt_username[64];
-extern char mqtt_password[64];
-extern char mqtt_topic_pub[128];
-extern char mqtt_topic_sub[128];
+struct MqttConfig {
+    char server[128]    = "";
+    uint16_t port       = 8883;
+    char username[64]   = "";
+    char password[64]   = "";
+    char topicPub[128]  = "heart/to_b";
+    char topicSub[128]  = "heart/to_a";
+};
+
+extern MqttConfig mqttCfg;
 
 /** Herz-Zähler (Anzeige + MQTT); Persistenz in config.cpp. */
 extern int heartCounter;

@@ -3,6 +3,7 @@
 #include <cstdint>
 #include <driver/gpio.h>
 #include <esp_bt.h>
+#include <esp_log.h>
 #include <esp_sleep.h>
 #include <esp32-hal-cpu.h>
 
@@ -11,13 +12,7 @@
 #include "display.h"
 #include "mqtt.h"
 
-#if defined(CORE_DEBUG_LEVEL) && CORE_DEBUG_LEVEL > 0
-#define MAIN_DBG_PRINT(x) Serial.print(x)
-#define MAIN_DBG_PRINTLN(x) Serial.println(x)
-#else
-#define MAIN_DBG_PRINT(x) ((void)0)
-#define MAIN_DBG_PRINTLN(x) ((void)0)
-#endif
+static const char* TAG __attribute__((unused)) = "MAIN";
 
 /** Light-Sleep: kurz bei aktiver LED-Sequenz, laenger im Idle (Taster per GPIO-, WiFi per Event-Wakeup). */
 static constexpr uint64_t kLightSleepActiveUs = 10000ULL;   // 10 ms
@@ -60,10 +55,10 @@ void setup() {
 #if defined(CORE_DEBUG_LEVEL) && CORE_DEBUG_LEVEL > 0
     Serial.begin(115200);
 #endif
-    MAIN_DBG_PRINTLN("=== ESP32 Rotes Herz Display mit MQTT ===");
+    ESP_LOGI(TAG, "=== chaya2mqtt ===");
 
     displayInit();
-    MAIN_DBG_PRINTLN("Display initialisiert...");
+    ESP_LOGI(TAG, "Display initialisiert");
 
     buttonInit();
 
@@ -75,7 +70,7 @@ void setup() {
 
     armLightSleepStaticWakeups();
 
-    MAIN_DBG_PRINTLN("Setup abgeschlossen");
+    ESP_LOGI(TAG, "Setup abgeschlossen");
 
     drawHeartWithNumber();
 
@@ -98,13 +93,11 @@ void loop() {
         drawHeartWithNumber();
     }
 
-#if defined(CORE_DEBUG_LEVEL) && CORE_DEBUG_LEVEL > 0
     static unsigned long lastDbg = 0;
     if (now - lastDbg > 5000) {
         buttonDebugStatus();
         lastDbg = now;
     }
-#endif
 
     static uint64_t lastArmedLightSleepTimerUs = UINT64_MAX;
     const uint64_t lightSleepTimerUs = computeLightSleepTimerUs();
@@ -115,6 +108,7 @@ void loop() {
     if (!configIsSetupPortalActive()) {
         esp_light_sleep_start();
     } else {
-        delay(10);
+        esp_sleep_enable_timer_wakeup(10000ULL);
+        esp_light_sleep_start();
     }
 }

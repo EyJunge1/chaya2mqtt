@@ -11,19 +11,14 @@
 #include <climits>
 #include <cstdio>
 #include <cstring>
+#include <esp_log.h>
 #include <esp_random.h>
+
+static const char* TAG __attribute__((unused)) = "MQTT";
 
 // ESP-IDF hat ein eingebautes Mozilla-CA-Bundle in libmbedtls.a (CONFIG_MBEDTLS_CERTIFICATE_BUNDLE).
 extern const uint8_t x509_crt_bundle_start[] asm("_binary_x509_crt_bundle_start");
 extern const uint8_t x509_crt_bundle_end[]   asm("_binary_x509_crt_bundle_end");
-
-#if defined(CORE_DEBUG_LEVEL) && CORE_DEBUG_LEVEL > 0
-#define MQTT_DBG_PRINT(x) Serial.print(x)
-#define MQTT_DBG_PRINTLN(x) Serial.println(x)
-#else
-#define MQTT_DBG_PRINT(x) ((void)0)
-#define MQTT_DBG_PRINTLN(x) ((void)0)
-#endif
 
 static WiFiClientSecure espClient;
 static PubSubClient client(espClient);
@@ -37,61 +32,46 @@ static unsigned long mqttCurrentBackoffMs = kMqttBackoffInitialMs;
 
 /** Eine Verbindungsrunde; Rückgabe: Millisekunden bis zum nächsten Versuch. */
 static unsigned long mqttTryConnectSinglePass() {
-    MQTT_DBG_PRINT("Verbinde mit MQTT (TLS)...");
     char clientId[24];
     snprintf(clientId, sizeof(clientId), "ESP32Heart-%04lX",
              static_cast<unsigned long>(esp_random() & 0xffffU));
 
-    MQTT_DBG_PRINT("Client ID: ");
-    MQTT_DBG_PRINTLN(clientId);
-    MQTT_DBG_PRINT("Server: ");
-    MQTT_DBG_PRINT(mqtt_server);
-    MQTT_DBG_PRINT(":");
-    MQTT_DBG_PRINTLN(mqtt_port);
+    ESP_LOGI(TAG, "Verbinde mit MQTT (TLS)... Server: %s:%u, Client: %s",
+             mqttCfg.server, mqttCfg.port, clientId);
 
-    if (strlen(mqtt_server) == 0) {
-        MQTT_DBG_PRINTLN(
-            "Kein MQTT-Server konfiguriert. Wartungs-AP nutzen (Taste 5–12 s halten, dann loslassen) oder "
-            "/mqtt im Einrichtungs-WLAN.");
+    if (strlen(mqttCfg.server) == 0) {
+        ESP_LOGW(TAG, "Kein MQTT-Server konfiguriert. Wartungs-AP nutzen oder /mqtt im Einrichtungs-WLAN");
         return 60000;
     }
 
     if (WiFi.status() != WL_CONNECTED) { // NOLINT(readability-static-accessed-through-instance)
-        MQTT_DBG_PRINTLN("WiFi nicht verbunden! Warte auf Reconnect in main loop...");
+        ESP_LOGW(TAG, "WiFi nicht verbunden, warte auf Reconnect");
         return 5000;
     }
 
-    // mqtt_topic_pub bis 127 Zeichen + "/lwt" (4) + NUL -> mind. 132 Byte; 140 fuer Rand.
+    // topicPub bis 127 Zeichen + "/lwt" (4) + NUL -> mind. 132 Byte; 140 fuer Rand.
     char willTopic[140];
-    snprintf(willTopic, sizeof(willTopic), "%s/lwt", mqtt_topic_pub);
+    snprintf(willTopic, sizeof(willTopic), "%s/lwt", mqttCfg.topicPub);
 
-    if (client.connect(clientId, mqtt_username, mqtt_password, willTopic, 1, true, "offline", true)) {
-        MQTT_DBG_PRINTLN("MQTT verbunden!");
+    if (client.connect(clientId, mqttCfg.username, mqttCfg.password, willTopic, 1, true, "offline", true)) {
+        ESP_LOGI(TAG, "Verbunden! Subscribing zu Topic (QoS 1): %s", mqttCfg.topicSub);
         (void)client.publish(willTopic, "online", true);
         mqttCurrentBackoffMs = kMqttBackoffInitialMs;
-        MQTT_DBG_PRINT("Subscribing zu Topic (QoS 1): ");
-        MQTT_DBG_PRINTLN(mqtt_topic_sub);
-        if (!client.subscribe(mqtt_topic_sub, 1)) {
-            MQTT_DBG_PRINTLN("MQTT: Subscribe fehlgeschlagen, disconnect fuer Retry.");
+        if (!client.subscribe(mqttCfg.topicSub, 1)) {
+            ESP_LOGE(TAG, "Subscribe fehlgeschlagen, disconnect fuer Retry");
             client.disconnect();
             const unsigned long waitMs = mqttCurrentBackoffMs;
             mqttCurrentBackoffMs = std::min(mqttCurrentBackoffMs * 2UL, kMqttBackoffMaxMs);
-            MQTT_DBG_PRINT("Naechster MQTT-Versuch in ");
-            MQTT_DBG_PRINT(waitMs / 1000UL);
-            MQTT_DBG_PRINTLN(" s (nach Subscribe-Fehler)...");
+            ESP_LOGI(TAG, "Naechster Versuch in %lu s (Subscribe-Fehler)", waitMs / 1000UL);
             return waitMs;
         }
         return 0;
     }
 
-    MQTT_DBG_PRINT("MQTT fehlgeschlagen, rc=");
-    MQTT_DBG_PRINT(client.state());
-    MQTT_DBG_PRINTLN(" (0=Connection timeout, -1=Connection lost, -2=Connect failed, ...)");
+    ESP_LOGE(TAG, "Verbindung fehlgeschlagen, rc=%d", client.state());
     const unsigned long waitMs = mqttCurrentBackoffMs;
     mqttCurrentBackoffMs = std::min(mqttCurrentBackoffMs * 2UL, kMqttBackoffMaxMs);
-    MQTT_DBG_PRINT("Nächster Versuch in ");
-    MQTT_DBG_PRINT(waitMs / 1000UL);
-    MQTT_DBG_PRINTLN(" s (exponentieller Backoff)...");
+    ESP_LOGI(TAG, "Naechster Versuch in %lu s (exponentieller Backoff)", waitMs / 1000UL);
     return waitMs;
 }
 
@@ -101,15 +81,11 @@ static void mqttCallback(char* topic, byte* payload, unsigned int length) {
     static constexpr char kHeartPayload[] = "heart";
     static constexpr unsigned int kHeartLen = sizeof(kHeartPayload) - 1U;
     if (length != kHeartLen || memcmp(payload, kHeartPayload, kHeartLen) != 0) {
-        MQTT_DBG_PRINTLN("MQTT: unerwarteter Payload ignoriert.");
+        ESP_LOGD(TAG, "Unerwarteter Payload ignoriert (len=%u)", length);
         return;
     }
 
-    MQTT_DBG_PRINT("Nachricht empfangen: ");
-#if defined(CORE_DEBUG_LEVEL) && CORE_DEBUG_LEVEL > 0
-    Serial.write(reinterpret_cast<const char*>(payload), length);
-    Serial.println();
-#endif
+    ESP_LOGI(TAG, "Nachricht empfangen: heart");
 
     if (heartCounter < INT_MAX) {
         heartCounter++;
@@ -119,22 +95,24 @@ static void mqttCallback(char* topic, byte* payload, unsigned int length) {
 
 bool mqttPublishHeart() {
     if (!client.connected()) {
-        MQTT_DBG_PRINTLN("MQTT nicht verbunden!");
+        ESP_LOGW(TAG, "Publish fehlgeschlagen: nicht verbunden");
         return false;
     }
-    // Ein Publish-Versuch; Retries laufen nicht-blockierend in button.cpp (LED-State-Machine).
     static constexpr char kPayload[] = "heart";
-    return client.publish(mqtt_topic_pub, kPayload);
+    return client.publish(mqttCfg.topicPub, kPayload);
+}
+
+void mqttDisconnect() {
+    client.disconnect();
 }
 
 void mqttSetup() {
     espClient.setCACertBundle(x509_crt_bundle_start,
                               x509_crt_bundle_end - x509_crt_bundle_start);
-    // 512 B: CONNECT mit max. Portal-Längen (128-Zeichen-Topics + User/Pass + LWT) >256 B.
     if (!client.setBufferSize(512)) {
-        MQTT_DBG_PRINTLN("MQTT: setBufferSize(512) fehlgeschlagen, PubSubClient nutzt vorhandenen Buffer.");
+        ESP_LOGW(TAG, "setBufferSize(512) fehlgeschlagen, PubSubClient nutzt vorhandenen Buffer");
     }
-    client.setServer(mqtt_server, mqtt_port);
+    client.setServer(mqttCfg.server, mqttCfg.port);
     client.setCallback(mqttCallback);
     // E-Paper Full-Refresh blockiert ~8s; längeres Keep-Alive verhindert Broker-Timeout bei zwei Refreshes hintereinander.
     client.setKeepAlive(60);

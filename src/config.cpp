@@ -10,24 +10,14 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <esp_log.h>
 #include <esp_wifi.h>
 
-#if defined(CORE_DEBUG_LEVEL) && CORE_DEBUG_LEVEL > 0
-#define CONFIG_DBG_PRINT(x) Serial.print(x)
-#define CONFIG_DBG_PRINTLN(x) Serial.println(x)
-#else
-#define CONFIG_DBG_PRINT(x) ((void)0)
-#define CONFIG_DBG_PRINTLN(x) ((void)0)
-#endif
+static const char* TAG __attribute__((unused)) = "CFG";
 
-// ─── Globale MQTT-Variablen ───────────────────────────────────────────────────
+// ─── Globale MQTT-Konfiguration ───────────────────────────────────────────────
 
-char     mqtt_server[128]    = "";
-uint16_t mqtt_port           = 8883;
-char     mqtt_username[64]   = "";
-char     mqtt_password[64]   = "";
-char     mqtt_topic_pub[128] = "heart/to_b";
-char     mqtt_topic_sub[128] = "heart/to_a";
+MqttConfig mqttCfg;
 
 // ─── Herz-Zähler ──────────────────────────────────────────────────────────────
 
@@ -53,13 +43,6 @@ static bool                g_mqttRoutesRegistered      = false;
 
 // ─── Hilfsfunktionen ──────────────────────────────────────────────────────────
 
-static void safeStrCopy(char* dst, size_t n, const char* src) {
-    if (dst == nullptr || n == 0) {
-        return;
-    }
-    strncpy(dst, src, n - 1);
-    dst[n - 1] = '\0';
-}
 
 static void appendHtmlEscaped(String& out, const char* s) {
     if (s == nullptr) {
@@ -89,7 +72,7 @@ static void loadWifiIntoConfig(Mycila::ESPConnect::Config& cfg) {
 
 static void saveWifiFromConfig(const Mycila::ESPConnect::Config& cfg) {
     if (!preferences.begin("wifi", false)) {
-        CONFIG_DBG_PRINTLN("NVS wifi: schreiben fehlgeschlagen (Portal).");
+        ESP_LOGE(TAG, "NVS wifi: schreiben fehlgeschlagen (Portal)");
         return;
     }
     preferences.putString("ssid", cfg.wifiSSID.c_str());
@@ -125,7 +108,7 @@ static void stopMqttMaintenanceHttp() {
     }
     g_webServer.end();
     g_mqttMaintenanceHttpActive = false;
-    CONFIG_DBG_PRINTLN("MQTT-Wartungs-HTTP gestoppt.");
+    ESP_LOGI(TAG, "MQTT-Wartungs-HTTP gestoppt");
 }
 
 static String commonCss() {
@@ -157,9 +140,9 @@ static String buildMqttPage(const char* banner) {
     html += F("<form method='post' action='/mqtt'>"
               "<label for='srv'>Broker (Hostname oder IP)</label>"
               "<input id='srv' name='mqtt_server' maxlength='127' value='");
-    appendHtmlEscaped(html, mqtt_server);
+    appendHtmlEscaped(html, mqttCfg.server);
     char portBuf[8];
-    snprintf(portBuf, sizeof(portBuf), "%u", static_cast<unsigned>(mqtt_port));
+    snprintf(portBuf, sizeof(portBuf), "%u", static_cast<unsigned>(mqttCfg.port));
     html += F("'/>"
               "<label for='prt'>Port</label>"
               "<input id='prt' name='mqtt_port' type='number' min='1' max='65535' value='");
@@ -167,20 +150,20 @@ static String buildMqttPage(const char* banner) {
     html += F("'/>"
               "<label for='usr'>Benutzername (optional)</label>"
               "<input id='usr' name='mqtt_user' maxlength='63' value='");
-    appendHtmlEscaped(html, mqtt_username);
+    appendHtmlEscaped(html, mqttCfg.username);
     html += F("'/>"
               "<label for='pw'>Passwort (optional)</label>"
               "<input id='pw' name='mqtt_pass' type='password' maxlength='63' "
               "autocomplete='current-password' value='");
-    appendHtmlEscaped(html, mqtt_password);
+    appendHtmlEscaped(html, mqttCfg.password);
     html += F("'/>"
               "<label for='tpub'>Sende-Topic</label>"
               "<input id='tpub' name='mqtt_topic_pub' maxlength='127' value='");
-    appendHtmlEscaped(html, mqtt_topic_pub);
+    appendHtmlEscaped(html, mqttCfg.topicPub);
     html += F("'/>"
               "<label for='tsub'>Empfangs-Topic</label>"
               "<input id='tsub' name='mqtt_topic_sub' maxlength='127' value='");
-    appendHtmlEscaped(html, mqtt_topic_sub);
+    appendHtmlEscaped(html, mqttCfg.topicSub);
     html += F("'/>"
               "<button type='submit'>Speichern</button></form>"
               "<nav><a class='btn' href='/heart-setup-exit'>Wartungsseite beenden</a></nav>"
@@ -190,35 +173,36 @@ static String buildMqttPage(const char* banner) {
 
 static void handleMqttPost(AsyncWebServerRequest* req) {
     if (req->hasParam("mqtt_server", true)) {
-        safeStrCopy(mqtt_server, sizeof(mqtt_server),
-                    req->getParam("mqtt_server", true)->value().c_str());
+        strlcpy(mqttCfg.server, req->getParam("mqtt_server", true)->value().c_str(),
+                sizeof(mqttCfg.server));
     }
     if (req->hasParam("mqtt_port", true)) {
         const int p = atoi(req->getParam("mqtt_port", true)->value().c_str());
-        mqtt_port   = (p > 0 && p <= 65535) ? static_cast<uint16_t>(p) : 8883;
+        mqttCfg.port   = (p > 0 && p <= 65535) ? static_cast<uint16_t>(p) : 8883;
     }
     if (req->hasParam("mqtt_user", true)) {
-        safeStrCopy(mqtt_username, sizeof(mqtt_username),
-                    req->getParam("mqtt_user", true)->value().c_str());
+        strlcpy(mqttCfg.username, req->getParam("mqtt_user", true)->value().c_str(),
+                sizeof(mqttCfg.username));
     }
     if (req->hasParam("mqtt_pass", true)) {
-        safeStrCopy(mqtt_password, sizeof(mqtt_password),
-                    req->getParam("mqtt_pass", true)->value().c_str());
+        strlcpy(mqttCfg.password, req->getParam("mqtt_pass", true)->value().c_str(),
+                sizeof(mqttCfg.password));
     }
     if (req->hasParam("mqtt_topic_pub", true)) {
-        safeStrCopy(mqtt_topic_pub, sizeof(mqtt_topic_pub),
-                    req->getParam("mqtt_topic_pub", true)->value().c_str());
+        strlcpy(mqttCfg.topicPub, req->getParam("mqtt_topic_pub", true)->value().c_str(),
+                sizeof(mqttCfg.topicPub));
     }
     if (req->hasParam("mqtt_topic_sub", true)) {
-        safeStrCopy(mqtt_topic_sub, sizeof(mqtt_topic_sub),
-                    req->getParam("mqtt_topic_sub", true)->value().c_str());
+        strlcpy(mqttCfg.topicSub, req->getParam("mqtt_topic_sub", true)->value().c_str(),
+                sizeof(mqttCfg.topicSub));
     }
-    if (strcmp(mqtt_topic_pub, mqtt_topic_sub) == 0) {
-        CONFIG_DBG_PRINTLN("MQTT: Pub/Sub-Topic identisch, setze Defaults.");
-        safeStrCopy(mqtt_topic_pub, sizeof(mqtt_topic_pub), "heart/to_b");
-        safeStrCopy(mqtt_topic_sub, sizeof(mqtt_topic_sub), "heart/to_a");
+    if (strcmp(mqttCfg.topicPub, mqttCfg.topicSub) == 0) {
+        ESP_LOGW(TAG, "MQTT: Pub/Sub-Topic identisch, setze Defaults");
+        strlcpy(mqttCfg.topicPub, "heart/to_b", sizeof(mqttCfg.topicPub));
+        strlcpy(mqttCfg.topicSub, "heart/to_a", sizeof(mqttCfg.topicSub));
     }
     saveMQTTConfig();
+    mqttDisconnect();
     mqttSetup();
     req->redirect(F("/mqtt?saved=1"));
 }
@@ -249,7 +233,7 @@ static void registerMqttRoutes() {
 }
 
 static void maybeStopMqttMaintenanceHttpIfConfigured() {
-    if (g_mqttMaintenanceHttpActive && mqtt_server[0] != '\0') {
+    if (g_mqttMaintenanceHttpActive && mqttCfg.server[0] != '\0') {
         stopMqttMaintenanceHttp();
     }
 }
@@ -258,7 +242,7 @@ static void maybeStartMqttMaintenanceHttp() {
     if (g_mqttMaintenanceHttpActive) {
         return;
     }
-    if (mqtt_server[0] != '\0') {
+    if (mqttCfg.server[0] != '\0') {
         return;
     }
     using S = Mycila::ESPConnect::State;
@@ -271,45 +255,43 @@ static void maybeStartMqttMaintenanceHttp() {
 
     g_webServer.begin();
     g_mqttMaintenanceHttpActive = true;
-    CONFIG_DBG_PRINT("MQTT-Wartungs-HTTP: http://");
-    CONFIG_DBG_PRINT(WiFi.localIP());
-    CONFIG_DBG_PRINTLN("/mqtt");
+    ESP_LOGI(TAG, "MQTT-Wartungs-HTTP: http://%s/mqtt", WiFi.localIP().toString().c_str());
 }
 
 // ─── NVS: MQTT ────────────────────────────────────────────────────────────────
 
 void loadMQTTConfig() {
     if (!preferences.begin("mqtt", true)) {
-        CONFIG_DBG_PRINTLN("NVS mqtt: lesen fehlgeschlagen, nutze Defaults.");
+        ESP_LOGW(TAG, "NVS mqtt: lesen fehlgeschlagen, nutze Defaults");
         return;
     }
-    preferences.getString("server", mqtt_server, sizeof(mqtt_server));
+    preferences.getString("server", mqttCfg.server, sizeof(mqttCfg.server));
     const int p = preferences.getInt("port", 8883);
-    mqtt_port   = (p > 0 && p <= 65535) ? static_cast<uint16_t>(p) : 8883;
-    preferences.getString("user", mqtt_username, sizeof(mqtt_username));
-    preferences.getString("pass", mqtt_password, sizeof(mqtt_password));
-    if (preferences.getString("topic_pub", mqtt_topic_pub, sizeof(mqtt_topic_pub)) == 0
-        || mqtt_topic_pub[0] == '\0') {
-        safeStrCopy(mqtt_topic_pub, sizeof(mqtt_topic_pub), "heart/to_b");
+    mqttCfg.port   = (p > 0 && p <= 65535) ? static_cast<uint16_t>(p) : 8883;
+    preferences.getString("user", mqttCfg.username, sizeof(mqttCfg.username));
+    preferences.getString("pass", mqttCfg.password, sizeof(mqttCfg.password));
+    if (preferences.getString("topic_pub", mqttCfg.topicPub, sizeof(mqttCfg.topicPub)) == 0
+        || mqttCfg.topicPub[0] == '\0') {
+        strlcpy(mqttCfg.topicPub, "heart/to_b", sizeof(mqttCfg.topicPub));
     }
-    if (preferences.getString("topic_sub", mqtt_topic_sub, sizeof(mqtt_topic_sub)) == 0
-        || mqtt_topic_sub[0] == '\0') {
-        safeStrCopy(mqtt_topic_sub, sizeof(mqtt_topic_sub), "heart/to_a");
+    if (preferences.getString("topic_sub", mqttCfg.topicSub, sizeof(mqttCfg.topicSub)) == 0
+        || mqttCfg.topicSub[0] == '\0') {
+        strlcpy(mqttCfg.topicSub, "heart/to_a", sizeof(mqttCfg.topicSub));
     }
     preferences.end();
 }
 
 void saveMQTTConfig() {
     if (!preferences.begin("mqtt", false)) {
-        CONFIG_DBG_PRINTLN("NVS mqtt: schreiben fehlgeschlagen.");
+        ESP_LOGE(TAG, "NVS mqtt: schreiben fehlgeschlagen");
         return;
     }
-    preferences.putString("server", mqtt_server);
-    preferences.putInt("port", mqtt_port);
-    preferences.putString("user", mqtt_username);
-    preferences.putString("pass", mqtt_password);
-    preferences.putString("topic_pub", mqtt_topic_pub);
-    preferences.putString("topic_sub", mqtt_topic_sub);
+    preferences.putString("server", mqttCfg.server);
+    preferences.putInt("port", mqttCfg.port);
+    preferences.putString("user", mqttCfg.username);
+    preferences.putString("pass", mqttCfg.password);
+    preferences.putString("topic_pub", mqttCfg.topicPub);
+    preferences.putString("topic_sub", mqttCfg.topicSub);
     preferences.end();
 }
 
@@ -317,7 +299,7 @@ void saveMQTTConfig() {
 
 void loadHeartCounter() {
     if (!preferences.begin("heart", true)) {
-        CONFIG_DBG_PRINTLN("NVS heart: lesen fehlgeschlagen, Zaehler = 0.");
+        ESP_LOGW(TAG, "NVS heart: lesen fehlgeschlagen, Zaehler = 0");
         heartCounter              = 0;
         lastCommittedHeartCounter = 0;
         lastHeartCounterSaveMs    = millis();
@@ -331,7 +313,7 @@ void loadHeartCounter() {
 
 bool saveHeartCounter() {
     if (!preferences.begin("heart", false)) {
-        CONFIG_DBG_PRINTLN("NVS heart: schreiben fehlgeschlagen.");
+        ESP_LOGE(TAG, "NVS heart: schreiben fehlgeschlagen");
         return false;
     }
     preferences.putInt("counter", heartCounter);
@@ -376,7 +358,7 @@ void setupWiFi() {
     if (portalFromButton) {
         cfg.wifiSSID.clear();
         cfg.wifiPassword.clear();
-        CONFIG_DBG_PRINTLN("Wartungs-Captive-Portal (Taste): WLAN-Zugangsdaten zur Neuwahl.");
+        ESP_LOGI(TAG, "Wartungs-Captive-Portal (Taste): WLAN-Zugangsdaten zur Neuwahl");
     }
 
     g_espConnect.listen([](Mycila::ESPConnect::State /*previous*/, Mycila::ESPConnect::State state) {
@@ -394,7 +376,7 @@ void setupWiFi() {
     g_espConnect.setBlocking(false);
     g_espConnect.begin(kSetupApSsid, "", cfg);
 
-    CONFIG_DBG_PRINTLN("ESPConnect gestartet (non-blocking), warte auf STA oder Neustart...");
+    ESP_LOGI(TAG, "ESPConnect gestartet (non-blocking), warte auf STA oder Neustart...");
     while (!wifiSetupGoalReached(g_espConnect)) {
         g_espConnect.loop();
         delay(10);
@@ -404,15 +386,15 @@ void setupWiFi() {
     WiFi.setSleep(true);
     esp_wifi_set_ps(WIFI_PS_MAX_MODEM);
     (void)esp_wifi_set_bandwidth(WIFI_IF_STA, WIFI_BW_HT20);
+    esp_wifi_set_max_tx_power(44);
 
-    CONFIG_DBG_PRINT("WLAN bereit, STA-IP: ");
-    CONFIG_DBG_PRINTLN(WiFi.localIP());
+    ESP_LOGI(TAG, "WLAN bereit, STA-IP: %s", WiFi.localIP().toString().c_str());
 }
 
 // ─── Factory Reset ────────────────────────────────────────────────────────────
 
 void resetAllSettings() {
-    CONFIG_DBG_PRINTLN("Factory Reset: alle Einstellungen loeschen...");
+    ESP_LOGW(TAG, "Factory Reset: alle Einstellungen loeschen...");
     stopMqttMaintenanceHttp();
     g_espConnect.clearConfiguration();
     g_espConnect.end();
@@ -453,7 +435,7 @@ bool configIsSetupPortalActive() {
 
 void requestSetupPortalFromButton() {
     if (!preferences.begin(kPortalPrefsNs, false)) {
-        CONFIG_DBG_PRINTLN("NVS cfg: Portal-Marker konnte nicht gesetzt werden.");
+        ESP_LOGE(TAG, "NVS cfg: Portal-Marker konnte nicht gesetzt werden");
         return;
     }
     preferences.putBool(kPortalBtnKey, true);

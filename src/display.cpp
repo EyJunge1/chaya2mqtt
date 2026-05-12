@@ -6,17 +6,14 @@
 #include <Arduino.h>
 #include <SPI.h>
 #include <cstdio>
+#include <esp_log.h>
+
+static const char* TAG __attribute__((unused)) = "DISP";
 
 static GxEPD2_3C<GxEPD2_154_Z90c, GxEPD2_154_Z90c::HEIGHT> display(
     GxEPD2_154_Z90c(/*CS=*/ 15, /*DC=*/ 27, /*RST=*/ 26, /*BUSY=*/ 25));
 
-static volatile bool g_heartRedrawPending = false;
-
-#if defined(CORE_DEBUG_LEVEL) && CORE_DEBUG_LEVEL > 0
-#define DISPLAY_DBG_PRINTLN(x) Serial.println(x)
-#else
-#define DISPLAY_DBG_PRINTLN(x) ((void)0)
-#endif
+static bool g_heartRedrawPending = false;
 
 void requestHeartRedraw() {
     g_heartRedrawPending = true;
@@ -40,7 +37,9 @@ void displayInit() {
 }
 
 void drawHeartWithNumber() {
-    DISPLAY_DBG_PRINTLN("Zeichne rotes Herz mit Zahl...");
+    ESP_LOGI(TAG, "Zeichne rotes Herz mit Zahl...");
+
+    SPI.begin(/*SCK=*/ 13, /*MISO=*/ 12, /*MOSI=*/ 14, /*SS=*/ 15);
 
     static constexpr int kCenterX = 100;
     static constexpr int kCenterY = 65;
@@ -109,6 +108,7 @@ void drawHeartWithNumber() {
     } while (display.nextPage());
 
     display.hibernate();
+    SPI.end();
 
-    DISPLAY_DBG_PRINTLN("Rotes Herz mit Zahl gezeichnet!");
+    ESP_LOGI(TAG, "Rotes Herz mit Zahl gezeichnet");
 }

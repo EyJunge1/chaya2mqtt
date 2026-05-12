@@ -5,12 +5,9 @@
 
 #include <Arduino.h>
 #include <driver/gpio.h>
+#include <esp_log.h>
 
-#if defined(CORE_DEBUG_LEVEL) && CORE_DEBUG_LEVEL > 0
-#define BUTTON_DBG_PRINTLN(x) Serial.println(x)
-#else
-#define BUTTON_DBG_PRINTLN(x) ((void)0)
-#endif
+static const char* TAG __attribute__((unused)) = "BTN";
 
 static constexpr int kButtonLedPin = 4;
 
@@ -32,9 +29,7 @@ static int buttonLastRawReading = LOW;
 static unsigned long buttonLastDebounceChangeMs = 0;
 static int buttonDebouncedLevel = LOW;
 
-#if defined(CORE_DEBUG_LEVEL) && CORE_DEBUG_LEVEL > 0
 static int debugCounter = 0;
-#endif
 
 /** Nicht-blockierende MQTT-Sende-LED-Sequenz (2x Blink, Publish, Pause, 2x Blink). */
 enum class LedTxPhase : uint8_t {
@@ -111,8 +106,7 @@ static constexpr LedPhaseRow kLedPhaseRows[] = {
 };
 
 static void startMqttSendLedSequence() {
-    BUTTON_DBG_PRINTLN("Button-Druck erkannt!");
-    BUTTON_DBG_PRINTLN("Sende MQTT-Nachricht (LED-Sequenz)...");
+    ESP_LOGI(TAG, "Button-Druck erkannt, sende MQTT (LED-Sequenz)");
     ledTxPhase = LedTxPhase::PreOn1;
     ledOutput(HIGH);
     armLedPhase(100);
@@ -169,13 +163,13 @@ void checkLEDStatus() {
         case LedTxPhase::PublishTry: {
             const bool ok = mqttPublishHeart();
             if (ok) {
-                BUTTON_DBG_PRINTLN("MQTT Nachricht erfolgreich gesendet!");
+                ESP_LOGI(TAG, "MQTT Nachricht erfolgreich gesendet");
                 ledTxPhase = LedTxPhase::PostWait;
                 armLedPhase(500);
             } else {
                 publishFailCount++;
                 if (publishFailCount >= kPublishMaxAttempts) {
-                    BUTTON_DBG_PRINTLN("MQTT Sendung fehlgeschlagen!");
+                    ESP_LOGW(TAG, "MQTT Sendung fehlgeschlagen");
                     ledOutput(HIGH);
                     ledTxPhase = LedTxPhase::FailOn1;
                     armLedPhase(kFailFlashMs);
@@ -251,15 +245,7 @@ void buttonLoop() {
 }
 
 void buttonDebugStatus() {
-#if defined(CORE_DEBUG_LEVEL) && CORE_DEBUG_LEVEL > 0
     debugCounter++;
-    Serial.println("=== DEBUG STATUS ===");
-    Serial.print("Debug Counter: ");
-    Serial.println(debugCounter);
-    Serial.print("Button State: ");
-    Serial.println(digitalRead(kButtonGpio));
-    Serial.print("LED State: ");
-    Serial.println(digitalRead(kButtonLedPin));
-    Serial.println("==================");
-#endif
+    ESP_LOGD(TAG, "Status #%d: Button=%d, LED=%d",
+             debugCounter, digitalRead(kButtonGpio), digitalRead(kButtonLedPin));
 }
