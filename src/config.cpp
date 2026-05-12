@@ -41,8 +41,8 @@ static constexpr unsigned long kHeartCounterSaveMinIntervalMs = 30000;
 
 static Preferences preferences;
 
-static constexpr char kDeviceHostname[]  = "HeartESP32";
-static constexpr char kSetupApSsid[]   = "HeartESP32-Setup";
+static constexpr char kDeviceHostname[]  = "chaya2mqtt";
+static constexpr char kSetupApSsid[]   = "chaya2mqtt-Setup";
 static constexpr char kPortalPrefsNs[] = "cfg";
 static constexpr char kPortalBtnKey[]  = "portal_btn";
 
