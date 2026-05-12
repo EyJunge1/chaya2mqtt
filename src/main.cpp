@@ -1,5 +1,4 @@
 #include <Arduino.h>
-#include <WiFi.h>
 #include <algorithm>
 #include <cstdint>
 #include <driver/gpio.h>
@@ -20,24 +19,10 @@
 #define MAIN_DBG_PRINTLN(x) ((void)0)
 #endif
 
-static constexpr unsigned long kWifiReconnectIntervalMs = 30000;
-static constexpr unsigned long kWifiReconnectBackoffMaxMs = 300000;
-static constexpr unsigned long kWifiHardReconnectGapMs = 100;
-
 /** Light-Sleep: kurz bei aktiver LED-Sequenz, laenger im Idle (Taster per GPIO-, WiFi per Event-Wakeup). */
 static constexpr uint64_t kLightSleepActiveUs = 10000ULL;   // 10 ms
 /** Idle: 15 s -- genug fuer MQTT-Keepalive (60 s); WiFi-/GPIO-Wakeup wecken bei Bedarf frueher. */
 static constexpr uint64_t kLightSleepIdleUs = 15000000ULL;  // 15 s
-static constexpr uint64_t kLightSleepWifiHardReconnectGapUs =
-    static_cast<uint64_t>(kWifiHardReconnectGapMs) * 1000ULL;
-
-static unsigned long lastWifiReconnectMs = 0;
-static bool wifiWasConnected = true;
-static bool wifiReconnectDueImmediately = false;
-static int wifiReconnectAttempts = 0;
-static bool wifiHardReconnectPending = false;
-static unsigned long wifiHardReconnectSinceMs = 0;
-static unsigned long wifiReconnectBackoffMs = kWifiReconnectIntervalMs;
 
 static uint64_t computeLightSleepTimerUs() {
     if (configIsSetupPortalActive()) {
@@ -45,9 +30,6 @@ static uint64_t computeLightSleepTimerUs() {
     }
     if (buttonIsLedTxSequenceActive()) {
         return kLightSleepActiveUs;
-    }
-    if (wifiHardReconnectPending) {
-        return kLightSleepWifiHardReconnectGapUs;
     }
     const unsigned long mqttWaitMs = mqttMillisUntilNextConnectAttempt();
     if (mqttWaitMs > 0) {
@@ -110,44 +92,7 @@ void loop() {
     mqttLoop();
     maybeSaveHeartCounter();
 
-    if (WiFi.status() != WL_CONNECTED) { // NOLINT(readability-static-accessed-through-instance)
-        if (wifiWasConnected) {
-            wifiReconnectDueImmediately = true;
-            wifiWasConnected = false;
-        }
-        if (wifiHardReconnectPending) {
-            if (now - wifiHardReconnectSinceMs >= kWifiHardReconnectGapMs) {
-                WiFi.begin();
-                wifiHardReconnectPending = false;
-                wifiReconnectAttempts = 0;
-            }
-        } else if (wifiReconnectDueImmediately || now - lastWifiReconnectMs >= wifiReconnectBackoffMs) {
-            const bool triggeredByImmediate = wifiReconnectDueImmediately;
-            wifiReconnectDueImmediately = false;
-            lastWifiReconnectMs = now;
-            if (!triggeredByImmediate) {
-                wifiReconnectBackoffMs =
-                    std::min(wifiReconnectBackoffMs * 2UL, kWifiReconnectBackoffMaxMs);
-            }
-            MAIN_DBG_PRINTLN("WiFi verloren! Versuche Reconnect...");
-            if (wifiReconnectAttempts >= 3) {
-                WiFi.disconnect(false);
-                wifiHardReconnectPending = true;
-                wifiHardReconnectSinceMs = now;
-            } else {
-                WiFi.reconnect();
-                wifiReconnectAttempts++;
-            }
-        }
-    } else {
-        wifiHardReconnectPending = false;
-        wifiReconnectAttempts = 0;
-        wifiReconnectBackoffMs = kWifiReconnectIntervalMs;
-        if (!wifiWasConnected) {
-            lastWifiReconnectMs = now;
-        }
-        wifiWasConnected = true;
-    }
+    /* WiFi-Reconnect: MycilaESPConnect (siehe configLoop). */
 
     if (consumeHeartRedraw()) {
         drawHeartWithNumber();

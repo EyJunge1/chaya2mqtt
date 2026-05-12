@@ -3,8 +3,7 @@
 #include "mqtt.h"
 
 #include <Arduino.h>
-#include <DNSServer.h>
-#include <ESPAsyncWebServer.h>
+#include <MycilaESPConnect.h>
 #include <Preferences.h>
 #include <WiFi.h>
 #include <algorithm>
@@ -14,14 +13,14 @@
 #include <esp_wifi.h>
 
 #if defined(CORE_DEBUG_LEVEL) && CORE_DEBUG_LEVEL > 0
-#define CONFIG_DBG_PRINT(x)   Serial.print(x)
+#define CONFIG_DBG_PRINT(x) Serial.print(x)
 #define CONFIG_DBG_PRINTLN(x) Serial.println(x)
 #else
-#define CONFIG_DBG_PRINT(x)   ((void)0)
+#define CONFIG_DBG_PRINT(x) ((void)0)
 #define CONFIG_DBG_PRINTLN(x) ((void)0)
 #endif
 
-// ─── Globale MQTT-Variablen (Deklarationen in config.h) ─────────────────────
+// ─── Globale MQTT-Variablen ───────────────────────────────────────────────────
 
 char     mqtt_server[128]    = "";
 uint16_t mqtt_port           = 8883;
@@ -30,7 +29,7 @@ char     mqtt_password[64]   = "";
 char     mqtt_topic_pub[128] = "heart/to_b";
 char     mqtt_topic_sub[128] = "heart/to_a";
 
-// ─── Herz-Zähler ────────────────────────────────────────────────────────────
+// ─── Herz-Zähler ──────────────────────────────────────────────────────────────
 
 int heartCounter = 0;
 
@@ -38,28 +37,21 @@ static int           lastCommittedHeartCounter            = 0;
 static unsigned long lastHeartCounterSaveMs               = 0;
 static constexpr unsigned long kHeartCounterSaveMinIntervalMs = 30000;
 
-// ─── Interner Zustand ────────────────────────────────────────────────────────
+// ─── WiFi / Portal (MycilaESPConnect) ─────────────────────────────────────────
 
 static Preferences preferences;
 
-static constexpr char    kSetupApSsid[] = "HeartESP32-Setup";
-static constexpr uint8_t kDnsPort       = 53;
-static const IPAddress   kApIp(192, 168, 4, 1);
-static const IPAddress   kApGw(192, 168, 4, 1);
-static const IPAddress   kApSn(255, 255, 255, 0);
+static constexpr char kDeviceHostname[]  = "HeartESP32";
+static constexpr char kSetupApSsid[]   = "HeartESP32-Setup";
+static constexpr char kPortalPrefsNs[] = "cfg";
+static constexpr char kPortalBtnKey[]  = "portal_btn";
 
-static AsyncWebServer g_server(80);
-static DNSServer      g_dns;
+static AsyncWebServer      g_webServer(80);
+static Mycila::ESPConnect  g_espConnect(g_webServer);
+static bool                g_mqttMaintenanceHttpActive = false;
+static bool                g_mqttRoutesRegistered      = false;
 
-static bool g_portalActive      = false;
-static bool g_routesReady       = false;
-static bool g_stopPortalPending = false;  // gesetzt im /exit-Handler, ausgeführt in configLoop()
-static bool g_wifiSaved         = false;  // gesetzt im /wifi-POST-Handler, setupWiFi() wartet darauf
-
-static char g_wifiSsid[64] = "";
-static char g_wifiPass[64] = "";
-
-// ─── Hilfsfunktionen ─────────────────────────────────────────────────────────
+// ─── Hilfsfunktionen ──────────────────────────────────────────────────────────
 
 static void safeStrCopy(char* dst, size_t n, const char* src) {
     if (dst == nullptr || n == 0) {
@@ -75,13 +67,65 @@ static void appendHtmlEscaped(String& out, const char* s) {
     }
     for (; *s != '\0'; ++s) {
         switch (*s) {
-            case '&':  out += F("&amp;");  break;
-            case '"':  out += F("&quot;"); break;
-            case '<':  out += F("&lt;");   break;
-            case '>':  out += F("&gt;");   break;
-            default:   out += *s;          break;
+            case '&': out += F("&amp;"); break;
+            case '"': out += F("&quot;"); break;
+            case '<': out += F("&lt;"); break;
+            case '>': out += F("&gt;"); break;
+            default: out += *s; break;
         }
     }
+}
+
+static void loadWifiIntoConfig(Mycila::ESPConnect::Config& cfg) {
+    if (!preferences.begin("wifi", true)) {
+        return;
+    }
+    const String ssid = preferences.getString("ssid", "");
+    const String pass = preferences.getString("pass", "");
+    preferences.end();
+    cfg.wifiSSID     = ssid.c_str();
+    cfg.wifiPassword = pass.c_str();
+}
+
+static void saveWifiFromConfig(const Mycila::ESPConnect::Config& cfg) {
+    if (!preferences.begin("wifi", false)) {
+        CONFIG_DBG_PRINTLN("NVS wifi: schreiben fehlgeschlagen (Portal).");
+        return;
+    }
+    preferences.putString("ssid", cfg.wifiSSID.c_str());
+    preferences.putString("pass", cfg.wifiPassword.c_str());
+    preferences.end();
+}
+
+static bool consumePortalButtonRequest() {
+    if (!preferences.begin(kPortalPrefsNs, false)) {
+        return false;
+    }
+    const bool v = preferences.getBool(kPortalBtnKey, false);
+    if (v) {
+        preferences.remove(kPortalBtnKey);
+    }
+    preferences.end();
+    return v;
+}
+
+/** STA hat IP oder Gerät bleibt absichtlich nur im SoftAP-Modus. */
+static bool wifiSetupGoalReached(const Mycila::ESPConnect& ec) {
+    using S = Mycila::ESPConnect::State;
+    const S st = ec.getState();
+    if (ec.getConfig().apMode && st == S::AP_STARTED) {
+        return true;
+    }
+    return WiFi.status() == WL_CONNECTED && WiFi.localIP()[0] != 0;
+}
+
+static void stopMqttMaintenanceHttp() {
+    if (!g_mqttMaintenanceHttpActive) {
+        return;
+    }
+    g_webServer.end();
+    g_mqttMaintenanceHttpActive = false;
+    CONFIG_DBG_PRINTLN("MQTT-Wartungs-HTTP gestoppt.");
 }
 
 static String commonCss() {
@@ -97,56 +141,6 @@ static String commonCss() {
              ".err{color:#c00;font-weight:600;margin:8px 0}"
              "ul{padding-left:18px}li{margin:6px 0}"
              "nav{margin-top:20px}nav a{margin-right:12px}</style>");
-}
-
-// ─── Seitenbausteine ─────────────────────────────────────────────────────────
-
-static String buildSetupHome() {
-    String html;
-    html.reserve(1024);
-    html += F("<!DOCTYPE html><html lang='de'><head><meta charset='utf-8'>"
-              "<meta name='viewport' content='width=device-width,initial-scale=1'>"
-              "<title>HeartESP32 Einrichtung</title>");
-    html += commonCss();
-    html += F("</head><body><h1>&#10084; HeartESP32 Einrichtung</h1><ul>"
-              "<li><a href='/wifi'>WLAN konfigurieren</a></li>"
-              "<li><a href='/mqtt'>MQTT konfigurieren</a></li>"
-              "</ul><p>WLAN: <strong>");
-    if (WiFi.status() == WL_CONNECTED) { // NOLINT(readability-static-accessed-through-instance)
-        appendHtmlEscaped(html, WiFi.SSID().c_str());
-        html += F("</strong> &mdash; IP: <strong>");
-        html += WiFi.localIP().toString();
-    } else {
-        html += F("nicht verbunden");
-    }
-    html += F("</strong></p>"
-              "<nav><a class='btn' href='/heart-setup-exit'>Wartungsmodus beenden</a></nav>"
-              "</body></html>");
-    return html;
-}
-
-static String buildWifiPage(const char* banner) {
-    String html;
-    html.reserve(1200);
-    html += F("<!DOCTYPE html><html lang='de'><head><meta charset='utf-8'>"
-              "<meta name='viewport' content='width=device-width,initial-scale=1'>"
-              "<title>WLAN</title>");
-    html += commonCss();
-    html += F("</head><body><h1>WLAN-Einstellungen</h1>");
-    if (banner != nullptr && banner[0] != '\0') {
-        html += banner;
-    }
-    html += F("<form method='post' action='/wifi'>"
-              "<label for='ssid'>Netzwerkname (SSID)</label>"
-              "<input id='ssid' name='ssid' maxlength='63' autocomplete='off' value='");
-    appendHtmlEscaped(html, g_wifiSsid);
-    html += F("'/>"
-              "<label for='pass'>Passwort</label>"
-              "<input id='pass' name='pass' type='password' maxlength='63' "
-              "autocomplete='current-password'/>"
-              "<button type='submit'>Speichern &amp; Neustart</button></form>"
-              "<nav><a href='/'>&#8592; Zur&uuml;ck</a></nav></body></html>");
-    return html;
 }
 
 static String buildMqttPage(const char* banner) {
@@ -189,39 +183,9 @@ static String buildMqttPage(const char* banner) {
     appendHtmlEscaped(html, mqtt_topic_sub);
     html += F("'/>"
               "<button type='submit'>Speichern</button></form>"
-              "<nav><a href='/'>&#8592; Zur&uuml;ck</a></nav></body></html>");
+              "<nav><a class='btn' href='/heart-setup-exit'>Wartungsseite beenden</a></nav>"
+              "</body></html>");
     return html;
-}
-
-// ─── Benannte Request-Handler (reduzieren Komplexität von registerRoutes) ────
-
-static void handleWifiPost(AsyncWebServerRequest* req) {
-    char ssid[64] = "";
-    char pass[64] = "";
-    if (req->hasParam("ssid", true)) {
-        safeStrCopy(ssid, sizeof(ssid), req->getParam("ssid", true)->value().c_str());
-    }
-    if (req->hasParam("pass", true)) {
-        safeStrCopy(pass, sizeof(pass), req->getParam("pass", true)->value().c_str());
-    }
-    if (ssid[0] == '\0') {
-        req->redirect(F("/wifi?err=1"));
-        return;
-    }
-    if (preferences.begin("wifi", false)) {
-        preferences.putString("ssid", ssid);
-        preferences.putString("pass", pass);
-        preferences.end();
-    }
-    safeStrCopy(g_wifiSsid, sizeof(g_wifiSsid), ssid);
-    safeStrCopy(g_wifiPass, sizeof(g_wifiPass), pass);
-    g_wifiSaved = true;
-    req->send(200, F("text/html"),
-              F("<!DOCTYPE html><html lang='de'><head><meta charset='utf-8'>"
-                "<meta name='viewport' content='width=device-width,initial-scale=1'>"
-                "</head><body><h2>WLAN gespeichert.</h2>"
-                "<p>Das Ger&auml;t verbindet sich neu &ndash; diese Seite kann geschlossen werden.</p>"
-                "</body></html>"));
 }
 
 static void handleMqttPost(AsyncWebServerRequest* req) {
@@ -259,106 +223,60 @@ static void handleMqttPost(AsyncWebServerRequest* req) {
     req->redirect(F("/mqtt?saved=1"));
 }
 
-// ─── Web-Routen (einmalig registrieren) ─────────────────────────────────────
-
-static void stopPortal();  // Vorwärtsdeklaration
-
-static void registerRoutes() {
-    if (g_routesReady) {
+static void registerMqttRoutes() {
+    if (g_mqttRoutesRegistered) {
         return;
     }
-    g_routesReady = true;
+    g_mqttRoutesRegistered = true;
 
-    // Captive Portal: alle unbekannten URLs → Startseite
-    g_server.onNotFound([](AsyncWebServerRequest* req) {
-        req->redirect(F("http://192.168.4.1/"));
-    });
-
-    g_server.on("/", HTTP_GET, [](AsyncWebServerRequest* req) {
-        req->send(200, F("text/html"), buildSetupHome());
-    });
-    g_server.on("/heart-setup", HTTP_GET, [](AsyncWebServerRequest* req) {
-        req->send(200, F("text/html"), buildSetupHome());
-    });
-
-    g_server.on("/wifi", HTTP_GET, [](AsyncWebServerRequest* req) {
-        String banner;
-        if (req->hasParam("err")) {
-            banner = F("<p class='err'>Kein Netzwerkname angegeben &ndash; bitte erneut versuchen.</p>");
-        }
-        req->send(200, F("text/html"), buildWifiPage(banner.c_str()));
-    });
-    g_server.on("/wifi", HTTP_POST, handleWifiPost);
-
-    g_server.on("/mqtt", HTTP_GET, [](AsyncWebServerRequest* req) {
+    g_webServer.on("/mqtt", HTTP_GET, [](AsyncWebServerRequest* req) {
         String banner;
         if (req->hasParam("saved")) {
             banner = F("<p class='ok'>&#10003; Gespeichert. MQTT wird neu verbunden.</p>");
         }
         req->send(200, F("text/html"), buildMqttPage(banner.c_str()));
     });
-    g_server.on("/mqtt", HTTP_POST, handleMqttPost);
+    g_webServer.on("/mqtt", HTTP_POST, handleMqttPost);
 
-    // Wartungsmodus beenden
-    g_server.on("/heart-setup-exit", HTTP_GET, [](AsyncWebServerRequest* req) {
+    g_webServer.on("/heart-setup-exit", HTTP_GET, [](AsyncWebServerRequest* req) {
         req->send(200, F("text/html"),
                   F("<!DOCTYPE html><html lang='de'><head><meta charset='utf-8'>"
                     "<meta name='viewport' content='width=device-width,initial-scale=1'>"
-                    "</head><body><p>Wartungsmodus beendet. Dieses Fenster kann geschlossen werden.</p>"
+                    "</head><body><p>Wartungsseite beendet.</p>"
                     "</body></html>"));
-        g_stopPortalPending = true;
+        stopMqttMaintenanceHttp();
     });
 }
 
-// ─── Portal-Lebenszyklus ─────────────────────────────────────────────────────
-
-static bool startPortal(bool apOnly) {
-    if (g_portalActive) {
-        CONFIG_DBG_PRINTLN("Setup-Portal bereits aktiv.");
-        return true;
+static void maybeStopMqttMaintenanceHttpIfConfigured() {
+    if (g_mqttMaintenanceHttpActive && mqtt_server[0] != '\0') {
+        stopMqttMaintenanceHttp();
     }
-    registerRoutes();
-
-    WiFi.mode(apOnly ? WIFI_AP : WIFI_AP_STA); // NOLINT(readability-static-accessed-through-instance)
-    WiFi.softAPConfig(kApIp, kApGw, kApSn);
-    if (!WiFi.softAP(kSetupApSsid, "")) {
-        CONFIG_DBG_PRINTLN("softAP Start fehlgeschlagen.");
-        if (!apOnly) {
-            WiFi.mode(WIFI_STA); // NOLINT(readability-static-accessed-through-instance)
-        }
-        return false;
-    }
-
-    g_dns.setErrorReplyCode(DNSReplyCode::NoError);
-    g_dns.stop();
-    if (!g_dns.start(kDnsPort, "*", WiFi.softAPIP())) {
-        CONFIG_DBG_PRINTLN("DNS Start fehlgeschlagen.");
-        WiFi.softAPdisconnect(true);
-        if (!apOnly) {
-            WiFi.mode(WIFI_STA); // NOLINT(readability-static-accessed-through-instance)
-        }
-        return false;
-    }
-
-    g_server.begin();
-    g_portalActive = true;
-    CONFIG_DBG_PRINT("Setup-Portal aktiv: http://");
-    CONFIG_DBG_PRINTLN(WiFi.softAPIP().toString());
-    return true;
 }
 
-static void stopPortal() {
-    if (!g_portalActive) {
+static void maybeStartMqttMaintenanceHttp() {
+    if (g_mqttMaintenanceHttpActive) {
         return;
     }
-    g_dns.stop();
-    g_server.end();
-    WiFi.mode(WIFI_STA); // NOLINT(readability-static-accessed-through-instance)
-    g_portalActive = false;
-    CONFIG_DBG_PRINTLN("Setup-Portal gestoppt.");
+    if (mqtt_server[0] != '\0') {
+        return;
+    }
+    using S = Mycila::ESPConnect::State;
+    if (g_espConnect.getState() != S::NETWORK_CONNECTED) {
+        return;
+    }
+    if (WiFi.status() != WL_CONNECTED || WiFi.localIP()[0] == 0) {
+        return;
+    }
+
+    g_webServer.begin();
+    g_mqttMaintenanceHttpActive = true;
+    CONFIG_DBG_PRINT("MQTT-Wartungs-HTTP: http://");
+    CONFIG_DBG_PRINT(WiFi.localIP());
+    CONFIG_DBG_PRINTLN("/mqtt");
 }
 
-// ─── NVS: MQTT ───────────────────────────────────────────────────────────────
+// ─── NVS: MQTT ────────────────────────────────────────────────────────────────
 
 void loadMQTTConfig() {
     if (!preferences.begin("mqtt", true)) {
@@ -395,7 +313,7 @@ void saveMQTTConfig() {
     preferences.end();
 }
 
-// ─── NVS: Herz-Zähler ────────────────────────────────────────────────────────
+// ─── NVS: Herz-Zähler ─────────────────────────────────────────────────────────
 
 void loadHeartCounter() {
     if (!preferences.begin("heart", true)) {
@@ -443,65 +361,62 @@ void flushHeartCounterIfDirty() {
     }
 }
 
-// ─── WiFi-Setup ─────────────────────────────────────────────────────────────
+// ─── WiFi-Setup ───────────────────────────────────────────────────────────────
 
 void setupWiFi() {
-    registerRoutes();
+    registerMqttRoutes();
 
-    // Gespeicherte WLAN-Zugangsdaten laden
-    if (preferences.begin("wifi", true)) {
-        preferences.getString("ssid", g_wifiSsid, sizeof(g_wifiSsid));
-        preferences.getString("pass", g_wifiPass, sizeof(g_wifiPass));
-        preferences.end();
+    const bool portalFromButton = consumePortalButtonRequest();
+
+    Mycila::ESPConnect::Config cfg = {};
+    cfg.hostname = kDeviceHostname;
+    cfg.apMode   = false;
+    loadWifiIntoConfig(cfg);
+
+    if (portalFromButton) {
+        cfg.wifiSSID.clear();
+        cfg.wifiPassword.clear();
+        CONFIG_DBG_PRINTLN("Wartungs-Captive-Portal (Taste): WLAN-Zugangsdaten zur Neuwahl.");
     }
 
-    if (g_wifiSsid[0] != '\0') {
-        CONFIG_DBG_PRINT("Verbinde mit WLAN: ");
-        CONFIG_DBG_PRINTLN(g_wifiSsid);
-        WiFi.mode(WIFI_STA); // NOLINT(readability-static-accessed-through-instance)
-        WiFi.begin(g_wifiSsid, g_wifiPass);
-        const unsigned long t0 = millis();
-        while (WiFi.status() != WL_CONNECTED // NOLINT(readability-static-accessed-through-instance)
-               && millis() - t0 < 15000) {
-            delay(100);
+    g_espConnect.listen([](Mycila::ESPConnect::State /*previous*/, Mycila::ESPConnect::State state) {
+        if (state == Mycila::ESPConnect::State::PORTAL_COMPLETE) {
+            const Mycila::ESPConnect::Config& c = g_espConnect.getConfig();
+            if (!c.apMode) {
+                saveWifiFromConfig(c);
+            }
+            flushHeartCounterIfDirty();
         }
-    }
+    });
 
-    if (WiFi.status() != WL_CONNECTED) { // NOLINT(readability-static-accessed-through-instance)
-        CONFIG_DBG_PRINTLN("WLAN nicht verbunden -> Captive Portal starten.");
-        startPortal(true);  // nur AP, STA entfaellt
-        // Blockiert in setup(), bis der Nutzer im Portal WLAN-Daten eingibt.
-        // ESPAsyncWebServer laeuft im Hintergrund (eigener Task), DNS muss
-        // manuell getriggert werden.
-        while (!g_wifiSaved) {
-            g_dns.processNextRequest();
-            delay(10);
-        }
-        flushHeartCounterIfDirty();
-        delay(500);
-        ESP.restart();
-        return;
-    }
+    g_espConnect.setAutoRestart(true);
+    // Blocking true wartet nicht auf PORTAL_STARTED → Deadlock im Captive Portal.
+    g_espConnect.setBlocking(false);
+    g_espConnect.begin(kSetupApSsid, "", cfg);
 
-    CONFIG_DBG_PRINT("WLAN verbunden, IP: ");
-    CONFIG_DBG_PRINTLN(WiFi.localIP());
+    CONFIG_DBG_PRINTLN("ESPConnect gestartet (non-blocking), warte auf STA oder Neustart...");
+    while (!wifiSetupGoalReached(g_espConnect)) {
+        g_espConnect.loop();
+        delay(10);
+        // Nach erfolgreichem Portal folgt i.d.R. ESP.restart(); diese Schleife endet dann dort.
+    }
 
     WiFi.setSleep(true);
     esp_wifi_set_ps(WIFI_PS_MAX_MODEM);
     (void)esp_wifi_set_bandwidth(WIFI_IF_STA, WIFI_BW_HT20);
 
-    if (mqtt_server[0] == '\0') {
-        CONFIG_DBG_PRINTLN("Kein MQTT-Broker -> parallelen Wartungs-AP starten.");
-        startPortal(false);  // AP+STA parallel
-    }
+    CONFIG_DBG_PRINT("WLAN bereit, STA-IP: ");
+    CONFIG_DBG_PRINTLN(WiFi.localIP());
 }
 
-// ─── Factory Reset ───────────────────────────────────────────────────────────
+// ─── Factory Reset ────────────────────────────────────────────────────────────
 
 void resetAllSettings() {
     CONFIG_DBG_PRINTLN("Factory Reset: alle Einstellungen loeschen...");
-    stopPortal();
-    WiFi.disconnect(true, true);  // Loescht auch intern gespeicherte WLAN-Credentials
+    stopMqttMaintenanceHttp();
+    g_espConnect.clearConfiguration();
+    g_espConnect.end();
+    WiFi.disconnect(true, true);
     if (preferences.begin("wifi", false)) {
         preferences.clear();
         preferences.end();
@@ -510,29 +425,44 @@ void resetAllSettings() {
         preferences.clear();
         preferences.end();
     }
+    if (preferences.begin(kPortalPrefsNs, false)) {
+        preferences.clear();
+        preferences.end();
+    }
     flushHeartCounterIfDirty();
     delay(500);
     ESP.restart();
 }
 
-// ─── Loop (wird von main.cpp aufgerufen) ─────────────────────────────────────
+// ─── Loop ─────────────────────────────────────────────────────────────────────
 
 void configLoop() {
-    if (!g_portalActive) {
-        return;
-    }
-    g_dns.processNextRequest();
-    if (g_stopPortalPending) {
-        g_stopPortalPending = false;
-        stopPortal();
-    }
+    g_espConnect.loop();
+    maybeStopMqttMaintenanceHttpIfConfigured();
+    maybeStartMqttMaintenanceHttp();
 }
 
 bool configIsSetupPortalActive() {
-    return g_portalActive;
+    using S = Mycila::ESPConnect::State;
+    const S st = g_espConnect.getState();
+    if (st == S::PORTAL_STARTING || st == S::PORTAL_STARTED) {
+        return true;
+    }
+    return g_mqttMaintenanceHttpActive;
 }
 
 void requestSetupPortalFromButton() {
-    // NOLINT(readability-static-accessed-through-instance) für WiFi.status()
-    startPortal(WiFi.status() != WL_CONNECTED); // NOLINT(readability-static-accessed-through-instance)
+    if (!preferences.begin(kPortalPrefsNs, false)) {
+        CONFIG_DBG_PRINTLN("NVS cfg: Portal-Marker konnte nicht gesetzt werden.");
+        return;
+    }
+    preferences.putBool(kPortalBtnKey, true);
+    preferences.end();
+    flushHeartCounterIfDirty();
+    delay(200);
+    ESP.restart();
+}
+
+Mycila::ESPConnect& configEspConnect() {
+    return g_espConnect;
 }

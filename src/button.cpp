@@ -16,7 +16,7 @@ static constexpr int kButtonLedPin = 4;
 
 static constexpr unsigned long kDebounceStableMs = 20;
 
-/** Taste loslassen nach >= 5 s und < 12 s: Wartungs-AP + MQTT-Web. */
+/** Taste loslassen nach >= 5 s und < 12 s: Neustart mit Captive Portal (WLAN neu einrichten). */
 static constexpr unsigned long kPortalTriggerReleaseMinMs = 5000;
 /** Taste durchgehend >= 12 s: Factory Reset. */
 static constexpr unsigned long kFactoryResetHoldMs = 12000;

@@ -2,6 +2,10 @@
 
 #include <cstdint>
 
+namespace Mycila {
+class ESPConnect;
+}
+
 extern char mqtt_server[128];
 extern uint16_t mqtt_port;
 extern char mqtt_username[64];
@@ -26,9 +30,12 @@ void flushHeartCounterIfDirty();
 void setupWiFi();
 void resetAllSettings();
 
-/** DNS/Web fuer parallelen Wartungs-AP; immer zusammen mit Netzwerk-Loop aufrufen. */
+/** ESPConnect-Loop; immer zusammen mit Haupt-loop aufrufen. */
 void configLoop();
-/** True solange SoftAP+Webserver fuer MQTT-Wartung aktiv sind (kein Light-Sleep). */
+/** True bei Captive Portal oder MQTT-Wartungs-HTTP (/mqtt), damit kein Light-Sleep. */
 bool configIsSetupPortalActive();
-/** SoftAP parallel zu STA starten (Taste 5–12 s losgelassen). */
+/** Captive Portal beim naechsten Boot (Taste 5–12 s losgelassen → Neustart). */
 void requestSetupPortalFromButton();
+
+/** Referenz auf den Netzwerk-Manager (WiFi / Captive Portal). */
+Mycila::ESPConnect& configEspConnect();
