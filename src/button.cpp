@@ -16,14 +16,17 @@ static constexpr int kButtonLedPin = 4;
 
 static constexpr unsigned long kDebounceStableMs = 20;
 
-static constexpr unsigned long kLongPressMs = 5000;
+/** Taste loslassen nach >= 5 s und < 12 s: Wartungs-AP + MQTT-Web. */
+static constexpr unsigned long kPortalTriggerReleaseMinMs = 5000;
+/** Taste durchgehend >= 12 s: Factory Reset. */
+static constexpr unsigned long kFactoryResetHoldMs = 12000;
 static constexpr unsigned long kShortPressMinMs = 50;
 static constexpr unsigned kPublishMaxAttempts = 2;
 static constexpr unsigned long kPublishRetryDelayMs = 25;
 static constexpr unsigned long kFailFlashMs = 50;
 static bool buttonHeldDown = false;
 static unsigned long buttonPressStartMs = 0;
-static bool longPressResetTriggered = false;
+static bool factoryResetHoldTriggered = false;
 
 static int buttonLastRawReading = LOW;
 static unsigned long buttonLastDebounceChangeMs = 0;
@@ -200,6 +203,16 @@ void checkLEDStatus() {
     }
 }
 
+/** Bestätigungs-Blinkmuster vor Factory-Reset (blockierend), dann Neustart. */
+static void triggerFactoryReset() {
+    for (int i = 0; i < 6; i++) {
+        ledOutput((i % 2) == 0 ? HIGH : LOW);
+        delay(120);
+    }
+    ledOutput(LOW);
+    resetAllSettings();
+}
+
 void buttonLoop() {
     const int raw = digitalRead(kButtonGpio);
     const unsigned long nowMs = millis();
@@ -216,27 +229,23 @@ void buttonLoop() {
         if (!buttonHeldDown) {
             buttonHeldDown = true;
             buttonPressStartMs = nowMs;
-            longPressResetTriggered = false;
-        } else if (!longPressResetTriggered && (nowMs - buttonPressStartMs >= kLongPressMs)) {
-            longPressResetTriggered = true;
-            // Kurzes Blinkmuster als Bestaetigung vor Factory-Reset (blockierend, Geraet startet neu).
-            for (int i = 0; i < 6; i++) {
-                ledOutput((i % 2) == 0 ? HIGH : LOW);
-                delay(120);
-            }
-            ledOutput(LOW);
-            resetAllSettings();
+            factoryResetHoldTriggered = false;
+        } else if (!factoryResetHoldTriggered && (nowMs - buttonPressStartMs >= kFactoryResetHoldMs)) {
+            factoryResetHoldTriggered = true;
+            triggerFactoryReset();
         }
     } else {
         if (buttonHeldDown) {
             const unsigned long held = nowMs - buttonPressStartMs;
-            if (!longPressResetTriggered && held >= kShortPressMinMs && held < kLongPressMs) {
+            if (!factoryResetHoldTriggered && held >= kShortPressMinMs && held < kPortalTriggerReleaseMinMs) {
                 if (!ledSendSequenceActive()) {
                     startMqttSendLedSequence();
                 }
+            } else if (!factoryResetHoldTriggered && held >= kPortalTriggerReleaseMinMs && held < kFactoryResetHoldMs) {
+                requestSetupPortalFromButton();
             }
             buttonHeldDown = false;
-            longPressResetTriggered = false;
+            factoryResetHoldTriggered = false;
         }
     }
 }

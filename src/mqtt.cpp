@@ -15,6 +15,7 @@
 
 // ESP-IDF hat ein eingebautes Mozilla-CA-Bundle in libmbedtls.a (CONFIG_MBEDTLS_CERTIFICATE_BUNDLE).
 extern const uint8_t x509_crt_bundle_start[] asm("_binary_x509_crt_bundle_start");
+extern const uint8_t x509_crt_bundle_end[]   asm("_binary_x509_crt_bundle_end");
 
 #if defined(CORE_DEBUG_LEVEL) && CORE_DEBUG_LEVEL > 0
 #define MQTT_DBG_PRINT(x) Serial.print(x)
@@ -50,7 +51,8 @@ static unsigned long mqttTryConnectSinglePass() {
 
     if (strlen(mqtt_server) == 0) {
         MQTT_DBG_PRINTLN(
-            "Kein MQTT-Server konfiguriert. Bitte Captive Portal erneut öffnen (Reset: Taste 5s halten).");
+            "Kein MQTT-Server konfiguriert. Wartungs-AP nutzen (Taste 5–12 s halten, dann loslassen) oder "
+            "/mqtt im Einrichtungs-WLAN.");
         return 60000;
     }
 
@@ -126,7 +128,8 @@ bool mqttPublishHeart() {
 }
 
 void mqttSetup() {
-    espClient.setCACertBundle(x509_crt_bundle_start);
+    espClient.setCACertBundle(x509_crt_bundle_start,
+                              x509_crt_bundle_end - x509_crt_bundle_start);
     // 512 B: CONNECT mit max. Portal-Längen (128-Zeichen-Topics + User/Pass + LWT) >256 B.
     if (!client.setBufferSize(512)) {
         MQTT_DBG_PRINTLN("MQTT: setBufferSize(512) fehlgeschlagen, PubSubClient nutzt vorhandenen Buffer.");

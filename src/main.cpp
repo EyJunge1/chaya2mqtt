@@ -40,6 +40,9 @@ static unsigned long wifiHardReconnectSinceMs = 0;
 static unsigned long wifiReconnectBackoffMs = kWifiReconnectIntervalMs;
 
 static uint64_t computeLightSleepTimerUs() {
+    if (configIsSetupPortalActive()) {
+        return kLightSleepActiveUs;
+    }
     if (buttonIsLedTxSequenceActive()) {
         return kLightSleepActiveUs;
     }
@@ -103,6 +106,7 @@ void loop() {
 
     buttonLoop();
     checkLEDStatus();
+    configLoop();
     mqttLoop();
     maybeSaveHeartCounter();
 
@@ -163,5 +167,9 @@ void loop() {
         armLightSleepTimerWakeup(lightSleepTimerUs);
         lastArmedLightSleepTimerUs = lightSleepTimerUs;
     }
-    esp_light_sleep_start();
+    if (!configIsSetupPortalActive()) {
+        esp_light_sleep_start();
+    } else {
+        delay(10);
+    }
 }

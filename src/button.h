@@ -1,7 +1,7 @@
 #pragma once
 
 /** GPIO des Tasters (Light-Sleep-Wakeup, Debounce, Pin-Mode). */
-inline constexpr int kButtonGpio = 2;
+static constexpr int kButtonGpio = 2;
 
 void buttonInit();
 void buttonStartupBlink();

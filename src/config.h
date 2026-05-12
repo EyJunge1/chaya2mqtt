@@ -25,3 +25,10 @@ void maybeSaveHeartCounter();
 void flushHeartCounterIfDirty();
 void setupWiFi();
 void resetAllSettings();
+
+/** DNS/Web fuer parallelen Wartungs-AP; immer zusammen mit Netzwerk-Loop aufrufen. */
+void configLoop();
+/** True solange SoftAP+Webserver fuer MQTT-Wartung aktiv sind (kein Light-Sleep). */
+bool configIsSetupPortalActive();
+/** SoftAP parallel zu STA starten (Taste 5–12 s losgelassen). */
+void requestSetupPortalFromButton();
