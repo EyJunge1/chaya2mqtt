@@ -52,6 +52,7 @@ static void loadWifiIntoConfig(Mycila::ESPConnect::Config& cfg) {
     const String ssid = preferences.getString("ssid", "");
     const String pass = preferences.getString("pass", "");
     preferences.end();
+    // ESPConnect nutzt std::string: c_str() kopiert sofort in eigenen Puffer (kein Hänger wie bei const char*-Alias).
     cfg.wifiSSID     = ssid.c_str();
     cfg.wifiPassword = pass.c_str();
 }
@@ -217,7 +218,7 @@ void setupWiFi() {
     WiFi.setSleep(true);
     esp_wifi_set_ps(WIFI_PS_MAX_MODEM);
     (void)esp_wifi_set_bandwidth(WIFI_IF_STA, WIFI_BW_HT20);
-    esp_wifi_set_max_tx_power(44);
+    esp_wifi_set_max_tx_power(52);
 
     ESP_LOGI(TAG, "WLAN bereit, STA-IP: %s", WiFi.localIP().toString().c_str());
 }

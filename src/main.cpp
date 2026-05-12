@@ -93,11 +93,13 @@ void loop() {
         drawHeartWithNumber();
     }
 
+#if defined(CORE_DEBUG_LEVEL) && CORE_DEBUG_LEVEL > 0
     static unsigned long lastDbg = 0;
     if (now - lastDbg > 5000) {
         buttonDebugStatus();
         lastDbg = now;
     }
+#endif
 
     static uint64_t lastArmedLightSleepTimerUs = UINT64_MAX;
     const uint64_t lightSleepTimerUs = computeLightSleepTimerUs();
@@ -105,10 +107,5 @@ void loop() {
         armLightSleepTimerWakeup(lightSleepTimerUs);
         lastArmedLightSleepTimerUs = lightSleepTimerUs;
     }
-    if (!configIsSetupPortalActive()) {
-        esp_light_sleep_start();
-    } else {
-        esp_sleep_enable_timer_wakeup(10000ULL);
-        esp_light_sleep_start();
-    }
+    esp_light_sleep_start();
 }

@@ -109,8 +109,8 @@ void mqttDisconnect() {
 void mqttSetup() {
     espClient.setCACertBundle(x509_crt_bundle_start,
                               x509_crt_bundle_end - x509_crt_bundle_start);
-    if (!client.setBufferSize(512)) {
-        ESP_LOGW(TAG, "setBufferSize(512) fehlgeschlagen, PubSubClient nutzt vorhandenen Buffer");
+    if (!client.setBufferSize(128)) {
+        ESP_LOGW(TAG, "setBufferSize(128) fehlgeschlagen, PubSubClient nutzt vorhandenen Buffer");
     }
     client.setServer(mqttCfg.server, mqttCfg.port);
     client.setCallback(mqttCallback);

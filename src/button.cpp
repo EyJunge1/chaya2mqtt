@@ -29,7 +29,7 @@ static int buttonLastRawReading = LOW;
 static unsigned long buttonLastDebounceChangeMs = 0;
 static int buttonDebouncedLevel = LOW;
 
-static int debugCounter = 0;
+static unsigned debugCounter = 0;
 
 /** Nicht-blockierende MQTT-Sende-LED-Sequenz (2x Blink, Publish, Pause, 2x Blink). */
 enum class LedTxPhase : uint8_t {
@@ -246,6 +246,6 @@ void buttonLoop() {
 
 void buttonDebugStatus() {
     debugCounter++;
-    ESP_LOGD(TAG, "Status #%d: Button=%d, LED=%d",
+    ESP_LOGD(TAG, "Status #%u: Button=%d, LED=%d",
              debugCounter, digitalRead(kButtonGpio), digitalRead(kButtonLedPin));
 }

@@ -39,8 +39,6 @@ void displayInit() {
 void drawHeartWithNumber() {
     ESP_LOGI(TAG, "Zeichne rotes Herz mit Zahl...");
 
-    SPI.begin(/*SCK=*/ 13, /*MISO=*/ 12, /*MOSI=*/ 14, /*SS=*/ 15);
-
     static constexpr int kCenterX = 100;
     static constexpr int kCenterY = 65;
     static constexpr int kHeartSize = 70;
@@ -108,7 +106,6 @@ void drawHeartWithNumber() {
     } while (display.nextPage());
 
     display.hibernate();
-    SPI.end();
 
     ESP_LOGI(TAG, "Rotes Herz mit Zahl gezeichnet");
 }
