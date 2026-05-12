@@ -14,7 +14,11 @@
 #include <esp_log.h>
 #include <esp_random.h>
 
-static const char* TAG __attribute__((unused)) = "MQTT";
+#if defined(CORE_DEBUG_LEVEL) && CORE_DEBUG_LEVEL > 0
+static const char* TAG = "MQTT";
+#else
+static constexpr const char* TAG __attribute__((unused)) = "";
+#endif
 
 // ESP-IDF hat ein eingebautes Mozilla-CA-Bundle in libmbedtls.a (CONFIG_MBEDTLS_CERTIFICATE_BUNDLE).
 extern const uint8_t x509_crt_bundle_start[] asm("_binary_x509_crt_bundle_start");

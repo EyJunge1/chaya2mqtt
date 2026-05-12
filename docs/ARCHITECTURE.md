@@ -106,7 +106,7 @@ sequenceDiagram
 flowchart TD
     start[loop Start]
     btn[buttonLoop]
-    led[checkLEDStatus]
+    led[buttonAdvanceLedSequence]
     mq[mqttLoop]
     save[maybeSaveHeartCounter]
     wifi[WiFi Reconnect Logik]

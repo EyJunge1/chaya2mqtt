@@ -14,7 +14,11 @@
 #include <esp_log.h>
 #include <esp_wifi.h>
 
-static const char* TAG __attribute__((unused)) = "CFG";
+#if defined(CORE_DEBUG_LEVEL) && CORE_DEBUG_LEVEL > 0
+static const char* TAG = "CFG";
+#else
+static constexpr const char* TAG __attribute__((unused)) = "";
+#endif
 
 // ─── Globale MQTT-Konfiguration ───────────────────────────────────────────────
 

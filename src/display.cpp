@@ -6,14 +6,26 @@
 #include <Arduino.h>
 #include <SPI.h>
 #include <cstdio>
+#include <driver/gpio.h>
 #include <esp_log.h>
 
-static const char* TAG __attribute__((unused)) = "DISP";
+#if defined(CORE_DEBUG_LEVEL) && CORE_DEBUG_LEVEL > 0
+static const char* TAG = "DISP";
+#else
+static constexpr const char* TAG __attribute__((unused)) = "";
+#endif
+
+/** Gleiche Zuordnung wie in displayInit() / GxEPD2-Konstruktor (SPI + CS). */
+static constexpr int kSpiSck   = 13;
+static constexpr int kSpiMiso  = 12;
+static constexpr int kSpiMosi  = 14;
+static constexpr int kSpiCs    = 15;
 
 static GxEPD2_3C<GxEPD2_154_Z90c, GxEPD2_154_Z90c::HEIGHT> display(
-    GxEPD2_154_Z90c(/*CS=*/ 15, /*DC=*/ 27, /*RST=*/ 26, /*BUSY=*/ 25));
+    GxEPD2_154_Z90c(/*CS=*/ kSpiCs, /*DC=*/ 27, /*RST=*/ 26, /*BUSY=*/ 25));
 
-static bool g_heartRedrawPending = false;
+static bool g_heartRedrawPending           = false;
+static bool g_displaySpiSuspendedLowPower = false;
 
 void requestHeartRedraw() {
     g_heartRedrawPending = true;
@@ -27,8 +39,28 @@ bool consumeHeartRedraw() {
     return true;
 }
 
+static void displayResumeSpiForDraw() {
+    if (g_displaySpiSuspendedLowPower) {
+        gpio_hold_dis(static_cast<gpio_num_t>(kSpiCs));
+        g_displaySpiSuspendedLowPower = false;
+    }
+    SPI.begin(/*SCK=*/ kSpiSck, /*MISO=*/ kSpiMiso, /*MOSI=*/ kSpiMosi, /*SS=*/ kSpiCs);
+}
+
+/** Nach Hibernate: SPI freigeben, Datenleitungen pullen; CS HIGH halten (Hold) fuer Light-Sleep. */
+static void displaySuspendSpiLowPower() {
+    SPI.end();
+    pinMode(kSpiSck, INPUT_PULLDOWN);
+    pinMode(kSpiMosi, INPUT_PULLDOWN);
+    pinMode(kSpiMiso, INPUT_PULLDOWN);
+    pinMode(kSpiCs, OUTPUT);
+    digitalWrite(kSpiCs, HIGH);
+    gpio_hold_en(static_cast<gpio_num_t>(kSpiCs));
+    g_displaySpiSuspendedLowPower = true;
+}
+
 void displayInit() {
-    SPI.begin(/*SCK=*/ 13, /*MISO=*/ 12, /*MOSI=*/ 14, /*SS=*/ 15);
+    SPI.begin(/*SCK=*/ kSpiSck, /*MISO=*/ kSpiMiso, /*MOSI=*/ kSpiMosi, /*SS=*/ kSpiCs);
 #if defined(CORE_DEBUG_LEVEL) && CORE_DEBUG_LEVEL > 0
     display.init(115200, true, 2, false);
 #else
@@ -37,6 +69,8 @@ void displayInit() {
 }
 
 void drawHeartWithNumber() {
+    displayResumeSpiForDraw();
+
     ESP_LOGI(TAG, "Zeichne rotes Herz mit Zahl...");
 
     static constexpr int kCenterX = 100;
@@ -106,6 +140,7 @@ void drawHeartWithNumber() {
     } while (display.nextPage());
 
     display.hibernate();
+    displaySuspendSpiLowPower();
 
     ESP_LOGI(TAG, "Rotes Herz mit Zahl gezeichnet");
 }

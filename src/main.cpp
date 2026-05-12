@@ -12,7 +12,11 @@
 #include "display.h"
 #include "mqtt.h"
 
-static const char* TAG __attribute__((unused)) = "MAIN";
+#if defined(CORE_DEBUG_LEVEL) && CORE_DEBUG_LEVEL > 0
+static const char* TAG = "MAIN";
+#else
+static constexpr const char* TAG __attribute__((unused)) = "";
+#endif
 
 /** Light-Sleep: kurz bei aktiver LED-Sequenz, laenger im Idle (Taster per GPIO-, WiFi per Event-Wakeup). */
 static constexpr uint64_t kLightSleepActiveUs = 10000ULL;   // 10 ms
@@ -82,7 +86,7 @@ void loop() {
     const unsigned long now = millis();
 
     buttonLoop();
-    checkLEDStatus();
+    buttonAdvanceLedSequence();
     configLoop();
     mqttLoop();
     maybeSaveHeartCounter();

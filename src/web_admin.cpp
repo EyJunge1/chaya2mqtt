@@ -12,7 +12,14 @@
 #include <cstring>
 #include <esp_log.h>
 
-static const char* TAG __attribute__((unused)) = "WEB";
+#if defined(CORE_DEBUG_LEVEL) && CORE_DEBUG_LEVEL > 0
+static const char* TAG = "WEB";
+#else
+static constexpr const char* TAG __attribute__((unused)) = "";
+#endif
+
+/** Nach MQTT-POST kurz warten, damit Redirect/Response fertig gesendet wird bevor der Server end() bekommt. */
+static constexpr unsigned long kMaintenanceHttpStopDeferMs = 2000;
 
 AsyncWebServer& webAdminWebServer() {
     static AsyncWebServer server(80);
@@ -22,79 +29,81 @@ AsyncWebServer& webAdminWebServer() {
 static bool g_mqttMaintenanceHttpActive = false;
 static bool g_mqttRoutesRegistered      = false;
 
-static void appendHtmlEscaped(String& out, const char* s) {
+static bool                      g_maintenanceStopDeferActive = false;
+static unsigned long             g_maintenanceStopEarliestMs  = 0;
+
+static void appendHtmlEscaped(Print& out, const char* s) {
     if (s == nullptr) {
         return;
     }
     for (; *s != '\0'; ++s) {
         switch (*s) {
-            case '&': out += F("&amp;"); break;
-            case '"': out += F("&quot;"); break;
-            case '<': out += F("&lt;"); break;
-            case '>': out += F("&gt;"); break;
-            default: out += *s; break;
+            case '&': out.print(F("&amp;")); break;
+            case '"': out.print(F("&quot;")); break;
+            case '<': out.print(F("&lt;")); break;
+            case '>': out.print(F("&gt;")); break;
+            default: out.print(*s); break;
         }
     }
 }
 
-static String commonCss() {
-    return F("<style>*{box-sizing:border-box}"
-             "body{font-family:system-ui,sans-serif;margin:0;padding:16px;max-width:560px}"
-             "h1{font-size:1.3rem;margin-bottom:4px}"
-             "label{display:block;margin:12px 0 4px;font-weight:600}"
-             "input{width:100%;padding:8px;border:1px solid #bbb;border-radius:4px;font-size:1rem}"
-             "button,a.btn{display:inline-block;margin-top:14px;padding:10px 20px;"
-             "background:#c0392b;color:#fff;border:none;border-radius:4px;"
-             "text-decoration:none;cursor:pointer;font-size:1rem}"
-             ".ok{color:#0a0;font-weight:600;margin:8px 0}"
-             ".err{color:#c00;font-weight:600;margin:8px 0}"
-             "ul{padding-left:18px}li{margin:6px 0}"
-             "nav{margin-top:20px}nav a{margin-right:12px}</style>");
+static void printCommonCss(Print& out) {
+    out.print(F("<style>*{box-sizing:border-box}"
+                "body{font-family:system-ui,sans-serif;margin:0;padding:16px;max-width:560px}"
+                "h1{font-size:1.3rem;margin-bottom:4px}"
+                "label{display:block;margin:12px 0 4px;font-weight:600}"
+                "input{width:100%;padding:8px;border:1px solid #bbb;border-radius:4px;font-size:1rem}"
+                "button,a.btn{display:inline-block;margin-top:14px;padding:10px 20px;"
+                "background:#c0392b;color:#fff;border:none;border-radius:4px;"
+                "text-decoration:none;cursor:pointer;font-size:1rem}"
+                ".ok{color:#0a0;font-weight:600;margin:8px 0}"
+                ".err{color:#c00;font-weight:600;margin:8px 0}"
+                "ul{padding-left:18px}li{margin:6px 0}"
+                "nav{margin-top:20px}nav a{margin-right:12px}</style>"));
 }
 
-static String buildMqttPage(const char* banner) {
-    String html;
-    html.reserve(2400);
-    html += F("<!DOCTYPE html><html lang='de'><head><meta charset='utf-8'>"
-              "<meta name='viewport' content='width=device-width,initial-scale=1'>"
-              "<title>MQTT</title>");
-    html += commonCss();
-    html += F("</head><body><h1>MQTT-Einstellungen</h1>");
-    if (banner != nullptr && banner[0] != '\0') {
-        html += banner;
+static void streamMqttHtmlPage(AsyncWebServerRequest* req, bool showSavedBanner) {
+    AsyncResponseStream* response = req->beginResponseStream("text/html");
+    response->print(F("<!DOCTYPE html><html lang='de'><head><meta charset='utf-8'>"
+                      "<meta name='viewport' content='width=device-width,initial-scale=1'>"
+                      "<title>MQTT</title>"));
+    printCommonCss(*response);
+    response->print(F("</head><body><h1>MQTT-Einstellungen</h1>"));
+    if (showSavedBanner) {
+        response->print(F("<p class='ok'>&#10003; Gespeichert. MQTT wird neu verbunden.</p>"));
     }
-    html += F("<form method='post' action='/mqtt'>"
-              "<label for='srv'>Broker (Hostname oder IP)</label>"
-              "<input id='srv' name='mqtt_server' maxlength='127' value='");
-    appendHtmlEscaped(html, mqttCfg.server);
+    response->print(F("<form method='post' action='/mqtt'>"
+                      "<label for='srv'>Broker (Hostname oder IP)</label>"
+                      "<input id='srv' name='mqtt_server' maxlength='127' value='"));
+    appendHtmlEscaped(*response, mqttCfg.server);
     char portBuf[8];
     snprintf(portBuf, sizeof(portBuf), "%u", static_cast<unsigned>(mqttCfg.port));
-    html += F("'/>"
-              "<label for='prt'>Port</label>"
-              "<input id='prt' name='mqtt_port' type='number' min='1' max='65535' value='");
-    html += portBuf;
-    html += F("'/>"
-              "<label for='usr'>Benutzername (optional)</label>"
-              "<input id='usr' name='mqtt_user' maxlength='63' value='");
-    appendHtmlEscaped(html, mqttCfg.username);
-    html += F("'/>"
-              "<label for='pw'>Passwort (optional)</label>"
-              "<input id='pw' name='mqtt_pass' type='password' maxlength='63' "
-              "autocomplete='current-password' value='");
-    appendHtmlEscaped(html, mqttCfg.password);
-    html += F("'/>"
-              "<label for='tpub'>Sende-Topic</label>"
-              "<input id='tpub' name='mqtt_topic_pub' maxlength='127' value='");
-    appendHtmlEscaped(html, mqttCfg.topicPub);
-    html += F("'/>"
-              "<label for='tsub'>Empfangs-Topic</label>"
-              "<input id='tsub' name='mqtt_topic_sub' maxlength='127' value='");
-    appendHtmlEscaped(html, mqttCfg.topicSub);
-    html += F("'/>"
-              "<button type='submit'>Speichern</button></form>"
-              "<nav><a class='btn' href='/heart-setup-exit'>Wartungsseite beenden</a></nav>"
-              "</body></html>");
-    return html;
+    response->print(F("'/>"
+                      "<label for='prt'>Port</label>"
+                      "<input id='prt' name='mqtt_port' type='number' min='1' max='65535' value='"));
+    response->print(portBuf);
+    response->print(F("'/>"
+                      "<label for='usr'>Benutzername (optional)</label>"
+                      "<input id='usr' name='mqtt_user' maxlength='63' value='"));
+    appendHtmlEscaped(*response, mqttCfg.username);
+    response->print(F("'/>"
+                      "<label for='pw'>Passwort (optional)</label>"
+                      "<input id='pw' name='mqtt_pass' type='password' maxlength='63' "
+                      "autocomplete='current-password' value='"));
+    appendHtmlEscaped(*response, mqttCfg.password);
+    response->print(F("'/>"
+                      "<label for='tpub'>Sende-Topic</label>"
+                      "<input id='tpub' name='mqtt_topic_pub' maxlength='127' value='"));
+    appendHtmlEscaped(*response, mqttCfg.topicPub);
+    response->print(F("'/>"
+                      "<label for='tsub'>Empfangs-Topic</label>"
+                      "<input id='tsub' name='mqtt_topic_sub' maxlength='127' value='"));
+    appendHtmlEscaped(*response, mqttCfg.topicSub);
+    response->print(F("'/>"
+                      "<button type='submit'>Speichern</button></form>"
+                      "<nav><a class='btn' href='/heart-setup-exit'>Wartungsseite beenden</a></nav>"
+                      "</body></html>"));
+    req->send(response);
 }
 
 static void handleMqttPost(AsyncWebServerRequest* req) {
@@ -130,6 +139,12 @@ static void handleMqttPost(AsyncWebServerRequest* req) {
     saveMQTTConfig();
     mqttDisconnect();
     mqttSetup();
+
+    if (g_mqttMaintenanceHttpActive) {
+        g_maintenanceStopDeferActive = true;
+        g_maintenanceStopEarliestMs  = millis() + kMaintenanceHttpStopDeferMs;
+    }
+
     req->redirect(F("/mqtt?saved=1"));
 }
 
@@ -141,11 +156,7 @@ void webAdminRegisterMqttRoutes() {
 
     AsyncWebServer& ws = webAdminWebServer();
     ws.on("/mqtt", HTTP_GET, [](AsyncWebServerRequest* req) {
-        String banner;
-        if (req->hasParam("saved")) {
-            banner = F("<p class='ok'>&#10003; Gespeichert. MQTT wird neu verbunden.</p>");
-        }
-        req->send(200, F("text/html"), buildMqttPage(banner.c_str()));
+        streamMqttHtmlPage(req, req->hasParam("saved"));
     });
     ws.on("/mqtt", HTTP_POST, handleMqttPost);
 
@@ -164,14 +175,24 @@ void webAdminStopMaintenanceHttp() {
         return;
     }
     webAdminWebServer().end();
-    g_mqttMaintenanceHttpActive = false;
+    g_mqttMaintenanceHttpActive   = false;
+    g_maintenanceStopDeferActive  = false;
+    g_maintenanceStopEarliestMs   = 0;
     ESP_LOGI(TAG, "MQTT-Wartungs-HTTP gestoppt");
 }
 
 void webAdminMaybeStopMaintenanceIfBrokerConfigured() {
-    if (g_mqttMaintenanceHttpActive && mqttCfg.server[0] != '\0') {
-        webAdminStopMaintenanceHttp();
+    if (!g_mqttMaintenanceHttpActive || mqttCfg.server[0] == '\0') {
+        return;
     }
+    if (g_maintenanceStopDeferActive) {
+        const unsigned long now = millis();
+        if ((long)(now - g_maintenanceStopEarliestMs) < 0) {
+            return;
+        }
+        g_maintenanceStopDeferActive = false;
+    }
+    webAdminStopMaintenanceHttp();
 }
 
 void webAdminMaybeStartMaintenance(Mycila::ESPConnect& espConnect) {

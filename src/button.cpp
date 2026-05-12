@@ -7,7 +7,11 @@
 #include <driver/gpio.h>
 #include <esp_log.h>
 
-static const char* TAG __attribute__((unused)) = "BTN";
+#if defined(CORE_DEBUG_LEVEL) && CORE_DEBUG_LEVEL > 0
+static const char* TAG = "BTN";
+#else
+static constexpr const char* TAG __attribute__((unused)) = "";
+#endif
 
 static constexpr int kButtonLedPin = 4;
 
@@ -16,20 +20,24 @@ static constexpr unsigned long kDebounceStableMs = 20;
 /** Taste loslassen nach >= 5 s und < 12 s: Neustart mit Captive Portal (WLAN neu einrichten). */
 static constexpr unsigned long kPortalTriggerReleaseMinMs = 5000;
 /** Taste durchgehend >= 12 s: Factory Reset. */
-static constexpr unsigned long kFactoryResetHoldMs = 12000;
-static constexpr unsigned long kShortPressMinMs = 50;
-static constexpr unsigned kPublishMaxAttempts = 2;
-static constexpr unsigned long kPublishRetryDelayMs = 25;
-static constexpr unsigned long kFailFlashMs = 50;
-static bool buttonHeldDown = false;
-static unsigned long buttonPressStartMs = 0;
-static bool factoryResetHoldTriggered = false;
+static constexpr unsigned long kFactoryResetHoldMs        = 12000;
+static constexpr unsigned long kShortPressMinMs           = 50;
+static constexpr unsigned kPublishMaxAttempts             = 2;
+static constexpr unsigned long kPublishRetryDelayMs     = 25;
+static constexpr unsigned long kFailFlashMs               = 50;
 
-static int buttonLastRawReading = LOW;
-static unsigned long buttonLastDebounceChangeMs = 0;
-static int buttonDebouncedLevel = LOW;
+static struct {
+    bool           heldDown               = false;
+    unsigned long  pressStartMs           = 0;
+    bool           factoryResetTriggered  = false;
+    int            lastRawReading         = LOW;
+    unsigned long  lastDebounceChangeMs   = 0;
+    int            debouncedLevel         = LOW;
+} btn;
 
+#if defined(CORE_DEBUG_LEVEL) && CORE_DEBUG_LEVEL > 0
 static unsigned debugCounter = 0;
+#endif
 
 /** Nicht-blockierende MQTT-Sende-LED-Sequenz (2x Blink, Publish, Pause, 2x Blink). */
 enum class LedTxPhase : uint8_t {
@@ -55,12 +63,12 @@ enum class LedTxPhase : uint8_t {
 };
 
 static LedTxPhase ledTxPhase = LedTxPhase::Idle;
-static unsigned long ledPhaseStartMs = 0;
-static unsigned long ledPhaseDurationMs = 0;
-static unsigned publishFailCount = 0;
+static unsigned long ledPhaseStartMs     = 0;
+static unsigned long ledPhaseDurationMs  = 0;
+static unsigned publishFailCount         = 0;
 
 static void armLedPhase(unsigned long durationMs) {
-    ledPhaseStartMs = millis();
+    ledPhaseStartMs    = millis();
     ledPhaseDurationMs = durationMs;
 }
 
@@ -83,10 +91,10 @@ bool buttonIsLedTxSequenceActive() {
 }
 
 struct LedPhaseRow {
-    LedTxPhase from;
-    int ledLevel;
-    LedTxPhase next;
-    unsigned long durationMs;
+    LedTxPhase      from;
+    int             ledLevel;
+    LedTxPhase      next;
+    unsigned long   durationMs;
 };
 
 /** Einfache Phasen: LED setzen, naechste Phase, Dauer. */
@@ -115,9 +123,9 @@ static void startMqttSendLedSequence() {
 void buttonInit() {
     pinMode(kButtonGpio, INPUT_PULLDOWN);
     pinMode(kButtonLedPin, OUTPUT);
-    buttonLastRawReading = digitalRead(kButtonGpio);
-    buttonDebouncedLevel = buttonLastRawReading;
-    buttonLastDebounceChangeMs = millis();
+    btn.lastRawReading       = digitalRead(kButtonGpio);
+    btn.debouncedLevel       = btn.lastRawReading;
+    btn.lastDebounceChangeMs = millis();
 }
 
 void buttonStartupBlink() {
@@ -134,7 +142,7 @@ void buttonEnableLedGpioHoldForLightSleep() {
     ledHoldWhenIdle();
 }
 
-void checkLEDStatus() {
+void buttonAdvanceLedSequence() {
     if (ledTxPhase == LedTxPhase::Idle) {
         return;
     }
@@ -208,44 +216,46 @@ static void triggerFactoryReset() {
 }
 
 void buttonLoop() {
-    const int raw = digitalRead(kButtonGpio);
+    const int raw            = digitalRead(kButtonGpio);
     const unsigned long nowMs = millis();
-    if (raw != buttonLastRawReading) {
-        buttonLastRawReading = raw;
-        buttonLastDebounceChangeMs = nowMs;
+    if (raw != btn.lastRawReading) {
+        btn.lastRawReading       = raw;
+        btn.lastDebounceChangeMs = nowMs;
     }
-    if (nowMs - buttonLastDebounceChangeMs >= kDebounceStableMs) {
-        buttonDebouncedLevel = buttonLastRawReading;
+    if (nowMs - btn.lastDebounceChangeMs >= kDebounceStableMs) {
+        btn.debouncedLevel = btn.lastRawReading;
     }
-    const int reading = buttonDebouncedLevel;
+    const int reading = btn.debouncedLevel;
 
     if (reading == HIGH) {
-        if (!buttonHeldDown) {
-            buttonHeldDown = true;
-            buttonPressStartMs = nowMs;
-            factoryResetHoldTriggered = false;
-        } else if (!factoryResetHoldTriggered && (nowMs - buttonPressStartMs >= kFactoryResetHoldMs)) {
-            factoryResetHoldTriggered = true;
+        if (!btn.heldDown) {
+            btn.heldDown               = true;
+            btn.pressStartMs           = nowMs;
+            btn.factoryResetTriggered  = false;
+        } else if (!btn.factoryResetTriggered && (nowMs - btn.pressStartMs >= kFactoryResetHoldMs)) {
+            btn.factoryResetTriggered = true;
             triggerFactoryReset();
         }
     } else {
-        if (buttonHeldDown) {
-            const unsigned long held = nowMs - buttonPressStartMs;
-            if (!factoryResetHoldTriggered && held >= kShortPressMinMs && held < kPortalTriggerReleaseMinMs) {
+        if (btn.heldDown) {
+            const unsigned long held = nowMs - btn.pressStartMs;
+            if (!btn.factoryResetTriggered && held >= kShortPressMinMs && held < kPortalTriggerReleaseMinMs) {
                 if (!ledSendSequenceActive()) {
                     startMqttSendLedSequence();
                 }
-            } else if (!factoryResetHoldTriggered && held >= kPortalTriggerReleaseMinMs && held < kFactoryResetHoldMs) {
+            } else if (!btn.factoryResetTriggered && held >= kPortalTriggerReleaseMinMs && held < kFactoryResetHoldMs) {
                 requestSetupPortalFromButton();
             }
-            buttonHeldDown = false;
-            factoryResetHoldTriggered = false;
+            btn.heldDown              = false;
+            btn.factoryResetTriggered = false;
         }
     }
 }
 
+#if defined(CORE_DEBUG_LEVEL) && CORE_DEBUG_LEVEL > 0
 void buttonDebugStatus() {
     debugCounter++;
     ESP_LOGD(TAG, "Status #%u: Button=%d, LED=%d",
              debugCounter, digitalRead(kButtonGpio), digitalRead(kButtonLedPin));
 }
+#endif
