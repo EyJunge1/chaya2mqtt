@@ -20,7 +20,6 @@ CompileFlags:
     - -Wno-error=unused-but-set-variable
     - -gdwarf-4
   Add:
-    - --target=xtensa-esp32-elf
     - -Wno-unknown-warning-option
     - -Wno-unused-command-line-argument
 
