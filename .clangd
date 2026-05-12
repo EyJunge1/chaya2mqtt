@@ -1,35 +1,28 @@
 CompileFlags:
-  CompilationDatabase: .
   Remove:
+    # Xtensa-spezifische Flags, die macOS-Clang nicht kennt
     - -mlongcalls
-    - -fstrict-volatile-bitfields
-    - -fno-tree-switch-conversion
+    - -mdisable-hardware-atomics
+    - -mfix-esp32-psram-cache-issue
+    - -mfix-esp32-psram-cache-strategy=*
     - -mtext-section-literals
-    - -ffunction-sections
-    - -fdata-sections
-    - -march=*
-    - -mfix-esp32-psram-cache-*
+    - -mno-serialize-volatile
+    # GCC-spezifische Flags
+    - -fno-tree-switch-conversion
+    - -fstrict-volatile-bitfields
+    - -fno-jump-tables
+    - -freorder-blocks
+    - -fno-builtin-memcpy
+    - -fno-builtin-memset
+    - -fno-builtin-bzero
+    - -Wno-old-style-declaration
+    - -Wno-strict-prototypes
+    - -Wno-error=unused-but-set-variable
+    - -gdwarf-4
   Add:
-    - -std=gnu++17
-    - -Wno-unknown-attributes
-    - -Wno-unknown-pragmas
-    - -ferror-limit=200
+    - --target=xtensa-esp32-elf
+    - -Wno-unknown-warning-option
+    - -Wno-unused-command-line-argument
 
 Diagnostics:
-  Suppress:
-    - pp_file_not_found
-    - attribute_section_invalid_for_target
-    - redefinition_different_typedef
-    - block_on_nonlocal
-    - drv_unknown_argument
-    - drv_unknown_argument_with_suggestion
-  ClangTidy:
-    Add:
-      - modernize-*
-      - bugprone-*
-      - performance-*
-      - readability-*
-    Remove:
-      - modernize-use-trailing-return-type
-      - readability-magic-numbers
-      - readability-identifier-length
+  UnusedIncludes: None
