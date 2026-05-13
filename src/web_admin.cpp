@@ -107,21 +107,26 @@ static void printCommonCss(Print& out) {
           "background:var(--accent);color:var(--bg);border:none;border-radius:4px;"
           "cursor:pointer;font-size:1rem;font-weight:600;transition:opacity .15s}"
           "button:not(.card):active{opacity:.8}"
-          ".grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:16px}"
+          ".grid{display:grid;grid-template-columns:1fr;gap:12px;margin-top:16px}"
           ".full{grid-column:1/-1}"
+          ".title{font-size:2rem;font-weight:700;text-align:center;margin:16px 0 8px;"
+          "color:var(--text-bright)}"
           ".card{padding:24px 16px;background:var(--surface);border-radius:8px;text-align:center;"
           "text-decoration:none;color:var(--text);font-weight:600;font-size:1.1rem;"
           "border:1px solid var(--border);transition:background .15s,transform .1s}"
           ".card:hover{background:var(--surface-hover);transform:translateY(-2px)}"
           ".card:active{transform:translateY(0)}"
+          ".btn-back{display:block;width:100%;margin-top:12px;padding:24px 16px;"
+          "background:var(--surface);border:1px solid var(--border);border-radius:8px;"
+          "text-align:center;text-decoration:none;color:var(--text);font-weight:600;font-size:1.1rem;"
+          "transition:background .15s,transform .1s}"
+          ".btn-back:hover{background:var(--surface-hover);transform:translateY(-2px)}"
+          ".btn-back:active{transform:translateY(0)}"
           ".card.danger{background:var(--surface);color:var(--danger);"
           "border-color:#2a0a0a;cursor:pointer;width:100%;"
           "font-family:inherit;font-size:1.1rem;font-weight:600;"
           "padding:24px 16px;border-radius:8px;transition:background .15s,transform .1s}"
           ".card.danger:hover{background:var(--surface-hover);transform:translateY(-2px)}"
-          ".back{display:inline-block;margin-bottom:12px;color:var(--accent-alt);"
-          "text-decoration:none;transition:opacity .15s}"
-          ".back:hover{opacity:.7}"
           ".ok{color:var(--success);font-weight:600;margin:8px 0}"
           ".err{color:var(--danger);font-weight:600;margin:8px 0}"
           ".hint{color:var(--text);opacity:.85;font-size:.9rem;margin:8px 0;line-height:1.4}"
@@ -141,7 +146,7 @@ static void streamPageHeader(Print& out, const char* title) {
 static void streamSimpleDonePage(AsyncWebServerRequest* req, const char* title, const char* message) {
     AsyncResponseStream* resp = req->beginResponseStream("text/html");
     streamPageHeader(*resp, title);
-    resp->print(F("<a class='back' href='/'>Dashboard</a><h1>"));
+    resp->print(F("<h1>"));
     resp->print(title);
     resp->print(F("</h1><p class='ok'>"));
     resp->print(message);
@@ -152,11 +157,8 @@ static void streamSimpleDonePage(AsyncWebServerRequest* req, const char* title, 
 static void streamDashboard(AsyncWebServerRequest* req) {
     AsyncResponseStream* resp = req->beginResponseStream("text/html");
     streamPageHeader(*resp, "Dashboard");
-    resp->print(F("<h1>Chaya MQTT</h1><p class='hint'>"));
-    if (configIsApMode()) {
-        resp->print(F("Einrichtungs-AP: "));
-        resp->print(WiFi.softAPIP().toString());
-    } else if (WiFi.status() == WL_CONNECTED) {
+    resp->print(F("<h1 class='title'>Chaya MQTT</h1><p class='hint'>"));
+    if (WiFi.status() == WL_CONNECTED) {
         resp->print(F("Zugriff: "));
         resp->print(WiFi.localIP().toString());
         resp->print(F(" oder <strong>"));
@@ -168,7 +170,7 @@ static void streamDashboard(AsyncWebServerRequest* req) {
     resp->print(F("</p><div class='grid'><a class='card' href='/wifi'>WLAN</a>"
                   "<a class='card' href='/mqtt'>MQTT</a>"
                   "<a class='card' href='/update'>Firmware-Update</a>"
-                  "<form method='post' action='/reboot' class='full'>"
+                  "<form method='post' action='/reboot'>"
                   "<button type='submit' class='card danger'>Neustart</button></form>"
                   "</div></body></html>"));
     req->send(resp);
@@ -184,7 +186,7 @@ static void streamWifiPage(AsyncWebServerRequest* req) {
 
     AsyncResponseStream* resp = req->beginResponseStream("text/html");
     streamPageHeader(*resp, "WLAN");
-    resp->print(F("<a class='back' href='/'>Dashboard</a><h1>WLAN einrichten</h1>"
+    resp->print(F("<h1>WLAN einrichten</h1>"
                   "<p class='hint'>"));
     if (WiFi.status() == WL_CONNECTED && WiFi.localIP()[0] != 0) {
         resp->print(F("Verbunden: <strong>"));
@@ -230,7 +232,7 @@ static void streamWifiPage(AsyncWebServerRequest* req) {
           "} "
           "}).catch(function(){st.textContent='Scan-Fehler.'});"
           "} setInterval(poll,1500);poll();})();"
-          "</script></body></html>"));
+          "</script><a class='btn-back' href='/'>Zurück</a></body></html>"));
     req->send(resp);
 }
 
@@ -287,12 +289,13 @@ static void handleWifiConnectPost(AsyncWebServerRequest* req) {
 static void streamUpdatePage(AsyncWebServerRequest* req) {
     AsyncResponseStream* resp = req->beginResponseStream("text/html");
     streamPageHeader(*resp, "Firmware");
-    resp->print(F("<a class='back' href='/'>Dashboard</a><h1>Firmware-Update</h1>"
+    resp->print(F("<h1>Firmware-Update</h1>"
                   "<p class='hint'>HTTPS-URL einer .bin von GitHub (Release-Assets) eingeben. "
                   "Fortschritt erscheint im Seriellen Monitor.</p>"
                   "<form method='post' action='/update'><label for='url'>URL</label>"
                   "<input id='url' name='url' type='url' required placeholder='https://…'/><button type='submit'>"
-                  "Jetzt aktualisieren</button></form></body></html>"));
+                  "Jetzt aktualisieren</button></form>"
+                  "<a class='btn-back' href='/'>Zurück</a></body></html>"));
     req->send(resp);
 }
 
@@ -315,7 +318,7 @@ static void handleRebootPost(AsyncWebServerRequest* req) {
 static void streamMqttHtmlPage(AsyncWebServerRequest* req, bool showSavedBanner) {
     AsyncResponseStream* response = req->beginResponseStream("text/html");
     streamPageHeader(*response, "MQTT");
-    response->print(F("<a class='back' href='/'>Dashboard</a><h1>MQTT-Einstellungen</h1>"));
+    response->print(F("<h1>MQTT-Einstellungen</h1>"));
     if (showSavedBanner) {
         response->print(F("<p class='ok'>&#10003; Gespeichert. MQTT wird neu verbunden.</p>"));
     }
@@ -348,7 +351,7 @@ static void streamMqttHtmlPage(AsyncWebServerRequest* req, bool showSavedBanner)
     appendHtmlEscaped(*response, mqttCfg.topicSub);
     response->print(F("'/>"
                       "<button type='submit'>Speichern</button></form>"
-                      "</body></html>"));
+                      "<a class='btn-back' href='/'>Zurück</a></body></html>"));
     req->send(response);
 }
 
