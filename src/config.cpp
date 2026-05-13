@@ -15,6 +15,7 @@
 #include <cstring>
 #include <esp_log.h>
 #include <esp_wifi.h>
+#include <time.h>
 
 #if defined(CORE_DEBUG_LEVEL) && CORE_DEBUG_LEVEL > 0
 static const char* TAG = "CFG";
@@ -204,6 +205,8 @@ void setupWiFi() {
 
     if (staConnected) {
         WiFi.setSleep(true);
+        // NTP: für tägliche Auto-Updates (Kalendertag) und Zeitvergleiche
+        configTime(0, 0, "pool.ntp.org", "time.cloudflare.com");
         esp_wifi_set_ps(WIFI_PS_MAX_MODEM);
         (void)esp_wifi_set_bandwidth(WIFI_IF_STA, WIFI_BW_HT20);
         esp_wifi_set_max_tx_power(52);

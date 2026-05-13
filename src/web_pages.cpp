@@ -1,6 +1,7 @@
 #include "web_pages.h"
 
 #include "config.h"
+#include "version.h"
 #include "web_styles.h"
 
 #include <Arduino.h>
@@ -185,11 +186,19 @@ void streamUpdatePage(AsyncWebServerRequest* req) {
     AsyncResponseStream* resp = req->beginResponseStream("text/html");
     streamPageHeader(*resp, "Firmware");
     resp->print(F("<h1>Firmware-Update</h1>"
-                  "<p class='hint'>HTTPS-URL einer .bin von GitHub (Release-Assets) eingeben. "
-                  "Fortschritt erscheint im Seriellen Monitor.</p>"
+                  "<p class='hint'>Installierte Firmware (Tag): <strong>"));
+    resp->print(APP_VERSION);
+    resp->print(F("</strong>.</p>"
+                  "<p class='hint'>Mit NTP/Zeitzonenregeln prüft das Gerät <strong>höchstens einmal täglich</strong> automatisch gegen "
+                  "das neuste GitHub-Release (Releases).</p>"
+                  "<form method='post' action='/update-check'>"
+                  "<button type='submit'>Jetzt auf Update prüfen</button>"
+                  "</form>"
+                  "<p class='hint'>Oder HTTPS-URL einer .bin eingeben (z.&nbsp;B. GitHub-Release-Assets). Fortschritt erscheint im "
+                  "Seriellen Monitor.</p>"
                   "<form method='post' action='/update'><label for='url'>URL</label>"
-                  "<input id='url' name='url' type='url' required placeholder='https://…'/><button type='submit'>"
-                  "Update</button></form>"
+                  "<input id='url' name='url' type='url' required placeholder='https://…'/>"
+                  "<button type='submit'>Update</button></form>"
                   "<a class='btn-back' href='/'>Zurück</a></body></html>"));
     req->send(resp);
 }
