@@ -97,22 +97,18 @@ void streamWifiPage(AsyncWebServerRequest* req) {
 
     AsyncResponseStream* resp = req->beginResponseStream("text/html");
     streamPageHeader(*resp, "Wi-Fi");
-    resp->print(F("<h1>Wi-Fi Setup</h1>"
-                  "<p class='hint'>"));
+    resp->print(F("<h1>Wi-Fi Setup</h1>"));
     if (WiFi.status() == WL_CONNECTED && WiFi.localIP()[0] != 0) {
-        resp->print(F("Connected: <strong>"));
+        resp->print(F("<p class='hint'>Connected: <strong>"));
         appendHtmlEscaped(*resp, WiFi.SSID().c_str());
         resp->print(F("</strong>, IP "));
         resp->print(WiFi.localIP().toString());
         resp->print(F(", RSSI "));
         resp->print(static_cast<int>(WiFi.RSSI()));
-        resp->print(F(" dBm"));
-    } else {
-        resp->print(F("No station Wi-Fi (AP or setup mode)."));
+        resp->print(F(" dBm</p>"));
     }
     resp->print(
-        F("</p>"
-          "<p class='hint' id='st'>Scanning…</p><ul id='list'></ul>"
+        F("<p class='hint' id='st'>Scanning…</p><ul id='list'></ul>"
           "<form method='post' action='/wifi-connect' id='wf'>"
           "<label for='ssid'>SSID</label>"
           "<input name='ssid' id='ssid' required maxlength='32' autocomplete='off'/>"
@@ -189,13 +185,10 @@ void streamUpdatePage(AsyncWebServerRequest* req) {
                   "<p class='hint'>Installed firmware (tag): <strong>"));
     resp->print(APP_VERSION);
     resp->print(F("</strong>.</p>"
-                  "<p class='hint'>Using NTP and timezone rules, the device checks automatically against "
-                  "the latest GitHub release <strong>at most once per day</strong>.</p>"
                   "<form method='post' action='/update-check'>"
                   "<button type='submit'>Check for Update</button>"
                   "</form>"
-                  "<p class='hint'>Or enter an HTTPS URL to a .bin file (e.g.&nbsp;GitHub release assets). "
-                  "Progress appears on the serial monitor.</p>"
+                  "<h2>Custom</h2>"
                   "<form method='post' action='/update'><label for='url'>URL</label>"
                   "<input id='url' name='url' type='url' required placeholder='https://…'/>"
                   "<button type='submit'>Update</button></form>"
