@@ -2,10 +2,6 @@
 
 #include <cstdint>
 
-namespace Mycila {
-class ESPConnect;
-}
-
 struct MqttConfig {
     char server[128]    = "";
     uint16_t port       = 8883;
@@ -34,10 +30,14 @@ void flushHeartCounterIfDirty();
 void setupWiFi();
 void resetAllSettings();
 
-/** ESPConnect-Loop; immer zusammen mit Haupt-loop aufrufen. */
-void configLoop();
-/** True bei Captive Portal oder MQTT-Wartungs-HTTP (/mqtt), damit kein Light-Sleep. */
-bool configIsSetupPortalActive();
+/** WLAN-Credentials speichern (Namespace wifi). */
+bool configSaveWiFiCredentials(const char* ssid, const char* password);
 
-/** Referenz auf den Netzwerk-Manager (WiFi / Captive Portal). */
-Mycila::ESPConnect& configEspConnect();
+/** Im AP-Setup-Modus (SoftAP Fallback). */
+bool configIsApMode();
+
+/** Captive-DNS bei AP sowie webAdminLoop; immer mit Haupt-loop aufrufen. */
+void configLoop();
+
+/** True im AP-Captive-Portal-Modus, damit kein Light-Sleep. */
+bool configIsSetupPortalActive();

@@ -91,7 +91,7 @@ void loop() {
     mqttLoop();
     maybeSaveHeartCounter();
 
-    /* WiFi-Reconnect: MycilaESPConnect (siehe configLoop). */
+    /* WiFi-Reconnect: WiFi.onEvent in setupWiFi (siehe configLoop / webAdminLoop). */
 
     if (consumeHeartRedraw()) {
         drawHeartWithNumber();

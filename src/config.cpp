@@ -4,7 +4,9 @@
 #include "web_admin.h"
 
 #include <Arduino.h>
-#include <MycilaESPConnect.h>
+#include <DNSServer.h>
+#include <ESPAsyncWebServer.h>
+#include <ESPmDNS.h>
 #include <Preferences.h>
 #include <WiFi.h>
 #include <algorithm>
@@ -28,55 +30,59 @@ MqttConfig mqttCfg;
 
 int heartCounter = 0;
 
-static int           lastCommittedHeartCounter            = 0;
-static unsigned long lastHeartCounterSaveMs               = 0;
+static int           lastCommittedHeartCounter               = 0;
+static unsigned long lastHeartCounterSaveMs                  = 0;
 static constexpr unsigned long kHeartCounterSaveMinIntervalMs = 30000;
 
-// ─── WiFi / Portal (MycilaESPConnect) ─────────────────────────────────────────
+// ─── WiFi / Captive Portal ────────────────────────────────────────────────────
 
 static Preferences preferences;
 
-static constexpr char kDeviceHostname[]  = "chaya2mqtt";
-static constexpr char kSetupApSsid[]   = "chaya2mqtt-Setup";
+static constexpr char kDeviceHostname[] = "chaya2mqtt";
+static constexpr char kSetupApSsid[]    = "chaya2mqtt-Setup";
 
-/** Erste Nutzung konstruiert ESPConnect mit gemeinsamem AsyncWebServer (siehe web_admin). */
-static Mycila::ESPConnect& espConnectInstance() {
-    static Mycila::ESPConnect instance(webAdminWebServer());
-    return instance;
-}
+static DNSServer      g_dnsServer;
+static bool           g_apMode = false;
 
-// ─── Hilfsfunktionen ──────────────────────────────────────────────────────────
+static void wifiStationEvent(arduino_event_id_t event);
 
-static void loadWifiIntoConfig(Mycila::ESPConnect::Config& cfg) {
-    if (!preferences.begin("wifi", true)) {
-        return;
+// ─── NVS-Hilfen WiFi ──────────────────────────────────────────────────────────
+
+bool configSaveWiFiCredentials(const char* ssid, const char* password) {
+    if (ssid == nullptr || ssid[0] == '\0') {
+        return false;
     }
-    const String ssid = preferences.getString("ssid", "");
-    const String pass = preferences.getString("pass", "");
-    preferences.end();
-    // ESPConnect nutzt std::string: c_str() kopiert sofort in eigenen Puffer (kein Hänger wie bei const char*-Alias).
-    cfg.wifiSSID     = ssid.c_str();
-    cfg.wifiPassword = pass.c_str();
-}
-
-static void saveWifiFromConfig(const Mycila::ESPConnect::Config& cfg) {
     if (!preferences.begin("wifi", false)) {
-        ESP_LOGE(TAG, "NVS wifi: schreiben fehlgeschlagen (Portal)");
-        return;
+        ESP_LOGE(TAG, "NVS wifi: schreiben fehlgeschlagen (/wifi-connect)");
+        return false;
     }
-    preferences.putString("ssid", cfg.wifiSSID.c_str());
-    preferences.putString("pass", cfg.wifiPassword.c_str());
+    preferences.putString("ssid", ssid);
+    preferences.putString("pass", password != nullptr ? password : "");
     preferences.end();
+    return true;
 }
 
-/** STA hat IP oder Gerät bleibt absichtlich nur im SoftAP-Modus. */
-static bool wifiSetupGoalReached(const Mycila::ESPConnect& ec) {
-    using S = Mycila::ESPConnect::State;
-    const S st = ec.getState();
-    if (ec.getConfig().apMode && st == S::AP_STARTED) {
-        return true;
+bool configIsApMode() {
+    return g_apMode;
+}
+
+static void wifiStationEvent(arduino_event_id_t event) {
+    if (g_apMode) {
+        return;
     }
-    return WiFi.status() == WL_CONNECTED && WiFi.localIP()[0] != 0;
+    switch (event) {
+        case ARDUINO_EVENT_WIFI_STA_DISCONNECTED:
+            ESP_LOGW(TAG, "WLAN getrennt, versuche Reconnect...");
+            if (WiFi.getMode() == WIFI_STA || WiFi.getMode() == WIFI_AP_STA) {
+                WiFi.reconnect();
+            }
+            break;
+        case ARDUINO_EVENT_WIFI_STA_GOT_IP:
+            ESP_LOGI(TAG, "WLAN Sta-IP: %s", WiFi.localIP().toString().c_str());
+            break;
+        default:
+            break;
+    }
 }
 
 // ─── NVS: MQTT ────────────────────────────────────────────────────────────────
@@ -88,7 +94,7 @@ void loadMQTTConfig() {
     }
     preferences.getString("server", mqttCfg.server, sizeof(mqttCfg.server));
     const int p = preferences.getInt("port", 8883);
-    mqttCfg.port   = (p > 0 && p <= 65535) ? static_cast<uint16_t>(p) : 8883;
+    mqttCfg.port = (p > 0 && p <= 65535) ? static_cast<uint16_t>(p) : 8883;
     preferences.getString("user", mqttCfg.username, sizeof(mqttCfg.username));
     preferences.getString("pass", mqttCfg.password, sizeof(mqttCfg.password));
     if (preferences.getString("topic_pub", mqttCfg.topicPub, sizeof(mqttCfg.topicPub)) == 0
@@ -167,53 +173,68 @@ void flushHeartCounterIfDirty() {
 // ─── WiFi-Setup ───────────────────────────────────────────────────────────────
 
 void setupWiFi() {
-    webAdminRegisterMqttRoutes();
+    webAdminRegisterRoutes();
 
-    Mycila::ESPConnect::Config cfg = {};
-    cfg.hostname = kDeviceHostname;
-    cfg.apMode   = false;
-    loadWifiIntoConfig(cfg);
-
-    Mycila::ESPConnect& ec = espConnectInstance();
-    ec.listen([&ec](Mycila::ESPConnect::State /*previous*/, Mycila::ESPConnect::State state) {
-        if (state == Mycila::ESPConnect::State::PORTAL_COMPLETE) {
-            const Mycila::ESPConnect::Config& c = ec.getConfig();
-            if (!c.apMode) {
-                saveWifiFromConfig(c);
-            }
-            flushHeartCounterIfDirty();
-        }
-    });
-
-    ec.setAutoRestart(true);
-    // Blocking true wartet nicht auf PORTAL_STARTED → Deadlock im Captive Portal.
-    ec.setBlocking(false);
-    ec.begin(kSetupApSsid, "", cfg);
-
-    ESP_LOGI(TAG, "ESPConnect gestartet (non-blocking), warte auf STA oder Neustart...");
-    while (!wifiSetupGoalReached(ec)) {
-        ec.loop();
-        delay(10);
-        // Nach erfolgreichem Portal folgt i.d.R. ESP.restart(); diese Schleife endet dann dort.
+    String ssid, pass;
+    if (preferences.begin("wifi", true)) {
+        ssid = preferences.getString("ssid", "");
+        pass = preferences.getString("pass", "");
+        preferences.end();
     }
 
-    WiFi.setSleep(true);
-    esp_wifi_set_ps(WIFI_PS_MAX_MODEM);
-    (void)esp_wifi_set_bandwidth(WIFI_IF_STA, WIFI_BW_HT20);
-    esp_wifi_set_max_tx_power(52);
+    WiFi.onEvent(wifiStationEvent);
 
-    ESP_LOGI(TAG, "WLAN bereit, STA-IP: %s", WiFi.localIP().toString().c_str());
+    if (ssid.length() > 0) {
+        WiFi.mode(WIFI_STA);
+        WiFi.setHostname(kDeviceHostname);
+        WiFi.persistent(false);
+        WiFi.setAutoReconnect(false);
+        WiFi.setScanMethod(WIFI_ALL_CHANNEL_SCAN);
+        WiFi.setSortMethod(WIFI_CONNECT_AP_BY_SIGNAL);
+        WiFi.begin(ssid.c_str(), pass.c_str());
+
+        const unsigned long start = millis();
+        while (WiFi.status() != WL_CONNECTED && millis() - start < 10000) {
+            delay(100);
+        }
+    }
+
+    if (WiFi.status() == WL_CONNECTED && WiFi.localIP()[0] != 0) {
+        WiFi.setSleep(true);
+        esp_wifi_set_ps(WIFI_PS_MAX_MODEM);
+        (void)esp_wifi_set_bandwidth(WIFI_IF_STA, WIFI_BW_HT20);
+        esp_wifi_set_max_tx_power(52);
+        if (!MDNS.begin(kDeviceHostname)) {
+            ESP_LOGW(TAG, "mDNS.begin fehlgeschlagen");
+        }
+        ESP_LOGI(TAG, "WLAN STA bereit (%s oder %s)", kDeviceHostname, WiFi.localIP().toString().c_str());
+    } else {
+        // AP_STAs damit gleichzeitig WiFi-Scan fuer /wifi Moeglich (SoftAP allein: Scan oft eingeschraenkt).
+        WiFi.mode(WIFI_AP_STA);
+        WiFi.disconnect(true);  // STA-Teil aus, nur AP aktiv
+        WiFi.softAPConfig(IPAddress(192, 168, 4, 1), IPAddress(192, 168, 4, 1), IPAddress(255, 255, 255, 0));
+        WiFi.softAP(kSetupApSsid);
+        g_dnsServer.setErrorReplyCode(DNSReplyCode::NoError);
+        g_dnsServer.start(53, "*", WiFi.softAPIP());
+        g_apMode = true;
+        ESP_LOGI(TAG, "WLAN AP: %s, IP %s", kSetupApSsid, WiFi.softAPIP().toString().c_str());
+    }
+
+    webAdminWebServer().begin();
 }
 
 // ─── Factory Reset ────────────────────────────────────────────────────────────
 
 void resetAllSettings() {
     ESP_LOGW(TAG, "Factory Reset: alle Einstellungen loeschen...");
-    webAdminStopMaintenanceHttp();
-    Mycila::ESPConnect& ec = espConnectInstance();
-    ec.clearConfiguration();
-    ec.end();
+    webAdminWebServer().end();
+    if (!g_apMode) {
+        MDNS.end();
+    }
+    WiFi.softAPdisconnect(true);
     WiFi.disconnect(true, true);
+    WiFi.mode(WIFI_MODE_NULL);
+
     if (preferences.begin("wifi", false)) {
         preferences.clear();
         preferences.end();
@@ -234,21 +255,12 @@ void resetAllSettings() {
 // ─── Loop ─────────────────────────────────────────────────────────────────────
 
 void configLoop() {
-    Mycila::ESPConnect& ec = espConnectInstance();
-    ec.loop();
-    webAdminMaybeStopMaintenanceIfBrokerConfigured();
-    webAdminMaybeStartMaintenance(ec);
+    if (g_apMode) {
+        g_dnsServer.processNextRequest();
+    }
+    webAdminLoop();
 }
 
 bool configIsSetupPortalActive() {
-    using S = Mycila::ESPConnect::State;
-    const S st = espConnectInstance().getState();
-    if (st == S::PORTAL_STARTING || st == S::PORTAL_STARTED) {
-        return true;
-    }
-    return webAdminIsMaintenanceHttpActive();
-}
-
-Mycila::ESPConnect& configEspConnect() {
-    return espConnectInstance();
+    return configIsApMode();
 }
