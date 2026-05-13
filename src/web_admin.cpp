@@ -220,7 +220,7 @@ static void handleWifiConnectPost(AsyncWebServerRequest* req) {
         return;
     }
     g_wifiConnectRequested = true;
-    streamSimpleDonePage(req, "WLAN", "WLAN wurde gespeichert. Das Gerät startet neu …");
+    streamSimpleDonePage(req, "Wi-Fi", "Wi-Fi saved. Device is restarting…");
 }
 
 static void handleUpdatePost(AsyncWebServerRequest* req) {
@@ -231,17 +231,17 @@ static void handleUpdatePost(AsyncWebServerRequest* req) {
     }
     g_otaUrl       = url;
     g_otaRequested = true;
-    streamSimpleDonePage(req, "Update", "Update wird gestartet …");
+    streamSimpleDonePage(req, "Update", "Update starting…");
 }
 
 static void handleUpdateCheckPost(AsyncWebServerRequest* req) {
     g_otaCheckRequested = true;
-    streamSimpleDonePage(req, "Update", "Es wird gegen GitHub geprüft; ggf. startet dann ein Update …");
+    streamSimpleDonePage(req, "Update", "Checking GitHub; an update may follow…");
 }
 
 static void handleRebootPost(AsyncWebServerRequest* req) {
     g_rebootRequested = true;
-    streamSimpleDonePage(req, "Neustart", "Neustart …");
+    streamSimpleDonePage(req, "Reboot", "Rebooting…");
 }
 
 static void handleMqttPost(AsyncWebServerRequest* req) {
