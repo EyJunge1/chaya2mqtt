@@ -182,7 +182,9 @@ void setupWiFi() {
         preferences.end();
     }
 
-    WiFi.onEvent(wifiStationEvent);
+    // Event-Handler erst nach setup() registrieren – nicht während des Verbindungsversuchs,
+    // da ansonsten DISCONNECTED-Events während WiFi.begin() WiFi.reconnect() auslösen.
+    bool staConnected = false;
 
     if (ssid.length() > 0) {
         WiFi.mode(WIFI_STA);
@@ -197,9 +199,10 @@ void setupWiFi() {
         while (WiFi.status() != WL_CONNECTED && millis() - start < 10000) {
             delay(100);
         }
+        staConnected = (WiFi.status() == WL_CONNECTED && WiFi.localIP()[0] != 0);
     }
 
-    if (WiFi.status() == WL_CONNECTED && WiFi.localIP()[0] != 0) {
+    if (staConnected) {
         WiFi.setSleep(true);
         esp_wifi_set_ps(WIFI_PS_MAX_MODEM);
         (void)esp_wifi_set_bandwidth(WIFI_IF_STA, WIFI_BW_HT20);
@@ -207,16 +210,24 @@ void setupWiFi() {
         if (!MDNS.begin(kDeviceHostname)) {
             ESP_LOGW(TAG, "mDNS.begin fehlgeschlagen");
         }
-        ESP_LOGI(TAG, "WLAN STA bereit (%s oder %s)", kDeviceHostname, WiFi.localIP().toString().c_str());
+        // Jetzt erst Event-Handler registrieren (Reconnect bei Disconnect im Betrieb).
+        WiFi.onEvent(wifiStationEvent);
+        ESP_LOGI(TAG, "WLAN STA bereit (%s / %s)", kDeviceHostname, WiFi.localIP().toString().c_str());
     } else {
-        // AP_STAs damit gleichzeitig WiFi-Scan fuer /wifi Moeglich (SoftAP allein: Scan oft eingeschraenkt).
-        WiFi.mode(WIFI_AP_STA);
-        WiFi.disconnect(true);  // STA-Teil aus, nur AP aktiv
+        // g_apMode ZUERST setzen, damit der (noch nicht registrierte) Event-Handler
+        // kein WiFi.reconnect() auslöst falls noch alte Events pending sind.
+        g_apMode = true;
+
+        // Komplett neu starten: WIFI_OFF -> WIFI_AP, kein disconnect(wifioff=true)
+        // da das esp_wifi_stop() aufruft und softAPIP() dann 0.0.0.0 liefert.
+        WiFi.mode(WIFI_OFF);
+        delay(100);
         WiFi.softAPConfig(IPAddress(192, 168, 4, 1), IPAddress(192, 168, 4, 1), IPAddress(255, 255, 255, 0));
+        WiFi.mode(WIFI_AP);
         WiFi.softAP(kSetupApSsid);
+        delay(100);  // warten bis AP_STARTED Event intern verarbeitet ist
         g_dnsServer.setErrorReplyCode(DNSReplyCode::NoError);
         g_dnsServer.start(53, "*", WiFi.softAPIP());
-        g_apMode = true;
         ESP_LOGI(TAG, "WLAN AP: %s, IP %s", kSetupApSsid, WiFi.softAPIP().toString().c_str());
     }
 
