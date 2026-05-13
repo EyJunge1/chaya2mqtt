@@ -39,7 +39,7 @@ static constexpr unsigned long kHeartCounterSaveMinIntervalMs = 30000;
 static Preferences preferences;
 
 static constexpr char kDeviceHostname[] = "chaya2mqtt";
-static constexpr char kSetupApSsid[]    = "chaya2mqtt-Setup";
+static constexpr char kSetupApSsid[]    = "chaya2mqtt";
 
 static DNSServer      g_dnsServer;
 static bool           g_apMode = false;

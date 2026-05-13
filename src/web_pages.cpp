@@ -77,17 +77,7 @@ void streamSimpleDonePage(AsyncWebServerRequest* req, const char* title, const c
 void streamDashboard(AsyncWebServerRequest* req) {
     AsyncResponseStream* resp = req->beginResponseStream("text/html");
     streamPageHeader(*resp, "Dashboard");
-    resp->print(F("<h1 class='title'>Chaya MQTT</h1><p class='hint'>"));
-    if (WiFi.status() == WL_CONNECTED) {
-        resp->print(F("Zugriff: "));
-        resp->print(WiFi.localIP().toString());
-        resp->print(F(" oder <strong>"));
-        resp->print(WiFi.getHostname());
-        resp->print(F(".local</strong>"));
-    } else {
-        resp->print(F("Kein Stations-WLAN."));
-    }
-    resp->print(F("</p><div class='grid'><a class='card' href='/wifi'>WLAN</a>"
+    resp->print(F("<h1 class='title'>Chaya2MQTT</h1><div class='grid'><a class='card' href='/wifi'>WLAN</a>"
                   "<a class='card' href='/mqtt'>MQTT</a>"
                   "<a class='card' href='/update'>Firmware-Update</a>"
                   "<form method='post' action='/reboot'>"
@@ -121,13 +111,13 @@ void streamWifiPage(AsyncWebServerRequest* req) {
     }
     resp->print(
         F("</p>"
+          "<p class='hint' id='st'>Scan läuft …</p><ul id='list'></ul>"
           "<form method='post' action='/wifi-connect' id='wf'>"
           "<label for='ssid'>SSID</label>"
           "<input name='ssid' id='ssid' required maxlength='32' autocomplete='off'/>"
           "<label for='pwd'>Passwort</label>"
           "<input name='password' id='pwd' type='password' maxlength='64' autocomplete='current-password'/>"
           "<button type='submit'>Verbinden (&amp; Neustart)</button></form>"
-          "<h2>Scan</h2><p class='hint' id='st'>Scan läuft …</p><ul id='list'></ul>"
           "<script>"
           "(function(){"
           "var ss=document.getElementById('ssid'),lst=document.getElementById('list'),st=document.getElementById('st');"
@@ -199,7 +189,7 @@ void streamUpdatePage(AsyncWebServerRequest* req) {
                   "Fortschritt erscheint im Seriellen Monitor.</p>"
                   "<form method='post' action='/update'><label for='url'>URL</label>"
                   "<input id='url' name='url' type='url' required placeholder='https://…'/><button type='submit'>"
-                  "Jetzt aktualisieren</button></form>"
+                  "Update</button></form>"
                   "<a class='btn-back' href='/'>Zurück</a></body></html>"));
     req->send(resp);
 }
