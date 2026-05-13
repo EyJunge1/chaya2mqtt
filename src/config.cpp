@@ -38,8 +38,6 @@ static Preferences preferences;
 
 static constexpr char kDeviceHostname[]  = "chaya2mqtt";
 static constexpr char kSetupApSsid[]   = "chaya2mqtt-Setup";
-static constexpr char kPortalPrefsNs[] = "cfg";
-static constexpr char kPortalBtnKey[]  = "portal_btn";
 
 /** Erste Nutzung konstruiert ESPConnect mit gemeinsamem AsyncWebServer (siehe web_admin). */
 static Mycila::ESPConnect& espConnectInstance() {
@@ -69,18 +67,6 @@ static void saveWifiFromConfig(const Mycila::ESPConnect::Config& cfg) {
     preferences.putString("ssid", cfg.wifiSSID.c_str());
     preferences.putString("pass", cfg.wifiPassword.c_str());
     preferences.end();
-}
-
-static bool consumePortalButtonRequest() {
-    if (!preferences.begin(kPortalPrefsNs, false)) {
-        return false;
-    }
-    const bool v = preferences.getBool(kPortalBtnKey, false);
-    if (v) {
-        preferences.remove(kPortalBtnKey);
-    }
-    preferences.end();
-    return v;
 }
 
 /** STA hat IP oder Gerät bleibt absichtlich nur im SoftAP-Modus. */
@@ -183,18 +169,10 @@ void flushHeartCounterIfDirty() {
 void setupWiFi() {
     webAdminRegisterMqttRoutes();
 
-    const bool portalFromButton = consumePortalButtonRequest();
-
     Mycila::ESPConnect::Config cfg = {};
     cfg.hostname = kDeviceHostname;
     cfg.apMode   = false;
     loadWifiIntoConfig(cfg);
-
-    if (portalFromButton) {
-        cfg.wifiSSID.clear();
-        cfg.wifiPassword.clear();
-        ESP_LOGI(TAG, "Wartungs-Captive-Portal (Taste): WLAN-Zugangsdaten zur Neuwahl");
-    }
 
     Mycila::ESPConnect& ec = espConnectInstance();
     ec.listen([&ec](Mycila::ESPConnect::State /*previous*/, Mycila::ESPConnect::State state) {
@@ -244,7 +222,7 @@ void resetAllSettings() {
         preferences.clear();
         preferences.end();
     }
-    if (preferences.begin(kPortalPrefsNs, false)) {
+    if (preferences.begin("cfg", false)) {
         preferences.clear();
         preferences.end();
     }
@@ -269,18 +247,6 @@ bool configIsSetupPortalActive() {
         return true;
     }
     return webAdminIsMaintenanceHttpActive();
-}
-
-void requestSetupPortalFromButton() {
-    if (!preferences.begin(kPortalPrefsNs, false)) {
-        ESP_LOGE(TAG, "NVS cfg: Portal-Marker konnte nicht gesetzt werden");
-        return;
-    }
-    preferences.putBool(kPortalBtnKey, true);
-    preferences.end();
-    flushHeartCounterIfDirty();
-    delay(200);
-    ESP.restart();
 }
 
 Mycila::ESPConnect& configEspConnect() {

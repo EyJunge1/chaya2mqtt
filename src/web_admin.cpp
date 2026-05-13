@@ -49,15 +49,21 @@ static void appendHtmlEscaped(Print& out, const char* s) {
 
 static void printCommonCss(Print& out) {
     out.print(F("<style>*{box-sizing:border-box}"
-                "body{font-family:system-ui,sans-serif;margin:0;padding:16px;max-width:560px}"
-                "h1{font-size:1.3rem;margin-bottom:4px}"
-                "label{display:block;margin:12px 0 4px;font-weight:600}"
-                "input{width:100%;padding:8px;border:1px solid #bbb;border-radius:4px;font-size:1rem}"
-                "button,a.btn{display:inline-block;margin-top:14px;padding:10px 20px;"
-                "background:#c0392b;color:#fff;border:none;border-radius:4px;"
+                "html{color-scheme:dark}"
+                "body{font-family:system-ui,sans-serif;margin:0;padding:16px;max-width:560px;"
+                "background:#0a0a0a;color:#dff9e3}"
+                "h1{font-size:1.3rem;margin-bottom:4px;color:#fff}"
+                "label{display:block;margin:12px 0 4px;font-weight:600;color:#fff}"
+                "input{width:100%;padding:8px;border:1px solid #1a1a1a;border-radius:4px;font-size:1rem;"
+                "background:#141414;color:#dff9e3}"
+                "button{display:inline-block;margin-top:14px;padding:10px 20px;"
+                "background:#1dae6b;color:#0a0a0a;border:none;border-radius:4px;"
+                "cursor:pointer;font-size:1rem;font-weight:600}"
+                "a.btn{display:inline-block;margin-top:14px;padding:10px 20px;"
+                "background:#8597ff;color:#fff;border-radius:4px;"
                 "text-decoration:none;cursor:pointer;font-size:1rem}"
-                ".ok{color:#0a0;font-weight:600;margin:8px 0}"
-                ".err{color:#c00;font-weight:600;margin:8px 0}"
+                ".ok{color:#76d39e;font-weight:600;margin:8px 0}"
+                ".err{color:#f44336;font-weight:600;margin:8px 0}"
                 "ul{padding-left:18px}li{margin:6px 0}"
                 "nav{margin-top:20px}nav a{margin-right:12px}</style>"));
 }
@@ -164,6 +170,8 @@ void webAdminRegisterMqttRoutes() {
         req->send(200, F("text/html"),
                   F("<!DOCTYPE html><html lang='de'><head><meta charset='utf-8'>"
                     "<meta name='viewport' content='width=device-width,initial-scale=1'>"
+                    "<style>html{color-scheme:dark}body{background:#0a0a0a;color:#dff9e3;"
+                    "font-family:system-ui,sans-serif;margin:16px}</style>"
                     "</head><body><p>Wartungsseite beendet.</p>"
                     "</body></html>"));
         webAdminStopMaintenanceHttp();

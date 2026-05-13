@@ -38,8 +38,6 @@ void resetAllSettings();
 void configLoop();
 /** True bei Captive Portal oder MQTT-Wartungs-HTTP (/mqtt), damit kein Light-Sleep. */
 bool configIsSetupPortalActive();
-/** Captive Portal beim naechsten Boot (Taste 5–12 s losgelassen → Neustart). */
-void requestSetupPortalFromButton();
 
 /** Referenz auf den Netzwerk-Manager (WiFi / Captive Portal). */
 Mycila::ESPConnect& configEspConnect();

@@ -17,10 +17,8 @@ static constexpr int kButtonLedPin = 4;
 
 static constexpr unsigned long kDebounceStableMs = 20;
 
-/** Taste loslassen nach >= 5 s und < 12 s: Neustart mit Captive Portal (WLAN neu einrichten). */
-static constexpr unsigned long kPortalTriggerReleaseMinMs = 5000;
-/** Taste durchgehend >= 12 s: Factory Reset. */
-static constexpr unsigned long kFactoryResetHoldMs        = 12000;
+/** Loslassen < 10 s: MQTT senden. Durchgehend >= 10 s halten: Factory Reset. */
+static constexpr unsigned long kFactoryResetHoldMs = 10000;
 static constexpr unsigned long kShortPressMinMs           = 50;
 static constexpr unsigned kPublishMaxAttempts             = 2;
 static constexpr unsigned long kPublishRetryDelayMs     = 25;
@@ -205,7 +203,7 @@ void buttonAdvanceLedSequence() {
     }
 }
 
-/** Bestätigungs-Blinkmuster vor Factory-Reset (blockierend), dann Neustart. */
+/** Drei kurze Blinks (wechselnd HIGH/LOW, 6 Schritte) vor Factory-Reset, dann Neustart. */
 static void triggerFactoryReset() {
     for (int i = 0; i < 6; i++) {
         ledOutput((i % 2) == 0 ? HIGH : LOW);
@@ -239,12 +237,10 @@ void buttonLoop() {
     } else {
         if (btn.heldDown) {
             const unsigned long held = nowMs - btn.pressStartMs;
-            if (!btn.factoryResetTriggered && held >= kShortPressMinMs && held < kPortalTriggerReleaseMinMs) {
+            if (!btn.factoryResetTriggered && held >= kShortPressMinMs && held < kFactoryResetHoldMs) {
                 if (!ledSendSequenceActive()) {
                     startMqttSendLedSequence();
                 }
-            } else if (!btn.factoryResetTriggered && held >= kPortalTriggerReleaseMinMs && held < kFactoryResetHoldMs) {
-                requestSetupPortalFromButton();
             }
             btn.heldDown              = false;
             btn.factoryResetTriggered = false;
