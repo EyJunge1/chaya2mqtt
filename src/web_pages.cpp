@@ -182,9 +182,9 @@ void streamUpdatePage(AsyncWebServerRequest* req) {
     AsyncResponseStream* resp = req->beginResponseStream("text/html");
     streamPageHeader(*resp, "Firmware");
     resp->print(F("<h1>Firmware Update</h1>"
-                  "<p class='hint'>Installed firmware (tag): <strong>"));
+                  "<p class='hint'>Installed firmware: <strong>"));
     resp->print(APP_VERSION);
-    resp->print(F("</strong>.</p>"
+    resp->print(F("</strong></p>"
                   "<form method='post' action='/update-check'>"
                   "<button type='submit'>Check for Update</button>"
                   "</form>"
