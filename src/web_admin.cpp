@@ -12,6 +12,8 @@
 #include <Preferences.h>
 #include <WiFi.h>
 #include <WiFiClientSecure.h>
+#include <algorithm>
+#include <atomic>
 #include <cstdlib>
 #include <cstring>
 #include <ctime>
@@ -22,6 +24,10 @@ static const char* TAG = "WEB";
 #else
 static constexpr const char* TAG __attribute__((unused)) = "";
 #endif
+
+// ESP-IDF: Mozilla-CA-Bundle in libmbedtls (gleiche Nutzung wie mqtt.cpp).
+extern const uint8_t x509_crt_bundle_start[] asm("_binary_x509_crt_bundle_start");
+extern const uint8_t x509_crt_bundle_end[] asm("_binary_x509_crt_bundle_end");
 
 AsyncWebServer& webAdminWebServer() {
     static AsyncWebServer server(80);
@@ -40,12 +46,23 @@ static constexpr uint32_t kNtpMinValidUtcEpoch = 1700000000U;
 static constexpr const char kCfgNamespace[]           = "cfg";
 static constexpr const char kNvKeyUpdateCalendarDay[] = "upd_day";
 
-static bool            g_routesRegistered        = false;
-static bool            g_rebootRequested         = false;
-static bool            g_wifiConnectRequested    = false;
-static bool            g_otaRequested            = false;
-static bool            g_otaCheckRequested       = false;
-static String          g_otaUrl;
+static constexpr size_t kOtaUrlMax = 256;
+
+static bool                      g_routesRegistered = false;
+static std::atomic<bool>         g_rebootRequested{false};
+static std::atomic<bool>         g_wifiConnectRequested{false};
+static std::atomic<bool>         g_otaRequested{false};
+static std::atomic<bool>         g_otaCheckRequested{false};
+static std::atomic<bool>         g_mqttApplyPending{false};
+
+/** Nur in `webAdminLoop()` (Arduino-Task) lesen nach Flag; Handler schreibt mit strlcpy. */
+static char          g_otaUrl[kOtaUrlMax];
+/** Aus Handler: neue MQTT-Konfiguration; Anwendung in `webAdminLoop()`. */
+static MqttConfig    g_mqttPendingCfg;
+
+/** NVS-Cache für letzten gespeicherten UTC-Kalendertag (`upd_day`), kein Lesen pro Loop. */
+static uint32_t      s_cachedNvUpdateDay     = UINT32_MAX;
+static bool          s_nvUpdateDayCacheValid = false;
 
 /** GitHub Releases: `tag_name` aus Roh-JSON ohne Parser-Bibliothek */
 static bool githubParseLatestTag(const char* json, char* tagOut, size_t tagLen) {
@@ -96,6 +113,8 @@ static void nvSaveLastUpdateCalendarDay(uint32_t dayUtc) {
     }
     prefs.putUInt(kNvKeyUpdateCalendarDay, dayUtc);
     prefs.end();
+    s_cachedNvUpdateDay     = dayUtc;
+    s_nvUpdateDayCacheValid = true;
 }
 
 static uint32_t calendarDaySinceEpochUtc(time_t utc) {
@@ -113,8 +132,9 @@ static void checkGithubUpdate() {
     }
 
     WiFiClientSecure tls;
-    tls.setInsecure();
-    tls.setTimeout(45000);  /* ms Lesen/schreiben (TLS/stream) */
+    tls.setCACertBundle(x509_crt_bundle_start,
+                        static_cast<size_t>(x509_crt_bundle_end - x509_crt_bundle_start));
+    tls.setTimeout(45000);  /* ms Lesen/Schreiben (TLS/stream) */
 
     HTTPClient https;
     if (!https.begin(tls, kGithubLatestReleaseApiUrl)) {
@@ -134,11 +154,46 @@ static void checkGithubUpdate() {
         return;
     }
 
-    const String payload = https.getString();
+    constexpr size_t kJsonBuf = 8192;
+    char               jsonBuf[kJsonBuf];
+    auto&              stream = https.getStream();
+    char               remoteTag[64];
+    bool               parseOk = false;
+
+    {
+        size_t              len       = 0;
+        const unsigned long deadlineMs = millis() + 45000;
+        while (https.connected() && len + 1 < kJsonBuf && millis() < deadlineMs) {
+            if (stream.available() <= 0) {
+                if (!https.connected()) {
+                    break;
+                }
+                delay(10);
+                continue;
+            }
+            const int toRead =
+                std::min(static_cast<int>(kJsonBuf - 1 - len), stream.available());
+            if (toRead <= 0) {
+                break;
+            }
+            const int n = stream.readBytes(jsonBuf + len, toRead);
+            if (n <= 0) {
+                break;
+            }
+            len += static_cast<size_t>(n);
+            jsonBuf[len] = '\0';
+            if (githubParseLatestTag(jsonBuf, remoteTag, sizeof(remoteTag))) {
+                parseOk = true;
+                break;
+            }
+        }
+        if (!parseOk && len > 0) {
+            parseOk = githubParseLatestTag(jsonBuf, remoteTag, sizeof(remoteTag));
+        }
+    }
     https.end();
 
-    char remoteTag[64];
-    if (!githubParseLatestTag(payload.c_str(), remoteTag, sizeof(remoteTag))) {
+    if (!parseOk) {
         ESP_LOGE(TAG, "GitHub: konnte tag_name nicht parsen");
         return;
     }
@@ -147,8 +202,8 @@ static void checkGithubUpdate() {
 
     if (strcmp(remoteTag, APP_VERSION) != 0) {
         ESP_LOGI(TAG, "Firmware-Update: neue Version auf GitHub verfügbar");
-        g_otaUrl       = kGithubLatestFirmwareBinUrl;
-        g_otaRequested = true;
+        strlcpy(g_otaUrl, kGithubLatestFirmwareBinUrl, sizeof(g_otaUrl));
+        g_otaRequested.store(true, std::memory_order_release);
     } else {
         ESP_LOGI(TAG, "Firmware ist aktuell");
     }
@@ -168,8 +223,7 @@ static void autoUpdateLoop() {
     const time_t utcNow = time(nullptr);
     const uint32_t todayUtcDay = calendarDaySinceEpochUtc(utcNow > 0 ? utcNow : 0);
 
-    if (g_otaCheckRequested) {
-        g_otaCheckRequested = false;
+    if (g_otaCheckRequested.exchange(false, std::memory_order_acq_rel)) {
         const bool ntpOk = utcNow > static_cast<time_t>(kNtpMinValidUtcEpoch);
         if (!ntpOk) {
             ESP_LOGW(TAG, "Manual update check: Zeit noch nicht plausibel (NTP?), prüfe trotzdem GitHub …");
@@ -189,9 +243,11 @@ static void autoUpdateLoop() {
         return;
     }
 
-    uint32_t lastDay = 0;
-    (void)nvLoadLastUpdateCalendarDay(&lastDay);
-    if (lastDay == todayUtcDay) {
+    if (!s_nvUpdateDayCacheValid) {
+        (void)nvLoadLastUpdateCalendarDay(&s_cachedNvUpdateDay);
+        s_nvUpdateDayCacheValid = true;
+    }
+    if (s_cachedNvUpdateDay == todayUtcDay) {
         return;
     }
 
@@ -219,7 +275,7 @@ static void handleWifiConnectPost(AsyncWebServerRequest* req) {
         req->redirect(F("/wifi"));
         return;
     }
-    g_wifiConnectRequested = true;
+    g_wifiConnectRequested.store(true, std::memory_order_release);
     streamSimpleDonePage(req, "Wi-Fi", "Wi-Fi saved. Device is restarting…");
 }
 
@@ -229,54 +285,55 @@ static void handleUpdatePost(AsyncWebServerRequest* req) {
         req->redirect(F("/update"));
         return;
     }
-    g_otaUrl       = url;
-    g_otaRequested = true;
+    strlcpy(g_otaUrl, url.c_str(), sizeof(g_otaUrl));
+    g_otaRequested.store(true, std::memory_order_release);
     streamSimpleDonePage(req, "Update", "Update starting…");
 }
 
 static void handleUpdateCheckPost(AsyncWebServerRequest* req) {
-    g_otaCheckRequested = true;
+    g_otaCheckRequested.store(true, std::memory_order_release);
     streamSimpleDonePage(req, "Update", "Checking GitHub; an update may follow…");
 }
 
 static void handleRebootPost(AsyncWebServerRequest* req) {
-    g_rebootRequested = true;
+    g_rebootRequested.store(true, std::memory_order_release);
     streamSimpleDonePage(req, "Reboot", "Rebooting…");
 }
 
 static void handleMqttPost(AsyncWebServerRequest* req) {
+    MqttConfig pending = mqttCfg;
+
     if (req->hasParam("mqtt_server", true)) {
-        strlcpy(mqttCfg.server, req->getParam("mqtt_server", true)->value().c_str(),
-                sizeof(mqttCfg.server));
+        strlcpy(pending.server, req->getParam("mqtt_server", true)->value().c_str(),
+                sizeof(pending.server));
     }
     if (req->hasParam("mqtt_port", true)) {
         const int p = atoi(req->getParam("mqtt_port", true)->value().c_str());
-        mqttCfg.port = (p > 0 && p <= 65535) ? static_cast<uint16_t>(p) : 8883;
+        pending.port = (p > 0 && p <= 65535) ? static_cast<uint16_t>(p) : 8883;
     }
     if (req->hasParam("mqtt_user", true)) {
-        strlcpy(mqttCfg.username, req->getParam("mqtt_user", true)->value().c_str(),
-                sizeof(mqttCfg.username));
+        strlcpy(pending.username, req->getParam("mqtt_user", true)->value().c_str(),
+                sizeof(pending.username));
     }
     if (req->hasParam("mqtt_pass", true)) {
-        strlcpy(mqttCfg.password, req->getParam("mqtt_pass", true)->value().c_str(),
-                sizeof(mqttCfg.password));
+        strlcpy(pending.password, req->getParam("mqtt_pass", true)->value().c_str(),
+                sizeof(pending.password));
     }
     if (req->hasParam("mqtt_topic_pub", true)) {
-        strlcpy(mqttCfg.topicPub, req->getParam("mqtt_topic_pub", true)->value().c_str(),
-                sizeof(mqttCfg.topicPub));
+        strlcpy(pending.topicPub, req->getParam("mqtt_topic_pub", true)->value().c_str(),
+                sizeof(pending.topicPub));
     }
     if (req->hasParam("mqtt_topic_sub", true)) {
-        strlcpy(mqttCfg.topicSub, req->getParam("mqtt_topic_sub", true)->value().c_str(),
-                sizeof(mqttCfg.topicSub));
+        strlcpy(pending.topicSub, req->getParam("mqtt_topic_sub", true)->value().c_str(),
+                sizeof(pending.topicSub));
     }
-    if (strcmp(mqttCfg.topicPub, mqttCfg.topicSub) == 0) {
+    if (strcmp(pending.topicPub, pending.topicSub) == 0) {
         ESP_LOGW(TAG, "MQTT: Pub/Sub-Topic identisch, setze Defaults");
-        strlcpy(mqttCfg.topicPub, "heart/to_b", sizeof(mqttCfg.topicPub));
-        strlcpy(mqttCfg.topicSub, "heart/to_a", sizeof(mqttCfg.topicSub));
+        strlcpy(pending.topicPub, "heart/to_b", sizeof(pending.topicPub));
+        strlcpy(pending.topicSub, "heart/to_a", sizeof(pending.topicSub));
     }
-    saveMQTTConfig();
-    mqttDisconnect();
-    mqttSetup();
+    g_mqttPendingCfg   = pending;
+    g_mqttApplyPending.store(true, std::memory_order_release);
     req->redirect(F("/mqtt?saved=1"));
 }
 
@@ -323,25 +380,37 @@ void webAdminRegisterRoutes() {
 }
 
 void webAdminLoop() {
-    if (g_rebootRequested) {
+    if (g_mqttApplyPending.exchange(false, std::memory_order_acq_rel)) {
+        mqttCfg = g_mqttPendingCfg;
+        saveMQTTConfig();
+        mqttDisconnect();
+        mqttSetup();
+    }
+
+    if (g_rebootRequested.exchange(false, std::memory_order_acq_rel)
+        || g_wifiConnectRequested.exchange(false, std::memory_order_acq_rel)) {
+        flushHeartCounterIfDirty();
         delay(200);
         ESP.restart();
     }
-    if (g_wifiConnectRequested) {
-        delay(200);
-        ESP.restart();
-    }
+
     autoUpdateLoop();
 
-    if (g_otaRequested) {
-        g_otaRequested = false;
+    if (g_otaRequested.exchange(false, std::memory_order_acq_rel)) {
+        flushHeartCounterIfDirty();
+
+        char urlCopy[kOtaUrlMax];
+        strlcpy(urlCopy, g_otaUrl, sizeof(urlCopy));
+
         WiFiClientSecure client;
-        client.setInsecure();
+        client.setCACertBundle(x509_crt_bundle_start,
+                               static_cast<size_t>(x509_crt_bundle_end - x509_crt_bundle_start));
         HTTPUpdate httpUpdate;
         httpUpdate.setFollowRedirects(HTTPC_FORCE_FOLLOW_REDIRECTS);
-        const t_httpUpdate_return rc = httpUpdate.update(client, g_otaUrl);
+        const t_httpUpdate_return rc = httpUpdate.update(client, String(urlCopy));
         if (rc == HTTP_UPDATE_OK) {
             ESP_LOGI(TAG, "OTA ok, Neustart");
+            flushHeartCounterIfDirty();
             delay(200);
             ESP.restart();
         } else if (rc == HTTP_UPDATE_NO_UPDATES) {

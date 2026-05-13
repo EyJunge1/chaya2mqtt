@@ -10,6 +10,7 @@
 #include <Preferences.h>
 #include <WiFi.h>
 #include <algorithm>
+#include <cstdint>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -45,6 +46,10 @@ static constexpr char kSetupApSsid[]    = "chaya2mqtt";
 static DNSServer      g_dnsServer;
 static bool           g_apMode = false;
 
+/** STA-Reconnect-Backoff (Event-Task): weniger Strom/Leerlauf-Reconnect-Wut bei dauerhaft fehlendem AP. */
+static unsigned long  s_wifiReconnectNextAllowedMs = 0;
+static uint32_t       s_wifiReconnectFailCount     = 0;
+
 static void wifiStationEvent(arduino_event_id_t event);
 
 // ─── NVS-Hilfen WiFi ──────────────────────────────────────────────────────────
@@ -72,13 +77,29 @@ static void wifiStationEvent(arduino_event_id_t event) {
         return;
     }
     switch (event) {
-        case ARDUINO_EVENT_WIFI_STA_DISCONNECTED:
+        case ARDUINO_EVENT_WIFI_STA_DISCONNECTED: {
+            const unsigned long nowMs = millis();
+            if (nowMs < s_wifiReconnectNextAllowedMs) {
+                ESP_LOGD(TAG, "WLAN reconnect übersprungen (Backoff)");
+                break;
+            }
             ESP_LOGW(TAG, "WLAN getrennt, versuche Reconnect...");
             if (WiFi.getMode() == WIFI_STA || WiFi.getMode() == WIFI_AP_STA) {
                 WiFi.reconnect();
+                constexpr unsigned long kBaseBackoffMs = 3000UL;
+                constexpr unsigned long kMaxBackoffMs  = 120000UL;
+                const uint32_t          shift =
+                    std::min(s_wifiReconnectFailCount, static_cast<uint32_t>(6));
+                const unsigned long backoff =
+                    std::min(kBaseBackoffMs * (1UL << shift), kMaxBackoffMs);
+                s_wifiReconnectFailCount++;
+                s_wifiReconnectNextAllowedMs = nowMs + backoff;
             }
             break;
+        }
         case ARDUINO_EVENT_WIFI_STA_GOT_IP:
+            s_wifiReconnectFailCount     = 0;
+            s_wifiReconnectNextAllowedMs = 0;
             ESP_LOGI(TAG, "WLAN Sta-IP: %s", WiFi.localIP().toString().c_str());
             break;
         default:

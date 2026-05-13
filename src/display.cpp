@@ -5,6 +5,7 @@
 #include <GxEPD2_3C.h>
 #include <Arduino.h>
 #include <SPI.h>
+#include <atomic>
 #include <cstdio>
 #include <driver/gpio.h>
 #include <esp_log.h>
@@ -24,19 +25,15 @@ static constexpr int kSpiCs    = 15;
 static GxEPD2_3C<GxEPD2_154_Z90c, GxEPD2_154_Z90c::HEIGHT> display(
     GxEPD2_154_Z90c(/*CS=*/ kSpiCs, /*DC=*/ 27, /*RST=*/ 26, /*BUSY=*/ 25));
 
-static bool g_heartRedrawPending           = false;
-static bool g_displaySpiSuspendedLowPower = false;
+static std::atomic<bool> g_heartRedrawPending{false};
+static bool                g_displaySpiSuspendedLowPower = false;
 
 void requestHeartRedraw() {
-    g_heartRedrawPending = true;
+    g_heartRedrawPending.store(true, std::memory_order_release);
 }
 
 bool consumeHeartRedraw() {
-    if (!g_heartRedrawPending) {
-        return false;
-    }
-    g_heartRedrawPending = false;
-    return true;
+    return g_heartRedrawPending.exchange(false, std::memory_order_acq_rel);
 }
 
 static void displayResumeSpiForDraw() {

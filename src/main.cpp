@@ -114,6 +114,6 @@ void loop() {
         }
         esp_light_sleep_start();
     } else {
-        delay(5); /* FreeRTOS-Tasks (WiFi/DNS/HTTP) laufen lassen */
+        delay(10); /* FreeRTOS-Tasks (WiFi/DNS/HTTP) laufen lassen; etwas weniger Last im AP */
     }
 }
