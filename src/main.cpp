@@ -105,11 +105,15 @@ void loop() {
     }
 #endif
 
-    static uint64_t lastArmedLightSleepTimerUs = UINT64_MAX;
-    const uint64_t lightSleepTimerUs = computeLightSleepTimerUs();
-    if (lightSleepTimerUs != lastArmedLightSleepTimerUs) {
-        armLightSleepTimerWakeup(lightSleepTimerUs);
-        lastArmedLightSleepTimerUs = lightSleepTimerUs;
+    if (!configIsSetupPortalActive()) {
+        static uint64_t lastArmedLightSleepTimerUs = UINT64_MAX;
+        const uint64_t lightSleepTimerUs = computeLightSleepTimerUs();
+        if (lightSleepTimerUs != lastArmedLightSleepTimerUs) {
+            armLightSleepTimerWakeup(lightSleepTimerUs);
+            lastArmedLightSleepTimerUs = lightSleepTimerUs;
+        }
+        esp_light_sleep_start();
+    } else {
+        delay(5); /* FreeRTOS-Tasks (WiFi/DNS/HTTP) laufen lassen */
     }
-    esp_light_sleep_start();
 }
