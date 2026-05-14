@@ -32,10 +32,13 @@ MqttConfig mqttCfg;
 
 // ─── Herz-Zähler ──────────────────────────────────────────────────────────────
 
-int heartCounter = 0;
+int heartCounter     = 0;
+int heartSentCounter = 0;
 
 static int           lastCommittedHeartCounter               = 0;
 static unsigned long lastHeartCounterSaveMs                  = 0;
+static int           lastCommittedHeartSentCounter           = 0;
+static unsigned long lastHeartSentCounterSaveMs               = 0;
 static constexpr unsigned long kHeartCounterSaveMinIntervalMs = 30000;
 
 // ─── WiFi / Captive Portal ────────────────────────────────────────────────────
@@ -163,15 +166,35 @@ void saveMQTTConfig() {
 void loadHeartCounter() {
     if (!preferences.begin("chaya", true)) {
         ESP_LOGW(TAG, "NVS chaya: lesen fehlgeschlagen, Zaehler = 0");
-        heartCounter              = 0;
-        lastCommittedHeartCounter = 0;
-        lastHeartCounterSaveMs    = millis();
+        heartCounter                 = 0;
+        heartSentCounter             = 0;
+        lastCommittedHeartCounter    = 0;
+        lastCommittedHeartSentCounter = 0;
+        lastHeartCounterSaveMs       = millis();
+        lastHeartSentCounterSaveMs   = millis();
         return;
     }
-    heartCounter = std::max<int32_t>(preferences.getInt("counter", 0), 0);
+    heartCounter     = std::max<int32_t>(preferences.getInt("counter", 0), 0);
+    heartSentCounter = std::max<int32_t>(preferences.getInt("sentCount", 0), 0);
     preferences.end();
-    lastCommittedHeartCounter = heartCounter;
-    lastHeartCounterSaveMs    = millis();
+    lastCommittedHeartCounter     = heartCounter;
+    lastCommittedHeartSentCounter = heartSentCounter;
+    lastHeartCounterSaveMs        = millis();
+    lastHeartSentCounterSaveMs    = millis();
+}
+
+void loadHeartSentCounter() {
+    if (!preferences.begin("chaya", true)) {
+        ESP_LOGW(TAG, "NVS chaya: lesen sentCount fehlgeschlagen, = 0");
+        heartSentCounter             = 0;
+        lastCommittedHeartSentCounter = heartSentCounter;
+        lastHeartSentCounterSaveMs   = millis();
+        return;
+    }
+    heartSentCounter = std::max<int32_t>(preferences.getInt("sentCount", 0), 0);
+    preferences.end();
+    lastCommittedHeartSentCounter = heartSentCounter;
+    lastHeartSentCounterSaveMs    = millis();
 }
 
 bool saveHeartCounter() {
@@ -180,6 +203,16 @@ bool saveHeartCounter() {
         return false;
     }
     preferences.putInt("counter", heartCounter);
+    preferences.end();
+    return true;
+}
+
+bool saveHeartSentCounter() {
+    if (!preferences.begin("chaya", false)) {
+        ESP_LOGE(TAG, "NVS chaya: schreiben sentCount fehlgeschlagen");
+        return false;
+    }
+    preferences.putInt("sentCount", heartSentCounter);
     preferences.end();
     return true;
 }
@@ -197,11 +230,33 @@ void maybeSaveHeartCounter() {
     }
 }
 
+void maybeSaveHeartSentCounter() {
+    if (heartSentCounter == lastCommittedHeartSentCounter) {
+        return;
+    }
+    const unsigned long now = millis();
+    if (now - lastHeartSentCounterSaveMs >= kHeartCounterSaveMinIntervalMs) {
+        if (saveHeartSentCounter()) {
+            lastCommittedHeartSentCounter = heartSentCounter;
+            lastHeartSentCounterSaveMs    = now;
+        }
+    }
+}
+
 void flushHeartCounterIfDirty() {
     if (heartCounter != lastCommittedHeartCounter) {
         if (saveHeartCounter()) {
             lastCommittedHeartCounter = heartCounter;
             lastHeartCounterSaveMs    = millis();
+        }
+    }
+}
+
+void flushHeartSentCounterIfDirty() {
+    if (heartSentCounter != lastCommittedHeartSentCounter) {
+        if (saveHeartSentCounter()) {
+            lastCommittedHeartSentCounter = heartSentCounter;
+            lastHeartSentCounterSaveMs    = millis();
         }
     }
 }
@@ -310,9 +365,12 @@ void resetAllSettings() {
         preferences.end();
     }
     /* Kein flushHeartCounterIfDirty: wuerde chaya in NVS nach clear wieder anlegen. */
-    heartCounter              = 0;
-    lastCommittedHeartCounter = 0;
-    lastHeartCounterSaveMs    = millis();
+    heartCounter                  = 0;
+    heartSentCounter              = 0;
+    lastCommittedHeartCounter     = 0;
+    lastCommittedHeartSentCounter = 0;
+    lastHeartCounterSaveMs        = millis();
+    lastHeartSentCounterSaveMs    = millis();
     delay(500);
     releaseGpioHoldBeforeRestart();
     ESP.restart();

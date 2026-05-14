@@ -1,9 +1,11 @@
 #include "button.h"
 
 #include "config.h"
+#include "display.h"
 #include "mqtt.h"
 
 #include <Arduino.h>
+#include <climits>
 #include <driver/gpio.h>
 #include <esp_log.h>
 
@@ -170,6 +172,11 @@ void buttonAdvanceLedSequence() {
             const bool ok = mqttPublishChaya();
             if (ok) {
                 ESP_LOGI(TAG, "MQTT Nachricht erfolgreich gesendet");
+                if (heartSentCounter < INT_MAX) {
+                    heartSentCounter++;
+                }
+                maybeSaveHeartSentCounter();
+                requestHeartRedraw();
                 ledTxPhase = LedTxPhase::PostWait;
                 armLedPhase(500);
             } else {

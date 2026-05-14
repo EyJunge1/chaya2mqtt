@@ -24,10 +24,10 @@ except ImportError as e:  # pragma: no cover
     raise e
 
 # ----- Konfiguration (anpassen) -----
-MQTT_HOST = ""  # z. B. "mqtt.example.com"
+MQTT_HOST = "***REMOVED***"  # z. B. "mqtt.example.com"
 MQTT_PORT = 8883
-MQTT_USER = ""
-MQTT_PASS = ""
+MQTT_USER = "***REMOVED***"
+MQTT_PASS = "***REMOVED***"
 
 # Gegenueber ESP-Defaults: ESP publiziert chaya/to_b, subscribed chaya/to_a
 MQTT_TOPIC_PUB = "chaya/to_a"

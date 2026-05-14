@@ -108,6 +108,7 @@ void loop() {
     configLoop();
     mqttLoop();
     maybeSaveHeartCounter();
+    maybeSaveHeartSentCounter();
 
     /* WiFi-Reconnect: WiFi.onEvent in setupWiFi (siehe configLoop / webAdminLoop). */
 

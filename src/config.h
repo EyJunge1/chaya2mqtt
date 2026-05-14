@@ -13,20 +13,27 @@ struct MqttConfig {
 
 extern MqttConfig mqttCfg;
 
-/** Herz-Zähler (Anzeige + MQTT); Persistenz in config.cpp. */
+/** Herz-Zähler (empfangene „chaya“); Persistenz in config.cpp. */
 extern int heartCounter;
+/** Herz-Zähler (erfolgreich gesendete „chaya“). */
+extern int heartSentCounter;
 
 void loadMQTTConfig();
 void saveMQTTConfig();
 
-/** Zählerstand aus NVS laden/speichern (Namespace chaya). */
+/** Zählerstände aus NVS laden/speichern (Namespace chaya). */
 void loadHeartCounter();
+void loadHeartSentCounter();
 /** @return true wenn NVS-Schreiben erfolgreich */
 bool saveHeartCounter();
+/** @return true wenn NVS-Schreiben erfolgreich */
+bool saveHeartSentCounter();
 /** NVS max. alle ~30 s bei geändertem Zähler (weniger Flash-Verschleiß). */
 void maybeSaveHeartCounter();
+void maybeSaveHeartSentCounter();
 /** Sofort speichern, falls Zähler seit letztem Commit geändert (z. B. vor Neustart). */
 void flushHeartCounterIfDirty();
+void flushHeartSentCounterIfDirty();
 void setupWiFi();
 void resetAllSettings();
 

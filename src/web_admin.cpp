@@ -405,6 +405,7 @@ void webAdminLoop() {
     if (g_rebootRequested.exchange(false, std::memory_order_acq_rel)
         || g_wifiConnectRequested.exchange(false, std::memory_order_acq_rel)) {
         flushHeartCounterIfDirty();
+        flushHeartSentCounterIfDirty();
         delay(200);
         releaseGpioHoldBeforeRestart();
         ESP.restart();
@@ -414,6 +415,7 @@ void webAdminLoop() {
 
     if (g_otaRequested.exchange(false, std::memory_order_acq_rel)) {
         flushHeartCounterIfDirty();
+        flushHeartSentCounterIfDirty();
 
         char urlCopy[kOtaUrlMax];
         strlcpy(urlCopy, g_otaUrl, sizeof(urlCopy));
@@ -427,6 +429,7 @@ void webAdminLoop() {
         if (rc == HTTP_UPDATE_OK) {
             ESP_LOGI(TAG, "OTA ok, Neustart");
             flushHeartCounterIfDirty();
+            flushHeartSentCounterIfDirty();
             delay(200);
             releaseGpioHoldBeforeRestart();
             ESP.restart();

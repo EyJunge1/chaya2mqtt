@@ -5,8 +5,11 @@
 #include <GxEPD2_3C.h>
 #include <Arduino.h>
 #include <SPI.h>
+#include <algorithm>
 #include <atomic>
 #include <cstdio>
+#include <cstdlib>
+#include <cstring>
 #include <driver/gpio.h>
 #include <esp_log.h>
 
@@ -67,14 +70,44 @@ void displayInit() {
 #endif
 }
 
+/** Small ↓ (incoming): tip points toward larger y. */
+static void drawArrowDown(int16_t cx, int16_t tipY) {
+    static constexpr int16_t kHalf = 4;
+    static constexpr int16_t kStemH = 8;
+    const int16_t baseY = static_cast<int16_t>(tipY - 5);
+    display.fillTriangle(cx, tipY, static_cast<int16_t>(cx - kHalf), baseY,
+                         static_cast<int16_t>(cx + kHalf), baseY, GxEPD_BLACK);
+    display.fillRect(static_cast<int16_t>(cx - 1), static_cast<int16_t>(tipY - kStemH - 6),
+                     3, kStemH, GxEPD_BLACK);
+}
+
+/** Small ↑ (outgoing): tip points toward smaller y. */
+static void drawArrowUp(int16_t cx, int16_t tipY) {
+    static constexpr int16_t kHalf = 4;
+    static constexpr int16_t kStemH = 8;
+    const int16_t baseY = static_cast<int16_t>(tipY + 5);
+    display.fillTriangle(cx, tipY, static_cast<int16_t>(cx - kHalf), baseY,
+                         static_cast<int16_t>(cx + kHalf), baseY, GxEPD_BLACK);
+    display.fillRect(static_cast<int16_t>(cx - 1), static_cast<int16_t>(tipY + 6), 3, kStemH,
+                     GxEPD_BLACK);
+}
+
+static uint8_t footerTextSizeForDigitCount(size_t digitLen) {
+    if (digitLen >= 3) {
+        return 1;
+    }
+    return 2;
+}
+
 void drawHeartWithNumber() {
     displayResumeSpiForDraw();
 
-    ESP_LOGI(TAG, "Zeichne rotes Herz mit Zahl...");
+    ESP_LOGI(TAG, "Zeichne rotes Herz mit Zaehlern...");
 
-    static constexpr int kCenterX = 100;
-    static constexpr int kCenterY = 65;
-    static constexpr int kHeartSize = 70;
+    static constexpr int kCenterX     = 100;
+    /** Vertical position: leaves room for corner counters (-footer band). */
+    static constexpr int kCenterY    = 68;
+    static constexpr int kHeartSize  = 80;
     static constexpr int kCircleRadius = (kHeartSize / 2) + 4;
     static constexpr int kCircleY = kCenterY - (kHeartSize / 3);
     static constexpr int kCircleSpacing = (kHeartSize / 2) - 3;
@@ -85,30 +118,49 @@ void drawHeartWithNumber() {
     const int dw = display.width();
     const int dh = display.height();
 
-    const int16_t triLeftX = static_cast<int16_t>(kCenterX - (kMaxWidth / 2));
-    const int16_t triRightX = static_cast<int16_t>(kCenterX + (kMaxWidth / 2));
+    const int16_t triLeftX   = static_cast<int16_t>(kCenterX - (kMaxWidth / 2));
+    const int16_t triRightX  = static_cast<int16_t>(kCenterX + (kMaxWidth / 2));
     const int16_t triBottomY = static_cast<int16_t>(kTriangleBottom);
 
-    char numberBuf[16];
-    const int sn = snprintf(numberBuf, sizeof(numberBuf), "%d", heartCounter);
-    const size_t digitLen = (sn > 0) ? static_cast<size_t>(sn) : size_t{1};
-    uint8_t textSize = 4;
-    if (digitLen >= 7) {
-        textSize = 2;
-    } else if (digitLen >= 5) {
-        textSize = 3;
-    }
+    char recvBuf[16];
+    char sentBuf[16];
+    static_cast<void>(snprintf(recvBuf, sizeof(recvBuf), "%d", heartCounter));
+    static_cast<void>(snprintf(sentBuf, sizeof(sentBuf), "%d", heartSentCounter));
+    const size_t recvLen = std::max<size_t>(strlen(recvBuf), size_t{1});
+    const size_t sentLen = std::max<size_t>(strlen(sentBuf), size_t{1});
 
-    int16_t x1;
-    int16_t y1;
-    uint16_t w;
-    uint16_t h;
+    const uint8_t recvTextSize = footerTextSizeForDigitCount(recvLen);
+    const uint8_t sentTextSize = footerTextSizeForDigitCount(sentLen);
+
+    static constexpr int kFooterBaselineY = 188;
+    static constexpr int kLeftMargin       = 4;
+    static constexpr int kRightMargin      = 4;
+    static constexpr int kArrowLane        = 14;
+    static constexpr int16_t kDownArrowCx    = 9;
+    static constexpr int16_t kDownArrowTipY = static_cast<int16_t>(kFooterBaselineY - 2);
+    const int16_t           kUpArrowCx      = static_cast<int16_t>(dw - 9);
+    const int16_t kUpArrowTipY = static_cast<int16_t>(kFooterBaselineY - 22);
+
+    int16_t rx1 = 0;
+    int16_t ry1 = 0;
+    uint16_t rw = 0;
+    [[maybe_unused]] uint16_t rh = 0;
+    int16_t sx1 = 0;
+    int16_t sy1 = 0;
+    uint16_t sw = 0;
+    [[maybe_unused]] uint16_t sh = 0;
+
     display.setTextColor(GxEPD_BLACK);
-    display.setTextSize(textSize);
-    display.getTextBounds(numberBuf, 0, 0, &x1, &y1, &w, &h);
 
-    const int textX = kCenterX - static_cast<int>(w / 2);
-    static constexpr int kTextY = 165;
+    display.setTextSize(recvTextSize);
+    display.getTextBounds(recvBuf, 0, 0, &rx1, &ry1, &rw, &rh);
+    const int recvTextCursorX =
+        kLeftMargin + kArrowLane - static_cast<int>(rx1);
+
+    display.setTextSize(sentTextSize);
+    display.getTextBounds(sentBuf, 0, 0, &sx1, &sy1, &sw, &sh);
+    const int sentTextCursorX =
+        dw - kRightMargin - kArrowLane - static_cast<int>(sw) - static_cast<int>(sx1);
 
     display.setFullWindow();
     display.firstPage();
@@ -124,8 +176,8 @@ void drawHeartWithNumber() {
 
         if (kTriangleTop >= 0 && kTriangleBottom < dh && triLeftX >= 0 && triRightX < dw) {
             display.fillTriangle(triLeftX, static_cast<int16_t>(kTriangleTop), triRightX,
-                                 static_cast<int16_t>(kTriangleTop), static_cast<int16_t>(kCenterX), triBottomY,
-                                 GxEPD_RED);
+                                 static_cast<int16_t>(kTriangleTop),
+                                 static_cast<int16_t>(kCenterX), triBottomY, GxEPD_RED);
         }
 
         display.fillRect(static_cast<int16_t>(kCenterX - (kHeartSize / 3)),
@@ -133,15 +185,26 @@ void drawHeartWithNumber() {
                          static_cast<int16_t>((kHeartSize * 2) / 3),
                          static_cast<int16_t>(kHeartSize / 2), GxEPD_RED);
 
-        display.setCursor(static_cast<int16_t>(textX), static_cast<int16_t>(kTextY));
-        display.print(numberBuf);
+        drawArrowDown(kDownArrowCx, kDownArrowTipY);
+
+        drawArrowUp(kUpArrowCx, kUpArrowTipY);
+
+        display.setTextSize(recvTextSize);
+        display.setCursor(static_cast<int16_t>(recvTextCursorX),
+                          static_cast<int16_t>(kFooterBaselineY));
+        display.print(recvBuf);
+
+        display.setTextSize(sentTextSize);
+        display.setCursor(static_cast<int16_t>(sentTextCursorX),
+                          static_cast<int16_t>(kFooterBaselineY));
+        display.print(sentBuf);
 
     } while (display.nextPage());
 
     display.hibernate();
     displaySuspendSpiLowPower();
 
-    ESP_LOGI(TAG, "Rotes Herz mit Zahl gezeichnet");
+    ESP_LOGI(TAG, "Rotes Herz mit Zaehlern gezeichnet");
 }
 
 void drawSplashScreen() {
