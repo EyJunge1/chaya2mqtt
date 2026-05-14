@@ -251,7 +251,7 @@ void setupWiFi() {
         // da das esp_wifi_stop() aufruft und softAPIP() dann 0.0.0.0 liefert.
         WiFi.mode(WIFI_OFF);
         delay(100);
-        WiFi.softAPConfig(IPAddress(192, 168, 4, 1), IPAddress(192, 168, 4, 1), IPAddress(255, 255, 255, 0));
+        WiFi.softAPConfig(IPAddress(4, 3, 2, 1), IPAddress(4, 3, 2, 1), IPAddress(255, 255, 255, 0));
         WiFi.mode(WIFI_AP);
         WiFi.softAP(kSetupApSsid);
         delay(100);  // warten bis AP_STARTED Event intern verarbeitet ist
