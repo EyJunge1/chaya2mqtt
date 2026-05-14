@@ -8,3 +8,6 @@ void drawSplashScreen();
 /** Nach MQTT-Empfang setzen; Zeichnung in loop() mit consumeHeartRedraw() ausführen. */
 void requestHeartRedraw();
 bool consumeHeartRedraw();
+
+/** Six-digit pairing code for web UI (E-Ink). */
+void drawAuthCode(uint32_t code);

@@ -3,6 +3,7 @@
 #include "counter.h"
 #include "pins.h"
 #include "web_admin.h"
+#include "web_auth.h"
 
 #include <Arduino.h>
 #include <WiFi.h>
@@ -161,6 +162,7 @@ void releaseGpioHoldBeforeRestart() {
 
 void resetAllSettings() {
     ESP_LOGW(TAG, "Factory Reset: alle Einstellungen loeschen...");
+    webAuthInvalidateSession();
     webAdminWebServer().end();
     if (!g_apMode) {
         MDNS.end();

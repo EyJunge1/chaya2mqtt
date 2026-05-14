@@ -63,6 +63,8 @@ enum class LedTxPhase : uint8_t {
     FailOff2,
     FailOn3,
     FailOff3,
+    AuthOn,
+    AuthOff,
 };
 
 static LedTxPhase ledTxPhase = LedTxPhase::Idle;
@@ -83,6 +85,31 @@ static void ledOutput(int level) {
 
 static void ledHoldWhenIdle() {
     gpio_hold_en(static_cast<gpio_num_t>(kButtonLedPin));
+}
+
+static void (*s_authCancelHandler)() = nullptr;
+
+void buttonSetAuthCancelHandler(void (*fn)()) {
+    s_authCancelHandler = fn;
+}
+
+void buttonSetAuthBlinkActive(bool active) {
+    if (active) {
+        if (ledTxPhase == LedTxPhase::Idle) {
+            ledTxPhase = LedTxPhase::AuthOn;
+            ledOutput(LOW);
+            armLedPhase(500);
+        }
+    } else {
+        if (ledTxPhase == LedTxPhase::AuthOn || ledTxPhase == LedTxPhase::AuthOff) {
+            ledTxPhase = LedTxPhase::Idle;
+            ledHoldWhenIdle();
+        }
+    }
+}
+
+bool buttonIsAuthBlinkActive() {
+    return ledTxPhase == LedTxPhase::AuthOn || ledTxPhase == LedTxPhase::AuthOff;
 }
 
 static bool ledSendSequenceActive() {
@@ -114,6 +141,8 @@ static constexpr LedPhaseRow kLedPhaseRows[] = {
     {LedTxPhase::FailOn2, LOW, LedTxPhase::FailOff2, kFailFlashMs},
     {LedTxPhase::FailOff2, HIGH, LedTxPhase::FailOn3, kFailFlashMs},
     {LedTxPhase::FailOn3, LOW, LedTxPhase::FailOff3, kFailFlashMs},
+    {LedTxPhase::AuthOn, LOW, LedTxPhase::AuthOff, 500},
+    {LedTxPhase::AuthOff, HIGH, LedTxPhase::AuthOn, 500},
 };
 
 static void startMqttSendLedSequence() {
@@ -248,7 +277,11 @@ void buttonLoop() {
         if (btn.heldDown) {
             const unsigned long held = nowMs - btn.pressStartMs;
             if (!btn.factoryResetTriggered && held >= kShortPressMinMs && held < kFactoryResetHoldMs) {
-                if (!ledSendSequenceActive() && mqttCfg.server[0] != '\0' && !configIsApMode()) {
+                if (buttonIsAuthBlinkActive()) {
+                    if (s_authCancelHandler != nullptr) {
+                        s_authCancelHandler();
+                    }
+                } else if (!ledSendSequenceActive() && mqttCfg.server[0] != '\0' && !configIsApMode()) {
                     startMqttSendLedSequence();
                 }
             }

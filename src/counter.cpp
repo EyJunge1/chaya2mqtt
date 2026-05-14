@@ -29,7 +29,10 @@ static uint32_t s_lastResetCalendarDayUtc = UINT32_MAX;
 
 static constexpr const char kNvRstPeriod[] = "rstPeriod";
 
+static constexpr const char kNvAuthEn[] = "authEn";
+
 static bool s_resetPeriodWeeklyCached = false;
+static bool s_webAuthEnabledCached     = false;
 
 static int           lastCommittedHeartCounter                = 0;
 static unsigned long lastHeartCounterSaveMs                   = 0;
@@ -57,6 +60,31 @@ void loadCounterBaseline() {
     sentCountBaseline         = std::max<int32_t>(preferences.getInt("sntBase", 0), 0);
     s_lastResetCalendarDayUtc = preferences.getUInt("rstDay", UINT32_MAX);
     preferences.end();
+}
+
+void configLoadWebAuthFromNvs() {
+    Preferences prefs;
+    if (!prefs.begin("cfg", true)) {
+        s_webAuthEnabledCached = false;
+        return;
+    }
+    s_webAuthEnabledCached = (prefs.getUChar(kNvAuthEn, 0) != 0);
+    prefs.end();
+}
+
+bool configGetWebAuthEnabled() {
+    return s_webAuthEnabledCached;
+}
+
+void configSetWebAuthEnabled(bool enabled) {
+    Preferences prefs;
+    if (!prefs.begin("cfg", false)) {
+        ESP_LOGE(TAG, "NVS cfg: authEn schreiben fehlgeschlagen");
+        return;
+    }
+    prefs.putUChar(kNvAuthEn, enabled ? 1 : 0);
+    prefs.end();
+    s_webAuthEnabledCached = enabled;
 }
 
 void configLoadResetPeriodFromNvs() {
@@ -118,7 +146,10 @@ void maybePeriodicallyResetCounters() {
     const bool weekly      = configGetResetPeriodIsWeekly();
     bool       shouldReset = false;
     if (weekly) {
-        shouldReset = (currentDay >= s_lastResetCalendarDayUtc + 7U);
+        if (s_lastResetCalendarDayUtc <= currentDay
+            && (currentDay - s_lastResetCalendarDayUtc) >= 7U) {
+            shouldReset = true;
+        }
     } else {
         shouldReset = (currentDay != s_lastResetCalendarDayUtc);
     }
@@ -250,4 +281,5 @@ void counterResetRamAfterFactoryClear() {
     lastCommittedHeartSentCounter = 0;
     lastHeartCounterSaveMs        = millis();
     lastHeartSentCounterSaveMs    = millis();
+    s_webAuthEnabledCached        = false;
 }

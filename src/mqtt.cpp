@@ -81,7 +81,10 @@ static unsigned long mqttTryConnectSinglePass() {
 
 // NOLINTNEXTLINE(readability-non-const-parameter) - PubSubClient callback signature is fixed
 static void mqttCallback(char* topic, byte* payload, unsigned int length) {
-    (void)topic;
+    if (strcmp(topic, mqttCfg.topicSub) != 0) {
+        ESP_LOGD(TAG, "Payload ignoriert (Topic != topicSub)");
+        return;
+    }
     if (length == 0 || length > 10U) {
         ESP_LOGD(TAG, "Ungueltiger Zaehler-Payload (len=%u)", length);
         return;
@@ -94,7 +97,8 @@ static void mqttCallback(char* topic, byte* payload, unsigned int length) {
     char* endPtr = nullptr;
     errno = 0;
     const long parsed = strtol(buf, &endPtr, 10);
-    if (errno == ERANGE || endPtr != buf + length || parsed < 0 || parsed > INT_MAX) {
+    /* On ESP32, long == int; ERANGE still catches overflow from strtol. */
+    if (errno == ERANGE || endPtr != buf + length || parsed < 0 || parsed > static_cast<long>(INT_MAX)) {
         ESP_LOGD(TAG, "Zaehler-Payload nicht vollstaendig gueltige Zahl");
         return;
     }
@@ -165,6 +169,7 @@ void mqttLoop() {
     wasConnected = connected;
 
     if (!connected) {
+        /* lastMqttAttemptAt und mqttBackoffMs sind 0: erster Verbindungsversuch ohne Wartezeit. */
         if (now - lastMqttAttemptAt >= mqttBackoffMs) {
             lastMqttAttemptAt = now;
             mqttBackoffMs = mqttTryConnectSinglePass();

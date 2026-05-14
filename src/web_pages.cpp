@@ -10,6 +10,7 @@
 #include "version.h"
 #include "wlan.h"
 #include "web_styles.h"
+#include "web_auth.h"
 #include <cstdio>
 
 static void appendHtmlEscaped(Print& out, const char* s) {
@@ -20,6 +21,7 @@ static void appendHtmlEscaped(Print& out, const char* s) {
         switch (*s) {
             case '&': out.print(F("&amp;")); break;
             case '"': out.print(F("&quot;")); break;
+            case '\'': out.print(F("&#39;")); break;
             case '<': out.print(F("&lt;")); break;
             case '>': out.print(F("&gt;")); break;
             default: out.print(*s); break;
@@ -66,6 +68,39 @@ static void streamPageHeader(Print& out, const char* title) {
     out.print(F("</head><body>"));
 }
 
+void streamAuthPage(AsyncWebServerRequest* req, bool wrongCode) {
+    AsyncResponseStream* resp = req->beginResponseStream("text/html");
+    streamPageHeader(*resp, "Sign in");
+    resp->print(F("<h1>Web access</h1>"));
+    if (wrongCode) {
+        resp->print(F("<p class='hint' style='color:#b00'>Wrong code. Try again.</p>"));
+    }
+    resp->print(F("<p class='hint'>Enter the 6-digit code shown on the device display.</p>"));
+    String next = F("/");
+    if (req->hasParam("next", false)) {
+        const AsyncWebParameter* np = req->getParam("next", false);
+        if (np != nullptr) {
+            const String& v = np->value();
+            if (v.length() > 0 && v[0] == '/' && v.indexOf("..") < 0) {
+                next = v;
+            }
+        }
+    }
+    char csrfBuf[24];
+    snprintf(csrfBuf, sizeof(csrfBuf), "%lu", static_cast<unsigned long>(webAuthGetCsrfToken()));
+    resp->print(F("<form method='post' action='/auth' autocapitalize='off'>"
+                   "<input type='hidden' name='csrf_token' value='"));
+    appendHtmlEscaped(*resp, csrfBuf);
+    resp->print(F("'/><input type='hidden' name='next' value='"));
+    appendHtmlEscaped(*resp, next.c_str());
+    resp->print(F("'/><label for='code'>Code</label>"
+                   "<input id='code' name='code' inputmode='numeric' pattern='[0-9]{6}' "
+                   "maxlength='6' required placeholder='000000'/>"
+                   "<button type='submit'>Unlock</button></form>"
+                   "<a class='btn-back' href='/'>Back</a></body></html>"));
+    req->send(resp);
+}
+
 void streamSimpleDonePage(AsyncWebServerRequest* req, const char* title, const char* message) {
     AsyncResponseStream* resp = req->beginResponseStream("text/html");
     streamPageHeader(*resp, title);
@@ -92,7 +127,13 @@ void streamDashboard(AsyncWebServerRequest* req) {
                       "<a class='card' href='/settings'>Settings</a>"
                       "<a class='card' href='/update'>Firmware Update</a>"
                       "<form method='post' action='/reboot'>"
-                      "<button type='submit' class='card danger'>Reboot</button></form>"
+                      "<input type='hidden' name='csrf_token' value='"));
+        {
+            char b[24];
+            snprintf(b, sizeof(b), "%lu", static_cast<unsigned long>(webAuthGetCsrfToken()));
+            appendHtmlEscaped(*resp, b);
+        }
+        resp->print(F("'/><button type='submit' class='card danger'>Reboot</button></form>"
                       "</div>"));
     }
     resp->print(F("</body></html>"));
@@ -190,10 +231,22 @@ void streamUpdatePage(AsyncWebServerRequest* req) {
     resp->print(APP_VERSION);
     resp->print(F("</strong></p>"
                   "<form method='post' action='/update-check'>"
-                  "<button type='submit'>Check for Update</button>"
+                  "<input type='hidden' name='csrf_token' value='"));
+    {
+        char b[24];
+        snprintf(b, sizeof(b), "%lu", static_cast<unsigned long>(webAuthGetCsrfToken()));
+        appendHtmlEscaped(*resp, b);
+    }
+    resp->print(F("'/><button type='submit'>Check for Update</button>"
                   "</form>"
                   "<h2>Custom</h2>"
-                  "<form method='post' action='/update'><label for='url'>URL</label>"
+                  "<form method='post' action='/update'><input type='hidden' name='csrf_token' value='"));
+    {
+        char b2[24];
+        snprintf(b2, sizeof(b2), "%lu", static_cast<unsigned long>(webAuthGetCsrfToken()));
+        appendHtmlEscaped(*resp, b2);
+    }
+    resp->print(F("'/><label for='url'>URL</label>"
                   "<input id='url' name='url' type='url' required placeholder='https://…'/>"
                   "<button type='submit'>Update</button></form>"
                   "<a class='btn-back' href='/'>Back</a></body></html>"));
@@ -208,7 +261,13 @@ void streamMqttHtmlPage(AsyncWebServerRequest* req, bool showSavedBanner) {
         response->print(F("<p class='ok'>&#10003; Saved. MQTT will reconnect.</p>"));
     }
     response->print(F("<form method='post' action='/mqtt'>"
-                      "<label for='srv'>Broker (hostname or IP)</label>"
+                      "<input type='hidden' name='csrf_token' value='"));
+    {
+        char b[24];
+        snprintf(b, sizeof(b), "%lu", static_cast<unsigned long>(webAuthGetCsrfToken()));
+        appendHtmlEscaped(*response, b);
+    }
+    response->print(F("'/><label for='srv'>Broker (hostname or IP)</label>"
                       "<input id='srv' name='mqtt_server' maxlength='127' value='"));
     appendHtmlEscaped(*response, mqttCfg.server);
     char portBuf[8];
@@ -224,8 +283,11 @@ void streamMqttHtmlPage(AsyncWebServerRequest* req, bool showSavedBanner) {
     response->print(F("'/>"
                       "<label for='pw'>Password (optional)</label>"
                       "<input id='pw' name='mqtt_pass' type='password' maxlength='63' "
-                      "autocomplete='current-password' value='"));
-    appendHtmlEscaped(*response, mqttCfg.password);
+                      "autocomplete='current-password' "
+                      "placeholder='"));
+    if (mqttCfg.password[0] != '\0') {
+        response->print(F("(saved — leave blank to keep)"));
+    }
     response->print(F("'/>"
                       "<label for='tpub'>Publish topic</label>"
                       "<input id='tpub' name='mqtt_topic_pub' maxlength='127' value='"));
@@ -251,8 +313,14 @@ void streamSettingsPage(AsyncWebServerRequest* req, bool showSavedBanner) {
         F("<p class='hint'>Heart counter display: reset baseline daily or weekly (UTC day). "
           "MQTT retained totals are unchanged; E-Paper shows delta since last reset, max 999 (&quot;999+&quot;).</p>"
           "<form method='post' action='/settings'>"
-          "<fieldset><legend>Display counter reset</legend>"
-          "<label><input type='radio' name='reset_period' value='daily'"));
+          "<input type='hidden' name='csrf_token' value='"));
+    {
+        char b[24];
+        snprintf(b, sizeof(b), "%lu", static_cast<unsigned long>(webAuthGetCsrfToken()));
+        appendHtmlEscaped(*response, b);
+    }
+    response->print(F("'/><fieldset><legend>Display counter reset</legend>"
+                       "<label><input type='radio' name='reset_period' value='daily'"));
     if (!configGetResetPeriodIsWeekly()) {
         response->print(F(" checked"));
     }
@@ -262,6 +330,13 @@ void streamSettingsPage(AsyncWebServerRequest* req, bool showSavedBanner) {
         response->print(F(" checked"));
     }
     response->print(F("> Weekly (every 7 UTC days)</label>"
+                       "</fieldset>"
+                       "<fieldset><legend>Web admin</legend>"
+                       "<label><input type='checkbox' name='auth_enabled' value='1'"));
+    if (configGetWebAuthEnabled()) {
+        response->print(F(" checked"));
+    }
+    response->print(F("/> Require 6-digit code on device to open web settings</label>"
                        "</fieldset>"
                        "<button type='submit'>Save</button></form>"
                        "<a class='btn-back' href='/'>Back</a></body></html>"));

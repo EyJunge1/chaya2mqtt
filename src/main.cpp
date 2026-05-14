@@ -15,6 +15,7 @@
 #include "mqtt_config.h"
 #include "pins.h"
 #include "web_admin.h"
+#include "web_auth.h"
 #include "wlan.h"
 
 #if defined(CORE_DEBUG_LEVEL) && CORE_DEBUG_LEVEL > 0
@@ -32,7 +33,7 @@ static uint64_t computeLightSleepTimerUs() {
     if (configIsApMode()) {
         return kLightSleepActiveUs;
     }
-    if (buttonIsLedTxSequenceActive()) {
+    if (buttonIsLedTxSequenceActive() || buttonIsAuthBlinkActive()) {
         return kLightSleepActiveUs;
     }
     const unsigned long mqttWaitMs = mqttMillisUntilNextConnectAttempt();
@@ -87,9 +88,12 @@ void setup() {
     loadMQTTConfig();
     loadHeartCounter();
     configLoadResetPeriodFromNvs();
+    configLoadWebAuthFromNvs();
     setupWiFi();
 
     mqttSetup();
+
+    buttonSetAuthCancelHandler(webAuthHandleButtonCancel);
 
     armLightSleepStaticWakeups();
 

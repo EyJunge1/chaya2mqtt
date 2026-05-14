@@ -19,3 +19,8 @@ void buttonDebugStatus();
 
 /** True, solange die nicht-blockierende MQTT-Sende-LED-Sequenz laeuft (fuer adaptiven Light-Sleep). */
 bool buttonIsLedTxSequenceActive();
+
+/** Slow blink for web-login challenge; short press cancels via handler. */
+void buttonSetAuthCancelHandler(void (*fn)());
+void buttonSetAuthBlinkActive(bool active);
+bool buttonIsAuthBlinkActive();

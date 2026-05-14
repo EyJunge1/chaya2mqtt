@@ -39,6 +39,11 @@ void configLoadResetPeriodFromNvs();
 bool configGetResetPeriodIsWeekly();
 void configSetResetPeriodWeekly(bool weekly);
 
+/** Web UI access code (device display); NVS cfg/authEn, default off. */
+bool configGetWebAuthEnabled();
+void configSetWebAuthEnabled(bool enabled);
+void configLoadWebAuthFromNvs();
+
 /**
  * Reset all in-RAM counter/baseline/commit state after NVS clear (factory reset).
  * Do not call flushHeart* after NVS clear — that would recreate chaya namespace.

@@ -6,12 +6,14 @@
 #include "mqtt.h"
 #include "mqtt_config.h"
 #include "ota.h"
+#include "web_auth.h"
 #include "web_pages.h"
 #include "wlan.h"
 
 #include <Arduino.h>
 #include <ESPAsyncWebServer.h>
 #include <atomic>
+#include <cerrno>
 #include <cstdlib>
 #include <cstring>
 #include <esp_log.h>
@@ -33,8 +35,8 @@ static std::atomic<bool> g_rebootRequested{false};
 static std::atomic<bool> g_wifiConnectRequested{false};
 static std::atomic<bool> g_mqttApplyPending{false};
 
-static MqttConfig        g_mqttPendingCfg;
-static portMUX_TYPE      s_mqttCfgMux = portMUX_INITIALIZER_UNLOCKED;
+static MqttConfig   g_mqttPendingCfg;
+static portMUX_TYPE s_mqttCfgMux = portMUX_INITIALIZER_UNLOCKED;
 
 static bool parseBodyParam(AsyncWebServerRequest* req, const char* name, char* out, size_t outLen) {
     if (req == nullptr || !req->hasParam(name, true)) {
@@ -51,7 +53,7 @@ static bool parseBodyParam(AsyncWebServerRequest* req, const char* name, char* o
 static void handleWifiConnectPost(AsyncWebServerRequest* req) {
     char ssid[33];
     char password[65];
-    ssid[0]    = '\0';
+    ssid[0]     = '\0';
     password[0] = '\0';
     if (!parseBodyParam(req, "ssid", ssid, sizeof(ssid)) || ssid[0] == '\0') {
         req->redirect(F("/wifi"));
@@ -70,9 +72,17 @@ static void handleWifiConnectPost(AsyncWebServerRequest* req) {
 }
 
 static void handleUpdatePost(AsyncWebServerRequest* req) {
+    if (!webAuthIsAuthenticated(req)) {
+        req->redirect(F("/auth"));
+        return;
+    }
+    if (!webAuthValidateCsrfPost(req)) {
+        req->redirect(F("/update"));
+        return;
+    }
     char url[256];
     url[0] = '\0';
-    if (!parseBodyParam(req, "url", url, sizeof(url)) || std::strlen(url) < 10) {
+    if (!parseBodyParam(req, "url", url, sizeof(url)) || std::strlen(url) < 12) {
         req->redirect(F("/update"));
         return;
     }
@@ -84,17 +94,45 @@ static void handleUpdatePost(AsyncWebServerRequest* req) {
 }
 
 static void handleUpdateCheckPost(AsyncWebServerRequest* req) {
+    if (!webAuthIsAuthenticated(req)) {
+        req->redirect(F("/auth"));
+        return;
+    }
+    if (!webAuthValidateCsrfPost(req)) {
+        req->redirect(F("/update"));
+        return;
+    }
     otaQueueGithubCheck();
     streamSimpleDonePage(req, "Update", "Checking GitHub; an update may follow…");
 }
 
 static void handleRebootPost(AsyncWebServerRequest* req) {
+    if (!webAuthIsAuthenticated(req)) {
+        req->redirect(F("/auth"));
+        return;
+    }
+    if (!webAuthValidateCsrfPost(req)) {
+        req->redirect(F("/"));
+        return;
+    }
     g_rebootRequested.store(true, std::memory_order_release);
     streamSimpleDonePage(req, "Reboot", "Rebooting…");
 }
 
 static void handleMqttPost(AsyncWebServerRequest* req) {
-    MqttConfig pending = mqttCfg;
+    if (!webAuthIsAuthenticated(req)) {
+        req->redirect(F("/auth"));
+        return;
+    }
+    if (!webAuthValidateCsrfPost(req)) {
+        req->redirect(F("/mqtt"));
+        return;
+    }
+
+    MqttConfig pending{};
+    portENTER_CRITICAL(&s_mqttCfgMux);
+    pending = mqttCfg;
+    portEXIT_CRITICAL(&s_mqttCfgMux);
 
     if (req->hasParam("mqtt_server", true)) {
         const AsyncWebParameter* p = req->getParam("mqtt_server", true);
@@ -105,7 +143,15 @@ static void handleMqttPost(AsyncWebServerRequest* req) {
     if (req->hasParam("mqtt_port", true)) {
         const AsyncWebParameter* p = req->getParam("mqtt_port", true);
         if (p != nullptr) {
-            pending.port = normalizeMqttPort(atoi(p->value().c_str()));
+            errno          = 0;
+            char* endPtr   = nullptr;
+            const long v   = strtol(p->value().c_str(), &endPtr, 10);
+            const bool bad = (errno == ERANGE) || (endPtr == p->value().c_str()) || (*endPtr != '\0');
+            if (bad) {
+                req->redirect(F("/mqtt"));
+                return;
+            }
+            pending.port = normalizeMqttPort(static_cast<int>(v));
         }
     }
     if (req->hasParam("mqtt_user", true)) {
@@ -116,7 +162,7 @@ static void handleMqttPost(AsyncWebServerRequest* req) {
     }
     if (req->hasParam("mqtt_pass", true)) {
         const AsyncWebParameter* p = req->getParam("mqtt_pass", true);
-        if (p != nullptr) {
+        if (p != nullptr && p->value().length() > 0) {
             strlcpy(pending.password, p->value().c_str(), sizeof(pending.password));
         }
     }
@@ -145,6 +191,14 @@ static void handleMqttPost(AsyncWebServerRequest* req) {
 }
 
 static void handleSettingsPost(AsyncWebServerRequest* req) {
+    if (!webAuthIsAuthenticated(req)) {
+        req->redirect(F("/auth"));
+        return;
+    }
+    if (!webAuthValidateCsrfPost(req)) {
+        req->redirect(F("/settings"));
+        return;
+    }
     bool weekly = false;
     if (req->hasParam("reset_period", true)) {
         const AsyncWebParameter* p = req->getParam("reset_period", true);
@@ -153,6 +207,7 @@ static void handleSettingsPost(AsyncWebServerRequest* req) {
         }
     }
     configSetResetPeriodWeekly(weekly);
+    configSetWebAuthEnabled(req->hasParam("auth_enabled", true));
     req->redirect(F("/settings?saved=1"));
 }
 
@@ -162,8 +217,14 @@ void webAdminRegisterRoutes() {
     }
     g_routesRegistered = true;
 
+    webAuthInit();
     AsyncWebServer& ws = webAdminWebServer();
+    webAuthRegisterRoutes(ws);
+
     ws.on("/", HTTP_GET, [](AsyncWebServerRequest* rq) {
+        if (webAuthRedirectIfUnauthenticated(rq)) {
+            return;
+        }
         streamDashboard(rq);
     });
     ws.on("/wifi", HTTP_GET, [](AsyncWebServerRequest* rq) {
@@ -178,6 +239,9 @@ void webAdminRegisterRoutes() {
     ws.on("/update", HTTP_GET, [](AsyncWebServerRequest* rq) {
         if (configIsApMode()) {
             rq->redirect(F("/"));
+            return;
+        }
+        if (webAuthRedirectIfUnauthenticated(rq)) {
             return;
         }
         streamUpdatePage(rq);
@@ -209,6 +273,9 @@ void webAdminRegisterRoutes() {
             rq->redirect(F("/"));
             return;
         }
+        if (webAuthRedirectIfUnauthenticated(rq)) {
+            return;
+        }
         streamMqttHtmlPage(rq, rq->hasParam("saved"));
     });
     ws.on("/mqtt", HTTP_POST, [](AsyncWebServerRequest* rq) {
@@ -222,6 +289,9 @@ void webAdminRegisterRoutes() {
     ws.on("/settings", HTTP_GET, [](AsyncWebServerRequest* rq) {
         if (configIsApMode()) {
             rq->redirect(F("/"));
+            return;
+        }
+        if (webAuthRedirectIfUnauthenticated(rq)) {
             return;
         }
         streamSettingsPage(rq, rq->hasParam("saved"));
@@ -240,12 +310,16 @@ void webAdminRegisterRoutes() {
 }
 
 void webAdminLoop() {
+    webAuthLoop();
+
     if (g_mqttApplyPending.exchange(false, std::memory_order_acq_rel)) {
         MqttConfig localCfg;
         portENTER_CRITICAL(&s_mqttCfgMux);
         localCfg = g_mqttPendingCfg;
         portEXIT_CRITICAL(&s_mqttCfgMux);
+        portENTER_CRITICAL(&s_mqttCfgMux);
         mqttCfg = localCfg;
+        portEXIT_CRITICAL(&s_mqttCfgMux);
         saveMQTTConfig();
         mqttDisconnect();
         mqttSetup();

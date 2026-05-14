@@ -8,6 +8,7 @@
 #include <SPI.h>
 #include <algorithm>
 #include <atomic>
+#include <cstdint>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -100,12 +101,13 @@ static uint8_t footerTextSizeForDigitCount(size_t digitLen) {
 
 /** Display delta vs baseline, cap at 999 with "999+" for overflow (layout-friendly). */
 static void formatCappedCounterForDisplay(int rawCounter, int baseline, char* buf, size_t buflen) {
-    const int delta = rawCounter - baseline;
-    const int shown = std::max(0, delta);
-    if (shown > 999) {
+    const int64_t delta64 =
+        static_cast<int64_t>(rawCounter) - static_cast<int64_t>(baseline);
+    const int64_t shown64 = std::max<int64_t>(0, std::min<int64_t>(delta64, 9999));
+    if (shown64 > 999) {
         static_cast<void>(snprintf(buf, buflen, "999+"));
     } else {
-        static_cast<void>(snprintf(buf, buflen, "%d", shown));
+        static_cast<void>(snprintf(buf, buflen, "%lld", static_cast<long long>(shown64)));
     }
 }
 
@@ -216,6 +218,61 @@ void drawHeartWithNumber() {
     displaySuspendSpiLowPower();
 
     ESP_LOGI(TAG, "Rotes Herz mit Zaehlern gezeichnet");
+}
+
+void drawAuthCode(uint32_t code) {
+    displayResumeSpiForDraw();
+
+    ESP_LOGI(TAG, "Zeichne Web-Auth-Code…");
+
+    char digits[8];
+    snprintf(digits, sizeof(digits), "%06lu", static_cast<unsigned long>(code % 1000000U));
+
+    const int  dw         = display.width();
+    const int  dh         = display.height();
+    const int  kBaselineY = 120;
+
+    display.setTextColor(GxEPD_BLACK);
+    uint8_t textSize = 4;
+    int16_t x1;
+    int16_t y1;
+    uint16_t w;
+    uint16_t h;
+    for (;;) {
+        display.setTextSize(textSize);
+        display.getTextBounds(digits, 0, 0, &x1, &y1, &w, &h);
+        if (static_cast<int>(w) <= dw - 8 && static_cast<int>(h) <= dh - 24) {
+            break;
+        }
+        if (textSize <= 2) {
+            break;
+        }
+        textSize--;
+    }
+
+    const int cursorX = (dw - static_cast<int>(w)) / 2 - static_cast<int>(x1);
+    const int cursorY = kBaselineY - static_cast<int>(y1);
+
+    display.setFullWindow();
+    display.firstPage();
+    do {
+        esp_task_wdt_reset();
+        display.fillScreen(GxEPD_WHITE);
+        display.setTextSize(1);
+        display.setCursor(4, 8);
+        display.print(F("Web login code"));
+        display.setTextSize(textSize);
+        display.setCursor(static_cast<int16_t>(cursorX), static_cast<int16_t>(cursorY));
+        display.print(digits);
+        display.setTextSize(1);
+        display.setCursor(4, static_cast<int16_t>(dh - 20));
+        display.print(F("Press button to cancel"));
+    } while (display.nextPage());
+
+    display.hibernate();
+    displaySuspendSpiLowPower();
+
+    ESP_LOGI(TAG, "Auth-Code gezeichnet");
 }
 
 void drawSplashScreen() {

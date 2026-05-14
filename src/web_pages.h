@@ -2,6 +2,7 @@
 
 class AsyncWebServerRequest;
 
+void streamAuthPage(AsyncWebServerRequest* req, bool wrongCode);
 void streamSimpleDonePage(AsyncWebServerRequest* req, const char* title, const char* message);
 void streamDashboard(AsyncWebServerRequest* req);
 void streamWifiPage(AsyncWebServerRequest* req);

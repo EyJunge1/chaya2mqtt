@@ -39,8 +39,17 @@ jobs:
       - name: Build release firmware
         run: pio run -e esp32dev-release
 
+      - name: Compute firmware hashes
+        run: |
+          cd .pio/build/esp32dev-release
+          sha256sum firmware.bin | awk '{print $1}' > firmware.sha256
+          sha512sum firmware.bin | awk '{print $1}' > firmware.sha512
+
       - name: Upload release artifact
         uses: softprops/action-gh-release@v2
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
-          files: .pio/build/esp32dev-release/firmware.bin
+          files: |
+            .pio/build/esp32dev-release/firmware.bin
+            .pio/build/esp32dev-release/firmware.sha256
+            .pio/build/esp32dev-release/firmware.sha512
