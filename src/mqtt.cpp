@@ -9,7 +9,9 @@
 #include <PubSubClient.h>
 #include <algorithm>
 #include <climits>
+#include <cerrno>
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <esp_log.h>
 #include <esp_random.h>
@@ -82,18 +84,30 @@ static unsigned long mqttTryConnectSinglePass() {
 // NOLINTNEXTLINE(readability-non-const-parameter) - PubSubClient callback signature is fixed
 static void mqttCallback(char* topic, byte* payload, unsigned int length) {
     (void)topic;
-    static constexpr char kChayaPayload[] = "chaya";
-    static constexpr unsigned int kChayaLen = sizeof(kChayaPayload) - 1U;
-    if (length != kChayaLen || memcmp(payload, kChayaPayload, kChayaLen) != 0) {
-        ESP_LOGD(TAG, "Unerwarteter Payload ignoriert (len=%u)", length);
+    if (length == 0 || length > 10U) {
+        ESP_LOGD(TAG, "Ungueltiger Zaehler-Payload (len=%u)", length);
         return;
     }
 
-    ESP_LOGI(TAG, "Nachricht empfangen: chaya");
+    char buf[16];
+    memcpy(buf, payload, length);
+    buf[length] = '\0';
 
-    if (heartCounter < INT_MAX) {
-        heartCounter++;
+    char* endPtr = nullptr;
+    errno = 0;
+    const long parsed = strtol(buf, &endPtr, 10);
+    if (errno == ERANGE || endPtr != buf + length || parsed < 0 || parsed > INT_MAX) {
+        ESP_LOGD(TAG, "Zaehler-Payload nicht vollstaendig gueltige Zahl");
+        return;
     }
+
+    const int newCounter = static_cast<int>(parsed);
+    if (newCounter == heartCounter) {
+        return;
+    }
+
+    ESP_LOGI(TAG, "Zaehler empfangen (remote gesendete Herzen): %d", newCounter);
+    heartCounter = newCounter;
     requestHeartRedraw();
 }
 
@@ -102,8 +116,14 @@ bool mqttPublishChaya() {
         ESP_LOGW(TAG, "Publish fehlgeschlagen: nicht verbunden");
         return false;
     }
-    static constexpr char kPayload[] = "chaya";
-    return client.publish(mqttCfg.topicPub, kPayload);
+    char buf[16];
+    const long nextVal = static_cast<long>(heartSentCounter) + 1L;
+    if (nextVal > INT_MAX) {
+        ESP_LOGW(TAG, "Publish uebersprungen: heartSentCounter hat Maximum");
+        return false;
+    }
+    static_cast<void>(snprintf(buf, sizeof(buf), "%ld", nextVal));
+    return client.publish(mqttCfg.topicPub, buf, true);
 }
 
 void mqttDisconnect() {

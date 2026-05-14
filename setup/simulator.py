@@ -4,7 +4,8 @@
 MQTT-Gegenseite fuer das chaya2mqtt ESP32 E-Ink-Projekt.
 
 Standard fuer ein ESP mit Default-Topics (Sende chaya/to_b, Empfang chaya/to_a):
-dieser Simulator SUB auf chaya/to_b, PUB auf chaya/to_a, Payload exakt „chaya“.
+dieser Simulator SUB auf chaya/to_b, PUB auf chaya/to_a.
+Payload: Dezimalstring des Zaehlerstands (retained), wie beim ESP-Firmware-Protokoll.
 """
 
 from __future__ import annotations
@@ -24,16 +25,14 @@ except ImportError as e:  # pragma: no cover
     raise e
 
 # ----- Konfiguration (anpassen) -----
-MQTT_HOST = "***REMOVED***"  # z. B. "mqtt.example.com"
+MQTT_HOST = ""  # z. B. "mqtt.example.com"
 MQTT_PORT = 8883
-MQTT_USER = "***REMOVED***"
-MQTT_PASS = "***REMOVED***"
+MQTT_USER = ""
+MQTT_PASS = ""
 
 # Gegenueber ESP-Defaults: ESP publiziert chaya/to_b, subscribed chaya/to_a
 MQTT_TOPIC_PUB = "chaya/to_a"
 MQTT_TOPIC_SUB = "chaya/to_b"
-
-CHAYA_PAYLOAD = b"chaya"
 
 
 def _conn_ok(reason_code: Any) -> bool:
@@ -63,12 +62,18 @@ class SimulatorState:
     def __init__(self) -> None:
         self._lock = threading.Lock()
         self.received_hearts = 0
+        self.sent_hearts = 0
         self.esp_online: bool | None = None
         self.quit_event = threading.Event()
 
-    def add_heart(self) -> None:
+    def set_remote_counter(self, value: int) -> None:
         with self._lock:
-            self.received_hearts += 1
+            self.received_hearts = value
+
+    def next_sent_value(self) -> int:
+        with self._lock:
+            self.sent_hearts += 1
+            return self.sent_hearts
 
     def hearts(self) -> int:
         with self._lock:
@@ -138,10 +143,14 @@ def main() -> None:
             state.set_lwt(msg.payload)
             print(f"[ESP32] Status: {txt}", flush=True)
             return
-        if msg.topic == topic_sub and msg.payload == CHAYA_PAYLOAD:
-            state.add_heart()
-            n = state.hearts()
-            print(f"Empfangene Herzen: {n}", flush=True)
+        if msg.topic == topic_sub:
+            try:
+                remote = int(msg.payload.decode("utf-8").strip())
+            except (UnicodeDecodeError, ValueError):
+                print("[WARN] Ungueltiger Zaehler-Payload, ignoriert.", flush=True)
+                return
+            state.set_remote_counter(remote)
+            print(f"Remote-Zaehlerstand (ESP gesendet): {remote}", flush=True)
             prompt()
 
     client.on_connect = on_connect  # type: ignore[method-assign]
@@ -164,9 +173,14 @@ def main() -> None:
         if not client.is_connected():
             print("[WARN] Nicht verbunden – kann nicht senden.", flush=True)
             return False
-        ok = client.publish(topic_pub, CHAYA_PAYLOAD, qos=0).rc == mqtt.MQTT_ERR_SUCCESS
+        n = state.next_sent_value()
+        payload = str(n).encode("utf-8")
+        ok = (
+            client.publish(topic_pub, payload, qos=1, retain=True).rc
+            == mqtt.MQTT_ERR_SUCCESS
+        )
         if ok:
-            print(f"-> Herz gesendet auf {topic_pub}", flush=True)
+            print(f"-> Zaehler {n} (retained) auf {topic_pub}", flush=True)
         else:
             print("[WARN] Publish fehlgeschlagen.", flush=True)
         return ok

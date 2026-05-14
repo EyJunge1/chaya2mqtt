@@ -13,9 +13,9 @@ struct MqttConfig {
 
 extern MqttConfig mqttCfg;
 
-/** Herz-Zähler (empfangene „chaya“); Persistenz in config.cpp. */
+/** Incoming heart counter (last value received on topicSub, retained decimal payload); persisted in config.cpp. */
 extern int heartCounter;
-/** Herz-Zähler (erfolgreich gesendete „chaya“). */
+/** Outgoing heart counter (successful publishes; next publish sends this + 1); persisted in config.cpp. */
 extern int heartSentCounter;
 
 void loadMQTTConfig();

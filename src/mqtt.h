@@ -7,7 +7,7 @@ void mqttLoop();
 /** True wenn PubSubClient mit dem Broker verbunden ist (vor TLS-Light-Sleep-Schutz nutzen). */
 bool mqttIsConnected();
 
-/** Sendet einen Publish-Versuch "chaya" auf mqtt_topic_pub (TLS). */
+/** Sendet retained Zaehler (heartSentCounter+1) als Dezimalstring auf mqtt_topic_pub (TLS). */
 bool mqttPublishChaya();
 
 /**
