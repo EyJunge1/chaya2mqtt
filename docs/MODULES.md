@@ -126,7 +126,7 @@ Der Zaehlerstand kommt aus **`config.h`** (`extern int heartCounter`).
 
 ## `mqtt.h` / `mqtt.cpp`
 
-**Zweck:** MQTT ueber TLS; Verbindung halten; bei Nachricht Counter erhoehen und Display aktualisieren.
+**Zweck:** MQTT ueber TLS; Verbindung halten; bei Nachricht Counter setzen und Display aktualisieren.
 
 ### Kapselung
 
@@ -139,14 +139,14 @@ Der Zaehlerstand kommt aus **`config.h`** (`extern int heartCounter`).
 | `mqttSetup()` | `setBufferSize(512)` mit Pruefung des Rueckgabewerts; `setServer`, `setCallback`, `setKeepAlive(60)`, `setSocketTimeout(5)` (s), `setCACertBundle()` mit eingebettetem Mozilla-Bundle (bei sehr langen Portal-Strings ggf. Buffer in Code erhoehen) |
 | `mqttLoop()` | Wenn nicht verbunden: Connect-Versuch wenn `millis() - lastAttempt >= backoff` (overflow-sicher); bei Connect-Fehler exponentieller Backoff 5 s bis max. 60 s; **leerer MQTT-Server:** Warteintervall **60 s**; kein WLAN: **5 s**; bei **Uebergang** zu verbunden: Backoff zuruecksetzen; danach `client.loop()` |
 | `mqttMillisUntilNextConnectAttempt()` | Wenn nicht verbunden: verbleibende ms bis zum naechsten Connect-Versuch; **0** wenn verbunden oder Versuch faellig (fuer Light-Sleep-Timer in `main`) |
-| `mqttPublishChaya()` | Ein Publish-Versuch **`chaya`** auf `mqtt_topic_pub`, wenn verbunden; **2** Versuche laufen nicht-blockierend in `button.cpp` (LED-State-Machine, Phase `PublishRetryWait`) |
+| `mqttPublishChaya()` | Publiziert `heartSentCounter + 1` als Dezimalstring (**retained**) auf `mqtt_topic_pub`, wenn verbunden; **2** Versuche laufen nicht-blockierend in `button.cpp` (LED-State-Machine, Phase `PublishRetryWait`) |
 
 ### Callback `mqttCallback`
 
-- Nur Payload exakt **`chaya`** (5 Bytes) wird akzeptiert; alles andere wird ignoriert.
-- Bei `CORE_DEBUG_LEVEL > 0`: Serial mit `Serial.write(payload, length)` (ohne `String`-Allokation).
+- Payload wird als Dezimalstring geparst (max. 10 Zeichen, `strtol`, `errno == ERANGE` wird geprueft); ungueltige Payloads werden ignoriert.
 - **Ignoriert** den Topic-Namen (`(void)topic`).
-- **`heartCounter++`**, `requestHeartRedraw()`; kein E-Paper im Callback; Persistenz des Zaehlers ueber `maybeSaveHeartCounter()` in `loop()` (throttled ~30 s).
+- `heartCounter` wird direkt auf den empfangenen Wert **gesetzt** (kein `++`); `requestHeartRedraw()` nur, wenn sich der Wert geaendert hat.
+- Kein E-Paper im Callback; Persistenz des Zaehlers ueber `maybeSaveHeartCounter()` in `loop()` (throttled ~30 s).
 
 ### Implementierungsdetails
 

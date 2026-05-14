@@ -9,7 +9,7 @@ Die Firmware ist in **vier logische Module** plus `main.cpp` aufgeteilt:
 | **config** | `config.h`, `config.cpp` | MQTT/Zähler (Namespace `chaya`) in NVS, WLAN/Captive Portal, Factory Reset |
 | **web_admin** | `web_admin.h`, `web_admin.cpp` | HTTP `/mqtt` Wartungsseite (gemeinsamer `AsyncWebServer` mit ESPConnect) |
 | **display** | `display.h`, `display.cpp` | GxEPD2-Initialisierung, Zeichnen Herz + Zahl |
-| **mqtt** | `mqtt.h`, `mqtt.cpp` | TLS-Client, Broker-Verbindung, Subscribe/Publish, Callback erhoeht Counter |
+| **mqtt** | `mqtt.h`, `mqtt.cpp` | TLS-Client, Broker-Verbindung, Subscribe/Publish, Callback setzt Counter auf empfangenen Zaehlerstand |
 | **button** | `button.h`, `button.cpp` | GPIO Taster + LED, Kurzdruck -> Publish, Langdruck -> Reset |
 
 `main.cpp` **orchestriert** die Initialisierung und ruft in `loop()` die Modul-Loops auf.
@@ -60,7 +60,9 @@ flowchart LR
     broker -->|"subscribe chaya/to_a"| devA
 ```
 
-Beim **Empfang** einer Nachricht auf dem Empfangs-Topic wird der lokale `heartCounter` nur erhoeht, wenn der Payload exakt **`chaya`** ist (5 Bytes); sonst wird die Nachricht ignoriert. Anschliessend wird das Herz-Display neu gezeichnet.
+Beim **Empfang** einer Nachricht auf dem Empfangs-Topic wird der Payload als Dezimalzahl geparst und `heartCounter` direkt auf diesen Wert **gesetzt** (kein `++`). Ungueltige Payloads (keine ganze Zahl, Laenge > 10) werden ignoriert. Anschliessend wird das Herz-Display neu gezeichnet, sofern sich der Wert geaendert hat.
+
+Da Nachrichten als **retained** publiziert werden, liefert der Broker beim Reconnect automatisch den letzten Zaehlerstand -- Nachrichten, die waehrend einer Offline-Phase verpasst wurden, gehen nicht verloren.
 
 - **Transport:** `WiFiClientSecure` + `PubSubClient`
 - **TLS:** In `mqtt.cpp`: `WiFiClientSecure::setCACertBundle()` mit dem eingebauten Mozilla-CA-Bundle aus `libmbedtls.a` (ESP-IDF `CONFIG_MBEDTLS_CERTIFICATE_BUNDLE`)
@@ -130,9 +132,9 @@ flowchart TD
 |--------|------|
 | Sende-Topic | Konfigurierbar, Default `chaya/to_b` |
 | Empfangs-Topic | Konfigurierbar, Default `chaya/to_a` |
-| Publish (Knopf) | Payload = **`chaya`** auf Sende-Topic (`mqttPublishChaya()`) |
-| Subscribe | Empfangs-Topic mit **QoS 1** |
-| Callback | Nur Payload `chaya` -> `heartCounter++`, `requestHeartRedraw()`; Zeichnung in `loop()`; nach Redraw `flushHeartCounterIfDirty()`; zusaetzlich `maybeSaveHeartCounter()` (~30 s) |
+| Publish (Knopf) | Payload = `heartSentCounter + 1` als Dezimalstring, **retained**, auf Sende-Topic (`mqttPublishChaya()`) |
+| Subscribe | Empfangs-Topic mit **QoS 1**; Broker liefert beim Reconnect automatisch letzten retained Zaehlerstand |
+| Callback | Dezimalstring parsen -> `heartCounter` **setzen** (nicht inkrementieren); `requestHeartRedraw()` nur bei Aenderung; Zeichnung in `loop()`; nach Redraw `flushHeartCounterIfDirty()`; zusaetzlich `maybeSaveHeartCounter()` (~30 s) |
 | LWT | Topic = Sende-Topic + **`/lwt`**, Payload **`offline`**, QoS 1, retain; nach Connect retained **`online`** auf dasselbe Topic |
 
 Authentifizierung: optional ueber `mqtt_username` / `mqtt_password` aus dem Portal.

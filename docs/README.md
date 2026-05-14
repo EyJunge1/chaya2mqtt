@@ -1,11 +1,11 @@
 # Chaya2MQTT – E-Ink-Herz mit MQTT
 
-Zwei ESP32-Geräte mit einem 3-Farben-E-Paper-Display zeigen jeweils ein **rotes Herz** mit einer **Zahl** (Zähler). Wird auf **Gerät A** der Knopf gedrückt, sendet es eine MQTT-Nachricht auf sein **Sende-Topic**; **Gerät B** empfängt diese auf seinem **Empfangs-Topic**, erhöht den angezeigten Zähler und aktualisiert das Display. Umgekehrt genauso – jedes Gerät hat getrennte Sende- und Empfangs-Topics, damit sich nur der Counter auf dem **anderen** Gerät erhöht.
+Zwei ESP32-Geräte mit einem 3-Farben-E-Paper-Display zeigen jeweils ein **rotes Herz** mit einer **Zahl** (Zähler). Wird auf **Gerät A** der Knopf gedrückt, publiziert es seinen aktuellen Sendezähler als **retained MQTT-Nachricht** auf sein **Sende-Topic**; **Gerät B** empfängt diese auf seinem **Empfangs-Topic**, setzt seinen Zähler auf den empfangenen Wert und aktualisiert das Display. Umgekehrt genauso – jedes Gerät hat getrennte Sende- und Empfangs-Topics, damit sich nur der Counter auf dem **anderen** Gerät ändert. Dank retained Messages holt sich ein Gerät nach einer Offline-Phase automatisch den aktuellen Zählerstand, sobald es wieder verbindet.
 
 ## Funktionen
 
 - **E-Ink-Display**: Rotes Herz mit schwarzer Zahl auf dem Waveshare 1.54inch e-Paper (B), 200x200, 3-Farben (GxEPD2, Treiber `GxEPD2_154_Z90c`)
-- **MQTT-Synchronisation**: Publish beim Knopfdruck, Subscribe empfängt und erhöht den Counter
+- **MQTT-Synchronisation**: Publish beim Knopfdruck (Sendezähler als retained Dezimalstring); Subscribe setzt den Counter auf den empfangenen Wert – verpasste Nachrichten werden beim Reconnect automatisch nachgeholt
 - **TLS**: Verbindung zum Broker über `WiFiClientSecure` mit dem **eingebauten Mozilla-CA-Bundle** des ESP-IDF (Zertifikatsprüfung; Port typisch **8883**)
 - **Web-/Captive-Portal**: WiFi-Zugang und MQTT-Daten (Server, Port, Benutzer, Passwort, Topic) über **WiFiManager** („Chaya2MQTT")
 - **Knopf mit LED**: Kurzer Druck → MQTT senden + LED blinkt; nach erfolgreichem Senden nochmals Blinken
@@ -56,7 +56,7 @@ Beide flashen mit dem **gleichen Firmware-Stand** (empfohlen). Dieselben **Broke
 | **Sende-Topic** | `chaya/to_b` | `chaya/to_a` |
 | **Empfangs-Topic** | `chaya/to_a` | `chaya/to_b` |
 
-So gilt: Knopf auf A → publiziert auf `chaya/to_b` → B empfängt → **Counter auf B wird um 1 erhöht** und Herz neu gezeichnet. Umgekehrt genauso (siehe [ARCHITECTURE.md](ARCHITECTURE.md)).
+So gilt: Knopf auf A → publiziert Sendezähler (retained) auf `chaya/to_b` → B empfängt → **Counter auf B wird auf diesen Wert gesetzt** und Herz neu gezeichnet. War B offline, holt es sich den aktuellen Stand beim nächsten Reconnect. Umgekehrt genauso (siehe [ARCHITECTURE.md](ARCHITECTURE.md)).
 
 ## Factory Reset
 
