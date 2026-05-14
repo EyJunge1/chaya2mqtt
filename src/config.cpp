@@ -117,6 +117,15 @@ static void wifiStationEvent(arduino_event_id_t event) {
 void loadMQTTConfig() {
     if (!preferences.begin("mqtt", true)) {
         ESP_LOGW(TAG, "NVS mqtt: lesen fehlgeschlagen, nutze Defaults");
+        strlcpy(mqttCfg.topicPub, "chaya/to_b", sizeof(mqttCfg.topicPub));
+        strlcpy(mqttCfg.topicSub, "chaya/to_a", sizeof(mqttCfg.topicSub));
+        return;
+    }
+    if (!preferences.isKey("server")) {
+        preferences.end();
+        ESP_LOGI(TAG, "MQTT noch nicht konfiguriert, nutze Defaults");
+        strlcpy(mqttCfg.topicPub, "chaya/to_b", sizeof(mqttCfg.topicPub));
+        strlcpy(mqttCfg.topicSub, "chaya/to_a", sizeof(mqttCfg.topicSub));
         return;
     }
     preferences.getString("server", mqttCfg.server, sizeof(mqttCfg.server));
