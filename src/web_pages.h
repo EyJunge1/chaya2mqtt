@@ -8,3 +8,4 @@ void streamWifiPage(AsyncWebServerRequest* req);
 void handleWifiScanJson(AsyncWebServerRequest* req);
 void streamUpdatePage(AsyncWebServerRequest* req);
 void streamMqttHtmlPage(AsyncWebServerRequest* req, bool showSavedBanner);
+void streamSettingsPage(AsyncWebServerRequest* req, bool showSavedBanner);

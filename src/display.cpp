@@ -99,6 +99,17 @@ static uint8_t footerTextSizeForDigitCount(size_t digitLen) {
     return 2;
 }
 
+/** Display delta vs baseline, cap at 999 with "999+" for overflow (layout-friendly). */
+static void formatCappedCounterForDisplay(int rawCounter, int baseline, char* buf, size_t buflen) {
+    const int delta = rawCounter - baseline;
+    const int shown = std::max(0, delta);
+    if (shown > 999) {
+        static_cast<void>(snprintf(buf, buflen, "999+"));
+    } else {
+        static_cast<void>(snprintf(buf, buflen, "%d", shown));
+    }
+}
+
 void drawHeartWithNumber() {
     displayResumeSpiForDraw();
 
@@ -124,8 +135,8 @@ void drawHeartWithNumber() {
 
     char recvBuf[16];
     char sentBuf[16];
-    static_cast<void>(snprintf(recvBuf, sizeof(recvBuf), "%d", heartCounter));
-    static_cast<void>(snprintf(sentBuf, sizeof(sentBuf), "%d", heartSentCounter));
+    formatCappedCounterForDisplay(heartCounter, counterBaseline, recvBuf, sizeof(recvBuf));
+    formatCappedCounterForDisplay(heartSentCounter, sentCountBaseline, sentBuf, sizeof(sentBuf));
     const size_t recvLen = std::max<size_t>(strlen(recvBuf), size_t{1});
     const size_t sentLen = std::max<size_t>(strlen(sentBuf), size_t{1});
 

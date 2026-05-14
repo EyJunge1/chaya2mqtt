@@ -87,6 +87,7 @@ void streamDashboard(AsyncWebServerRequest* req) {
     } else {
         resp->print(F("<a class='card' href='/wifi'>Wi-Fi</a>"
                       "<a class='card' href='/mqtt'>MQTT</a>"
+                      "<a class='card' href='/settings'>Settings</a>"
                       "<a class='card' href='/update'>Firmware Update</a>"
                       "<form method='post' action='/reboot'>"
                       "<button type='submit' class='card danger'>Reboot</button></form>"
@@ -242,5 +243,33 @@ void streamMqttHtmlPage(AsyncWebServerRequest* req, bool showSavedBanner) {
     response->print(F("'/>"
                       "<button type='submit'>Save</button></form>"
                       "<a class='btn-back' href='/'>Back</a></body></html>"));
+    req->send(response);
+}
+
+void streamSettingsPage(AsyncWebServerRequest* req, bool showSavedBanner) {
+    AsyncResponseStream* response = req->beginResponseStream("text/html");
+    streamPageHeader(*response, "Settings");
+    response->print(F("<h1>Settings</h1>"));
+    if (showSavedBanner) {
+        response->print(F("<p class='ok'>&#10003; Saved.</p>"));
+    }
+    response->print(
+        F("<p class='hint'>Heart counter display: reset baseline daily or weekly (UTC day). "
+          "MQTT retained totals are unchanged; E-Paper shows delta since last reset, max 999 (&quot;999+&quot;).</p>"
+          "<form method='post' action='/settings'>"
+          "<fieldset><legend>Display counter reset</legend>"
+          "<label><input type='radio' name='reset_period' value='daily'"));
+    if (!configGetResetPeriodIsWeekly()) {
+        response->print(F(" checked"));
+    }
+    response->print(F("> Daily (UTC midnight)</label><br>"
+                       "<label><input type='radio' name='reset_period' value='weekly'"));
+    if (configGetResetPeriodIsWeekly()) {
+        response->print(F(" checked"));
+    }
+    response->print(F("> Weekly (every 7 UTC days)</label>"
+                       "</fieldset>"
+                       "<button type='submit'>Save</button></form>"
+                       "<a class='btn-back' href='/'>Back</a></body></html>"));
     req->send(response);
 }

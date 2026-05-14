@@ -118,13 +118,6 @@ static void nvSaveLastUpdateCalendarDay(uint32_t dayUtc) {
     s_nvUpdateDayCacheValid = true;
 }
 
-static uint32_t calendarDaySinceEpochUtc(time_t utc) {
-    if (utc < 0) {
-        utc = 0;
-    }
-    return static_cast<uint32_t>(static_cast<uint64_t>(utc) / 86400ULL);
-}
-
 /** Prüfe GitHub `releases/latest`; setzt bei neuer Tag-Version OTA-Anforderung (download URL). */
 static void checkGithubUpdate() {
     if (WiFi.status() != WL_CONNECTED || WiFi.localIP()[0] == 0) {
@@ -341,6 +334,16 @@ static void handleMqttPost(AsyncWebServerRequest* req) {
     req->redirect(F("/mqtt?saved=1"));
 }
 
+static void handleSettingsPost(AsyncWebServerRequest* req) {
+    bool weekly = false;
+    if (req->hasParam("reset_period", true)) {
+        const String v = req->getParam("reset_period", true)->value();
+        weekly = (v == "weekly");
+    }
+    configSetResetPeriodWeekly(weekly);
+    req->redirect(F("/settings?saved=1"));
+}
+
 void webAdminRegisterRoutes() {
     if (g_routesRegistered) {
         return;
@@ -384,6 +387,15 @@ void webAdminRegisterRoutes() {
     ws.on("/mqtt", HTTP_POST, [](AsyncWebServerRequest* rq) {
         if (configIsApMode()) { rq->redirect(F("/")); return; }
         handleMqttPost(rq);
+    });
+
+    ws.on("/settings", HTTP_GET, [](AsyncWebServerRequest* rq) {
+        if (configIsApMode()) { rq->redirect(F("/")); return; }
+        streamSettingsPage(rq, rq->hasParam("saved"));
+    });
+    ws.on("/settings", HTTP_POST, [](AsyncWebServerRequest* rq) {
+        if (configIsApMode()) { rq->redirect(F("/")); return; }
+        handleSettingsPost(rq);
     });
 
     ws.onNotFound([](AsyncWebServerRequest* rq) {

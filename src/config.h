@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <ctime>
 
 struct MqttConfig {
     char server[128]    = "";
@@ -17,6 +18,12 @@ extern MqttConfig mqttCfg;
 extern int heartCounter;
 /** Outgoing heart counter (successful publishes; next publish sends this + 1); persisted in config.cpp. */
 extern int heartSentCounter;
+/** Baselines for periodic display reset (NVS); displayed delta = raw counter minus baseline (capped in display). */
+extern int counterBaseline;
+extern int sentCountBaseline;
+
+/** UTC calendar day index since epoch (floor(epoch_seconds / 86400)); used for periodic counter reset. */
+uint32_t calendarDaySinceEpochUtc(time_t utc);
 
 void loadMQTTConfig();
 void saveMQTTConfig();
@@ -34,6 +41,16 @@ void maybeSaveHeartSentCounter();
 /** Sofort speichern, falls Zähler seit letztem Commit geändert (z. B. vor Neustart). */
 void flushHeartCounterIfDirty();
 void flushHeartSentCounterIfDirty();
+
+/** Load counter baselines and last reset calendar day from NVS (namespace chaya). */
+void loadCounterBaseline();
+/** If NTP time is valid, roll display baselines daily or weekly (retained MQTT counters unchanged). */
+void maybePeriodicallyResetCounters();
+
+/** true = weekly reset, false = daily reset (NVS cfg/rstPeriod). */
+bool configGetResetPeriodIsWeekly();
+void configSetResetPeriodWeekly(bool weekly);
+
 void setupWiFi();
 void resetAllSettings();
 
