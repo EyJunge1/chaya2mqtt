@@ -10,6 +10,7 @@
 #include <Preferences.h>
 #include <WiFi.h>
 #include <algorithm>
+#include <atomic>
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
@@ -48,8 +49,10 @@ static DNSServer      g_dnsServer;
 static bool           g_apMode = false;
 
 /** STA-Reconnect-Backoff (Event-Task): weniger Strom/Leerlauf-Reconnect-Wut bei dauerhaft fehlendem AP. */
-static unsigned long  s_wifiReconnectNextAllowedMs = 0;
-static uint32_t       s_wifiReconnectFailCount     = 0;
+static unsigned long       s_wifiReconnectNextAllowedMs = 0;
+static uint32_t            s_wifiReconnectFailCount     = 0;
+/** GOT_IP (WiFi-Event-Task): mDNS in configLoop() neu starten. */
+static std::atomic<bool>   s_mdnsRestartNeeded{false};
 
 static void wifiStationEvent(arduino_event_id_t event);
 
@@ -102,6 +105,7 @@ static void wifiStationEvent(arduino_event_id_t event) {
             s_wifiReconnectFailCount     = 0;
             s_wifiReconnectNextAllowedMs = 0;
             ESP_LOGI(TAG, "WLAN Sta-IP: %s", WiFi.localIP().toString().c_str());
+            s_mdnsRestartNeeded.store(true, std::memory_order_release);
             break;
         default:
             break;
@@ -307,6 +311,12 @@ void resetAllSettings() {
 void configLoop() {
     if (g_apMode) {
         g_dnsServer.processNextRequest();
+    }
+    if (s_mdnsRestartNeeded.exchange(false, std::memory_order_acq_rel) && !g_apMode) {
+        MDNS.end();
+        if (!MDNS.begin(kDeviceHostname)) {
+            ESP_LOGW(TAG, "mDNS.begin nach GOT_IP fehlgeschlagen");
+        }
     }
     webAdminLoop();
 }

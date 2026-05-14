@@ -128,6 +128,9 @@ void loop() {
     } else if (mqttIsConnected()) {
         /* Kein Light Sleep bei aktiver TLS-Session: sonst BEACON_TIMEOUT / Socket-Fehler. */
         delay(50);
+    } else if (mqttCfg.server[0] == '\0') {
+        /* MQTT noch nicht konfiguriert: Web-Admin muss erreichbar sein (mDNS). */
+        delay(50);
     } else {
         static uint64_t lastArmedLightSleepTimerUs = UINT64_MAX;
         const uint64_t lightSleepTimerUs = computeLightSleepTimerUs();
