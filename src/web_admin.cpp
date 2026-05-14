@@ -276,7 +276,10 @@ static void handleWifiConnectPost(AsyncWebServerRequest* req) {
         return;
     }
     g_wifiConnectRequested.store(true, std::memory_order_release);
-    streamSimpleDonePage(req, "Wi-Fi", "Wi-Fi saved. Device is restarting…");
+    streamSimpleDonePage(req, "Wi-Fi",
+        "Wi-Fi gespeichert. Ger&auml;t startet neu.<br>"
+        "MQTT und weitere Einstellungen unter "
+        "<strong>http://chaya2mqtt.local</strong> konfigurieren (gleiches WLAN).");
 }
 
 static void handleUpdatePost(AsyncWebServerRequest* req) {
@@ -357,22 +360,30 @@ void webAdminRegisterRoutes() {
         handleWifiConnectPost(rq);
     });
     ws.on("/update", HTTP_GET, [](AsyncWebServerRequest* rq) {
+        if (configIsApMode()) { rq->redirect(F("/")); return; }
         streamUpdatePage(rq);
     });
     ws.on("/update", HTTP_POST, [](AsyncWebServerRequest* rq) {
+        if (configIsApMode()) { rq->redirect(F("/")); return; }
         handleUpdatePost(rq);
     });
     ws.on("/update-check", HTTP_POST, [](AsyncWebServerRequest* rq) {
+        if (configIsApMode()) { rq->redirect(F("/")); return; }
         handleUpdateCheckPost(rq);
     });
     ws.on("/reboot", HTTP_POST, [](AsyncWebServerRequest* rq) {
+        if (configIsApMode()) { rq->redirect(F("/")); return; }
         handleRebootPost(rq);
     });
 
     ws.on("/mqtt", HTTP_GET, [](AsyncWebServerRequest* rq) {
+        if (configIsApMode()) { rq->redirect(F("/")); return; }
         streamMqttHtmlPage(rq, rq->hasParam("saved"));
     });
-    ws.on("/mqtt", HTTP_POST, handleMqttPost);
+    ws.on("/mqtt", HTTP_POST, [](AsyncWebServerRequest* rq) {
+        if (configIsApMode()) { rq->redirect(F("/")); return; }
+        handleMqttPost(rq);
+    });
 
     ws.onNotFound([](AsyncWebServerRequest* rq) {
         rq->redirect(F("/"));

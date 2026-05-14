@@ -78,12 +78,21 @@ void streamSimpleDonePage(AsyncWebServerRequest* req, const char* title, const c
 void streamDashboard(AsyncWebServerRequest* req) {
     AsyncResponseStream* resp = req->beginResponseStream("text/html");
     streamPageHeader(*resp, "Dashboard");
-    resp->print(F("<h1>Chaya2MQTT</h1><div class='grid'><a class='card' href='/wifi'>Wi-Fi</a>"
-                  "<a class='card' href='/mqtt'>MQTT</a>"
-                  "<a class='card' href='/update'>Firmware Update</a>"
-                  "<form method='post' action='/reboot'>"
-                  "<button type='submit' class='card danger'>Reboot</button></form>"
-                  "</div></body></html>"));
+    resp->print(F("<h1>Chaya2MQTT</h1><div class='grid'>"));
+    if (configIsApMode()) {
+        resp->print(F("<a class='card' href='/wifi'>Wi-Fi Setup</a></div>"
+                      "<p class='hint'>WLAN einrichten, um das Ger&auml;t mit dem Netzwerk zu verbinden.<br>"
+                      "MQTT und weitere Einstellungen sind danach unter "
+                      "<strong>http://chaya2mqtt.local</strong> verf&uuml;gbar.</p>"));
+    } else {
+        resp->print(F("<a class='card' href='/wifi'>Wi-Fi</a>"
+                      "<a class='card' href='/mqtt'>MQTT</a>"
+                      "<a class='card' href='/update'>Firmware Update</a>"
+                      "<form method='post' action='/reboot'>"
+                      "<button type='submit' class='card danger'>Reboot</button></form>"
+                      "</div>"));
+    }
+    resp->print(F("</body></html>"));
     req->send(resp);
 }
 
