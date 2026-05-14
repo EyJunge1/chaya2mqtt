@@ -89,7 +89,6 @@ static void wifiStationEvent(arduino_event_id_t event) {
             }
             ESP_LOGW(TAG, "WLAN getrennt, versuche Reconnect...");
             if (WiFi.getMode() == WIFI_STA || WiFi.getMode() == WIFI_AP_STA) {
-                WiFi.setHostname(kDeviceHostname);
                 WiFi.reconnect();
                 constexpr unsigned long kBaseBackoffMs = 3000UL;
                 constexpr unsigned long kMaxBackoffMs  = 120000UL;
@@ -225,6 +224,8 @@ void setupWiFi() {
 
     if (ssid.length() > 0) {
         WiFi.mode(WIFI_STA);
+        // DHCP + Hostname: ohne config() vor setHostname() ignoriert der Core den Option-12-Namen (Bug #2537).
+        WiFi.config(INADDR_NONE, INADDR_NONE, INADDR_NONE, INADDR_NONE);
         WiFi.setHostname(kDeviceHostname);
         WiFi.persistent(false);
         WiFi.setAutoReconnect(false);
