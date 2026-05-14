@@ -31,7 +31,7 @@ static constexpr const char kNvRstPeriod[] = "rstPeriod";
 
 static constexpr const char kNvAuthEn[] = "authEn";
 
-static bool s_resetPeriodWeeklyCached = false;
+static uint8_t s_resetPeriodDaysCached = 7;
 static bool s_webAuthEnabledCached     = false;
 
 static int           lastCommittedHeartCounter                = 0;
@@ -90,26 +90,38 @@ void configSetWebAuthEnabled(bool enabled) {
 void configLoadResetPeriodFromNvs() {
     Preferences prefs;
     if (!prefs.begin("cfg", true)) {
-        s_resetPeriodWeeklyCached = false;
+        s_resetPeriodDaysCached = 7;
         return;
     }
-    s_resetPeriodWeeklyCached = (prefs.getUChar(kNvRstPeriod, 0) != 0);
+    const uint8_t raw = prefs.getUChar(kNvRstPeriod, 7);
     prefs.end();
+    if (raw == 0U) {
+        s_resetPeriodDaysCached = 0;
+        return;
+    }
+    if (raw <= 30U) {
+        s_resetPeriodDaysCached = raw;
+        return;
+    }
+    s_resetPeriodDaysCached = 7;
 }
 
-bool configGetResetPeriodIsWeekly() {
-    return s_resetPeriodWeeklyCached;
+uint8_t configGetResetPeriodDays() {
+    return s_resetPeriodDaysCached;
 }
 
-void configSetResetPeriodWeekly(bool weekly) {
+void configSetResetPeriodDays(uint8_t days) {
+    if (days > 30U) {
+        days = 30U;
+    }
     Preferences prefs;
     if (!prefs.begin("cfg", false)) {
         ESP_LOGE(TAG, "NVS cfg: rstPeriod schreiben fehlgeschlagen");
         return;
     }
-    prefs.putUChar(kNvRstPeriod, weekly ? 1 : 0);
+    prefs.putUChar(kNvRstPeriod, days);
     prefs.end();
-    s_resetPeriodWeeklyCached = weekly;
+    s_resetPeriodDaysCached = days;
 }
 
 static bool persistCounterBaselineState() {
@@ -143,16 +155,14 @@ void maybePeriodicallyResetCounters() {
         return;
     }
 
-    const bool weekly      = configGetResetPeriodIsWeekly();
-    bool       shouldReset = false;
-    if (weekly) {
-        if (s_lastResetCalendarDayUtc <= currentDay
-            && (currentDay - s_lastResetCalendarDayUtc) >= 7U) {
-            shouldReset = true;
-        }
-    } else {
-        shouldReset = (currentDay != s_lastResetCalendarDayUtc);
+    const uint8_t periodDays = configGetResetPeriodDays();
+    if (periodDays == 0U) {
+        return;
     }
+
+    const uint32_t daysSinceReset
+        = (currentDay >= s_lastResetCalendarDayUtc) ? (currentDay - s_lastResetCalendarDayUtc) : 0U;
+    const bool      shouldReset = (daysSinceReset >= static_cast<uint32_t>(periodDays));
 
     if (!shouldReset) {
         return;
@@ -162,7 +172,28 @@ void maybePeriodicallyResetCounters() {
     sentCountBaseline         = heartSentCounter;
     s_lastResetCalendarDayUtc = currentDay;
     if (persistCounterBaselineState()) {
-        ESP_LOGI(TAG, "Periodic display counter reset (%s)", weekly ? "weekly" : "daily");
+        ESP_LOGI(TAG, "Periodic display counter reset (%u days)", static_cast<unsigned>(periodDays));
+        requestHeartRedraw();
+    }
+}
+
+void maybeResetDisplayBaselinesWhenCapped() {
+    if (configIsApMode()) {
+        return;
+    }
+    bool changed = false;
+    const int64_t dRecv = static_cast<int64_t>(heartCounter) - static_cast<int64_t>(counterBaseline);
+    const int64_t dSent = static_cast<int64_t>(heartSentCounter) - static_cast<int64_t>(sentCountBaseline);
+    if (dRecv >= 999) {
+        counterBaseline = heartCounter;
+        changed         = true;
+    }
+    if (dSent >= 999) {
+        sentCountBaseline = heartSentCounter;
+        changed           = true;
+    }
+    if (changed && persistCounterBaselineState()) {
+        ESP_LOGI(TAG, "Display baseline reset (display reached 999)");
         requestHeartRedraw();
     }
 }

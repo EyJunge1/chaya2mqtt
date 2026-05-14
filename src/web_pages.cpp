@@ -10,6 +10,7 @@
 #include "version.h"
 #include "wlan.h"
 #include "web_styles.h"
+#include "web_wifi_scan_js.h"
 #include "web_auth.h"
 #include <cstdio>
 
@@ -125,7 +126,7 @@ void streamDashboard(AsyncWebServerRequest* req) {
         resp->print(F("<a class='card' href='/wifi'>Wi-Fi</a>"
                       "<a class='card' href='/mqtt'>MQTT</a>"
                       "<a class='card' href='/settings'>Settings</a>"
-                      "<a class='card' href='/update'>Firmware Update</a>"
+                      "<a class='card' href='/update'>OTA Update</a>"
                       "<form method='post' action='/reboot'>"
                       "<input type='hidden' name='csrf_token' value='"));
         {
@@ -164,31 +165,9 @@ void streamWifiPage(AsyncWebServerRequest* req) {
           "<label for='pwd'>Password</label>"
           "<input name='password' id='pwd' type='password' maxlength='64' autocomplete='current-password'/>"
           "<button type='submit'>Connect</button></form>"
-          "<script>"
-          "(function(){"
-          "var ss=document.getElementById('ssid'),lst=document.getElementById('list'),st=document.getElementById('st');"
-          "function poll(){"
-          "fetch('/wifi-scan').then(function(r){"
-          "if(r.status===202){st.textContent='Scanning…';return Promise.resolve(null);}"
-          "return r.json();"
-          "}).then(function(rows){"
-          "if(rows===null)return;"
-          "lst.innerHTML='';"
-          "if(!rows||!rows.length){st.textContent='No networks found.';return;}"
-          "st.textContent='Click a network, enter password, press Connect.';"
-          "for(var i=0;i<rows.length;i++){"
-          "var li=document.createElement('li');"
-          "var a=document.createElement('a');a.href='#';"
-          "(function(nm){"
-          "a.onclick=function(ev){ev.preventDefault();ss.value=nm;return false};"
-          "})(rows[i].ssid);"
-          "var o=rows[i].open?', open':'';"
-          "a.textContent=rows[i].ssid+' ('+rows[i].rssi+' dBm'+o+')';"
-          "li.appendChild(a);lst.appendChild(li);"
-          "} "
-          "}).catch(function(){st.textContent='Scan error.'});"
-          "} setInterval(poll,1500);poll();})();"
-          "</script><a class='btn-back' href='/'>Back</a></body></html>"));
+          "<script>"));
+    resp->print(reinterpret_cast<const __FlashStringHelper*>(WIFI_SCAN_JS));
+    resp->print(F("</script><a class='btn-back' href='/'>Back</a></body></html>"));
     req->send(resp);
 }
 
@@ -225,9 +204,9 @@ void handleWifiScanJson(AsyncWebServerRequest* req) {
 
 void streamUpdatePage(AsyncWebServerRequest* req) {
     AsyncResponseStream* resp = req->beginResponseStream("text/html");
-    streamPageHeader(*resp, "Firmware");
-    resp->print(F("<h1>Firmware Update</h1>"
-                  "<p class='hint'>Installed firmware: <strong>"));
+    streamPageHeader(*resp, "OTA Update");
+    resp->print(F("<h1>OTA Update</h1>"
+                  "<p class='hint'>Installed firmware version: <strong>"));
     resp->print(APP_VERSION);
     resp->print(F("</strong></p>"
                   "<form method='post' action='/update-check'>"
@@ -239,16 +218,6 @@ void streamUpdatePage(AsyncWebServerRequest* req) {
     }
     resp->print(F("'/><button type='submit'>Check for Update</button>"
                   "</form>"
-                  "<h2>Custom</h2>"
-                  "<form method='post' action='/update'><input type='hidden' name='csrf_token' value='"));
-    {
-        char b2[24];
-        snprintf(b2, sizeof(b2), "%lu", static_cast<unsigned long>(webAuthGetCsrfToken()));
-        appendHtmlEscaped(*resp, b2);
-    }
-    resp->print(F("'/><label for='url'>URL</label>"
-                  "<input id='url' name='url' type='url' required placeholder='https://…'/>"
-                  "<button type='submit'>Update</button></form>"
                   "<a class='btn-back' href='/'>Back</a></body></html>"));
     req->send(resp);
 }
@@ -309,35 +278,29 @@ void streamSettingsPage(AsyncWebServerRequest* req, bool showSavedBanner) {
     if (showSavedBanner) {
         response->print(F("<p class='ok'>&#10003; Saved.</p>"));
     }
-    response->print(
-        F("<p class='hint'>Heart counter display: reset baseline daily or weekly (UTC day). "
-          "MQTT retained totals are unchanged; E-Paper shows delta since last reset, max 999 (&quot;999+&quot;).</p>"
-          "<form method='post' action='/settings'>"
-          "<input type='hidden' name='csrf_token' value='"));
+    response->print(F("<form method='post' action='/settings'>"
+                      "<input type='hidden' name='csrf_token' value='"));
     {
         char b[24];
         snprintf(b, sizeof(b), "%lu", static_cast<unsigned long>(webAuthGetCsrfToken()));
         appendHtmlEscaped(*response, b);
     }
-    response->print(F("'/><fieldset><legend>Display counter reset</legend>"
-                       "<label><input type='radio' name='reset_period' value='daily'"));
-    if (!configGetResetPeriodIsWeekly()) {
-        response->print(F(" checked"));
+    response->print(F("'/><label for='reset_days'>Display counter reset (days)</label>"
+                       "<input type='number' id='reset_days' name='reset_days' min='0' max='30' value='"));
+    {
+        char buf[8];
+        snprintf(buf, sizeof(buf), "%u", static_cast<unsigned>(configGetResetPeriodDays()));
+        appendHtmlEscaped(*response, buf);
     }
-    response->print(F("> Daily (UTC midnight)</label><br>"
-                       "<label><input type='radio' name='reset_period' value='weekly'"));
-    if (configGetResetPeriodIsWeekly()) {
-        response->print(F(" checked"));
-    }
-    response->print(F("> Weekly (every 7 UTC days)</label>"
-                       "</fieldset>"
-                       "<fieldset><legend>Web admin</legend>"
-                       "<label><input type='checkbox' name='auth_enabled' value='1'"));
+    response->print(F("'/><p class='hint'>0 = no periodic reset; 1–30 = reset baseline every N UTC days "
+                       "(default 7). MQTT totals unchanged. Each side shows 0 again when its "
+                       "display value reaches 999 (or &quot;999+&quot;).</p>"
+                       "<label class='checkbox-label'><input type='checkbox' "
+                       "name='auth_enabled' value='1'"));
     if (configGetWebAuthEnabled()) {
         response->print(F(" checked"));
     }
     response->print(F("/> Require 6-digit code on device to open web settings</label>"
-                       "</fieldset>"
                        "<button type='submit'>Save</button></form>"
                        "<a class='btn-back' href='/'>Back</a></body></html>"));
     req->send(response);

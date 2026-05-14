@@ -118,6 +118,7 @@ void loop() {
     webAdminLoop();
     if (!configIsApMode()) {
         maybePeriodicallyResetCounters();
+        maybeResetDisplayBaselinesWhenCapped();
     }
     mqttLoop();
     maybeSaveHeartCounter();

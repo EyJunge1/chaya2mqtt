@@ -14,6 +14,7 @@
 #include <ESPAsyncWebServer.h>
 #include <atomic>
 #include <cerrno>
+#include <cstdint>
 #include <cstdlib>
 #include <cstring>
 #include <esp_log.h>
@@ -69,28 +70,6 @@ static void handleWifiConnectPost(AsyncWebServerRequest* req) {
         "Wi-Fi gespeichert. Ger&auml;t startet neu.<br>"
         "MQTT und weitere Einstellungen unter "
         "<strong>http://chaya2mqtt.local</strong> konfigurieren (gleiches WLAN).");
-}
-
-static void handleUpdatePost(AsyncWebServerRequest* req) {
-    if (!webAuthIsAuthenticated(req)) {
-        req->redirect(F("/auth"));
-        return;
-    }
-    if (!webAuthValidateCsrfPost(req)) {
-        req->redirect(F("/update"));
-        return;
-    }
-    char url[256];
-    url[0] = '\0';
-    if (!parseBodyParam(req, "url", url, sizeof(url)) || std::strlen(url) < 12) {
-        req->redirect(F("/update"));
-        return;
-    }
-    if (!otaQueueFirmwareUrl(url)) {
-        req->redirect(F("/update"));
-        return;
-    }
-    streamSimpleDonePage(req, "Update", "Update starting…");
 }
 
 static void handleUpdateCheckPost(AsyncWebServerRequest* req) {
@@ -199,14 +178,15 @@ static void handleSettingsPost(AsyncWebServerRequest* req) {
         req->redirect(F("/settings"));
         return;
     }
-    bool weekly = false;
-    if (req->hasParam("reset_period", true)) {
-        const AsyncWebParameter* p = req->getParam("reset_period", true);
+    uint8_t days = 7;
+    if (req->hasParam("reset_days", true)) {
+        const AsyncWebParameter* p = req->getParam("reset_days", true);
         if (p != nullptr) {
-            weekly = (p->value() == "weekly");
+            const int v = p->value().toInt();
+            days          = (v >= 0 && v <= 30) ? static_cast<uint8_t>(v) : 7;
         }
     }
-    configSetResetPeriodWeekly(weekly);
+    configSetResetPeriodDays(days);
     configSetWebAuthEnabled(req->hasParam("auth_enabled", true));
     req->redirect(F("/settings?saved=1"));
 }
@@ -245,13 +225,6 @@ void webAdminRegisterRoutes() {
             return;
         }
         streamUpdatePage(rq);
-    });
-    ws.on("/update", HTTP_POST, [](AsyncWebServerRequest* rq) {
-        if (configIsApMode()) {
-            rq->redirect(F("/"));
-            return;
-        }
-        handleUpdatePost(rq);
     });
     ws.on("/update-check", HTTP_POST, [](AsyncWebServerRequest* rq) {
         if (configIsApMode()) {

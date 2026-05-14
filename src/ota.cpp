@@ -532,19 +532,6 @@ static void autoUpdateLoop() {
     }
 }
 
-bool otaQueueFirmwareUrl(const char* url) {
-    if (url == nullptr || std::strlen(url) < 12 || std::strlen(url) >= sizeof(g_otaUrl)) {
-        return false;
-    }
-    if (std::strncmp(url, "https://", 8) != 0) {
-        ESP_LOGW(TAG, "OTA nur HTTPS erlaubt");
-        return false;
-    }
-    strlcpy(g_otaUrl, url, sizeof(g_otaUrl));
-    g_otaRequested.store(true, std::memory_order_release);
-    return true;
-}
-
 void otaQueueGithubCheck() {
     g_otaCheckRequested.store(true, std::memory_order_release);
 }

@@ -40,6 +40,7 @@ Uebersicht aller Quelldateien unter `src/`: oeffentliche API, globale Symbole un
 | `wlanLoop()` | (**wlan**) Captive DNS, mDNS nach GOT_IP |
 | `webAdminLoop()` | MQTT-Apply, Reboot/OTA queue, `otaLoop()` |
 | `maybePeriodicallyResetCounters()` | (**counter**) nur wenn nicht AP |
+| `maybeResetDisplayBaselinesWhenCapped()` | (**counter**) nur wenn nicht AP: wenn Anzeige-Delta einer Seite >= 999, Baseline auf aktuellen MQTT-Zähler |
 | `mqttLoop()` | MQTT + Backoff |
 | `maybeSaveHeartCounter()`, `maybeSaveHeartSentCounter()` | NVS throttled (~30 s) |
 | `consumeHeartRedraw()` / `drawHeartWithNumber()` | Display-Update bei MQTT |
@@ -69,7 +70,7 @@ Uebersicht aller Quelldateien unter `src/`: oeffentliche API, globale Symbole un
 
 ## `counter.h` / `counter.cpp`
 
-**Zweck:** Empfangs-/Sendezähler, NVS-Persistenz (Namespace `chaya`), Anzeige-Baselines und täglicher/wöchentlicher Reset (UTC, NTP), NVS `cfg` fuer Reset-Periode.
+**Zweck:** Empfangs-/Sendezähler, NVS-Persistenz (Namespace `chaya`), Anzeige-Baselines, optional periodischer Baseline-Roll (UTC, NTP, Intervall 0–30 Tage, Default 7), NVS `cfg` fuer Reset-Periode; bei Anzeige >= 999 pro Seite Baseline-Roll.
 
 ### Globale Variablen
 
@@ -79,9 +80,9 @@ Uebersicht aller Quelldateien unter `src/`: oeffentliche API, globale Symbole un
 | `heartSentCounter` | Erfolgreich gesendete Werte (nächster Publish = +1) |
 | `counterBaseline`, `sentCountBaseline` | Basis fuer auf dem Display gezeigte Deltas |
 
-Wichtige Funktionen: `loadHeartCounter`, `saveHeartCounter`, `maybeSaveHeartCounter`, `flushHeartCounterIfDirty`, gleiches fuer `HeartSent`, `loadCounterBaseline`, `maybePeriodicallyResetCounters`, `configLoadResetPeriodFromNvs`, `configGetResetPeriodIsWeekly` / `configSetResetPeriodWeekly`, `counterResetRamAfterFactoryClear()`.
+Wichtige Funktionen: `loadHeartCounter`, `saveHeartCounter`, `maybeSaveHeartCounter`, `flushHeartCounterIfDirty`, gleiches fuer `HeartSent`, `loadCounterBaseline`, `maybePeriodicallyResetCounters`, `maybeResetDisplayBaselinesWhenCapped`, `configLoadResetPeriodFromNvs`, `configGetResetPeriodDays` / `configSetResetPeriodDays`, `counterResetRamAfterFactoryClear()`.
 
-**Abhaengigkeit:** `maybePeriodicallyResetCounters()` prueft `configIsApMode()` aus **wlan** (kein Roll im AP).
+**Abhaengigkeit:** `maybePeriodicallyResetCounters()` und `maybeResetDisplayBaselinesWhenCapped()` pruefen `configIsApMode()` aus **wlan** (kein Roll im AP).
 
 ---
 
@@ -115,7 +116,6 @@ Wichtige Funktionen: `loadHeartCounter`, `saveHeartCounter`, `maybeSaveHeartCoun
 | Funktion | Beschreibung |
 |----------|--------------|
 | `otaLoop()` | Auto-Update-Logik + ausstehender Download |
-| `otaQueueFirmwareUrl(url)` | Custom-URL (max. Pufferlaenge) |
 | `otaQueueGithubCheck()` | Manueller Versions-Vergleich |
 
 ---
@@ -123,6 +123,8 @@ Wichtige Funktionen: `loadHeartCounter`, `saveHeartCounter`, `maybeSaveHeartCoun
 ## `web_pages.h` / `web_pages.cpp`
 
 **Zweck:** HTML-Streaming (Dashboard, Wi‑Fi-Scan-JSON, MQTT-Formular, Settings, Update-Seite); gemeinsames CSS via `web_styles.h`.
+
+**Lokale UI-Entwicklung:** Quellen unter `web/` (`style.css`, `wifi_scan.js`, HTML-Mockups). Vorschau: `python3 web/devserver.py` (Port 8080). Vor jedem Build erzeugt `web/build_web.py` (PlatformIO `extra_scripts`) die Header `web_styles.h` und `web_wifi_scan_js.h` — nicht manuell editieren.
 
 ---
 

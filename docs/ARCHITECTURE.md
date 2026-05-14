@@ -58,7 +58,7 @@ flowchart LR
 - **mqtt** nutzt `mqttCfg` aus **mqtt_config**, `heartCounter` aus **counter**, ruft **display** auf (`requestHeartRedraw`).
 - **display** liest Zähler und Baselines aus **counter** fuer die Darstellung.
 - **button** nutzt **wlan** (`resetAllSettings`, `configIsApMode`), **counter**, **mqtt** (`mqttPublishChaya()`).
-- **wlan** registriert Routen fuer **web_admin**; **main** ruft `wlanLoop()`, `webAdminLoop()` und bei STA `maybePeriodicallyResetCounters()` (**counter**).
+- **wlan** registriert Routen fuer **web_admin**; **main** ruft `wlanLoop()`, `webAdminLoop()` und bei STA `maybePeriodicallyResetCounters()` sowie `maybeResetDisplayBaselinesWhenCapped()` (**counter**).
 - **web_admin** ruft **ota** (`otaLoop`) fuer Updates.
 
 ## Kommunikation: zwei Geraete ueber MQTT
@@ -137,6 +137,7 @@ flowchart TD
     wl[wlanLoop]
     web[webAdminLoop]
     cnt[maybePeriodicallyResetCounters]
+    cap[maybeResetDisplayBaselinesWhenCapped]
     mq[mqttLoop]
     save[maybeSaveHeartCounter etc]
     redraw[consumeHeartRedraw drawHeartWithNumber]
@@ -144,13 +145,14 @@ flowchart TD
     arm[armLightSleepTimerWakeup bei Timerwechsel]
     wait[esp_light_sleep_start]
 
-    start --> btn --> led --> wl --> web --> cnt --> mq --> save --> redraw --> dbg --> arm --> wait --> start
+    start --> btn --> led --> wl --> web --> cnt --> cap --> mq --> save --> redraw --> dbg --> arm --> wait --> start
 ```
 
 - **mqttLoop:** nicht-blockierender Reconnect mit Backoff (siehe `mqtt.cpp`).
 - **wlanLoop:** Captive DNS im AP, mDNS-Restart nach GOT_IP.
 - **webAdminLoop:** MQTT-Anwendung aus Formular, Reboot/Wi-Fi-Reconnect, **`otaLoop()`**.
-- **maybePeriodicallyResetCounters:** periodischer Zähler-Baseline-Roll (**counter**, nur wenn nicht AP).
+- **maybePeriodicallyResetCounters:** periodischer Zähler-Baseline-Roll (**counter**, nur wenn nicht AP, Intervall 0 = aus).
+- **maybeResetDisplayBaselinesWhenCapped:** wenn Anzeige-Delta einer Seite >= 999, Baseline-Roll fuer diese Seite (**counter**, nur wenn nicht AP).
 - **WiFi-Reconnect:** Event-gesteuert in **wlan** (`WiFi.reconnect()` mit Backoff), nicht in `main`.
 
 ## MQTT-Protokoll (praktisch)
@@ -170,7 +172,7 @@ Authentifizierung: optional ueber `mqtt_username` / `mqtt_password` aus dem Port
 
 - **WiFi:** Namespace `wifi` in `Preferences` (`ssid`, `pass`), geschrieben ueber Web-Formular `/wifi-connect` (`configSaveWiFiCredentials`).
 - **MQTT:** Namespace `mqtt` (`server`, `port`, `user`, `pass`, `topic_pub`, `topic_sub`).
-- **Anzeige-Reset-Periode:** Namespace `cfg`, Key `rstPeriod` (taeglich vs. woechentlich).
+- **Anzeige-Reset-Periode:** Namespace `cfg`, Key `rstPeriod` (0 = periodisch aus; 1–30 = UTC-Tage; Default wenn fehlend 7). Zusaetzlich: Anzeige je Seite auf 0 wenn Delta >= 999.
 - **OTA-Letzter Check-Tag:** Namespace `cfg`, Key `upd_day` (Kalendertag UTC).
 - **Zaehler:** Namespace `chaya` (`counter`, `sentCount`, Baselines `cntBase`/`sntBase`/`rstDay`). Factory Reset in **wlan** **loescht alle genannten Namespaces** inkl. `chaya` (Zähler werden zurueckgesetzt).
 

@@ -29,15 +29,17 @@ void flushHeartSentCounterIfDirty();
 
 /** Load counter baselines and last reset calendar day from NVS (namespace chaya). */
 void loadCounterBaseline();
-/** If NTP time is valid, roll display baselines daily or weekly (retained MQTT counters unchanged). */
+/** If NTP time is valid, roll display baselines on a UTC-day interval (retained MQTT counters unchanged). */
 void maybePeriodicallyResetCounters();
+/** If incoming or outgoing display delta reaches 999, reset that baseline so the display shows 0. */
+void maybeResetDisplayBaselinesWhenCapped();
 
-/** Load weekly/daily reset preference from NVS into RAM (call once at boot). */
+/** Load reset interval (days) from NVS into RAM (call once at boot). */
 void configLoadResetPeriodFromNvs();
 
-/** true = weekly reset, false = daily reset (cached from NVS cfg/rstPeriod). */
-bool configGetResetPeriodIsWeekly();
-void configSetResetPeriodWeekly(bool weekly);
+/** Display reset interval: 0 = periodic reset off; 1–30 = UTC calendar days (default when unset in NVS: 7). */
+uint8_t configGetResetPeriodDays();
+void configSetResetPeriodDays(uint8_t days);
 
 /** Web UI access code (device display); NVS cfg/authEn, default off. */
 bool configGetWebAuthEnabled();
