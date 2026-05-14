@@ -1,5 +1,6 @@
 #include "counter.h"
 
+#include "constants.h"
 #include "display.h"
 #include "wlan.h"
 
@@ -26,9 +27,9 @@ int sentCountBaseline = 0;
 
 static uint32_t s_lastResetCalendarDayUtc = UINT32_MAX;
 
-static constexpr uint32_t kNtpMinValidUtcEpoch = 1700000000U;
-
 static constexpr const char kNvRstPeriod[] = "rstPeriod";
+
+static bool s_resetPeriodWeeklyCached = false;
 
 static int           lastCommittedHeartCounter                = 0;
 static unsigned long lastHeartCounterSaveMs                   = 0;
@@ -58,14 +59,18 @@ void loadCounterBaseline() {
     preferences.end();
 }
 
-bool configGetResetPeriodIsWeekly() {
+void configLoadResetPeriodFromNvs() {
     Preferences prefs;
     if (!prefs.begin("cfg", true)) {
-        return false;
+        s_resetPeriodWeeklyCached = false;
+        return;
     }
-    const bool weekly = (prefs.getUChar(kNvRstPeriod, 0) != 0);
+    s_resetPeriodWeeklyCached = (prefs.getUChar(kNvRstPeriod, 0) != 0);
     prefs.end();
-    return weekly;
+}
+
+bool configGetResetPeriodIsWeekly() {
+    return s_resetPeriodWeeklyCached;
 }
 
 void configSetResetPeriodWeekly(bool weekly) {
@@ -76,6 +81,7 @@ void configSetResetPeriodWeekly(bool weekly) {
     }
     prefs.putUChar(kNvRstPeriod, weekly ? 1 : 0);
     prefs.end();
+    s_resetPeriodWeeklyCached = weekly;
 }
 
 static bool persistCounterBaselineState() {
@@ -96,7 +102,7 @@ void maybePeriodicallyResetCounters() {
         return;
     }
     const time_t utcNow = time(nullptr);
-    if (utcNow <= static_cast<time_t>(kNtpMinValidUtcEpoch)) {
+    if (!ntpTimeLooksSynced(utcNow)) {
         return;
     }
     const uint32_t currentDay = calendarDaySinceEpochUtc(utcNow);
@@ -109,7 +115,7 @@ void maybePeriodicallyResetCounters() {
         return;
     }
 
-    const bool weekly       = configGetResetPeriodIsWeekly();
+    const bool weekly      = configGetResetPeriodIsWeekly();
     bool       shouldReset = false;
     if (weekly) {
         shouldReset = (currentDay >= s_lastResetCalendarDayUtc + 7U);

@@ -73,7 +73,8 @@ chaya2mqtt/
 │   └── MODULES.md         # Code-Referenz
 └── src/
     ├── main.cpp
-    ├── config.cpp / config.h       # MQTT NVS
+    ├── mqtt_config.cpp / mqtt_config.h   # MQTT NVS (+ constants.h)
+    ├── pins.h
     ├── counter.cpp / counter.h     # Zähler & Baselines NVS
     ├── wlan.cpp / wlan.h           # WiFi/AP/DNS/mDNS; Factory Reset (Name wlan ≠ Arduino WiFi.h)
     ├── web_admin.cpp / web_admin.h # HTTP-Routen
@@ -96,6 +97,7 @@ Definiert in `platformio.ini`:
 | **Adafruit GFX / BusIO** | Grafik-Primitives für das Display |
 | **PubSubClient** | MQTT-Client |
 | **ESPAsyncWebServer** | HTTP-Admin-Oberfläche + Captive-Portal-Modus |
+| **ArduinoJson** | GitHub-Release-JSON (`tag_name`) fuer OTA-Versionscheck |
 
 ## Weitere Dokumentation
 

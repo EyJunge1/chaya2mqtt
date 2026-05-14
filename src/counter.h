@@ -32,7 +32,10 @@ void loadCounterBaseline();
 /** If NTP time is valid, roll display baselines daily or weekly (retained MQTT counters unchanged). */
 void maybePeriodicallyResetCounters();
 
-/** true = weekly reset, false = daily reset (NVS cfg/rstPeriod). */
+/** Load weekly/daily reset preference from NVS into RAM (call once at boot). */
+void configLoadResetPeriodFromNvs();
+
+/** true = weekly reset, false = daily reset (cached from NVS cfg/rstPeriod). */
 bool configGetResetPeriodIsWeekly();
 void configSetResetPeriodWeekly(bool weekly);
 

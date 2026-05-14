@@ -1,6 +1,7 @@
 #include "display.h"
 
 #include "counter.h"
+#include "pins.h"
 
 #include <GxEPD2_3C.h>
 #include <Arduino.h>
@@ -12,6 +13,7 @@
 #include <cstring>
 #include <driver/gpio.h>
 #include <esp_log.h>
+#include <esp_task_wdt.h>
 
 #if defined(CORE_DEBUG_LEVEL) && CORE_DEBUG_LEVEL > 0
 static const char* TAG = "DISP";
@@ -19,14 +21,9 @@ static const char* TAG = "DISP";
 static constexpr const char* TAG __attribute__((unused)) = "";
 #endif
 
-/** Gleiche Zuordnung wie in displayInit() / GxEPD2-Konstruktor (SPI + CS). */
-static constexpr int kSpiSck   = 13;
-static constexpr int kSpiMiso  = 12;
-static constexpr int kSpiMosi  = 14;
-static constexpr int kSpiCs    = 15;
-
 static GxEPD2_3C<GxEPD2_154_Z90c, GxEPD2_154_Z90c::HEIGHT> display(
-    GxEPD2_154_Z90c(/*CS=*/ kSpiCs, /*DC=*/ 27, /*RST=*/ 26, /*BUSY=*/ 25));
+    GxEPD2_154_Z90c(/*CS=*/ pins::kSpiCs, /*DC=*/ pins::kDisplayDc, /*RST=*/ pins::kDisplayRst,
+                      /*BUSY=*/ pins::kDisplayBusy));
 
 // BUSY/RST/DC: pinModes setzt main pinsInit() vor displayInit(); GxEPD2 nutzt diese vor init.
 
@@ -43,26 +40,28 @@ bool consumeHeartRedraw() {
 
 static void displayResumeSpiForDraw() {
     if (g_displaySpiSuspendedLowPower) {
-        gpio_hold_dis(static_cast<gpio_num_t>(kSpiCs));
+        gpio_hold_dis(static_cast<gpio_num_t>(pins::kSpiCs));
         g_displaySpiSuspendedLowPower = false;
     }
-    SPI.begin(/*SCK=*/ kSpiSck, /*MISO=*/ kSpiMiso, /*MOSI=*/ kSpiMosi, /*SS=*/ kSpiCs);
+    SPI.begin(/*SCK=*/ pins::kSpiSck, /*MISO=*/ pins::kSpiMiso, /*MOSI=*/ pins::kSpiMosi,
+              /*SS=*/ pins::kSpiCs);
 }
 
 /** Nach Hibernate: SPI freigeben, Datenleitungen pullen; CS HIGH halten (Hold) fuer Light-Sleep. */
 static void displaySuspendSpiLowPower() {
     SPI.end();
-    pinMode(kSpiSck, INPUT_PULLDOWN);
-    pinMode(kSpiMosi, INPUT_PULLDOWN);
-    pinMode(kSpiMiso, INPUT_PULLDOWN);
-    pinMode(kSpiCs, OUTPUT);
-    digitalWrite(kSpiCs, HIGH);
-    gpio_hold_en(static_cast<gpio_num_t>(kSpiCs));
+    pinMode(pins::kSpiSck, INPUT_PULLDOWN);
+    pinMode(pins::kSpiMosi, INPUT_PULLDOWN);
+    pinMode(pins::kSpiMiso, INPUT_PULLDOWN);
+    pinMode(pins::kSpiCs, OUTPUT);
+    digitalWrite(pins::kSpiCs, HIGH);
+    gpio_hold_en(static_cast<gpio_num_t>(pins::kSpiCs));
     g_displaySpiSuspendedLowPower = true;
 }
 
 void displayInit() {
-    SPI.begin(/*SCK=*/ kSpiSck, /*MISO=*/ kSpiMiso, /*MOSI=*/ kSpiMosi, /*SS=*/ kSpiCs);
+    SPI.begin(/*SCK=*/ pins::kSpiSck, /*MISO=*/ pins::kSpiMiso, /*MOSI=*/ pins::kSpiMosi,
+              /*SS=*/ pins::kSpiCs);
 #if defined(CORE_DEBUG_LEVEL) && CORE_DEBUG_LEVEL > 0
     display.init(115200, true, 2, false);
 #else
@@ -176,6 +175,7 @@ void drawHeartWithNumber() {
     display.setFullWindow();
     display.firstPage();
     do {
+        esp_task_wdt_reset();
         display.fillScreen(GxEPD_WHITE);
 
         display.fillCircle(static_cast<int16_t>(kCenterX - kCircleSpacing),
@@ -251,6 +251,7 @@ void drawSplashScreen() {
     display.setFullWindow();
     display.firstPage();
     do {
+        esp_task_wdt_reset();
         display.fillScreen(GxEPD_WHITE);
         display.setCursor(static_cast<int16_t>(cursorX), static_cast<int16_t>(cursorY));
         display.print(kTitle);

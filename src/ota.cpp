@@ -2,10 +2,13 @@
 
 #include "ota.h"
 
+#include "constants.h"
 #include "counter.h"
+#include "tls_bundle.h"
 #include "version.h"
 #include "wlan.h"
 
+#include <ArduinoJson.h>
 #include <HTTPClient.h>
 #include <HTTPUpdate.h>
 #include <Preferences.h>
@@ -23,18 +26,13 @@ static const char* TAG = "OTA";
 static constexpr const char* TAG __attribute__((unused)) = "";
 #endif
 
-extern const uint8_t x509_crt_bundle_start[] asm("_binary_x509_crt_bundle_start");
-extern const uint8_t x509_crt_bundle_end[] asm("_binary_x509_crt_bundle_end");
-
 static constexpr const char kGithubLatestReleaseApiUrl[] =
     "https://api.github.com/repos/EyJunge1/chaya2mqtt/releases/latest";
 
 static constexpr const char kGithubLatestFirmwareBinUrl[] =
     "https://github.com/EyJunge1/chaya2mqtt/releases/latest/download/firmware.bin";
 
-static constexpr uint32_t kNtpMinValidUtcEpoch = 1700000000U;
-
-static constexpr const char kCfgNamespace[]             = "cfg";
+static constexpr const char kCfgNamespace[]           = "cfg";
 static constexpr const char kNvKeyUpdateCalendarDay[] = "upd_day";
 
 static constexpr size_t kOtaUrlMax = 256;
@@ -47,9 +45,13 @@ static char g_otaUrl[kOtaUrlMax];
 static uint32_t s_cachedNvUpdateDay     = UINT32_MAX;
 static bool     s_nvUpdateDayCacheValid = false;
 
-static bool githubParseLatestTag(const char* json, char* tagOut, size_t tagLen) {
+/** Large JSON accumulator — static to avoid multi-KiB stack usage under TLS. */
+static constexpr size_t kGithubJsonBuf = 8192;
+static char             s_githubJsonBuf[kGithubJsonBuf];
+
+static bool githubParseLatestTagLegacy(const char* json, char* tagOut, size_t tagLen) {
     constexpr const char kKey[] = "\"tag_name\"";
-    const char*             key = strstr(json, kKey);
+    const char*          key    = strstr(json, kKey);
     if (key == nullptr) {
         return false;
     }
@@ -71,6 +73,24 @@ static bool githubParseLatestTag(const char* json, char* tagOut, size_t tagLen) 
     }
     tagOut[i] = '\0';
     return i > 0;
+}
+
+static bool githubExtractTagFromJsonBuffer(char* jsonBuf, size_t len, char* tagOut, size_t tagLen) {
+    if (len >= kGithubJsonBuf) {
+        len = kGithubJsonBuf - 1;
+    }
+    jsonBuf[len] = '\0';
+
+    JsonDocument doc;
+    DeserializationError err = deserializeJson(doc, jsonBuf);
+    if (!err) {
+        const char* tag = doc["tag_name"].as<const char*>();
+        if (tag != nullptr && tag[0] != '\0') {
+            strlcpy(tagOut, tag, tagLen);
+            return true;
+        }
+    }
+    return githubParseLatestTagLegacy(jsonBuf, tagOut, tagLen);
 }
 
 static bool nvLoadLastUpdateCalendarDay(uint32_t* outDayUtc) {
@@ -99,10 +119,11 @@ static void nvSaveLastUpdateCalendarDay(uint32_t dayUtc) {
     s_nvUpdateDayCacheValid = true;
 }
 
-static void checkGithubUpdate() {
+/** @return true if GitHub API responded OK and tag_name was parsed successfully */
+static bool checkGithubUpdate() {
     if (!wlanStaConnectedOk()) {
         ESP_LOGW(TAG, "GitHub Update: kein Stations-WLAN");
-        return;
+        return false;
     }
 
     WiFiClientSecure tls;
@@ -113,7 +134,7 @@ static void checkGithubUpdate() {
     HTTPClient https;
     if (!https.begin(tls, kGithubLatestReleaseApiUrl)) {
         ESP_LOGE(TAG, "GitHub API: HTTPS begin fehlgeschlagen");
-        return;
+        return false;
     }
 
     https.setConnectTimeout(20000);
@@ -125,51 +146,42 @@ static void checkGithubUpdate() {
     if (httpCode != HTTP_CODE_OK) {
         ESP_LOGE(TAG, "GitHub API: HTTP-Fehler %d", httpCode);
         https.end();
-        return;
+        return false;
     }
 
-    constexpr size_t kJsonBuf = 8192;
-    char               jsonBuf[kJsonBuf];
-    auto&              stream = https.getStream();
-    char               remoteTag[64];
-    bool               parseOk = false;
+    auto&               stream          = https.getStream();
+    char                remoteTag[64];
+    size_t              len             = 0;
+    const unsigned long streamStartMs = millis();
 
-    {
-        size_t              len          = 0;
-        const unsigned long deadlineMs = millis() + 45000;
-        while (https.connected() && len + 1 < kJsonBuf && millis() < deadlineMs) {
-            if (stream.available() <= 0) {
-                if (!https.connected()) {
-                    break;
-                }
-                delay(10);
-                continue;
-            }
-            const int toRead =
-                std::min(static_cast<int>(kJsonBuf - 1 - len), stream.available());
-            if (toRead <= 0) {
+    while (https.connected() && len + 1 < kGithubJsonBuf && (millis() - streamStartMs) < 45000UL) {
+        if (stream.available() <= 0) {
+            if (!https.connected()) {
                 break;
             }
-            const int n = stream.readBytes(jsonBuf + len, toRead);
-            if (n <= 0) {
-                break;
-            }
-            len += static_cast<size_t>(n);
-            jsonBuf[len] = '\0';
-            if (githubParseLatestTag(jsonBuf, remoteTag, sizeof(remoteTag))) {
-                parseOk = true;
-                break;
-            }
+            delay(10);
+            continue;
         }
-        if (!parseOk && len > 0) {
-            parseOk = githubParseLatestTag(jsonBuf, remoteTag, sizeof(remoteTag));
+        const int toRead = std::min(static_cast<int>(kGithubJsonBuf - 1 - len), stream.available());
+        if (toRead <= 0) {
+            break;
         }
+        const int n = stream.readBytes(s_githubJsonBuf + len, toRead);
+        if (n <= 0) {
+            break;
+        }
+        len += static_cast<size_t>(n);
     }
+
     https.end();
+
+    const bool parseOk =
+        (len > 0)
+        && githubExtractTagFromJsonBuffer(s_githubJsonBuf, len, remoteTag, sizeof(remoteTag));
 
     if (!parseOk) {
         ESP_LOGE(TAG, "GitHub: konnte tag_name nicht parsen");
-        return;
+        return false;
     }
 
     ESP_LOGI(TAG, "GitHub latest=%s, lokal=%s", remoteTag, APP_VERSION);
@@ -181,6 +193,7 @@ static void checkGithubUpdate() {
     } else {
         ESP_LOGI(TAG, "Firmware ist aktuell");
     }
+    return true;
 }
 
 static void autoUpdateLoop() {
@@ -196,12 +209,12 @@ static void autoUpdateLoop() {
     const uint32_t todayUtcDay = calendarDaySinceEpochUtc(utcNow > 0 ? utcNow : 0);
 
     if (g_otaCheckRequested.exchange(false, std::memory_order_acq_rel)) {
-        const bool ntpOk = utcNow > static_cast<time_t>(kNtpMinValidUtcEpoch);
+        const bool ntpOk = ntpTimeLooksSynced(utcNow);
         if (!ntpOk) {
             ESP_LOGW(TAG, "Manual update check: Zeit noch nicht plausibel (NTP?), prüfe trotzdem GitHub …");
         }
-        checkGithubUpdate();
-        if (ntpOk) {
+        const bool checkOk = checkGithubUpdate();
+        if (ntpOk && checkOk) {
             nvSaveLastUpdateCalendarDay(todayUtcDay);
         }
         return;
@@ -210,7 +223,7 @@ static void autoUpdateLoop() {
     if (strcmp(APP_VERSION, "dev") == 0) {
         return;
     }
-    if (utcNow <= static_cast<time_t>(kNtpMinValidUtcEpoch)) {
+    if (!ntpTimeLooksSynced(utcNow)) {
         return;
     }
 
@@ -222,8 +235,9 @@ static void autoUpdateLoop() {
         return;
     }
 
-    checkGithubUpdate();
-    nvSaveLastUpdateCalendarDay(todayUtcDay);
+    if (checkGithubUpdate()) {
+        nvSaveLastUpdateCalendarDay(todayUtcDay);
+    }
 }
 
 bool otaQueueFirmwareUrl(const char* url) {
@@ -254,7 +268,7 @@ void otaLoop() {
                                static_cast<size_t>(x509_crt_bundle_end - x509_crt_bundle_start));
         HTTPUpdate httpUpdate;
         httpUpdate.setFollowRedirects(HTTPC_FORCE_FOLLOW_REDIRECTS);
-        const t_httpUpdate_return rc = httpUpdate.update(client, String(urlCopy));
+        const t_httpUpdate_return rc = httpUpdate.update(client, urlCopy);
         if (rc == HTTP_UPDATE_OK) {
             ESP_LOGI(TAG, "OTA ok, Neustart");
             flushHeartCounterIfDirty();

@@ -1,6 +1,7 @@
 #include "button.h"
 
-#include "config.h"
+#include "mqtt_config.h"
+#include "pins.h"
 #include "counter.h"
 #include "display.h"
 #include "mqtt.h"
@@ -17,7 +18,7 @@ static const char* TAG = "BTN";
 static constexpr const char* TAG __attribute__((unused)) = "";
 #endif
 
-static constexpr int kButtonLedPin = 4;
+static constexpr int kButtonLedPin = pins::kButtonLed;
 
 static constexpr unsigned long kDebounceStableMs = 20;
 

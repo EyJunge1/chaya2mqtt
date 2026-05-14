@@ -6,9 +6,9 @@ Die Firmware ist in **mehrere fokussierte Module** plus `main.cpp` aufgeteilt:
 
 | Modul | Dateien | Aufgabe |
 |--------|---------|---------|
-| **config** | `config.h`, `config.cpp` | MQTT-Brokereinstellungen (NVS Namespace `mqtt`) |
+| **mqtt_config** | `mqtt_config.h`, `mqtt_config.cpp`, `constants.h` | MQTT-Brokereinstellungen (NVS Namespace `mqtt`), gemeinsame Konstanten |
 | **counter** | `counter.h`, `counter.cpp` | Herz-Zähler / Sent-Zähler, Baselines, periodischer Display-Reset (NVS `chaya`, `cfg`) |
-| **wlan** | `wlan.h`, `wlan.cpp` | STA/AP, Captive DNS, mDNS, NTP, Reconnect-Backoff; registriert `AsyncWebServer`-Routen; ruft `wifiLoop()` (ehem. `configLoop()`); Factory Reset |
+| **wlan** | `wlan.h`, `wlan.cpp`, `pins.h` | STA/AP, Captive DNS, mDNS, NTP, Reconnect-Backoff; registriert `AsyncWebServer`-Routen; Factory Reset |
 | **web_admin** | `web_admin.h`, `web_admin.cpp` | HTTP-Routen und Formular-Handler (Dashboard, Wi‑Fi, MQTT, Settings); `webAdminLoop()` |
 | **ota** | `ota.h`, `ota.cpp` | GitHub-Versionscheck, täglicher Auto-Check (NVS), Firmware-Download (`HTTPUpdate`) |
 | **web_pages** | `web_pages.h`, `web_pages.cpp` | HTML-Antworten (Streaming), eingebettetes CSS über `web_styles.h` |
@@ -25,7 +25,7 @@ Die Firmware ist in **mehrere fokussierte Module** plus `main.cpp` aufgeteilt:
 ```mermaid
 flowchart LR
     main[main.cpp]
-    cfg[config]
+    cfg[mqtt_config]
     ctr[counter]
     wlan[wlan]
     web[web_admin]
@@ -55,10 +55,10 @@ flowchart LR
     web --> otaMod
 ```
 
-- **mqtt** nutzt `mqttCfg` aus **config**, `heartCounter` aus **counter**, ruft **display** auf (`requestHeartRedraw`).
+- **mqtt** nutzt `mqttCfg` aus **mqtt_config**, `heartCounter` aus **counter**, ruft **display** auf (`requestHeartRedraw`).
 - **display** liest Zähler und Baselines aus **counter** fuer die Darstellung.
 - **button** nutzt **wlan** (`resetAllSettings`, `configIsApMode`), **counter**, **mqtt** (`mqttPublishChaya()`).
-- **wlan** ruft **web_admin** (`wifiLoop` → `webAdminLoop`) und **counter** (`maybePeriodicallyResetCounters`).
+- **wlan** registriert Routen fuer **web_admin**; **main** ruft `wlanLoop()`, `webAdminLoop()` und bei STA `maybePeriodicallyResetCounters()` (**counter**).
 - **web_admin** ruft **ota** (`otaLoop`) fuer Updates.
 
 ## Kommunikation: zwei Geraete ueber MQTT
@@ -97,7 +97,7 @@ sequenceDiagram
     participant M as main
     participant D as display
     participant B as button
-    participant C as config
+    participant C as mqtt_config
     participant N as counter
     participant W as wlan
     participant Q as mqtt
@@ -107,6 +107,7 @@ sequenceDiagram
     M->>B: buttonInit
     M->>C: loadMQTTConfig
     M->>N: loadHeartCounter
+    M->>N: configLoadResetPeriodFromNvs
     M->>W: setupWiFi
     M->>Q: mqttSetup
     M->>M: armLightSleepStaticWakeups
@@ -119,7 +120,7 @@ sequenceDiagram
 2. **Serial** 115200 nur wenn `CORE_DEBUG_LEVEL > 0` (Debug-Build)
 3. Display hardware initialisieren
 4. Button/LED-Pins
-5. Gespeicherte MQTT-Parameter laden; Zaehler aus NVS (`loadHeartCounter`)
+5. Gespeicherte MQTT-Parameter laden; Zaehler aus NVS (`loadHeartCounter`); Reset-Periode cachen (`configLoadResetPeriodFromNvs`)
 6. WiFi ueber `setupWiFi()` (**wlan**): STA mit gespeicherten Credentials oder SoftAP **`Chaya2MQTT`** mit Captive DNS (`DNSServer`), gemeinsamer **`AsyncWebServer`** (Port 80). Nach STA-Verbindung: **WiFi Modem Sleep** (`WiFi.setSleep(true)`), **`esp_wifi_set_ps(WIFI_PS_MIN_MODEM)`**, **HT20**. Reconnect bei Disconnect ueber `WiFi.onEvent` mit exponentiellem Backoff.
 7. MQTT-Client konfigurieren (Server, Callback, TLS mit CA-Bundle)
 8. **Light-Sleep-Wakeup:** `armLightSleepStaticWakeups()` (GPIO Taster, WiFi), danach `armLightSleepTimerWakeup()` (adaptiver Timer)
@@ -133,7 +134,9 @@ flowchart TD
     start[loop Start]
     btn[buttonLoop]
     led[buttonAdvanceLedSequence]
-    wl[wifiLoop]
+    wl[wlanLoop]
+    web[webAdminLoop]
+    cnt[maybePeriodicallyResetCounters]
     mq[mqttLoop]
     save[maybeSaveHeartCounter etc]
     redraw[consumeHeartRedraw drawHeartWithNumber]
@@ -141,11 +144,13 @@ flowchart TD
     arm[armLightSleepTimerWakeup bei Timerwechsel]
     wait[esp_light_sleep_start]
 
-    start --> btn --> led --> mq --> save --> wl --> redraw --> dbg --> arm --> wait --> start
+    start --> btn --> led --> wl --> web --> cnt --> mq --> save --> redraw --> dbg --> arm --> wait --> start
 ```
 
 - **mqttLoop:** nicht-blockierender Reconnect mit Backoff (siehe `mqtt.cpp`).
-- **wifiLoop:** Captive DNS im AP, mDNS-Restart nach GOT_IP, **webAdminLoop()** (MQTT-Anwendung, Reboot, ruft **otaLoop()**), periodischer Zähler-Baseline-Roll (**counter**).
+- **wlanLoop:** Captive DNS im AP, mDNS-Restart nach GOT_IP.
+- **webAdminLoop:** MQTT-Anwendung aus Formular, Reboot/Wi-Fi-Reconnect, **`otaLoop()`**.
+- **maybePeriodicallyResetCounters:** periodischer Zähler-Baseline-Roll (**counter**, nur wenn nicht AP).
 - **WiFi-Reconnect:** Event-gesteuert in **wlan** (`WiFi.reconnect()` mit Backoff), nicht in `main`.
 
 ## MQTT-Protokoll (praktisch)

@@ -1,9 +1,10 @@
 #include "web_admin.h"
 
-#include "config.h"
+#include "constants.h"
 #include "counter.h"
 #include "display.h"
 #include "mqtt.h"
+#include "mqtt_config.h"
 #include "ota.h"
 #include "web_pages.h"
 #include "wlan.h"
@@ -14,6 +15,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <esp_log.h>
+#include <freertos/portmacro.h>
 
 #if defined(CORE_DEBUG_LEVEL) && CORE_DEBUG_LEVEL > 0
 static const char* TAG = "WEB";
@@ -31,24 +33,32 @@ static std::atomic<bool> g_rebootRequested{false};
 static std::atomic<bool> g_wifiConnectRequested{false};
 static std::atomic<bool> g_mqttApplyPending{false};
 
-static MqttConfig g_mqttPendingCfg;
+static MqttConfig        g_mqttPendingCfg;
+static portMUX_TYPE      s_mqttCfgMux = portMUX_INITIALIZER_UNLOCKED;
 
-static bool parseBodyParam(AsyncWebServerRequest* req, const char* name, String* outStr) {
+static bool parseBodyParam(AsyncWebServerRequest* req, const char* name, char* out, size_t outLen) {
     if (req == nullptr || !req->hasParam(name, true)) {
         return false;
     }
-    *outStr = req->getParam(name, true)->value();
+    const AsyncWebParameter* p = req->getParam(name, true);
+    if (p == nullptr) {
+        return false;
+    }
+    strlcpy(out, p->value().c_str(), outLen);
     return true;
 }
 
 static void handleWifiConnectPost(AsyncWebServerRequest* req) {
-    String ssid, password;
-    if (!parseBodyParam(req, "ssid", &ssid) || ssid.length() == 0) {
+    char ssid[33];
+    char password[65];
+    ssid[0]    = '\0';
+    password[0] = '\0';
+    if (!parseBodyParam(req, "ssid", ssid, sizeof(ssid)) || ssid[0] == '\0') {
         req->redirect(F("/wifi"));
         return;
     }
-    (void)parseBodyParam(req, "password", &password);
-    if (!configSaveWiFiCredentials(ssid.c_str(), password.c_str())) {
+    (void)parseBodyParam(req, "password", password, sizeof(password));
+    if (!configSaveWiFiCredentials(ssid, password)) {
         req->redirect(F("/wifi"));
         return;
     }
@@ -60,12 +70,13 @@ static void handleWifiConnectPost(AsyncWebServerRequest* req) {
 }
 
 static void handleUpdatePost(AsyncWebServerRequest* req) {
-    String url;
-    if (!parseBodyParam(req, "url", &url) || url.length() < 10) {
+    char url[256];
+    url[0] = '\0';
+    if (!parseBodyParam(req, "url", url, sizeof(url)) || std::strlen(url) < 10) {
         req->redirect(F("/update"));
         return;
     }
-    if (!otaQueueFirmwareUrl(url.c_str())) {
+    if (!otaQueueFirmwareUrl(url)) {
         req->redirect(F("/update"));
         return;
     }
@@ -86,35 +97,49 @@ static void handleMqttPost(AsyncWebServerRequest* req) {
     MqttConfig pending = mqttCfg;
 
     if (req->hasParam("mqtt_server", true)) {
-        strlcpy(pending.server, req->getParam("mqtt_server", true)->value().c_str(),
-                sizeof(pending.server));
+        const AsyncWebParameter* p = req->getParam("mqtt_server", true);
+        if (p != nullptr) {
+            strlcpy(pending.server, p->value().c_str(), sizeof(pending.server));
+        }
     }
     if (req->hasParam("mqtt_port", true)) {
-        const int p = atoi(req->getParam("mqtt_port", true)->value().c_str());
-        pending.port = (p > 0 && p <= 65535) ? static_cast<uint16_t>(p) : 8883;
+        const AsyncWebParameter* p = req->getParam("mqtt_port", true);
+        if (p != nullptr) {
+            pending.port = normalizeMqttPort(atoi(p->value().c_str()));
+        }
     }
     if (req->hasParam("mqtt_user", true)) {
-        strlcpy(pending.username, req->getParam("mqtt_user", true)->value().c_str(),
-                sizeof(pending.username));
+        const AsyncWebParameter* p = req->getParam("mqtt_user", true);
+        if (p != nullptr) {
+            strlcpy(pending.username, p->value().c_str(), sizeof(pending.username));
+        }
     }
     if (req->hasParam("mqtt_pass", true)) {
-        strlcpy(pending.password, req->getParam("mqtt_pass", true)->value().c_str(),
-                sizeof(pending.password));
+        const AsyncWebParameter* p = req->getParam("mqtt_pass", true);
+        if (p != nullptr) {
+            strlcpy(pending.password, p->value().c_str(), sizeof(pending.password));
+        }
     }
     if (req->hasParam("mqtt_topic_pub", true)) {
-        strlcpy(pending.topicPub, req->getParam("mqtt_topic_pub", true)->value().c_str(),
-                sizeof(pending.topicPub));
+        const AsyncWebParameter* p = req->getParam("mqtt_topic_pub", true);
+        if (p != nullptr) {
+            strlcpy(pending.topicPub, p->value().c_str(), sizeof(pending.topicPub));
+        }
     }
     if (req->hasParam("mqtt_topic_sub", true)) {
-        strlcpy(pending.topicSub, req->getParam("mqtt_topic_sub", true)->value().c_str(),
-                sizeof(pending.topicSub));
+        const AsyncWebParameter* p = req->getParam("mqtt_topic_sub", true);
+        if (p != nullptr) {
+            strlcpy(pending.topicSub, p->value().c_str(), sizeof(pending.topicSub));
+        }
     }
     if (strcmp(pending.topicPub, pending.topicSub) == 0) {
         ESP_LOGW(TAG, "MQTT: Pub/Sub-Topic identisch, setze Defaults");
-        strlcpy(pending.topicPub, "chaya/to_b", sizeof(pending.topicPub));
-        strlcpy(pending.topicSub, "chaya/to_a", sizeof(pending.topicSub));
+        strlcpy(pending.topicPub, kMqttDefaultTopicPub, sizeof(pending.topicPub));
+        strlcpy(pending.topicSub, kMqttDefaultTopicSub, sizeof(pending.topicSub));
     }
+    portENTER_CRITICAL(&s_mqttCfgMux);
     g_mqttPendingCfg = pending;
+    portEXIT_CRITICAL(&s_mqttCfgMux);
     g_mqttApplyPending.store(true, std::memory_order_release);
     req->redirect(F("/mqtt?saved=1"));
 }
@@ -122,8 +147,10 @@ static void handleMqttPost(AsyncWebServerRequest* req) {
 static void handleSettingsPost(AsyncWebServerRequest* req) {
     bool weekly = false;
     if (req->hasParam("reset_period", true)) {
-        const String v = req->getParam("reset_period", true)->value();
-        weekly = (v == "weekly");
+        const AsyncWebParameter* p = req->getParam("reset_period", true);
+        if (p != nullptr) {
+            weekly = (p->value() == "weekly");
+        }
     }
     configSetResetPeriodWeekly(weekly);
     req->redirect(F("/settings?saved=1"));
@@ -214,7 +241,11 @@ void webAdminRegisterRoutes() {
 
 void webAdminLoop() {
     if (g_mqttApplyPending.exchange(false, std::memory_order_acq_rel)) {
-        mqttCfg = g_mqttPendingCfg;
+        MqttConfig localCfg;
+        portENTER_CRITICAL(&s_mqttCfgMux);
+        localCfg = g_mqttPendingCfg;
+        portEXIT_CRITICAL(&s_mqttCfgMux);
+        mqttCfg = localCfg;
         saveMQTTConfig();
         mqttDisconnect();
         mqttSetup();

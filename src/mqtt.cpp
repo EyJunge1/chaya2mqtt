@@ -2,7 +2,8 @@
 
 #include "mqtt.h"
 
-#include "config.h"
+#include "mqtt_config.h"
+#include "tls_bundle.h"
 #include "counter.h"
 #include "display.h"
 #include "wlan.h"
@@ -22,10 +23,6 @@ static const char* TAG = "MQTT";
 #else
 static constexpr const char* TAG __attribute__((unused)) = "";
 #endif
-
-// ESP-IDF hat ein eingebautes Mozilla-CA-Bundle in libmbedtls.a (CONFIG_MBEDTLS_CERTIFICATE_BUNDLE).
-extern const uint8_t x509_crt_bundle_start[] asm("_binary_x509_crt_bundle_start");
-extern const uint8_t x509_crt_bundle_end[]   asm("_binary_x509_crt_bundle_end");
 
 static WiFiClientSecure espClient;
 static PubSubClient client(espClient);

@@ -5,7 +5,7 @@
 
 #include "web_pages.h"
 
-#include "config.h"
+#include "mqtt_config.h"
 #include "counter.h"
 #include "version.h"
 #include "wlan.h"
@@ -101,11 +101,7 @@ void streamDashboard(AsyncWebServerRequest* req) {
 
 void streamWifiPage(AsyncWebServerRequest* req) {
     WiFi.scanDelete();
-#ifndef ESP8266
     WiFi.scanNetworks(true, false, false, 500, 0, nullptr, nullptr);
-#else
-    WiFi.scanNetworks(true);
-#endif
 
     AsyncResponseStream* resp = req->beginResponseStream("text/html");
     streamPageHeader(*resp, "Wi-Fi");
@@ -163,11 +159,7 @@ void handleWifiScanJson(AsyncWebServerRequest* req) {
     }
     if (n == WIFI_SCAN_FAILED) {
         WiFi.scanDelete();
-#ifndef ESP8266
         WiFi.scanNetworks(true, false, false, 500, 0, nullptr, nullptr);
-#else
-        WiFi.scanNetworks(true);
-#endif
         req->send(202);
         return;
     }

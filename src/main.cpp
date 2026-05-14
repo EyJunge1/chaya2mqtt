@@ -9,10 +9,12 @@
 #include <esp32-hal-cpu.h>
 
 #include "button.h"
-#include "config.h"
 #include "counter.h"
 #include "display.h"
 #include "mqtt.h"
+#include "mqtt_config.h"
+#include "pins.h"
+#include "web_admin.h"
 #include "wlan.h"
 
 #if defined(CORE_DEBUG_LEVEL) && CORE_DEBUG_LEVEL > 0
@@ -27,7 +29,7 @@ static constexpr uint64_t kLightSleepActiveUs = 10000ULL;   // 10 ms
 static constexpr uint64_t kLightSleepIdleUs = 2000000ULL;  // 2 s
 
 static uint64_t computeLightSleepTimerUs() {
-    if (configIsSetupPortalActive()) {
+    if (configIsApMode()) {
         return kLightSleepActiveUs;
     }
     if (buttonIsLedTxSequenceActive()) {
@@ -43,21 +45,21 @@ static uint64_t computeLightSleepTimerUs() {
     return kLightSleepIdleUs;
 }
 
-/** Belegungen wie display.cpp / button.cpp; Pins 6–11 (Flash) nicht anfassen. */
+/** Same assignments as display/button (GxEPD2 SPI + panel); do not use pins 6–11 (flash). */
 static void pinsInit() {
-    pinMode(25, INPUT);
-    pinMode(26, OUTPUT);
-    pinMode(27, OUTPUT);
-    pinMode(12, INPUT);
-    pinMode(13, OUTPUT);
-    pinMode(14, OUTPUT);
-    pinMode(15, OUTPUT);
-    digitalWrite(15, HIGH);
+    pinMode(pins::kDisplayBusy, INPUT);
+    pinMode(pins::kDisplayRst, OUTPUT);
+    pinMode(pins::kDisplayDc, OUTPUT);
+    pinMode(pins::kSpiMiso, INPUT);
+    pinMode(pins::kSpiSck, OUTPUT);
+    pinMode(pins::kSpiMosi, OUTPUT);
+    pinMode(pins::kSpiCs, OUTPUT);
+    digitalWrite(pins::kSpiCs, HIGH);
 }
 
 /** Einmalig in setup(): GPIO- und WiFi-Wakeup aendern sich nicht. */
 static void armLightSleepStaticWakeups() {
-    gpio_wakeup_enable(static_cast<gpio_num_t>(kButtonGpio), GPIO_INTR_HIGH_LEVEL);
+    gpio_wakeup_enable(static_cast<gpio_num_t>(pins::kButton), GPIO_INTR_HIGH_LEVEL);
     esp_sleep_enable_gpio_wakeup();
     esp_sleep_enable_wifi_wakeup();
 }
@@ -84,6 +86,7 @@ void setup() {
 
     loadMQTTConfig();
     loadHeartCounter();
+    configLoadResetPeriodFromNvs();
     setupWiFi();
 
     mqttSetup();
@@ -107,12 +110,16 @@ void loop() {
 
     buttonLoop();
     buttonAdvanceLedSequence();
-    wifiLoop();
+    wlanLoop();
+    webAdminLoop();
+    if (!configIsApMode()) {
+        maybePeriodicallyResetCounters();
+    }
     mqttLoop();
     maybeSaveHeartCounter();
     maybeSaveHeartSentCounter();
 
-    /* WiFi-Reconnect: WiFi.onEvent in setupWiFi (see wifiLoop / webAdminLoop). */
+    /* WiFi-Reconnect: WiFi.onEvent in setupWiFi (see wlanLoop / webAdminLoop). */
 
     if (consumeHeartRedraw()) {
         drawHeartWithNumber();
@@ -126,7 +133,7 @@ void loop() {
     }
 #endif
 
-    if (configIsSetupPortalActive()) {
+    if (configIsApMode()) {
         delay(10); /* FreeRTOS-Tasks (WiFi/DNS/HTTP) laufen lassen; etwas weniger Last im AP */
     } else if (mqttIsConnected()) {
         /* Kein Light Sleep bei aktiver TLS-Session: sonst BEACON_TIMEOUT / Socket-Fehler. */

@@ -13,13 +13,9 @@ bool configSaveWiFiCredentials(const char* ssid, const char* password);
 bool configIsApMode();
 
 /**
- * Captive DNS in AP mode and webAdminLoop; call every main loop iteration.
- * Former name: configLoop().
+ * Captive DNS (AP) and mDNS maintenance — call each main loop iteration.
  */
-void wifiLoop();
-
-/** True in AP captive-portal mode (disables light sleep). */
-bool configIsSetupPortalActive();
+void wlanLoop();
 
 /**
  * STA connected with usable IPv4 (avoids including Arduino WiFi.h in mqtt/ota — IDE/clang friendly).

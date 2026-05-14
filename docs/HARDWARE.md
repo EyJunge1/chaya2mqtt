@@ -34,6 +34,8 @@ Das Board hat den **ESP32 direkt integriert** – es ist kein separates DevKit n
 
 ## Pinbelegung (wie im Code)
 
+Alle GPIO-Zuweisungen sind zentral in **`src/pins.h`** (`namespace pins`) definiert — diese Tabelle entspricht dortigen Konstanten.
+
 ### SPI & Display (GxEPD2)
 
 | Signal | GPIO | Funktion |

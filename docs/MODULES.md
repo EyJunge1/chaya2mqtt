@@ -15,13 +15,14 @@ Uebersicht aller Quelldateien unter `src/`: oeffentliche API, globale Symbole un
 3. `Serial.begin(115200)` nur wenn `CORE_DEBUG_LEVEL > 0`
 4. `displayInit()` -- SPI + E-Paper
 5. `buttonInit()`
-6. `loadMQTTConfig()` (**config**)
+6. `loadMQTTConfig()` (**mqtt_config**)
 7. `loadHeartCounter()` (**counter**)
-8. `setupWiFi()` (**wlan**: registriert Routen, startet `AsyncWebServer`)
-9. `mqttSetup()`
-10. `armLightSleepStaticWakeups()` (GPIO Taster, WiFi-Wakeup); Timer-Wakeup in `loop()`
-11. Erste Zeichnung: `drawHeartWithNumber()` oder `drawSplashScreen()`
-12. `buttonStartupBlink()`, `buttonEnableLedGpioHoldForLightSleep()`
+8. `configLoadResetPeriodFromNvs()` (**counter**, cached reset period)
+9. `setupWiFi()` (**wlan**: registriert Routen, startet `AsyncWebServer`)
+10. `mqttSetup()`
+11. `armLightSleepStaticWakeups()` (GPIO Taster, WiFi-Wakeup); Timer-Wakeup in `loop()`
+12. Erste Zeichnung: `drawHeartWithNumber()` oder `drawSplashScreen()`
+13. `buttonStartupBlink()`, `buttonEnableLedGpioHoldForLightSleep()`
 
 ### Hilfsfunktionen in `main.cpp` (file-static)
 
@@ -36,18 +37,20 @@ Uebersicht aller Quelldateien unter `src/`: oeffentliche API, globale Symbole un
 | Aufruf | Bedeutung |
 |--------|-----------|
 | `buttonLoop()`, `buttonAdvanceLedSequence()` | Taster / LED-State-Machine |
+| `wlanLoop()` | (**wlan**) Captive DNS, mDNS nach GOT_IP |
+| `webAdminLoop()` | MQTT-Apply, Reboot/OTA queue, `otaLoop()` |
+| `maybePeriodicallyResetCounters()` | (**counter**) nur wenn nicht AP |
 | `mqttLoop()` | MQTT + Backoff |
 | `maybeSaveHeartCounter()`, `maybeSaveHeartSentCounter()` | NVS throttled (~30 s) |
-| `wifiLoop()` | (**wlan**) Captive DNS, mDNS, `webAdminLoop()` → `otaLoop()`, Baseline-Roll |
 | `consumeHeartRedraw()` / `drawHeartWithNumber()` | Display-Update bei MQTT |
 | `buttonDebugStatus()` | nur Debug-Build, alle 5 s |
 | `esp_light_sleep_start()` | kein Light-Sleep bei TLS verbunden, unkonfiguriertem MQTT-Server oder aktivem AP |
 
 ---
 
-## `config.h` / `config.cpp`
+## `mqtt_config.h` / `mqtt_config.cpp`
 
-**Zweck:** Nur **MQTT-Broker-Konfiguration** im NVS-Namespace `mqtt`.
+**Zweck:** Nur **MQTT-Broker-Konfiguration** im NVS-Namespace `mqtt` (Defaults und Port-Normalisierung in `constants.h`).
 
 ### Globale Variablen
 
@@ -76,7 +79,7 @@ Uebersicht aller Quelldateien unter `src/`: oeffentliche API, globale Symbole un
 | `heartSentCounter` | Erfolgreich gesendete Werte (nächster Publish = +1) |
 | `counterBaseline`, `sentCountBaseline` | Basis fuer auf dem Display gezeigte Deltas |
 
-Wichtige Funktionen: `loadHeartCounter`, `saveHeartCounter`, `maybeSaveHeartCounter`, `flushHeartCounterIfDirty`, gleiches fuer `HeartSent`, `loadCounterBaseline`, `maybePeriodicallyResetCounters`, `configGetResetPeriodIsWeekly` / `configSetResetPeriodWeekly`, `counterResetRamAfterFactoryClear()`.
+Wichtige Funktionen: `loadHeartCounter`, `saveHeartCounter`, `maybeSaveHeartCounter`, `flushHeartCounterIfDirty`, gleiches fuer `HeartSent`, `loadCounterBaseline`, `maybePeriodicallyResetCounters`, `configLoadResetPeriodFromNvs`, `configGetResetPeriodIsWeekly` / `configSetResetPeriodWeekly`, `counterResetRamAfterFactoryClear()`.
 
 **Abhaengigkeit:** `maybePeriodicallyResetCounters()` prueft `configIsApMode()` aus **wlan** (kein Roll im AP).
 
@@ -89,9 +92,9 @@ Wichtige Funktionen: `loadHeartCounter`, `saveHeartCounter`, `maybeSaveHeartCoun
 | Funktion | Beschreibung |
 |----------|--------------|
 | `setupWiFi()` | `webAdminRegisterRoutes()`, Credentials aus NVS `wifi`, STA oder AP `Chaya2MQTT`, `webAdminWebServer().begin()` |
-| `wifiLoop()` | Früher `configLoop()`: DNS, mDNS-Restart, `webAdminLoop()`, `maybePeriodicallyResetCounters()` |
+| `wlanLoop()` | Captive DNS im AP, mDNS-Restart nach GOT_IP |
 | `configSaveWiFiCredentials()` | NVS `wifi` schreiben |
-| `configIsApMode()` / `configIsSetupPortalActive()` | AP-/Portal-Modus |
+| `configIsApMode()` | SoftAP-Einrichtungsmodus |
 | `resetAllSettings()` | Server stoppen, NVS `wifi`/`mqtt`/`cfg`/`chaya` leeren, RAM-Zähler zurücksetzen, Neustart |
 | `releaseGpioHoldBeforeRestart()` | GPIO-Hold vor Neustart |
 
@@ -107,7 +110,7 @@ Wichtige Funktionen: `loadHeartCounter`, `saveHeartCounter`, `maybeSaveHeartCoun
 
 ## `ota.h` / `ota.cpp`
 
-**Zweck:** GitHub `releases/latest` (JSON `tag_name`), täglicher Auto-Check (NVS `cfg`/`upd_day`), manueller Check-Button, Firmware-Install über `HTTPUpdate` (TLS + CA-Bundle).
+**Zweck:** GitHub `releases/latest` (JSON `tag_name` via ArduinoJson mit Legacy-Fallback), täglicher Auto-Check (NVS `cfg`/`upd_day`), manueller Check-Button, Firmware-Install über `HTTPUpdate` (TLS + CA-Bundle).
 
 | Funktion | Beschreibung |
 |----------|--------------|
@@ -223,7 +226,7 @@ Der Zaehlerstand und Baselines kommen aus **`counter.h`**.
 
 ### Abhaengigkeiten
 
-- `#include "config.h"` fuer `mqttCfg`
+- `#include "mqtt_config.h"` fuer `mqttCfg`
 - `#include "wlan.h"` fuer `resetAllSettings`, `configIsApMode`
 - `#include "counter.h"` fuer `heartSentCounter`, Speichern nach Publish
 

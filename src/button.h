@@ -1,7 +1,9 @@
 #pragma once
 
+#include "pins.h"
+
 /** GPIO des Tasters (Light-Sleep-Wakeup, Debounce, Pin-Mode). */
-static constexpr int kButtonGpio = 2;
+static constexpr int kButtonGpio = pins::kButton;
 
 void buttonInit();
 void buttonStartupBlink();

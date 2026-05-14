@@ -1,6 +1,7 @@
 #include "wlan.h"
 
 #include "counter.h"
+#include "pins.h"
 #include "web_admin.h"
 
 #include <Arduino.h>
@@ -31,7 +32,7 @@ static bool         g_apMode = false;
 
 static unsigned long     s_wifiReconnectNextAllowedMs = 0;
 static uint32_t          s_wifiReconnectFailCount     = 0;
-/** GOT_IP (WiFi event task): restart mDNS in wifiLoop(). */
+/** GOT_IP (WiFi event task): restart mDNS in wlanLoop(). */
 static std::atomic<bool> s_mdnsRestartNeeded{false};
 
 static void wifiStationEvent(arduino_event_id_t event);
@@ -95,17 +96,19 @@ void setupWiFi() {
     webAdminRegisterRoutes();
 
     Preferences preferences;
-    String      ssid;
-    String      pass;
+    char        ssid[33];
+    char        pass[65];
+    ssid[0] = '\0';
+    pass[0] = '\0';
     if (preferences.begin("wifi", true)) {
-        ssid = preferences.getString("ssid", "");
-        pass = preferences.getString("pass", "");
+        preferences.getString("ssid", ssid, sizeof(ssid));
+        preferences.getString("pass", pass, sizeof(pass));
         preferences.end();
     }
 
     bool staConnected = false;
 
-    if (ssid.length() > 0) {
+    if (ssid[0] != '\0') {
         WiFi.mode(WIFI_STA);
         WiFi.config(INADDR_NONE, INADDR_NONE, INADDR_NONE, INADDR_NONE);
         WiFi.setHostname(kDeviceHostname);
@@ -113,7 +116,7 @@ void setupWiFi() {
         WiFi.setAutoReconnect(false);
         WiFi.setScanMethod(WIFI_ALL_CHANNEL_SCAN);
         WiFi.setSortMethod(WIFI_CONNECT_AP_BY_SIGNAL);
-        WiFi.begin(ssid.c_str(), pass.c_str());
+        WiFi.begin(ssid, pass);
 
         const unsigned long start = millis();
         while (WiFi.status() != WL_CONNECTED && millis() - start < 10000) {
@@ -152,8 +155,8 @@ void setupWiFi() {
 }
 
 void releaseGpioHoldBeforeRestart() {
-    (void)gpio_hold_dis(GPIO_NUM_15);
-    (void)gpio_hold_dis(GPIO_NUM_4);
+    (void)gpio_hold_dis(static_cast<gpio_num_t>(pins::kSpiCs));
+    (void)gpio_hold_dis(static_cast<gpio_num_t>(pins::kButtonLed));
 }
 
 void resetAllSettings() {
@@ -189,7 +192,7 @@ void resetAllSettings() {
     ESP.restart();
 }
 
-void wifiLoop() {
+void wlanLoop() {
     if (g_apMode) {
         g_dnsServer.processNextRequest();
     }
@@ -200,14 +203,6 @@ void wifiLoop() {
         }
         MDNS.addService("http", "tcp", 80);
     }
-    webAdminLoop();
-    if (!g_apMode) {
-        maybePeriodicallyResetCounters();
-    }
-}
-
-bool configIsSetupPortalActive() {
-    return configIsApMode();
 }
 
 bool wlanStaConnectedOk() {
