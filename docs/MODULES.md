@@ -6,90 +6,120 @@ Uebersicht aller Quelldateien unter `src/`: oeffentliche API, globale Symbole un
 
 ## `main.cpp`
 
-**Zweck:** Einstiegspunkt, Initialisierungsreihenfolge, Hauptschleife mit WiFi-Watchdog und periodischem Debug.
+**Zweck:** Einstiegspunkt, Initialisierungsreihenfolge, Hauptschleife, adaptiver Light-Sleep.
 
 ### Ablauf `setup()`
 
-1. CPU **80 MHz** ueber `setCpuFrequencyMhz(80)` / `board_build.f_cpu` in `platformio.ini` (weniger Strom als Default 240 MHz)
-2. **Bluetooth aus:** `btStop()`, `esp_bt_controller_mem_release(ESP_BT_MODE_BTDM)` (weniger RAM/Strom)
-3. `Serial.begin(115200)` nur wenn `CORE_DEBUG_LEVEL > 0` (Release-Build ohne Serial-Init)
+1. CPU **80 MHz** (`setCpuFrequencyMhz` / `board_build.f_cpu` in `platformio.ini`)
+2. Bluetooth aus: `btStop()`, `esp_bt_controller_mem_release(ESP_BT_MODE_BTDM)`
+3. `Serial.begin(115200)` nur wenn `CORE_DEBUG_LEVEL > 0`
 4. `displayInit()` -- SPI + E-Paper
-5. `buttonInit()` -- GPIO Button & LED
-6. `loadMQTTConfig()` -- MQTT-Werte aus NVS
-7. `loadHeartCounter()` -- Zaehler aus NVS (Namespace `chaya`)
-8. `setupWiFi()` -- WiFiManager inkl. Portal-Menue (**MQTT Settings** nach `/param`, MQTT-Felder auf eigener Parameter-Seite); danach `WiFi.setSleep(true)` und `esp_wifi_set_ps(WIFI_PS_MAX_MODEM)` (aggressiver Modem-Sleep)
-9. `mqttSetup()` -- TLS-Client mit eingebautem CA-Bundle, Broker, Callback
-10. `armLightSleepStaticWakeups()` einmalig (GPIO Taster HIGH, **WiFi-Wakeup**); Timer-Wakeup wird erst in `loop()` gesetzt (`armLightSleepTimerWakeup`)
-11. `drawHeartWithNumber()` -- erste Darstellung (mit geladenem `heartCounter`); danach `display.hibernate()`
-12. `buttonStartupBlink()` -- 3x LED-Blitz; danach `buttonEnableLedGpioHoldForLightSleep()` -- **GPIO-Hold** fuer LED-Pin (stabiler Pegel im Light-Sleep)
+5. `buttonInit()`
+6. `loadMQTTConfig()` (**config**)
+7. `loadHeartCounter()` (**counter**)
+8. `setupWiFi()` (**wlan**: registriert Routen, startet `AsyncWebServer`)
+9. `mqttSetup()`
+10. `armLightSleepStaticWakeups()` (GPIO Taster, WiFi-Wakeup); Timer-Wakeup in `loop()`
+11. Erste Zeichnung: `drawHeartWithNumber()` oder `drawSplashScreen()`
+12. `buttonStartupBlink()`, `buttonEnableLedGpioHoldForLightSleep()`
 
 ### Hilfsfunktionen in `main.cpp` (file-static)
 
 | Funktion | Beschreibung |
 |----------|--------------|
-| `computeLightSleepTimerUs()` | **10 ms** bei aktiver LED-Sequenz; **100 ms** bei ausstehendem WiFi-Hard-Reconnect; sonst **min(Rest-MQTT-Backoff, 15 s)** (mind. 10 ms) bzw. **15 s** Idle; MQTT via `mqttMillisUntilNextConnectAttempt()` |
+| `computeLightSleepTimerUs()` | **10 ms** bei aktivem Setup-Portal, aktiver LED-Senden-Sequenz oder wenn MQTT-Backoff laeuft ( Alignment auf Restzeit bis Connect-Versuch ); sonst **2 s** Idle |
 | `armLightSleepStaticWakeups()` | Einmalig: GPIO-Wakeup Taster, `esp_sleep_enable_gpio_wakeup`, `esp_sleep_enable_wifi_wakeup` |
-| `armLightSleepTimerWakeup(timerUs)` | Nur `esp_sleep_enable_timer_wakeup` (bei Timerwechsel in `loop()`) |
+| `armLightSleepTimerWakeup(timerUs)` | `esp_sleep_enable_timer_wakeup` bei Timerwechsel |
 
 ### Ablauf `loop()`
 
 | Aufruf | Bedeutung |
 |--------|-----------|
-| `buttonLoop()` | Taster entprellen, Kurz-/Langdruck |
-| `buttonAdvanceLedSequence()` | nicht-blockierende MQTT-Sende-LED-Sequenz (State Machine; millis()-overflow-sicheres Phasen-Timing) |
-| `mqttLoop()` | nicht-blockierender Reconnect mit exponentiellem Backoff, dann `client.loop()` |
-| `maybeSaveHeartCounter()` | Zaehler throttled (~30 s) nach NVS, wenn seit letztem Save geaendert |
-| `consumeHeartRedraw()` / `drawHeartWithNumber()` | bei MQTT-Neuzeichnung; Zaehler-Persistenz nur noch throttled ueber `maybeSaveHeartCounter()` (~30 s) |
-| `WiFi.reconnect()` / Fallback | bei getrenntem WLAN: bis zu **3x** `reconnect()`, danach `disconnect` und in einer **folgenden** Iteration (nach **>= 100 ms** ohne `delay`) `WiFi.begin()`; hoechstens alle **30 s** (plus sofort beim ersten Verlust) |
-| `buttonDebugStatus()` | alle 5 s Serial-Status (nur noch ein Timer in `main`, nur bei `CORE_DEBUG_LEVEL > 0`) |
-| `armLightSleepTimerWakeup` / Timer-Neuarmierung | Wenn sich `computeLightSleepTimerUs()` gegenueber letzter Iteration aendert, nur den Timer neu setzen (GPIO/WiFi bleiben) |
-| `esp_light_sleep_start()` | Light-Sleep (adaptiver Timer + GPIO-Wakeup Taster + **WiFi-Wakeup**) |
+| `buttonLoop()`, `buttonAdvanceLedSequence()` | Taster / LED-State-Machine |
+| `mqttLoop()` | MQTT + Backoff |
+| `maybeSaveHeartCounter()`, `maybeSaveHeartSentCounter()` | NVS throttled (~30 s) |
+| `wifiLoop()` | (**wlan**) Captive DNS, mDNS, `webAdminLoop()` → `otaLoop()`, Baseline-Roll |
+| `consumeHeartRedraw()` / `drawHeartWithNumber()` | Display-Update bei MQTT |
+| `buttonDebugStatus()` | nur Debug-Build, alle 5 s |
+| `esp_light_sleep_start()` | kein Light-Sleep bei TLS verbunden, unkonfiguriertem MQTT-Server oder aktivem AP |
 
 ---
 
 ## `config.h` / `config.cpp`
 
-**Zweck:** Persistente MQTT-Konfiguration und WLAN-Einrichtung ueber **MycilaESPConnect** (Captive Portal); Factory Reset; gemeinsamer **AsyncWebServer** mit `web_admin` (siehe unten).
+**Zweck:** Nur **MQTT-Broker-Konfiguration** im NVS-Namespace `mqtt`.
 
-### Globale Variablen (in `config.cpp` definiert, in `config.h` deklariert)
+### Globale Variablen
 
 | Symbol | Typ | Beschreibung |
-|--------|-----|----------------|
-| `heartCounter` | `int` | Herz-Zähler (Anzeige + MQTT); Persistenz Namespace `chaya`, NVS-Key `counter` |
-| `mqttCfg` | `MqttConfig` | Broker, Port, User, Pass, Pub/Sub-Topics (Felder wie `server`, `port`, …) |
+|--------|-----|--------------|
+| `mqttCfg` | `MqttConfig` | `server`, `port`, `username`, `password`, `topicPub`, `topicSub` |
 
-### Oeffentliche Funktionen
+### Funktionen
 
 | Funktion | Beschreibung |
 |----------|--------------|
-| `loadMQTTConfig()` | `preferences.begin` mit Fehlerpruefung; Liest Namespace `"mqtt"` (readonly) ohne temporaere `String`-Heap-Objekte (`getString` in feste Buffer); **Port** 1--65535 (sonst **8883**); Default-Topics wenn Key fehlt/leer |
-| `saveMQTTConfig()` | Schreibt dieselben Keys; `begin` mit Fehlerpruefung |
-| `loadHeartCounter()` | Liest `heartCounter` aus Namespace `"chaya"` (Key `counter`); `begin` mit Fehlerpruefung |
-| `saveHeartCounter()` | Schreibt aktuellen `heartCounter` nach `"chaya"`; `begin` mit Fehlerpruefung; `true` bei Erfolg |
-| `maybeSaveHeartCounter()` | Schreibt nur, wenn `heartCounter` sich geaendert hat und seit letztem Schreiben mindestens **30 s** vergangen sind (weniger Flash-Verschleiss) |
-| `flushHeartCounterIfDirty()` | Sofortiges NVS-Schreiben bei Dirty-`heartCounter` (vor `ESP.restart()` / Factory-Reset, nicht nach jedem Display-Redraw) |
-| `setupWiFi()` | WiFiManager: Timeout **180 s**, AP-Name **`chaya2mqtt-Setup`**, Portal-Titel **chaya2mqtt Setup**; Menue per `setMenu`: **wifi**, **param**, **info**, **update**, **exit** (Custom-Parameter auf eigener Seite `/param`, da **param** im Menue laut WM2 `_paramsInWifi=false` setzt); `setCustomHeadElement`: benennt den `/param`-Button und die Parameter-Seite per kleinem Script in **MQTT Settings** um; sechs MQTT-`WiFiManagerParameter` (Stack-Lebensdauer; Save-Callback nur waehrend `autoConnect()`); `setSaveParamsCallback(saveParamsFromPortal)`; bei Fehlschlag `flushHeartCounterIfDirty()`, **delay(500)**, dann `ESP.restart()`; nach Erfolg `WiFi.setSleep(true)` und `esp_wifi_set_ps(WIFI_PS_MAX_MODEM)` |
-| `resetAllSettings()` | `WiFiManager::resetSettings()`, Namespace `mqtt` `clear()` (mit `begin`-Fehlerpruefung); **Zähler** (Namespace `chaya`) bleibt erhalten; vor Neustart `flushHeartCounterIfDirty()` |
+| `loadMQTTConfig()` | Lesen aus `mqtt`; Defaults fuer Topics wenn nicht gesetzt |
+| `saveMQTTConfig()` | Schreiben nach `mqtt` |
 
-### Implementierungsdetails
+---
 
-- `Preferences preferences` ist **file-static** in `config.cpp` (kein globales Symbol in `config.h`).
-- `safeStrCopy(dst, dstSize, src)` -- begrenztes `strncpy`, immer nullterminiert.
-- `saveParamsFromPortal()` -- liest Werte aus `WiFiManagerParameter*`, validiert Port (1--65535, sonst 8883), ruft `saveMQTTConfig()` auf.
-- `WiFiManagerParameter`-Instanzen sind **lokal auf dem Stack** in `setupWiFi()`; `g_param_*` zeigen nur waehrend `autoConnect()` darauf (Save-Callback laeuft nur dort). Nach `autoConnect` werden die globalen Zeiger auf `nullptr` gesetzt.
-- Portal-Startseite: Der WM-Standardbutton fuer `/param` wird per `setCustomHeadElement`/Script von **Setup** zu **MQTT Settings** umbenannt (Kunden muessen den URL-Pfad `/param` nicht kennen).
+## `counter.h` / `counter.cpp`
+
+**Zweck:** Empfangs-/Sendezähler, NVS-Persistenz (Namespace `chaya`), Anzeige-Baselines und täglicher/wöchentlicher Reset (UTC, NTP), NVS `cfg` fuer Reset-Periode.
+
+### Globale Variablen
+
+| Symbol | Beschreibung |
+|--------|----------------|
+| `heartCounter` | Zählerstand vom subscribed Topic (retained) |
+| `heartSentCounter` | Erfolgreich gesendete Werte (nächster Publish = +1) |
+| `counterBaseline`, `sentCountBaseline` | Basis fuer auf dem Display gezeigte Deltas |
+
+Wichtige Funktionen: `loadHeartCounter`, `saveHeartCounter`, `maybeSaveHeartCounter`, `flushHeartCounterIfDirty`, gleiches fuer `HeartSent`, `loadCounterBaseline`, `maybePeriodicallyResetCounters`, `configGetResetPeriodIsWeekly` / `configSetResetPeriodWeekly`, `counterResetRamAfterFactoryClear()`.
+
+**Abhaengigkeit:** `maybePeriodicallyResetCounters()` prueft `configIsApMode()` aus **wlan** (kein Roll im AP).
+
+---
+
+## `wlan.h` / `wlan.cpp`
+
+**Zweck:** WiFi STA/AP, Captive DNS (`DNSServer`), mDNS, NTP nach STA-Verbindung, Reconnect-Backoff (`WiFi.onEvent`), gemeinsamer HTTP-Server mit **web_admin**; Factory Reset.
+
+| Funktion | Beschreibung |
+|----------|--------------|
+| `setupWiFi()` | `webAdminRegisterRoutes()`, Credentials aus NVS `wifi`, STA oder AP `Chaya2MQTT`, `webAdminWebServer().begin()` |
+| `wifiLoop()` | Früher `configLoop()`: DNS, mDNS-Restart, `webAdminLoop()`, `maybePeriodicallyResetCounters()` |
+| `configSaveWiFiCredentials()` | NVS `wifi` schreiben |
+| `configIsApMode()` / `configIsSetupPortalActive()` | AP-/Portal-Modus |
+| `resetAllSettings()` | Server stoppen, NVS `wifi`/`mqtt`/`cfg`/`chaya` leeren, RAM-Zähler zurücksetzen, Neustart |
+| `releaseGpioHoldBeforeRestart()` | GPIO-Hold vor Neustart |
+
+**Hinweis:** Dateiname **wlan** vermeidet Konflikt mit Arduino `#include <WiFi.h>` auf case-insensitiven Dateisystemen.
 
 ---
 
 ## `web_admin.h` / `web_admin.cpp`
 
-**Zweck:** **HTTP-Oberfläche** für WLAN-Verbindung, Dashboard, Firmware-Update und MQTT-Konfiguration (`/mqtt` GET/POST). Nutzt dieselbe `AsyncWebServer`-Instanz (Port 80) wie das Captive Portal in **config** (`webAdminWebServer()`).
+**Zweck:** `AsyncWebServer` (Singleton Port 80), Route-Registrierung, POST-Handler; **`webAdminLoop()`** wendet MQTT-Formular an, Reboot/Wi‑Fi-Neustart, ruft **`otaLoop()`**.
 
-| Funktion | Kurzbeschreibung |
-|----------|------------------|
-| `webAdminWebServer()` | Referenz auf den gemeinsamen `AsyncWebServer` (Singleton) |
-| `webAdminRegisterRoutes()` | Routen einmal registrieren (vor `begin()` auf dem Server) |
-| `webAdminLoop()` | Ausstehende MQTT-Änderungen anwenden, Reboot/OTA/WiFi-Anfragen aus Request-Handlern verarbeiten |
+---
+
+## `ota.h` / `ota.cpp`
+
+**Zweck:** GitHub `releases/latest` (JSON `tag_name`), täglicher Auto-Check (NVS `cfg`/`upd_day`), manueller Check-Button, Firmware-Install über `HTTPUpdate` (TLS + CA-Bundle).
+
+| Funktion | Beschreibung |
+|----------|--------------|
+| `otaLoop()` | Auto-Update-Logik + ausstehender Download |
+| `otaQueueFirmwareUrl(url)` | Custom-URL (max. Pufferlaenge) |
+| `otaQueueGithubCheck()` | Manueller Versions-Vergleich |
+
+---
+
+## `web_pages.h` / `web_pages.cpp`
+
+**Zweck:** HTML-Streaming (Dashboard, Wi‑Fi-Scan-JSON, MQTT-Formular, Settings, Update-Seite); gemeinsames CSS via `web_styles.h`.
 
 ---
 
@@ -103,7 +133,7 @@ Uebersicht aller Quelldateien unter `src/`: oeffentliche API, globale Symbole un
 |--------|--------------|
 | Display-Instanz | nur in `display.cpp` (`static`), nicht exportiert -- CS=15, DC=27, RST=26, BUSY=25 |
 
-Der Zaehlerstand kommt aus **`config.h`** (`extern int heartCounter`).
+Der Zaehlerstand und Baselines kommen aus **`counter.h`**.
 
 ### Oeffentliche Funktionen
 
@@ -157,7 +187,7 @@ Der Zaehlerstand kommt aus **`config.h`** (`extern int heartCounter`).
 - Connect mit **Last Will**: Topic = Sende-Topic + Suffix `/lwt`, Payload `offline`, QoS 1, retain. Nach erfolgreichem Connect wird retained `"online"` auf dasselbe LWT-Topic gepublished.
 - CA-Bundle: Eingebautes Linker-Symbol `_binary_x509_crt_bundle_start` aus `libmbedtls.a` (ESP-IDF `CONFIG_MBEDTLS_CERTIFICATE_BUNDLE`). Kein externes Bundle noetig.
 - Keine separate DNS-Vorabfrage; Aufloesung erfolgt im TLS-/TCP-Stack beim Connect.
-- Ohne WLAN: nur Warte-Backoff (**kein** `WiFi.reconnect()` hier; `main` uebernimmt Reconnect).
+- Ohne WLAN: nur Warte-Backoff (**kein** `WiFi.reconnect()` hier; **wlan** uebernimmt STA-Reconnect).
 
 ---
 
@@ -171,7 +201,7 @@ Der Zaehlerstand kommt aus **`config.h`** (`extern int heartCounter`).
 |------|------|-----------|
 | `kButtonGpio` | 2 | Taster (in `button.h`; auch fuer Light-Sleep-Wakeup in `main`) |
 | `kButtonLedPin` | 4 | LED |
-| `kLongPressMs` | 5000 | Factory Reset |
+| `kFactoryResetHoldMs` | 10000 | Factory Reset (Langdruck **10 s**) |
 | `kShortPressMinMs` | 50 | Mindestdauer fuer Kurzdruck |
 
 ### Oeffentliche Funktionen
@@ -181,7 +211,7 @@ Der Zaehlerstand kommt aus **`config.h`** (`extern int heartCounter`).
 | `buttonInit()` | `pinMode(kButtonGpio, INPUT_PULLDOWN)`, `pinMode(kButtonLedPin, OUTPUT)` |
 | `buttonStartupBlink()` | 3x 200 ms an/aus (blockierend, nur beim Start); nutzt `ledOutput()` |
 | `buttonEnableLedGpioHoldForLightSleep()` | `gpio_hold_en` fuer LED-Pin nach Startup (von `main` nach Blink); bei jeder LED-Aenderung zuerst `gpio_hold_dis` (`ledOutput`) |
-| `buttonLoop()` | Zeitdebounce (~20 ms stabiler Pegel); Zustandslogik: `HIGH` = gedrueckt; bei 5 s ohne Loslassen Blinkmuster, dann `resetAllSettings()`; beim Loslassen nach kurzem Druck Start der **nicht-blockierenden** Sende-/LED-Sequenz (wenn keine Sequenz aktiv) |
+| `buttonLoop()` | Zeitdebounce (~20 ms stabiler Pegel); `HIGH` = gedrueckt; bei **10 s** Halten ohne Loslassen: Blinkmuster, dann `resetAllSettings()`; beim Loslassen nach Kurzdruck (min. `kShortPressMinMs`, unter Factory-Hold): Start der nicht-blockierenden Sende-/LED-Sequenz wenn MQTT-Server gesetzt und nicht im AP |
 | `buttonAdvanceLedSequence()` | Taktet die LED-Sequenz (2x Blink, MQTT-Publish, 500 ms Pause, 2x Blink); einfache Phasen ueber Tabelle `kLedPhaseRows`, Sonderlogik fuer `PreOff2`, `PublishTry` / `PublishRetryWait`, Ende `PostOff2` / `FailOff3` |
 | `buttonDebugStatus()` | Serial: Debug-Zaehler, Button- und LED-Pegel (Aufrufrhythmus nur noch in `main`, alle 5 s) |
 | `buttonIsLedTxSequenceActive()` | `true`, solange die MQTT-Sende-LED-Sequenz laeuft (von `main` fuer adaptiven Light-Sleep) |
@@ -193,8 +223,9 @@ Der Zaehlerstand kommt aus **`config.h`** (`extern int heartCounter`).
 
 ### Abhaengigkeiten
 
-- `#include "mqtt.h"` fuer `mqttPublishChaya()`
-- `#include "config.h"` fuer `resetAllSettings`
+- `#include "config.h"` fuer `mqttCfg`
+- `#include "wlan.h"` fuer `resetAllSettings`, `configIsApMode`
+- `#include "counter.h"` fuer `heartSentCounter`, Speichern nach Publish
 
 ---
 

@@ -7,10 +7,10 @@ Zwei ESP32-Geräte mit einem 3-Farben-E-Paper-Display zeigen jeweils ein **rotes
 - **E-Ink-Display**: Rotes Herz mit schwarzer Zahl auf dem Waveshare 1.54inch e-Paper (B), 200x200, 3-Farben (GxEPD2, Treiber `GxEPD2_154_Z90c`)
 - **MQTT-Synchronisation**: Publish beim Knopfdruck (Sendezähler als retained Dezimalstring); Subscribe setzt den Counter auf den empfangenen Wert – verpasste Nachrichten werden beim Reconnect automatisch nachgeholt
 - **TLS**: Verbindung zum Broker über `WiFiClientSecure` mit dem **eingebauten Mozilla-CA-Bundle** des ESP-IDF (Zertifikatsprüfung; Port typisch **8883**)
-- **Web-/Captive-Portal**: WiFi-Zugang und MQTT-Daten (Server, Port, Benutzer, Passwort, Topic) über **WiFiManager** („Chaya2MQTT")
+- **Web-/Captive-Portal**: WiFi-Zugang über SoftAP **`Chaya2MQTT`** und Browser (`AsyncWebServer`); MQTT und weitere Einstellungen unter **http://chaya2mqtt.local** nach STA-Verbindung
 - **Knopf mit LED**: Kurzer Druck → MQTT senden + LED blinkt; nach erfolgreichem Senden nochmals Blinken
-- **Factory Reset**: Knopf **5 Sekunden** halten → WLAN- und MQTT-Einstellungen löschen, Neustart
-- **Energieeffizienz**: CPU **80 MHz**, **WiFi Modem Sleep** plus **`WIFI_PS_MAX_MODEM`** nach Verbindung, **adaptiver Light-Sleep** in der Hauptschleife (kürzer während der Sende-LED-Sequenz, länger im Leerlauf), E-Paper-Controller **`hibernate()`** nach jedem Zeichnen (Bild bleibt sichtbar)
+- **Factory Reset**: Knopf **10 Sekunden** halten → alle NVS-Namespaces (WLAN, MQTT, Zähler, Einstellungen) löschen, Neustart
+- **Energieeffizienz**: CPU **80 MHz**, **WiFi Modem Sleep** plus **`WIFI_PS_MIN_MODEM`** nach STA-Verbindung, **adaptiver Light-Sleep** in der Hauptschleife (kürzer bei aktiver Sende-LED-Sequenz / MQTT-Backoff), E-Paper **`hibernate()`**
 
 ## Voraussetzungen
 
@@ -42,10 +42,8 @@ Falls `pio: command not found`: PlatformIO-Core liegt unter `~/.platformio/penv/
    - **MQTT Port** (Standard im Code: **8883**)
    - **MQTT Username** / **MQTT Password** (leer lassen, falls nicht nötig)
    - **MQTT Sende-Topic** (Default: `chaya/to_b`) – Topic, auf das bei Knopfdruck publiziert wird
-   - **MQTT Empfangs-Topic** (Default: `chaya/to_a`) – Topic, das abonniert wird und bei Nachricht den Counter erhöht
-5. Speichern. Nach Verbindung mit dem Heim-WLAN erscheint die lokale IP im Serial Monitor.
-
-**Hinweis:** Portal-Timeout: **180 Sekunden** (siehe `config.cpp`). Bei fehlgeschlagener Konfiguration: Neustart.
+   - **MQTT Empfangs-Topic** (Default: `chaya/to_a`) – Topic, das abonniert wird und bei Nachricht den Counter setzt
+5. Speichern. Nach Verbindung mit dem Heim-WLAN erscheint die lokale IP im Serial Monitor (Debug-Build).
 
 ## Zwei Geräte koppeln
 
@@ -60,7 +58,7 @@ So gilt: Knopf auf A → publiziert Sendezähler (retained) auf `chaya/to_b` →
 
 ## Factory Reset
 
-Knopf **mindestens 5 Sekunden** gedrückt halten → `resetAllSettings()` löscht WiFiManager-Daten und den Preferences-Namespace `mqtt` (der **Zähler** im Namespace `chaya` bleibt erhalten), anschließend **Neustart**. Danach wieder Captive Portal.
+Knopf **mindestens 10 Sekunden** gedrückt halten → `resetAllSettings()` (**wlan**) löscht die NVS-Namespaces `wifi`, `mqtt`, `cfg` und `chaya`, setzt RAM-Zähler zurück und startet neu. Danach wieder SoftAP **`Chaya2MQTT`** bei fehlenden STA-Credentials.
 
 ## Projektstruktur (Firmware)
 
@@ -75,11 +73,17 @@ chaya2mqtt/
 │   └── MODULES.md         # Code-Referenz
 └── src/
     ├── main.cpp
-    ├── config.cpp / config.h
-    ├── web_admin.cpp / web_admin.h
+    ├── config.cpp / config.h       # MQTT NVS
+    ├── counter.cpp / counter.h     # Zähler & Baselines NVS
+    ├── wlan.cpp / wlan.h           # WiFi/AP/DNS/mDNS; Factory Reset (Name wlan ≠ Arduino WiFi.h)
+    ├── web_admin.cpp / web_admin.h # HTTP-Routen
+    ├── web_pages.cpp / web_pages.h # HTML
+    ├── web_styles.h
+    ├── ota.cpp / ota.h             # Firmware-Update / GitHub-Check
     ├── display.cpp / display.h
     ├── mqtt.cpp / mqtt.h
-    └── button.cpp / button.h
+    ├── button.cpp / button.h
+    └── version.h
 ```
 
 ## Abhängigkeiten (PlatformIO)
@@ -91,7 +95,7 @@ Definiert in `platformio.ini`:
 | **GxEPD2** | E-Paper-Treiber |
 | **Adafruit GFX / BusIO** | Grafik-Primitives für das Display |
 | **PubSubClient** | MQTT-Client |
-| **WiFiManager** | WLAN-Konfiguration + Custom-Parameter für MQTT |
+| **ESPAsyncWebServer** | HTTP-Admin-Oberfläche + Captive-Portal-Modus |
 
 ## Weitere Dokumentation
 

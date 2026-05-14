@@ -1,13 +1,15 @@
+#include <Arduino.h>
+#include <WiFi.h>
+#include <WiFiType.h>
+#include <ESPAsyncWebServer.h>
+
 #include "web_pages.h"
 
 #include "config.h"
+#include "counter.h"
 #include "version.h"
+#include "wlan.h"
 #include "web_styles.h"
-
-#include <Arduino.h>
-#include <ESPAsyncWebServer.h>
-#include <WiFi.h>
-#include <WiFiType.h>
 #include <cstdio>
 
 static void appendHtmlEscaped(Print& out, const char* s) {

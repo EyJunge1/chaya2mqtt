@@ -2,15 +2,21 @@
 
 ## Moduluebersicht
 
-Die Firmware ist in **vier logische Module** plus `main.cpp` aufgeteilt:
+Die Firmware ist in **mehrere fokussierte Module** plus `main.cpp` aufgeteilt:
 
 | Modul | Dateien | Aufgabe |
 |--------|---------|---------|
-| **config** | `config.h`, `config.cpp` | MQTT/Zähler (Namespace `chaya`) in NVS, WLAN/Captive Portal, Factory Reset |
-| **web_admin** | `web_admin.h`, `web_admin.cpp` | HTTP `/mqtt` Wartungsseite (gemeinsamer `AsyncWebServer` mit ESPConnect) |
-| **display** | `display.h`, `display.cpp` | GxEPD2-Initialisierung, Zeichnen Herz + Zahl |
-| **mqtt** | `mqtt.h`, `mqtt.cpp` | TLS-Client, Broker-Verbindung, Subscribe/Publish, Callback setzt Counter auf empfangenen Zaehlerstand |
-| **button** | `button.h`, `button.cpp` | GPIO Taster + LED, Kurzdruck -> Publish, Langdruck -> Reset |
+| **config** | `config.h`, `config.cpp` | MQTT-Brokereinstellungen (NVS Namespace `mqtt`) |
+| **counter** | `counter.h`, `counter.cpp` | Herz-Zähler / Sent-Zähler, Baselines, periodischer Display-Reset (NVS `chaya`, `cfg`) |
+| **wlan** | `wlan.h`, `wlan.cpp` | STA/AP, Captive DNS, mDNS, NTP, Reconnect-Backoff; registriert `AsyncWebServer`-Routen; ruft `wifiLoop()` (ehem. `configLoop()`); Factory Reset |
+| **web_admin** | `web_admin.h`, `web_admin.cpp` | HTTP-Routen und Formular-Handler (Dashboard, Wi‑Fi, MQTT, Settings); `webAdminLoop()` |
+| **ota** | `ota.h`, `ota.cpp` | GitHub-Versionscheck, täglicher Auto-Check (NVS), Firmware-Download (`HTTPUpdate`) |
+| **web_pages** | `web_pages.h`, `web_pages.cpp` | HTML-Antworten (Streaming), eingebettetes CSS über `web_styles.h` |
+| **display** | `display.h`, `display.cpp` | GxEPD2-Initialisierung, Zeichnen Herz + Zähler-Deltas |
+| **mqtt** | `mqtt.h`, `mqtt.cpp` | TLS-Client, Broker-Verbindung, Subscribe/Publish, Callback setzt `heartCounter` |
+| **button** | `button.h`, `button.cpp` | GPIO Taster + LED, Kurzdruck → Publish, Langdruck → Factory Reset |
+
+`wlan.cpp` heisst **wlan** (nicht `wifi.*`), damit `#include <WiFi.h>` (Arduino) auf **case-insensitiven** Dateisystemen nicht mit einem Projekt-Header kollidiert.
 
 `main.cpp` **orchestriert** die Initialisierung und ruft in `loop()` die Modul-Loops auf.
 
@@ -20,24 +26,40 @@ Die Firmware ist in **vier logische Module** plus `main.cpp` aufgeteilt:
 flowchart LR
     main[main.cpp]
     cfg[config]
+    ctr[counter]
+    wlan[wlan]
+    web[web_admin]
+    otaMod[ota]
     dsp[display]
     mq[mqtt]
     btn[button]
 
     main --> cfg
+    main --> ctr
+    main --> wlan
     main --> dsp
     main --> mq
     main --> btn
     btn --> cfg
+    btn --> ctr
     btn --> mq
     mq --> cfg
+    mq --> ctr
     mq --> dsp
-    dsp --> cfg
+    dsp --> ctr
+    wlan --> web
+    wlan --> ctr
+    web --> cfg
+    web --> ctr
+    web --> mq
+    web --> otaMod
 ```
 
-- **mqtt** nutzt `mqtt_server`, `mqtt_port`, ... und `heartCounter` aus **config** und ruft **display** auf (`requestHeartRedraw` / indirekt Zeichnung).
-- **display** liest `heartCounter` aus **config** fuer die Zahlendarstellung.
-- **button** nutzt **config** (Reset) und **mqtt** (`mqttPublishChaya()`).
+- **mqtt** nutzt `mqttCfg` aus **config**, `heartCounter` aus **counter**, ruft **display** auf (`requestHeartRedraw`).
+- **display** liest Zähler und Baselines aus **counter** fuer die Darstellung.
+- **button** nutzt **wlan** (`resetAllSettings`, `configIsApMode`), **counter**, **mqtt** (`mqttPublishChaya()`).
+- **wlan** ruft **web_admin** (`wifiLoop` → `webAdminLoop`) und **counter** (`maybePeriodicallyResetCounters`).
+- **web_admin** ruft **ota** (`otaLoop`) fuer Updates.
 
 ## Kommunikation: zwei Geraete ueber MQTT
 
@@ -76,14 +98,16 @@ sequenceDiagram
     participant D as display
     participant B as button
     participant C as config
+    participant N as counter
+    participant W as wlan
     participant Q as mqtt
 
     M->>M: CPU 80MHz btStop BT Speicher frei
     M->>D: displayInit
     M->>B: buttonInit
     M->>C: loadMQTTConfig
-    M->>C: loadHeartCounter
-    M->>C: setupWiFi
+    M->>N: loadHeartCounter
+    M->>W: setupWiFi
     M->>Q: mqttSetup
     M->>M: armLightSleepStaticWakeups
     M->>M: armLightSleepTimerWakeup
@@ -96,7 +120,7 @@ sequenceDiagram
 3. Display hardware initialisieren
 4. Button/LED-Pins
 5. Gespeicherte MQTT-Parameter laden; Zaehler aus NVS (`loadHeartCounter`)
-6. WiFi (ggf. Captive Portal) + Speichern der Portal-Parameter; bei **identischem** Sende- und Empfangs-Topic werden Defaults `chaya/to_b` / `chaya/to_a` gespeichert (kein Selbstempfang). Danach **WiFi Modem Sleep** (`WiFi.setSleep(true)`), **`esp_wifi_set_ps(WIFI_PS_MAX_MODEM)`** und **HT20** (`esp_wifi_set_bandwidth(WIFI_IF_STA, WIFI_BW_HT20)`)
+6. WiFi ueber `setupWiFi()` (**wlan**): STA mit gespeicherten Credentials oder SoftAP **`Chaya2MQTT`** mit Captive DNS (`DNSServer`), gemeinsamer **`AsyncWebServer`** (Port 80). Nach STA-Verbindung: **WiFi Modem Sleep** (`WiFi.setSleep(true)`), **`esp_wifi_set_ps(WIFI_PS_MIN_MODEM)`**, **HT20**. Reconnect bei Disconnect ueber `WiFi.onEvent` mit exponentiellem Backoff.
 7. MQTT-Client konfigurieren (Server, Callback, TLS mit CA-Bundle)
 8. **Light-Sleep-Wakeup:** `armLightSleepStaticWakeups()` (GPIO Taster, WiFi), danach `armLightSleepTimerWakeup()` (adaptiver Timer)
 9. Erste Zeichnung mit `heartCounter` (Start: 0); nach Refresh **Display Hibernate** (Controller Deep Sleep)
@@ -109,22 +133,20 @@ flowchart TD
     start[loop Start]
     btn[buttonLoop]
     led[buttonAdvanceLedSequence]
+    wl[wifiLoop]
     mq[mqttLoop]
-    save[maybeSaveHeartCounter]
-    wifi[WiFi Reconnect Logik]
-    redraw[bei Flag drawHeartWithNumber flushHeartCounterIfDirty]
+    save[maybeSaveHeartCounter etc]
+    redraw[consumeHeartRedraw drawHeartWithNumber]
     dbg[buttonDebugStatus alle 5s]
     arm[armLightSleepTimerWakeup bei Timerwechsel]
-    wait[esp_light_sleep_start 10ms oder 2s Idle]
+    wait[esp_light_sleep_start]
 
-    start --> btn --> led --> mq --> save --> wifi --> redraw --> dbg --> arm --> wait --> start
+    start --> btn --> led --> mq --> save --> wl --> redraw --> dbg --> arm --> wait --> start
 ```
 
-- **mqttLoop:** Bei Verbindungsverlust **nicht-blockierender** Reconnect (ein Versuch pro Abstand, exponentieller Backoff 5 s bis max. 60 s bei Connect-Fehlern; leerer Server / kein WLAN: feste Intervalle)
-- **WiFi:** bei Verlust Reconnect (max. alle **30 s**, sofort beim ersten Verlust); nach **3** fehlgeschlagenen Versuchen `disconnect`, nach **>= 100 ms** (naechste Loop-Iterationen) `WiFi.begin()` ohne blockierendes `delay(100)`
-- **Display:** nach MQTT-Empfang nur Flag; `drawHeartWithNumber()` laeuft in `loop()` wenn `consumeHeartRedraw()`; danach `flushHeartCounterIfDirty()` (Zaehler sofort in NVS); zusaetzlich `maybeSaveHeartCounter()` als Safety-Net (~30 s)
-- **Light-Sleep:** Timer **10 ms**, wenn `buttonIsLedTxSequenceActive()` (LED-Sequenz), sonst **2 s**; Wakeup-Quellen: **Timer**, **GPIO** (Taster HIGH), **WiFi** (`esp_sleep_enable_wifi_wakeup`)
-- **Debug:** alle 5 s Button-/LED-Zustand auf Serial
+- **mqttLoop:** nicht-blockierender Reconnect mit Backoff (siehe `mqtt.cpp`).
+- **wifiLoop:** Captive DNS im AP, mDNS-Restart nach GOT_IP, **webAdminLoop()** (MQTT-Anwendung, Reboot, ruft **otaLoop()**), periodischer Zähler-Baseline-Roll (**counter**).
+- **WiFi-Reconnect:** Event-gesteuert in **wlan** (`WiFi.reconnect()` mit Backoff), nicht in `main`.
 
 ## MQTT-Protokoll (praktisch)
 
@@ -141,8 +163,10 @@ Authentifizierung: optional ueber `mqtt_username` / `mqtt_password` aus dem Port
 
 ## Persistenz
 
-- **WiFi:** WiFiManager speichert Zugangsdaten intern.
-- **MQTT:** Namespace `mqtt` in `Preferences` (`server`, `port`, `user`, `pass`, `topic_pub`, `topic_sub`).
-- **Zaehler:** Namespace `chaya`, Key `counter` (wird bei MQTT-Empfang aktualisiert; Factory Reset **loescht den Zaehler nicht**).
+- **WiFi:** Namespace `wifi` in `Preferences` (`ssid`, `pass`), geschrieben ueber Web-Formular `/wifi-connect` (`configSaveWiFiCredentials`).
+- **MQTT:** Namespace `mqtt` (`server`, `port`, `user`, `pass`, `topic_pub`, `topic_sub`).
+- **Anzeige-Reset-Periode:** Namespace `cfg`, Key `rstPeriod` (taeglich vs. woechentlich).
+- **OTA-Letzter Check-Tag:** Namespace `cfg`, Key `upd_day` (Kalendertag UTC).
+- **Zaehler:** Namespace `chaya` (`counter`, `sentCount`, Baselines `cntBase`/`sntBase`/`rstDay`). Factory Reset in **wlan** **loescht alle genannten Namespaces** inkl. `chaya` (Zähler werden zurueckgesetzt).
 
 Siehe [MODULES.md](MODULES.md) fuer Funktionsdetails.

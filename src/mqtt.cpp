@@ -1,10 +1,11 @@
+#include <Arduino.h>
+
 #include "mqtt.h"
 
 #include "config.h"
+#include "counter.h"
 #include "display.h"
-
-#include <Arduino.h>
-#include <WiFi.h>
+#include "wlan.h"
 #include <WiFiClientSecure.h>
 #include <PubSubClient.h>
 #include <algorithm>
@@ -50,7 +51,7 @@ static unsigned long mqttTryConnectSinglePass() {
         return 60000;
     }
 
-    if (WiFi.status() != WL_CONNECTED) { // NOLINT(readability-static-accessed-through-instance)
+    if (!wlanStaConnectedOk()) {
         ESP_LOGW(TAG, "WiFi nicht verbunden, warte auf Reconnect");
         return 5000;
     }

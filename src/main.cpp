@@ -10,8 +10,10 @@
 
 #include "button.h"
 #include "config.h"
+#include "counter.h"
 #include "display.h"
 #include "mqtt.h"
+#include "wlan.h"
 
 #if defined(CORE_DEBUG_LEVEL) && CORE_DEBUG_LEVEL > 0
 static const char* TAG = "MAIN";
@@ -105,12 +107,12 @@ void loop() {
 
     buttonLoop();
     buttonAdvanceLedSequence();
-    configLoop();
+    wifiLoop();
     mqttLoop();
     maybeSaveHeartCounter();
     maybeSaveHeartSentCounter();
 
-    /* WiFi-Reconnect: WiFi.onEvent in setupWiFi (siehe configLoop / webAdminLoop). */
+    /* WiFi-Reconnect: WiFi.onEvent in setupWiFi (see wifiLoop / webAdminLoop). */
 
     if (consumeHeartRedraw()) {
         drawHeartWithNumber();

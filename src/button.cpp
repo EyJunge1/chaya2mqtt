@@ -1,8 +1,10 @@
 #include "button.h"
 
 #include "config.h"
+#include "counter.h"
 #include "display.h"
 #include "mqtt.h"
+#include "wlan.h"
 
 #include <Arduino.h>
 #include <climits>

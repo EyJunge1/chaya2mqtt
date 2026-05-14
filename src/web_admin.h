@@ -8,5 +8,5 @@ AsyncWebServer& webAdminWebServer();
 /** Alle HTTP-Routen einmal registrieren (vor webAdminWebServer().begin()). */
 void webAdminRegisterRoutes();
 
-/** Deferred Reboot/WiFi-OTA aus Request-Handlers; wird aus configLoop() aufgerufen. */
+/** Deferred reboot/Wi-Fi reconnect/OTA from request handlers; called from wifiLoop(). */
 void webAdminLoop();
