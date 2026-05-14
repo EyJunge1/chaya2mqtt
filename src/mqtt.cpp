@@ -126,6 +126,10 @@ void mqttSetup() {
     mqttCurrentBackoffMs = kMqttBackoffInitialMs;
 }
 
+bool mqttIsConnected() {
+    return client.connected();
+}
+
 void mqttLoop() {
     const unsigned long now = millis();
     const bool connected = client.connected();

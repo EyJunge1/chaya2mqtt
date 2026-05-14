@@ -20,8 +20,8 @@ static constexpr const char* TAG __attribute__((unused)) = "";
 
 /** Light-Sleep: kurz bei aktiver LED-Sequenz, laenger im Idle (Taster per GPIO-, WiFi per Event-Wakeup). */
 static constexpr uint64_t kLightSleepActiveUs = 10000ULL;   // 10 ms
-/** Idle: 15 s -- genug fuer MQTT-Keepalive (60 s); WiFi-/GPIO-Wakeup wecken bei Bedarf frueher. */
-static constexpr uint64_t kLightSleepIdleUs = 15000000ULL;  // 15 s
+/** Idle: 2 s -- haeufigeres Aufwachen, damit PubSubClient::loop()/Keepalive beim Broker zuverlaessiger laufen. */
+static constexpr uint64_t kLightSleepIdleUs = 2000000ULL;  // 2 s
 
 static uint64_t computeLightSleepTimerUs() {
     if (configIsSetupPortalActive()) {
@@ -105,7 +105,12 @@ void loop() {
     }
 #endif
 
-    if (!configIsSetupPortalActive()) {
+    if (configIsSetupPortalActive()) {
+        delay(10); /* FreeRTOS-Tasks (WiFi/DNS/HTTP) laufen lassen; etwas weniger Last im AP */
+    } else if (mqttIsConnected()) {
+        /* Kein Light Sleep bei aktiver TLS-Session: sonst BEACON_TIMEOUT / Socket-Fehler. */
+        delay(50);
+    } else {
         static uint64_t lastArmedLightSleepTimerUs = UINT64_MAX;
         const uint64_t lightSleepTimerUs = computeLightSleepTimerUs();
         if (lightSleepTimerUs != lastArmedLightSleepTimerUs) {
@@ -113,7 +118,5 @@ void loop() {
             lastArmedLightSleepTimerUs = lightSleepTimerUs;
         }
         esp_light_sleep_start();
-    } else {
-        delay(10); /* FreeRTOS-Tasks (WiFi/DNS/HTTP) laufen lassen; etwas weniger Last im AP */
     }
 }

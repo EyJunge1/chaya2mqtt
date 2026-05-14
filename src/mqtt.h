@@ -4,6 +4,9 @@ void mqttSetup();
 void mqttDisconnect();
 void mqttLoop();
 
+/** True wenn PubSubClient mit dem Broker verbunden ist (vor TLS-Light-Sleep-Schutz nutzen). */
+bool mqttIsConnected();
+
 /** Sendet einen Publish-Versuch "heart" auf mqtt_topic_pub (TLS). */
 bool mqttPublishHeart();
 

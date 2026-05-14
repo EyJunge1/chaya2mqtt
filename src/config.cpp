@@ -228,7 +228,7 @@ void setupWiFi() {
         WiFi.setSleep(true);
         // NTP: für tägliche Auto-Updates (Kalendertag) und Zeitvergleiche
         configTime(0, 0, "pool.ntp.org", "time.cloudflare.com");
-        esp_wifi_set_ps(WIFI_PS_MAX_MODEM);
+        esp_wifi_set_ps(WIFI_PS_MIN_MODEM);
         (void)esp_wifi_set_bandwidth(WIFI_IF_STA, WIFI_BW_HT20);
         esp_wifi_set_max_tx_power(52);
         if (!MDNS.begin(kDeviceHostname)) {
