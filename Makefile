@@ -1,4 +1,4 @@
-# heart-esp32 – Kurzbefehle für PlatformIO
+# chaya2mqtt – Kurzbefehle für PlatformIO
 # Standard-Umgebung: esp32dev (Debug). Release: make upload-release
 
 ENV     ?= esp32dev
@@ -8,7 +8,7 @@ ENV_REL ?= esp32dev-release
 .PHONY: help build upload upload-clean clean erase monitor compiledb build-release upload-release erase-release upload-release-clean
 
 help:
-	@echo "heart-esp32 – PlatformIO über Makefile"
+	@echo "chaya2mqtt – PlatformIO über Makefile"
 	@echo ""
 	@echo "  make build          # bauen (ENV=$(ENV))"
 	@echo "  make upload         # bauen + flashen ($(ENV))"

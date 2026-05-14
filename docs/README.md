@@ -1,4 +1,4 @@
-# Heart ESP32 – E-Ink-Herz mit MQTT
+# Chaya2MQTT – E-Ink-Herz mit MQTT
 
 Zwei ESP32-Geräte mit einem 3-Farben-E-Paper-Display zeigen jeweils ein **rotes Herz** mit einer **Zahl** (Zähler). Wird auf **Gerät A** der Knopf gedrückt, sendet es eine MQTT-Nachricht auf sein **Sende-Topic**; **Gerät B** empfängt diese auf seinem **Empfangs-Topic**, erhöht den angezeigten Zähler und aktualisiert das Display. Umgekehrt genauso – jedes Gerät hat getrennte Sende- und Empfangs-Topics, damit sich nur der Counter auf dem **anderen** Gerät erhöht.
 
@@ -41,8 +41,8 @@ Falls `pio: command not found`: PlatformIO-Core liegt unter `~/.platformio/penv/
    - **MQTT Server** (Hostname oder IP)
    - **MQTT Port** (Standard im Code: **8883**)
    - **MQTT Username** / **MQTT Password** (leer lassen, falls nicht nötig)
-   - **MQTT Sende-Topic** (Default: `heart/to_b`) – Topic, auf das bei Knopfdruck publiziert wird
-   - **MQTT Empfangs-Topic** (Default: `heart/to_a`) – Topic, das abonniert wird und bei Nachricht den Counter erhöht
+   - **MQTT Sende-Topic** (Default: `chaya/to_b`) – Topic, auf das bei Knopfdruck publiziert wird
+   - **MQTT Empfangs-Topic** (Default: `chaya/to_a`) – Topic, das abonniert wird und bei Nachricht den Counter erhöht
 5. Speichern. Nach Verbindung mit dem Heim-WLAN erscheint die lokale IP im Serial Monitor.
 
 **Hinweis:** Portal-Timeout: **180 Sekunden** (siehe `config.cpp`). Bei fehlgeschlagener Konfiguration: Neustart.
@@ -53,19 +53,19 @@ Beide flashen mit dem **gleichen Firmware-Stand** (empfohlen). Dieselben **Broke
 
 | | Gerät A | Gerät B |
 |---|---------|---------|
-| **Sende-Topic** | `heart/to_b` | `heart/to_a` |
-| **Empfangs-Topic** | `heart/to_a` | `heart/to_b` |
+| **Sende-Topic** | `chaya/to_b` | `chaya/to_a` |
+| **Empfangs-Topic** | `chaya/to_a` | `chaya/to_b` |
 
-So gilt: Knopf auf A → publiziert auf `heart/to_b` → B empfängt → **Counter auf B wird um 1 erhöht** und Herz neu gezeichnet. Umgekehrt genauso (siehe [ARCHITECTURE.md](ARCHITECTURE.md)).
+So gilt: Knopf auf A → publiziert auf `chaya/to_b` → B empfängt → **Counter auf B wird um 1 erhöht** und Herz neu gezeichnet. Umgekehrt genauso (siehe [ARCHITECTURE.md](ARCHITECTURE.md)).
 
 ## Factory Reset
 
-Knopf **mindestens 5 Sekunden** gedrückt halten → `resetAllSettings()` löscht WiFiManager-Daten und den Preferences-Namespace `mqtt` (der **Herz-Zähler** in `heart` bleibt erhalten), anschließend **Neustart**. Danach wieder Captive Portal.
+Knopf **mindestens 5 Sekunden** gedrückt halten → `resetAllSettings()` löscht WiFiManager-Daten und den Preferences-Namespace `mqtt` (der **Zähler** im Namespace `chaya` bleibt erhalten), anschließend **Neustart**. Danach wieder Captive Portal.
 
 ## Projektstruktur (Firmware)
 
 ```
-heart-esp32/
+chaya2mqtt/
 ├── README.md              # Kurzer Einstieg, verweist hierher
 ├── platformio.ini
 ├── docs/

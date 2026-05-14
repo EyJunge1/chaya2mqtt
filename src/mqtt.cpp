@@ -37,7 +37,7 @@ static unsigned long mqttCurrentBackoffMs = kMqttBackoffInitialMs;
 /** Eine Verbindungsrunde; Rückgabe: Millisekunden bis zum nächsten Versuch. */
 static unsigned long mqttTryConnectSinglePass() {
     char clientId[24];
-    snprintf(clientId, sizeof(clientId), "ESP32Heart-%04lX",
+    snprintf(clientId, sizeof(clientId), "Chaya2MQTT-%04lX",
              static_cast<unsigned long>(esp_random() & 0xffffU));
 
     ESP_LOGI(TAG, "Verbinde mit MQTT (TLS)... Server: %s:%u, Client: %s",
@@ -82,14 +82,14 @@ static unsigned long mqttTryConnectSinglePass() {
 // NOLINTNEXTLINE(readability-non-const-parameter) - PubSubClient callback signature is fixed
 static void mqttCallback(char* topic, byte* payload, unsigned int length) {
     (void)topic;
-    static constexpr char kHeartPayload[] = "heart";
-    static constexpr unsigned int kHeartLen = sizeof(kHeartPayload) - 1U;
-    if (length != kHeartLen || memcmp(payload, kHeartPayload, kHeartLen) != 0) {
+    static constexpr char kChayaPayload[] = "chaya";
+    static constexpr unsigned int kChayaLen = sizeof(kChayaPayload) - 1U;
+    if (length != kChayaLen || memcmp(payload, kChayaPayload, kChayaLen) != 0) {
         ESP_LOGD(TAG, "Unerwarteter Payload ignoriert (len=%u)", length);
         return;
     }
 
-    ESP_LOGI(TAG, "Nachricht empfangen: heart");
+    ESP_LOGI(TAG, "Nachricht empfangen: chaya");
 
     if (heartCounter < INT_MAX) {
         heartCounter++;
@@ -97,12 +97,12 @@ static void mqttCallback(char* topic, byte* payload, unsigned int length) {
     requestHeartRedraw();
 }
 
-bool mqttPublishHeart() {
+bool mqttPublishChaya() {
     if (!client.connected()) {
         ESP_LOGW(TAG, "Publish fehlgeschlagen: nicht verbunden");
         return false;
     }
-    static constexpr char kPayload[] = "heart";
+    static constexpr char kPayload[] = "chaya";
     return client.publish(mqttCfg.topicPub, kPayload);
 }
 

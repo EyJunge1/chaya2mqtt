@@ -1,5 +1,5 @@
-# Heart ESP32
+# Chaya2MQTT
 
-Firmware für das E-Ink-Herz mit MQTT (ESP32).
+Firmware für **Chaya2MQTT**: ESP32 mit E-Ink-Display und MQTT.
 
 **Dokumentation:** siehe [docs/README.md](docs/README.md) (Schnellstart, Einrichtung, Architektur, Hardware, Code-Referenz).

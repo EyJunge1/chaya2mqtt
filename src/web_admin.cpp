@@ -333,8 +333,8 @@ static void handleMqttPost(AsyncWebServerRequest* req) {
     }
     if (strcmp(pending.topicPub, pending.topicSub) == 0) {
         ESP_LOGW(TAG, "MQTT: Pub/Sub-Topic identisch, setze Defaults");
-        strlcpy(pending.topicPub, "heart/to_b", sizeof(pending.topicPub));
-        strlcpy(pending.topicSub, "heart/to_a", sizeof(pending.topicSub));
+        strlcpy(pending.topicPub, "chaya/to_b", sizeof(pending.topicPub));
+        strlcpy(pending.topicSub, "chaya/to_a", sizeof(pending.topicSub));
     }
     g_mqttPendingCfg   = pending;
     g_mqttApplyPending.store(true, std::memory_order_release);

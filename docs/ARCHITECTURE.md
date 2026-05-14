@@ -6,7 +6,7 @@ Die Firmware ist in **vier logische Module** plus `main.cpp` aufgeteilt:
 
 | Modul | Dateien | Aufgabe |
 |--------|---------|---------|
-| **config** | `config.h`, `config.cpp` | MQTT/Herz-Zaehler in NVS, MycilaESPConnect (WLAN/Portal), Factory Reset |
+| **config** | `config.h`, `config.cpp` | MQTT/Zähler (Namespace `chaya`) in NVS, WLAN/Captive Portal, Factory Reset |
 | **web_admin** | `web_admin.h`, `web_admin.cpp` | HTTP `/mqtt` Wartungsseite (gemeinsamer `AsyncWebServer` mit ESPConnect) |
 | **display** | `display.h`, `display.cpp` | GxEPD2-Initialisierung, Zeichnen Herz + Zahl |
 | **mqtt** | `mqtt.h`, `mqtt.cpp` | TLS-Client, Broker-Verbindung, Subscribe/Publish, Callback erhoeht Counter |
@@ -37,14 +37,14 @@ flowchart LR
 
 - **mqtt** nutzt `mqtt_server`, `mqtt_port`, ... und `heartCounter` aus **config** und ruft **display** auf (`requestHeartRedraw` / indirekt Zeichnung).
 - **display** liest `heartCounter` aus **config** fuer die Zahlendarstellung.
-- **button** nutzt **config** (Reset) und **mqtt** (`mqttPublishHeart()`).
+- **button** nutzt **config** (Reset) und **mqtt** (`mqttPublishChaya()`).
 
 ## Kommunikation: zwei Geraete ueber MQTT
 
 Jedes Geraet hat **zwei getrennte Topics** -- ein **Sende-Topic** (`mqtt_topic_pub`) und ein **Empfangs-Topic** (`mqtt_topic_sub`). Diese werden im Captive Portal konfiguriert und **gekreuzt** eingerichtet:
 
-- Geraet A publisht auf `heart/to_b`, subscribt auf `heart/to_a`
-- Geraet B publisht auf `heart/to_a`, subscribt auf `heart/to_b`
+- Geraet A publisht auf `chaya/to_b`, subscribt auf `chaya/to_a`
+- Geraet B publisht auf `chaya/to_a`, subscribt auf `chaya/to_b`
 
 Dadurch empfaengt jedes Geraet **nur die Nachrichten vom anderen** -- der eigene Knopfdruck erhoeht nicht den eigenen Counter.
 
@@ -54,13 +54,13 @@ flowchart LR
     devB[ESP32_GeraetB]
     broker[MQTT_Broker]
 
-    devA -->|"publish auf heart/to_b"| broker
-    broker -->|"subscribe heart/to_b"| devB
-    devB -->|"publish auf heart/to_a"| broker
-    broker -->|"subscribe heart/to_a"| devA
+    devA -->|"publish auf chaya/to_b"| broker
+    broker -->|"subscribe chaya/to_b"| devB
+    devB -->|"publish auf chaya/to_a"| broker
+    broker -->|"subscribe chaya/to_a"| devA
 ```
 
-Beim **Empfang** einer Nachricht auf dem Empfangs-Topic wird der lokale `heartCounter` nur erhoeht, wenn der Payload exakt **`heart`** ist (5 Bytes); sonst wird die Nachricht ignoriert. Anschliessend wird das Herz-Display neu gezeichnet.
+Beim **Empfang** einer Nachricht auf dem Empfangs-Topic wird der lokale `heartCounter` nur erhoeht, wenn der Payload exakt **`chaya`** ist (5 Bytes); sonst wird die Nachricht ignoriert. Anschliessend wird das Herz-Display neu gezeichnet.
 
 - **Transport:** `WiFiClientSecure` + `PubSubClient`
 - **TLS:** In `mqtt.cpp`: `WiFiClientSecure::setCACertBundle()` mit dem eingebauten Mozilla-CA-Bundle aus `libmbedtls.a` (ESP-IDF `CONFIG_MBEDTLS_CERTIFICATE_BUNDLE`)
@@ -94,7 +94,7 @@ sequenceDiagram
 3. Display hardware initialisieren
 4. Button/LED-Pins
 5. Gespeicherte MQTT-Parameter laden; Zaehler aus NVS (`loadHeartCounter`)
-6. WiFi (ggf. Captive Portal) + Speichern der Portal-Parameter; bei **identischem** Sende- und Empfangs-Topic werden Defaults `heart/to_b` / `heart/to_a` gespeichert (kein Selbstempfang). Danach **WiFi Modem Sleep** (`WiFi.setSleep(true)`), **`esp_wifi_set_ps(WIFI_PS_MAX_MODEM)`** und **HT20** (`esp_wifi_set_bandwidth(WIFI_IF_STA, WIFI_BW_HT20)`)
+6. WiFi (ggf. Captive Portal) + Speichern der Portal-Parameter; bei **identischem** Sende- und Empfangs-Topic werden Defaults `chaya/to_b` / `chaya/to_a` gespeichert (kein Selbstempfang). Danach **WiFi Modem Sleep** (`WiFi.setSleep(true)`), **`esp_wifi_set_ps(WIFI_PS_MAX_MODEM)`** und **HT20** (`esp_wifi_set_bandwidth(WIFI_IF_STA, WIFI_BW_HT20)`)
 7. MQTT-Client konfigurieren (Server, Callback, TLS mit CA-Bundle)
 8. **Light-Sleep-Wakeup:** `armLightSleepStaticWakeups()` (GPIO Taster, WiFi), danach `armLightSleepTimerWakeup()` (adaptiver Timer)
 9. Erste Zeichnung mit `heartCounter` (Start: 0); nach Refresh **Display Hibernate** (Controller Deep Sleep)
@@ -128,11 +128,11 @@ flowchart TD
 
 | Aspekt | Wert |
 |--------|------|
-| Sende-Topic | Konfigurierbar, Default `heart/to_b` |
-| Empfangs-Topic | Konfigurierbar, Default `heart/to_a` |
-| Publish (Knopf) | Payload = **`heart`** auf Sende-Topic (`mqttPublishHeart()`) |
+| Sende-Topic | Konfigurierbar, Default `chaya/to_b` |
+| Empfangs-Topic | Konfigurierbar, Default `chaya/to_a` |
+| Publish (Knopf) | Payload = **`chaya`** auf Sende-Topic (`mqttPublishChaya()`) |
 | Subscribe | Empfangs-Topic mit **QoS 1** |
-| Callback | Nur Payload `heart` -> `heartCounter++`, `requestHeartRedraw()`; Zeichnung in `loop()`; nach Redraw `flushHeartCounterIfDirty()`; zusaetzlich `maybeSaveHeartCounter()` (~30 s) |
+| Callback | Nur Payload `chaya` -> `heartCounter++`, `requestHeartRedraw()`; Zeichnung in `loop()`; nach Redraw `flushHeartCounterIfDirty()`; zusaetzlich `maybeSaveHeartCounter()` (~30 s) |
 | LWT | Topic = Sende-Topic + **`/lwt`**, Payload **`offline`**, QoS 1, retain; nach Connect retained **`online`** auf dasselbe Topic |
 
 Authentifizierung: optional ueber `mqtt_username` / `mqtt_password` aus dem Portal.
@@ -141,6 +141,6 @@ Authentifizierung: optional ueber `mqtt_username` / `mqtt_password` aus dem Port
 
 - **WiFi:** WiFiManager speichert Zugangsdaten intern.
 - **MQTT:** Namespace `mqtt` in `Preferences` (`server`, `port`, `user`, `pass`, `topic_pub`, `topic_sub`).
-- **Zaehler:** Namespace `heart`, Key `counter` (wird bei MQTT-Empfang aktualisiert; Factory Reset **loescht den Zaehler nicht**).
+- **Zaehler:** Namespace `chaya`, Key `counter` (wird bei MQTT-Empfang aktualisiert; Factory Reset **loescht den Zaehler nicht**).
 
 Siehe [MODULES.md](MODULES.md) fuer Funktionsdetails.

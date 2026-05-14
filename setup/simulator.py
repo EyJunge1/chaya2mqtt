@@ -3,8 +3,8 @@
 """
 MQTT-Gegenseite fuer das chaya2mqtt ESP32 E-Ink-Projekt.
 
-Standard fuer ein ESP mit Default-Topics (Sende heart/to_b, Empfang heart/to_a):
-dieser Simulator SUB auf heart/to_b, PUB auf heart/to_a, Payload exakt „heart“.
+Standard fuer ein ESP mit Default-Topics (Sende chaya/to_b, Empfang chaya/to_a):
+dieser Simulator SUB auf chaya/to_b, PUB auf chaya/to_a, Payload exakt „chaya“.
 """
 
 from __future__ import annotations
@@ -29,11 +29,11 @@ MQTT_PORT = 8883
 MQTT_USER = ""
 MQTT_PASS = ""
 
-# Gegenueber ESP-Defaults: ESP publiziert heart/to_b, subscribed heart/to_a
-MQTT_TOPIC_PUB = "heart/to_a"
-MQTT_TOPIC_SUB = "heart/to_b"
+# Gegenueber ESP-Defaults: ESP publiziert chaya/to_b, subscribed chaya/to_a
+MQTT_TOPIC_PUB = "chaya/to_a"
+MQTT_TOPIC_SUB = "chaya/to_b"
 
-HEART_PAYLOAD = b"heart"
+CHAYA_PAYLOAD = b"chaya"
 
 
 def _conn_ok(reason_code: Any) -> bool:
@@ -138,7 +138,7 @@ def main() -> None:
             state.set_lwt(msg.payload)
             print(f"[ESP32] Status: {txt}", flush=True)
             return
-        if msg.topic == topic_sub and msg.payload == HEART_PAYLOAD:
+        if msg.topic == topic_sub and msg.payload == CHAYA_PAYLOAD:
             state.add_heart()
             n = state.hearts()
             print(f"Empfangene Herzen: {n}", flush=True)
@@ -164,7 +164,7 @@ def main() -> None:
         if not client.is_connected():
             print("[WARN] Nicht verbunden – kann nicht senden.", flush=True)
             return False
-        ok = client.publish(topic_pub, HEART_PAYLOAD, qos=0).rc == mqtt.MQTT_ERR_SUCCESS
+        ok = client.publish(topic_pub, CHAYA_PAYLOAD, qos=0).rc == mqtt.MQTT_ERR_SUCCESS
         if ok:
             print(f"-> Herz gesendet auf {topic_pub}", flush=True)
         else:

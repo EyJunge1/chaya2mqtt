@@ -126,11 +126,11 @@ void loadMQTTConfig() {
     preferences.getString("pass", mqttCfg.password, sizeof(mqttCfg.password));
     if (preferences.getString("topic_pub", mqttCfg.topicPub, sizeof(mqttCfg.topicPub)) == 0
         || mqttCfg.topicPub[0] == '\0') {
-        strlcpy(mqttCfg.topicPub, "heart/to_b", sizeof(mqttCfg.topicPub));
+        strlcpy(mqttCfg.topicPub, "chaya/to_b", sizeof(mqttCfg.topicPub));
     }
     if (preferences.getString("topic_sub", mqttCfg.topicSub, sizeof(mqttCfg.topicSub)) == 0
         || mqttCfg.topicSub[0] == '\0') {
-        strlcpy(mqttCfg.topicSub, "heart/to_a", sizeof(mqttCfg.topicSub));
+        strlcpy(mqttCfg.topicSub, "chaya/to_a", sizeof(mqttCfg.topicSub));
     }
     preferences.end();
 }
@@ -152,8 +152,8 @@ void saveMQTTConfig() {
 // ─── NVS: Herz-Zähler ─────────────────────────────────────────────────────────
 
 void loadHeartCounter() {
-    if (!preferences.begin("heart", true)) {
-        ESP_LOGW(TAG, "NVS heart: lesen fehlgeschlagen, Zaehler = 0");
+    if (!preferences.begin("chaya", true)) {
+        ESP_LOGW(TAG, "NVS chaya: lesen fehlgeschlagen, Zaehler = 0");
         heartCounter              = 0;
         lastCommittedHeartCounter = 0;
         lastHeartCounterSaveMs    = millis();
@@ -166,8 +166,8 @@ void loadHeartCounter() {
 }
 
 bool saveHeartCounter() {
-    if (!preferences.begin("heart", false)) {
-        ESP_LOGE(TAG, "NVS heart: schreiben fehlgeschlagen");
+    if (!preferences.begin("chaya", false)) {
+        ESP_LOGE(TAG, "NVS chaya: schreiben fehlgeschlagen");
         return false;
     }
     preferences.putInt("counter", heartCounter);
@@ -293,11 +293,11 @@ void resetAllSettings() {
         preferences.clear();
         preferences.end();
     }
-    if (preferences.begin("heart", false)) {
+    if (preferences.begin("chaya", false)) {
         preferences.clear();
         preferences.end();
     }
-    /* Kein flushHeartCounterIfDirty: wuerde heart in NVS nach clear wieder anlegen. */
+    /* Kein flushHeartCounterIfDirty: wuerde chaya in NVS nach clear wieder anlegen. */
     heartCounter              = 0;
     lastCommittedHeartCounter = 0;
     lastHeartCounterSaveMs    = millis();

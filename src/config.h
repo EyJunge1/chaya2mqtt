@@ -7,8 +7,8 @@ struct MqttConfig {
     uint16_t port       = 8883;
     char username[64]   = "";
     char password[64]   = "";
-    char topicPub[128]  = "heart/to_b";
-    char topicSub[128]  = "heart/to_a";
+    char topicPub[128]  = "chaya/to_b";
+    char topicSub[128]  = "chaya/to_a";
 };
 
 extern MqttConfig mqttCfg;
@@ -19,7 +19,7 @@ extern int heartCounter;
 void loadMQTTConfig();
 void saveMQTTConfig();
 
-/** Zählerstand aus NVS laden/speichern (Namespace heart). */
+/** Zählerstand aus NVS laden/speichern (Namespace chaya). */
 void loadHeartCounter();
 /** @return true wenn NVS-Schreiben erfolgreich */
 bool saveHeartCounter();

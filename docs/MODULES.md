@@ -16,7 +16,7 @@ Uebersicht aller Quelldateien unter `src/`: oeffentliche API, globale Symbole un
 4. `displayInit()` -- SPI + E-Paper
 5. `buttonInit()` -- GPIO Button & LED
 6. `loadMQTTConfig()` -- MQTT-Werte aus NVS
-7. `loadHeartCounter()` -- Zaehler aus NVS (Namespace `heart`)
+7. `loadHeartCounter()` -- Zaehler aus NVS (Namespace `chaya`)
 8. `setupWiFi()` -- WiFiManager inkl. Portal-Menue (**MQTT Settings** nach `/param`, MQTT-Felder auf eigener Parameter-Seite); danach `WiFi.setSleep(true)` und `esp_wifi_set_ps(WIFI_PS_MAX_MODEM)` (aggressiver Modem-Sleep)
 9. `mqttSetup()` -- TLS-Client mit eingebautem CA-Bundle, Broker, Callback
 10. `armLightSleepStaticWakeups()` einmalig (GPIO Taster HIGH, **WiFi-Wakeup**); Timer-Wakeup wird erst in `loop()` gesetzt (`armLightSleepTimerWakeup`)
@@ -55,7 +55,7 @@ Uebersicht aller Quelldateien unter `src/`: oeffentliche API, globale Symbole un
 
 | Symbol | Typ | Beschreibung |
 |--------|-----|----------------|
-| `heartCounter` | `int` | Herz-Zaehler (Anzeige + MQTT); Persistenz Namespace `heart`, NVS-Key `counter` |
+| `heartCounter` | `int` | Herz-Zähler (Anzeige + MQTT); Persistenz Namespace `chaya`, NVS-Key `counter` |
 | `mqttCfg` | `MqttConfig` | Broker, Port, User, Pass, Pub/Sub-Topics (Felder wie `server`, `port`, …) |
 
 ### Oeffentliche Funktionen
@@ -64,12 +64,12 @@ Uebersicht aller Quelldateien unter `src/`: oeffentliche API, globale Symbole un
 |----------|--------------|
 | `loadMQTTConfig()` | `preferences.begin` mit Fehlerpruefung; Liest Namespace `"mqtt"` (readonly) ohne temporaere `String`-Heap-Objekte (`getString` in feste Buffer); **Port** 1--65535 (sonst **8883**); Default-Topics wenn Key fehlt/leer |
 | `saveMQTTConfig()` | Schreibt dieselben Keys; `begin` mit Fehlerpruefung |
-| `loadHeartCounter()` | Liest `heartCounter` aus Namespace `"heart"` (Key `counter`); `begin` mit Fehlerpruefung |
-| `saveHeartCounter()` | Schreibt aktuellen `heartCounter` nach `"heart"`; `begin` mit Fehlerpruefung; `true` bei Erfolg |
+| `loadHeartCounter()` | Liest `heartCounter` aus Namespace `"chaya"` (Key `counter`); `begin` mit Fehlerpruefung |
+| `saveHeartCounter()` | Schreibt aktuellen `heartCounter` nach `"chaya"`; `begin` mit Fehlerpruefung; `true` bei Erfolg |
 | `maybeSaveHeartCounter()` | Schreibt nur, wenn `heartCounter` sich geaendert hat und seit letztem Schreiben mindestens **30 s** vergangen sind (weniger Flash-Verschleiss) |
 | `flushHeartCounterIfDirty()` | Sofortiges NVS-Schreiben bei Dirty-`heartCounter` (vor `ESP.restart()` / Factory-Reset, nicht nach jedem Display-Redraw) |
 | `setupWiFi()` | WiFiManager: Timeout **180 s**, AP-Name **`chaya2mqtt-Setup`**, Portal-Titel **chaya2mqtt Setup**; Menue per `setMenu`: **wifi**, **param**, **info**, **update**, **exit** (Custom-Parameter auf eigener Seite `/param`, da **param** im Menue laut WM2 `_paramsInWifi=false` setzt); `setCustomHeadElement`: benennt den `/param`-Button und die Parameter-Seite per kleinem Script in **MQTT Settings** um; sechs MQTT-`WiFiManagerParameter` (Stack-Lebensdauer; Save-Callback nur waehrend `autoConnect()`); `setSaveParamsCallback(saveParamsFromPortal)`; bei Fehlschlag `flushHeartCounterIfDirty()`, **delay(500)**, dann `ESP.restart()`; nach Erfolg `WiFi.setSleep(true)` und `esp_wifi_set_ps(WIFI_PS_MAX_MODEM)` |
-| `resetAllSettings()` | `WiFiManager::resetSettings()`, Namespace `mqtt` `clear()` (mit `begin`-Fehlerpruefung); **Herz-Zaehler** (Namespace `heart`) bleibt erhalten; vor Neustart `flushHeartCounterIfDirty()` |
+| `resetAllSettings()` | `WiFiManager::resetSettings()`, Namespace `mqtt` `clear()` (mit `begin`-Fehlerpruefung); **Zähler** (Namespace `chaya`) bleibt erhalten; vor Neustart `flushHeartCounterIfDirty()` |
 
 ### Implementierungsdetails
 
@@ -83,16 +83,13 @@ Uebersicht aller Quelldateien unter `src/`: oeffentliche API, globale Symbole un
 
 ## `web_admin.h` / `web_admin.cpp`
 
-**Zweck:** Kleine **HTTP-Wartungs-UI** fuer MQTT (`/mqtt` GET/POST, `/heart-setup-exit`), wenn kein Broker konfiguriert ist und WLAN verbunden ist. Nutzt dieselbe `AsyncWebServer`-Instanz (Port 80) wie **MycilaESPConnect** (`webAdminWebServer()`).
+**Zweck:** **HTTP-Oberfläche** für WLAN-Verbindung, Dashboard, Firmware-Update und MQTT-Konfiguration (`/mqtt` GET/POST). Nutzt dieselbe `AsyncWebServer`-Instanz (Port 80) wie das Captive Portal in **config** (`webAdminWebServer()`).
 
 | Funktion | Kurzbeschreibung |
 |----------|------------------|
 | `webAdminWebServer()` | Referenz auf den gemeinsamen `AsyncWebServer` (Singleton) |
-| `webAdminRegisterMqttRoutes()` | Routen einmal registrieren (vor `ESPConnect::begin`) |
-| `webAdminMaybeStopMaintenanceIfBrokerConfigured()` | Wartungs-HTTP beenden, sobald ein Broker gesetzt ist |
-| `webAdminMaybeStartMaintenance(espConnect)` | Wartungs-HTTP starten bei leerem Broker und `NETWORK_CONNECTED` |
-| `webAdminIsMaintenanceHttpActive()` | fuer Light-Sleep-/Portal-Erkennung |
-| `webAdminStopMaintenanceHttp()` | explizit beenden (z. B. Factory Reset) |
+| `webAdminRegisterRoutes()` | Routen einmal registrieren (vor `begin()` auf dem Server) |
+| `webAdminLoop()` | Ausstehende MQTT-Änderungen anwenden, Reboot/OTA/WiFi-Anfragen aus Request-Handlern verarbeiten |
 
 ---
 
@@ -123,7 +120,7 @@ Der Zaehlerstand kommt aus **`config.h`** (`extern int heartCounter`).
 - Herz-Geometrie: `static constexpr` Konstanten im Quellcode (Feintuning dort).
 - `getTextBounds()` fuer die Zahl **nach** dynamischem `setTextSize` (korrekte Zentrierung); Randpruefung fuer das Dreieck mit `display.width()` / `display.height()`; Stellenanzahl aus `snprintf`-Rueckgabewert (kein `strlen`).
 - Zeichenfortschritt-Serial nur bei `CORE_DEBUG_LEVEL > 0`.
-- `g_heartRedrawPending` als **`volatile bool`** (Callback setzt Flag, `loop()` liest nach Light-Sleep).
+- `g_heartRedrawPending` als **`std::atomic<bool>`** (Callback setzt Flag, `loop()` liest nach Light-Sleep).
 
 ---
 
@@ -142,11 +139,11 @@ Der Zaehlerstand kommt aus **`config.h`** (`extern int heartCounter`).
 | `mqttSetup()` | `setBufferSize(512)` mit Pruefung des Rueckgabewerts; `setServer`, `setCallback`, `setKeepAlive(60)`, `setSocketTimeout(5)` (s), `setCACertBundle()` mit eingebettetem Mozilla-Bundle (bei sehr langen Portal-Strings ggf. Buffer in Code erhoehen) |
 | `mqttLoop()` | Wenn nicht verbunden: Connect-Versuch wenn `millis() - lastAttempt >= backoff` (overflow-sicher); bei Connect-Fehler exponentieller Backoff 5 s bis max. 60 s; **leerer MQTT-Server:** Warteintervall **60 s**; kein WLAN: **5 s**; bei **Uebergang** zu verbunden: Backoff zuruecksetzen; danach `client.loop()` |
 | `mqttMillisUntilNextConnectAttempt()` | Wenn nicht verbunden: verbleibende ms bis zum naechsten Connect-Versuch; **0** wenn verbunden oder Versuch faellig (fuer Light-Sleep-Timer in `main`) |
-| `mqttPublishHeart()` | Ein Publish-Versuch **`heart`** auf `mqtt_topic_pub`, wenn verbunden; **2** Versuche laufen nicht-blockierend in `button.cpp` (LED-State-Machine, Phase `PublishRetryWait`) |
+| `mqttPublishChaya()` | Ein Publish-Versuch **`chaya`** auf `mqtt_topic_pub`, wenn verbunden; **2** Versuche laufen nicht-blockierend in `button.cpp` (LED-State-Machine, Phase `PublishRetryWait`) |
 
 ### Callback `mqttCallback`
 
-- Nur Payload exakt **`heart`** (5 Bytes) wird akzeptiert; alles andere wird ignoriert.
+- Nur Payload exakt **`chaya`** (5 Bytes) wird akzeptiert; alles andere wird ignoriert.
 - Bei `CORE_DEBUG_LEVEL > 0`: Serial mit `Serial.write(payload, length)` (ohne `String`-Allokation).
 - **Ignoriert** den Topic-Namen (`(void)topic`).
 - **`heartCounter++`**, `requestHeartRedraw()`; kein E-Paper im Callback; Persistenz des Zaehlers ueber `maybeSaveHeartCounter()` in `loop()` (throttled ~30 s).
@@ -156,7 +153,7 @@ Der Zaehlerstand kommt aus **`config.h`** (`extern int heartCounter`).
 - Subscribe: `client.subscribe(mqtt_topic_sub, 1)` (QoS 1); bei Fehlschlag Debug-Meldung (`MQTT: Subscribe fehlgeschlagen.`).
 - Last-Will-Topic: Puffer **140** Zeichen fuer `mqtt_topic_pub` + `"/lwt"`.
 - Verbindungs-/Debug-Serial nur bei `CORE_DEBUG_LEVEL > 0`.
-- Client-ID: `ESP32Heart-` + `esp_random()`-Hex (`snprintf`, kein Arduino-`String`).
+- Client-ID: `Chaya2MQTT-` + `esp_random()`-Hex (`snprintf`, kein Arduino-`String`).
 - Connect mit **Last Will**: Topic = Sende-Topic + Suffix `/lwt`, Payload `offline`, QoS 1, retain. Nach erfolgreichem Connect wird retained `"online"` auf dasselbe LWT-Topic gepublished.
 - CA-Bundle: Eingebautes Linker-Symbol `_binary_x509_crt_bundle_start` aus `libmbedtls.a` (ESP-IDF `CONFIG_MBEDTLS_CERTIFICATE_BUNDLE`). Kein externes Bundle noetig.
 - Keine separate DNS-Vorabfrage; Aufloesung erfolgt im TLS-/TCP-Stack beim Connect.
@@ -196,7 +193,7 @@ Der Zaehlerstand kommt aus **`config.h`** (`extern int heartCounter`).
 
 ### Abhaengigkeiten
 
-- `#include "mqtt.h"` fuer `mqttPublishHeart()`
+- `#include "mqtt.h"` fuer `mqttPublishChaya()`
 - `#include "config.h"` fuer `resetAllSettings`
 
 ---

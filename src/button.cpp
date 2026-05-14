@@ -167,7 +167,7 @@ void buttonAdvanceLedSequence() {
             break;
 
         case LedTxPhase::PublishTry: {
-            const bool ok = mqttPublishHeart();
+            const bool ok = mqttPublishChaya();
             if (ok) {
                 ESP_LOGI(TAG, "MQTT Nachricht erfolgreich gesendet");
                 ledTxPhase = LedTxPhase::PostWait;
