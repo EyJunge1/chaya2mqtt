@@ -72,7 +72,7 @@ void setup() {
 #if defined(CORE_DEBUG_LEVEL) && CORE_DEBUG_LEVEL > 0
     Serial.begin(115200);
 #endif
-    ESP_LOGI(TAG, "=== chaya2mqtt === rst:%d", static_cast<int>(esp_reset_reason()));
+    ESP_LOGI(TAG, "=== Chaya2MQTT === rst:%d", static_cast<int>(esp_reset_reason()));
 
     pinsInit();
     displayInit();

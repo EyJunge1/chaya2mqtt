@@ -7,7 +7,7 @@ Zwei ESP32-Geräte mit einem 3-Farben-E-Paper-Display zeigen jeweils ein **rotes
 - **E-Ink-Display**: Rotes Herz mit schwarzer Zahl auf dem Waveshare 1.54inch e-Paper (B), 200x200, 3-Farben (GxEPD2, Treiber `GxEPD2_154_Z90c`)
 - **MQTT-Synchronisation**: Publish beim Knopfdruck, Subscribe empfängt und erhöht den Counter
 - **TLS**: Verbindung zum Broker über `WiFiClientSecure` mit dem **eingebauten Mozilla-CA-Bundle** des ESP-IDF (Zertifikatsprüfung; Port typisch **8883**)
-- **Web-/Captive-Portal**: WiFi-Zugang und MQTT-Daten (Server, Port, Benutzer, Passwort, Topic) über **WiFiManager** („chaya2mqtt-Setup“)
+- **Web-/Captive-Portal**: WiFi-Zugang und MQTT-Daten (Server, Port, Benutzer, Passwort, Topic) über **WiFiManager** („Chaya2MQTT")
 - **Knopf mit LED**: Kurzer Druck → MQTT senden + LED blinkt; nach erfolgreichem Senden nochmals Blinken
 - **Factory Reset**: Knopf **5 Sekunden** halten → WLAN- und MQTT-Einstellungen löschen, Neustart
 - **Energieeffizienz**: CPU **80 MHz**, **WiFi Modem Sleep** plus **`WIFI_PS_MAX_MODEM`** nach Verbindung, **adaptiver Light-Sleep** in der Hauptschleife (kürzer während der Sende-LED-Sequenz, länger im Leerlauf), E-Paper-Controller **`hibernate()`** nach jedem Zeichnen (Bild bleibt sichtbar)
@@ -35,7 +35,7 @@ Falls `pio: command not found`: PlatformIO-Core liegt unter `~/.platformio/penv/
 ## Ersteinrichtung (WiFi & MQTT)
 
 1. Gerät mit Strom versorgen bzw. nach Flash neu starten.
-2. Wenn kein gespeichertes WLAN vorhanden ist (oder nach Reset), öffnet der ESP32 den Access Point **`chaya2mqtt-Setup`**.
+2. Wenn kein gespeichertes WLAN vorhanden ist (oder nach Reset), öffnet der ESP32 den Access Point **`Chaya2MQTT`**.
 3. Mit dem Handy/PC mit diesem AP verbinden – Captive Portal oder Browser öffnen, typisch `4.3.2.1`.
 4. **WLAN** (SSID/Passwort) und folgende **MQTT-Felder** eintragen:
    - **MQTT Server** (Hostname oder IP)

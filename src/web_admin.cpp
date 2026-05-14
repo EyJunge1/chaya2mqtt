@@ -145,7 +145,7 @@ static void checkGithubUpdate() {
 
     https.setConnectTimeout(20000);  /* ms */
     https.setTimeout(45000);         /* gesamtes Request-timeout */
-    https.addHeader(F("User-Agent"), F("chaya2mqtt-esp32"));
+    https.addHeader(F("User-Agent"), F("Chaya2MQTT-esp32"));
     https.addHeader(F("Accept"), F("application/vnd.github+json"));
 
     const int httpCode = https.GET();
