@@ -238,7 +238,7 @@ void buttonLoop() {
         if (btn.heldDown) {
             const unsigned long held = nowMs - btn.pressStartMs;
             if (!btn.factoryResetTriggered && held >= kShortPressMinMs && held < kFactoryResetHoldMs) {
-                if (!ledSendSequenceActive()) {
+                if (!ledSendSequenceActive() && mqttCfg.server[0] != '\0' && !configIsApMode()) {
                     startMqttSendLedSequence();
                 }
             }
