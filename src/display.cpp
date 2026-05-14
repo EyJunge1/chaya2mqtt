@@ -141,3 +141,47 @@ void drawHeartWithNumber() {
 
     ESP_LOGI(TAG, "Rotes Herz mit Zahl gezeichnet");
 }
+
+void drawSplashScreen() {
+    displayResumeSpiForDraw();
+
+    ESP_LOGI(TAG, "Zeichne Splash Chaya2MQTT...");
+
+    static constexpr const char kTitle[] = "Chaya2MQTT";
+    const int                   dw = display.width();
+    const int                   dh = display.height();
+
+    display.setTextColor(GxEPD_BLACK);
+    uint8_t textSize = 3;
+    int16_t x1;
+    int16_t y1;
+    uint16_t w;
+    uint16_t h;
+    for (;;) {
+        display.setTextSize(textSize);
+        display.getTextBounds(kTitle, 0, 0, &x1, &y1, &w, &h);
+        if (static_cast<int>(w) <= dw - 8 && static_cast<int>(h) <= dh - 8) {
+            break;
+        }
+        if (textSize <= 1) {
+            break;
+        }
+        textSize--;
+    }
+
+    const int cursorX = (dw - static_cast<int>(w)) / 2 - static_cast<int>(x1);
+    const int cursorY = (dh - static_cast<int>(h)) / 2 - static_cast<int>(y1);
+
+    display.setFullWindow();
+    display.firstPage();
+    do {
+        display.fillScreen(GxEPD_WHITE);
+        display.setCursor(static_cast<int16_t>(cursorX), static_cast<int16_t>(cursorY));
+        display.print(kTitle);
+    } while (display.nextPage());
+
+    display.hibernate();
+    displaySuspendSpiLowPower();
+
+    ESP_LOGI(TAG, "Splash gezeichnet");
+}

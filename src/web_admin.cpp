@@ -1,6 +1,7 @@
 #include "web_admin.h"
 
 #include "config.h"
+#include "display.h"
 #include "mqtt.h"
 #include "version.h"
 #include "web_pages.h"
@@ -396,6 +397,9 @@ void webAdminLoop() {
         saveMQTTConfig();
         mqttDisconnect();
         mqttSetup();
+        if (mqttCfg.server[0] != '\0') {
+            requestHeartRedraw();
+        }
     }
 
     if (g_rebootRequested.exchange(false, std::memory_order_acq_rel)

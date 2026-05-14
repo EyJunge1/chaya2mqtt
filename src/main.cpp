@@ -76,7 +76,11 @@ void setup() {
 
     ESP_LOGI(TAG, "Setup abgeschlossen");
 
-    drawHeartWithNumber();
+    if (mqttCfg.server[0] != '\0') {
+        drawHeartWithNumber();
+    } else {
+        drawSplashScreen();
+    }
 
     buttonStartupBlink();
     buttonEnableLedGpioHoldForLightSleep();

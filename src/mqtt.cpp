@@ -131,6 +131,10 @@ bool mqttIsConnected() {
 }
 
 void mqttLoop() {
+    if (mqttCfg.server[0] == '\0') {
+        return;
+    }
+
     const unsigned long now = millis();
     const bool connected = client.connected();
 
