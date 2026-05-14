@@ -30,6 +30,9 @@ void flushHeartCounterIfDirty();
 void setupWiFi();
 void resetAllSettings();
 
+/** Vor ESP.restart(): alle bekannten gpio_hold_en freigeben (Strapping-/Light-Sleep-Holds). */
+void releaseGpioHoldBeforeRestart();
+
 /** WLAN-Credentials speichern (Namespace wifi). */
 bool configSaveWiFiCredentials(const char* ssid, const char* password);
 

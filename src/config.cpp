@@ -14,6 +14,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <driver/gpio.h>
 #include <esp_log.h>
 #include <esp_wifi.h>
 #include <time.h>
@@ -260,6 +261,12 @@ void setupWiFi() {
 
 // ─── Factory Reset ────────────────────────────────────────────────────────────
 
+/** Display CS (15) und Button-LED (4) nutzen gpio_hold_en fuer Light-Sleep. */
+void releaseGpioHoldBeforeRestart() {
+    (void)gpio_hold_dis(GPIO_NUM_15);
+    (void)gpio_hold_dis(GPIO_NUM_4);
+}
+
 void resetAllSettings() {
     ESP_LOGW(TAG, "Factory Reset: alle Einstellungen loeschen...");
     webAdminWebServer().end();
@@ -282,8 +289,16 @@ void resetAllSettings() {
         preferences.clear();
         preferences.end();
     }
-    flushHeartCounterIfDirty();
+    if (preferences.begin("heart", false)) {
+        preferences.clear();
+        preferences.end();
+    }
+    /* Kein flushHeartCounterIfDirty: wuerde heart in NVS nach clear wieder anlegen. */
+    heartCounter              = 0;
+    lastCommittedHeartCounter = 0;
+    lastHeartCounterSaveMs    = millis();
     delay(500);
+    releaseGpioHoldBeforeRestart();
     ESP.restart();
 }
 

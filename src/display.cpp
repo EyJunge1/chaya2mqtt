@@ -25,6 +25,8 @@ static constexpr int kSpiCs    = 15;
 static GxEPD2_3C<GxEPD2_154_Z90c, GxEPD2_154_Z90c::HEIGHT> display(
     GxEPD2_154_Z90c(/*CS=*/ kSpiCs, /*DC=*/ 27, /*RST=*/ 26, /*BUSY=*/ 25));
 
+// BUSY/RST/DC: pinModes setzt main pinsInit() vor displayInit(); GxEPD2 nutzt diese vor init.
+
 static std::atomic<bool> g_heartRedrawPending{false};
 static bool                g_displaySpiSuspendedLowPower = false;
 

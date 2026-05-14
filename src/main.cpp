@@ -5,6 +5,7 @@
 #include <esp_bt.h>
 #include <esp_log.h>
 #include <esp_sleep.h>
+#include <esp_system.h>
 #include <esp32-hal-cpu.h>
 
 #include "button.h"
@@ -40,6 +41,18 @@ static uint64_t computeLightSleepTimerUs() {
     return kLightSleepIdleUs;
 }
 
+/** Belegungen wie display.cpp / button.cpp; Pins 6–11 (Flash) nicht anfassen. */
+static void pinsInit() {
+    pinMode(25, INPUT);
+    pinMode(26, OUTPUT);
+    pinMode(27, OUTPUT);
+    pinMode(12, INPUT);
+    pinMode(13, OUTPUT);
+    pinMode(14, OUTPUT);
+    pinMode(15, OUTPUT);
+    digitalWrite(15, HIGH);
+}
+
 /** Einmalig in setup(): GPIO- und WiFi-Wakeup aendern sich nicht. */
 static void armLightSleepStaticWakeups() {
     gpio_wakeup_enable(static_cast<gpio_num_t>(kButtonGpio), GPIO_INTR_HIGH_LEVEL);
@@ -59,8 +72,9 @@ void setup() {
 #if defined(CORE_DEBUG_LEVEL) && CORE_DEBUG_LEVEL > 0
     Serial.begin(115200);
 #endif
-    ESP_LOGI(TAG, "=== chaya2mqtt ===");
+    ESP_LOGI(TAG, "=== chaya2mqtt === rst:%d", static_cast<int>(esp_reset_reason()));
 
+    pinsInit();
     displayInit();
     ESP_LOGI(TAG, "Display initialisiert");
 

@@ -406,6 +406,7 @@ void webAdminLoop() {
         || g_wifiConnectRequested.exchange(false, std::memory_order_acq_rel)) {
         flushHeartCounterIfDirty();
         delay(200);
+        releaseGpioHoldBeforeRestart();
         ESP.restart();
     }
 
@@ -427,6 +428,7 @@ void webAdminLoop() {
             ESP_LOGI(TAG, "OTA ok, Neustart");
             flushHeartCounterIfDirty();
             delay(200);
+            releaseGpioHoldBeforeRestart();
             ESP.restart();
         } else if (rc == HTTP_UPDATE_NO_UPDATES) {
             ESP_LOGW(TAG, "OTA: keine Updates");
