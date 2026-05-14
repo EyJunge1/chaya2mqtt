@@ -89,6 +89,7 @@ static void wifiStationEvent(arduino_event_id_t event) {
             }
             ESP_LOGW(TAG, "WLAN getrennt, versuche Reconnect...");
             if (WiFi.getMode() == WIFI_STA || WiFi.getMode() == WIFI_AP_STA) {
+                WiFi.setHostname(kDeviceHostname);
                 WiFi.reconnect();
                 constexpr unsigned long kBaseBackoffMs = 3000UL;
                 constexpr unsigned long kMaxBackoffMs  = 120000UL;
@@ -248,6 +249,7 @@ void setupWiFi() {
         if (!MDNS.begin(kDeviceHostname)) {
             ESP_LOGW(TAG, "mDNS.begin fehlgeschlagen");
         }
+        MDNS.addService("http", "tcp", 80);
         // Jetzt erst Event-Handler registrieren (Reconnect bei Disconnect im Betrieb).
         WiFi.onEvent(wifiStationEvent);
         ESP_LOGI(TAG, "WLAN STA bereit (%s / %s)", kDeviceHostname, WiFi.localIP().toString().c_str());
@@ -326,6 +328,7 @@ void configLoop() {
         if (!MDNS.begin(kDeviceHostname)) {
             ESP_LOGW(TAG, "mDNS.begin nach GOT_IP fehlgeschlagen");
         }
+        MDNS.addService("http", "tcp", 80);
     }
     webAdminLoop();
 }
