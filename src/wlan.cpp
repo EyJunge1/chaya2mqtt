@@ -203,6 +203,10 @@ static void wifiScanServiceOnMainTask() {
         WiFi.scanNetworks(true, false, false, 500, 0, nullptr, nullptr);
     }
 
+    if (!s_wifiScanInProgress.load(std::memory_order_acquire)) {
+        return;
+    }
+
     const int16_t n = WiFi.scanComplete();
     if (n == WIFI_SCAN_RUNNING) {
         return;
