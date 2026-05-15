@@ -360,6 +360,8 @@ void setupWiFi() {
         esp_wifi_set_max_tx_power(52);
         /* Event handler does not reconnect while s_wifiSetupComplete is false; auto-reconnect is off. */
         WiFi.reconnect();
+        /* Let ASSOC_LEAVE propagate so the wait loop does not see a stale WL_CONNECTED. */
+        delay(500);
 
         /* esp_wifi_set_bandwidth() can briefly disassociate — wait for STA + IPv4 before mDNS/configTime. */
         constexpr unsigned long kBandwidthSettleWaitMs = 8000UL;

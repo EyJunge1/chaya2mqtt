@@ -146,14 +146,14 @@ void drawHeartWithNumber() {
     ESP_LOGI(TAG, "Zeichne rotes Herz mit Zaehlern...");
 
     static constexpr int kCenterX     = 100;
-    static constexpr int kHeartSize  = 80;
+    static constexpr int kHeartSize  = 70;
     static constexpr int kCircleRadius = (kHeartSize / 2) + 4;
     static constexpr int kCircleSpacing = (kHeartSize / 2) - 3;
     /** Circle center Y: keeps round tops fully on-screen (200px height). */
     static constexpr int kCircleY      = 50;
     /** Triangle base meets circles; width matches outer circle extent. */
     static constexpr int kTriangleTop    = kCircleY - 4;
-    static constexpr int kTriangleBottom  = 182;
+    static constexpr int kTriangleBottom  = 189;
     static constexpr int kMaxWidth       = 2 * (kCircleSpacing + kCircleRadius);
 
     const int dw = display.width();

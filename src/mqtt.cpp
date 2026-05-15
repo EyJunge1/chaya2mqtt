@@ -77,6 +77,11 @@ static unsigned long mqttTryConnectSinglePass() {
     char willTopic[140];
     snprintf(willTopic, sizeof(willTopic), "%s/lwt", cfg.topicPub);
 
+    if (!wlanStaConnectedOk()) {
+        setCpuFrequencyMhz(80);
+        return kMqttWifiDownBackoffMs;
+    }
+
     setCpuFrequencyMhz(static_cast<int>(kMqttTlsBoostCpuMhz));
     const bool connected =
         client.connect(clientId, cfg.username, cfg.password, willTopic, 1, true, "offline", true);
