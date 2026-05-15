@@ -314,13 +314,13 @@ void streamMqttHtmlPage(AsyncWebServerRequest* req, bool showSavedBanner) {
     }
     if (cfg.server[0] != '\0') {
         if (mqttIsConnected()) {
-            response->print(F("<p class='ok'>&#10003; Connected to <strong>"));
+            response->print(F("<p class='hint'>Connected to <strong>"));
             appendHtmlEscaped(*response, cfg.server);
             response->print(F("</strong>:"));
             response->print(portBuf);
             response->print(F("</p>"));
         } else {
-            response->print(F("<p class='err'>&#10007; Not connected</p>"));
+            response->print(F("<p class='err'>Not connected</p>"));
         }
     }
     response->print(F("<form method='post' action='/mqtt'>"
