@@ -104,28 +104,28 @@ void displayInit() {
 
 /** Small ↓ (incoming): tip points toward larger y. */
 static void drawArrowDown(int16_t cx, int16_t tipY) {
-    static constexpr int16_t kHalf = 9;
-    static constexpr int16_t kStemH = 16;
+    static constexpr int16_t kHalf = 12;
+    static constexpr int16_t kStemH = 20;
     const int16_t baseY = static_cast<int16_t>(tipY - 5);
     display.fillTriangle(cx, tipY, static_cast<int16_t>(cx - kHalf), baseY,
                          static_cast<int16_t>(cx + kHalf), baseY, GxEPD_BLACK);
-    display.fillRect(static_cast<int16_t>(cx - 1), static_cast<int16_t>(tipY - kStemH - 6),
-                     3, kStemH, GxEPD_BLACK);
+    display.fillRect(static_cast<int16_t>(cx - 2), static_cast<int16_t>(tipY - kStemH - 6),
+                     4, kStemH, GxEPD_BLACK);
 }
 
 /** Small ↑ (outgoing): tip points toward smaller y. */
 static void drawArrowUp(int16_t cx, int16_t tipY) {
-    static constexpr int16_t kHalf = 9;
-    static constexpr int16_t kStemH = 16;
+    static constexpr int16_t kHalf = 12;
+    static constexpr int16_t kStemH = 20;
     const int16_t baseY = static_cast<int16_t>(tipY + 5);
     display.fillTriangle(cx, tipY, static_cast<int16_t>(cx - kHalf), baseY,
                          static_cast<int16_t>(cx + kHalf), baseY, GxEPD_BLACK);
-    display.fillRect(static_cast<int16_t>(cx - 1), static_cast<int16_t>(tipY + 6), 3, kStemH,
+    display.fillRect(static_cast<int16_t>(cx - 2), static_cast<int16_t>(tipY + 6), 4, kStemH,
                      GxEPD_BLACK);
 }
 
-static uint8_t footerTextSizeForDigitCount(size_t /*digitLen*/) {
-    return 3;
+static uint8_t footerTextSizeForDigitCount(size_t digitLen) {
+    return digitLen <= 3 ? 4 : 3;
 }
 
 /** Display delta vs baseline, cap at 999 with "999+" for overflow (layout-friendly). */
@@ -147,14 +147,14 @@ void drawHeartWithNumber() {
 
     static constexpr int kCenterX     = 100;
     static constexpr int kHeartSize  = 70;
-    static constexpr int kCircleRadius = (kHeartSize / 2) + 4;
+    static constexpr int kCircleRadius = (kHeartSize / 2) + 8;
     static constexpr int kCircleSpacing = (kHeartSize / 2) - 3;
     /** Circle center Y: keeps round tops fully on-screen (200px height). */
     static constexpr int kCircleY      = 50;
-    /** Triangle base meets circles; width matches outer circle extent. */
-    static constexpr int kTriangleTop    = kCircleY - 4;
-    static constexpr int kTriangleBottom  = 189;
-    static constexpr int kMaxWidth       = 2 * (kCircleSpacing + kCircleRadius);
+    /** Triangle base is wider than the circle extent by 20 px (10 px each side). */
+    static constexpr int kTriangleTop    = kCircleY + 15;
+    static constexpr int kTriangleBottom  = 163;
+    static constexpr int kMaxWidth       = 2 * (kCircleSpacing + kCircleRadius) - 4;
 
     const int dw = display.width();
     const int dh = display.height();
@@ -173,11 +173,11 @@ void drawHeartWithNumber() {
     const uint8_t recvTextSize = footerTextSizeForDigitCount(recvLen);
     const uint8_t sentTextSize = footerTextSizeForDigitCount(sentLen);
 
-    /** Text top row: textSize 3 fits fully above y=200. */
-    static constexpr int kFooterTextTop = 175;
+    /** Text top row: textSize 4 fits fully above y=200. */
+    static constexpr int kFooterTextTop = 167;
     static constexpr int kLeftMargin       = 4;
     static constexpr int kRightMargin      = 4;
-    static constexpr int kArrowLane        = 22;
+    static constexpr int kArrowLane        = 26;
     static constexpr int16_t kDownArrowCx    = 13;
     static constexpr int16_t kDownArrowTipY = 198;
     const int16_t           kUpArrowCx      = static_cast<int16_t>(dw - 13);
