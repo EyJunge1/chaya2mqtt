@@ -14,7 +14,6 @@
 #include <cstring>
 #include <driver/gpio.h>
 #include <esp_log.h>
-#include <esp_task_wdt.h>
 
 #if defined(CORE_DEBUG_LEVEL) && CORE_DEBUG_LEVEL > 0
 static const char* TAG = "DISP";
@@ -95,13 +94,10 @@ static void displaySuspendSpiLowPower() {
 void displayInit() {
     SPI.begin(/*SCK=*/ pins::kSpiSck, /*MISO=*/ pins::kSpiMiso, /*MOSI=*/ pins::kSpiMosi,
               /*SS=*/ pins::kSpiCs);
-    /* Register loop task with Task WDT so esp_task_wdt_reset() during long E-Ink updates is valid (ESP-IDF 5+). */
-    static bool mainTaskWdtRegistered = false;
-    if (!mainTaskWdtRegistered) {
-        if (esp_task_wdt_add(nullptr) == ESP_OK) {
-            mainTaskWdtRegistered = true;
-        }
-    }
+    /*
+     * Do not register loopTask with esp_task_wdt: full-window 3C e-paper refresh can block >5s inside
+     * nextPage(), which would trigger a task WDT abort. Long draws are expected on this device.
+     */
     /* Baud 0: avoid GxEPD2 UART spam ("Update_Full") on Serial; use ESP_LOG only in debug builds. */
     display.init(0, true, 2, false);
 }
@@ -211,7 +207,6 @@ void drawHeartWithNumber() {
     display.setFullWindow();
     display.firstPage();
     do {
-        esp_task_wdt_reset();
         display.fillScreen(GxEPD_WHITE);
 
         display.fillCircle(static_cast<int16_t>(kCenterX - kCircleSpacing),
@@ -290,7 +285,6 @@ void drawAuthCode(uint32_t code) {
     display.setFullWindow();
     display.firstPage();
     do {
-        esp_task_wdt_reset();
         display.fillScreen(GxEPD_WHITE);
         display.setTextSize(1);
         display.setCursor(4, 8);
@@ -342,7 +336,6 @@ void drawSplashScreen() {
     display.setFullWindow();
     display.firstPage();
     do {
-        esp_task_wdt_reset();
         display.fillScreen(GxEPD_WHITE);
         display.setCursor(static_cast<int16_t>(cursorX), static_cast<int16_t>(cursorY));
         display.print(kTitle);
