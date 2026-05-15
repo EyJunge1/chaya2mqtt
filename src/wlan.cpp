@@ -11,6 +11,8 @@
 #include <ESPAsyncWebServer.h>
 #include <ESPmDNS.h>
 #include <Preferences.h>
+#include <cstring>
+
 #include <algorithm>
 #include <atomic>
 #include <cstdint>
@@ -33,10 +35,80 @@ static bool         g_apMode = false;
 
 static unsigned long     s_wifiReconnectNextAllowedMs = 0;
 static uint32_t          s_wifiReconnectFailCount     = 0;
-/** GOT_IP (WiFi event task): restart mDNS in wlanLoop(). */
 static std::atomic<bool> s_mdnsRestartNeeded{false};
 
+/** WiFi scan only from main task: cache for /wifi-scan JSON. */
+static constexpr size_t      kMaxScanCache = 40;
+static WlanScanRow           s_wifiScanCache[kMaxScanCache]{};
+static size_t                s_wifiScanCacheCount = 0;
+static std::atomic<bool>     s_wifiScanKick{false};
+static std::atomic<bool>     s_wifiScanInProgress{false};
+static std::atomic<bool>     s_wifiScanHasValidCache{false};
+static portMUX_TYPE          s_wifiScanCacheMux = portMUX_INITIALIZER_UNLOCKED;
+
 static void wifiStationEvent(arduino_event_id_t event);
+
+void wlanRequestWifiScanRefresh() {
+    s_wifiScanKick.store(true, std::memory_order_release);
+}
+
+bool wlanWifiScanCacheReady() {
+    return s_wifiScanHasValidCache.load(std::memory_order_acquire)
+           && !s_wifiScanInProgress.load(std::memory_order_acquire);
+}
+
+size_t wlanWifiScanCopySnapshot(WlanScanRow* out, size_t maxRows) {
+    if (out == nullptr || maxRows == 0U) {
+        return 0;
+    }
+    portENTER_CRITICAL(&s_wifiScanCacheMux);
+    const size_t n = std::min(maxRows, s_wifiScanCacheCount);
+    for (size_t i = 0; i < n; ++i) {
+        out[i] = s_wifiScanCache[i];
+    }
+    portEXIT_CRITICAL(&s_wifiScanCacheMux);
+    return n;
+}
+
+static void wifiScanServiceOnMainTask() {
+    if (s_wifiScanKick.exchange(false, std::memory_order_acq_rel)) {
+        WiFi.scanDelete();
+        s_wifiScanInProgress.store(true, std::memory_order_release);
+        s_wifiScanHasValidCache.store(false, std::memory_order_release);
+        WiFi.scanNetworks(true, false, false, 500, 0, nullptr, nullptr);
+    }
+
+    const int16_t n = WiFi.scanComplete();
+    if (n == WIFI_SCAN_RUNNING) {
+        return;
+    }
+    if (n == WIFI_SCAN_FAILED) {
+        WiFi.scanDelete();
+        s_wifiScanInProgress.store(false, std::memory_order_release);
+        s_wifiScanHasValidCache.store(false, std::memory_order_release);
+        /* Retry on next wlanLoop iteration. */
+        wlanRequestWifiScanRefresh();
+        return;
+    }
+    if (n < 0) {
+        s_wifiScanInProgress.store(false, std::memory_order_release);
+        return;
+    }
+
+    const size_t toStore = std::min(static_cast<size_t>(n), kMaxScanCache);
+    portENTER_CRITICAL(&s_wifiScanCacheMux);
+    s_wifiScanCacheCount = toStore;
+    for (size_t i = 0; i < toStore; ++i) {
+        strlcpy(s_wifiScanCache[i].ssid, WiFi.SSID(static_cast<uint8_t>(i)).c_str(),
+                sizeof(s_wifiScanCache[i].ssid));
+        s_wifiScanCache[i].rssi = WiFi.RSSI(static_cast<uint8_t>(i));
+        s_wifiScanCache[i].open = (WiFi.encryptionType(static_cast<uint8_t>(i)) == WIFI_AUTH_OPEN);
+    }
+    portEXIT_CRITICAL(&s_wifiScanCacheMux);
+    WiFi.scanDelete();
+    s_wifiScanInProgress.store(false, std::memory_order_release);
+    s_wifiScanHasValidCache.store(true, std::memory_order_release);
+}
 
 bool configSaveWiFiCredentials(const char* ssid, const char* password) {
     if (ssid == nullptr || ssid[0] == '\0') {
@@ -195,6 +267,7 @@ void resetAllSettings() {
 }
 
 void wlanLoop() {
+    wifiScanServiceOnMainTask();
     if (g_apMode) {
         g_dnsServer.processNextRequest();
     }

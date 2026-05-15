@@ -1,5 +1,7 @@
 #pragma once
 
+#include <cstddef>
+
 void setupWiFi();
 void resetAllSettings();
 
@@ -17,7 +19,23 @@ bool configIsApMode();
  */
 void wlanLoop();
 
+/** One row from the last completed scan (WLAN module copies into this for HTTP handlers). */
+struct WlanScanRow {
+    char ssid[33];
+    int  rssi;
+    bool open;
+};
+
 /**
  * STA connected with usable IPv4 (avoids including Arduino WiFi.h in mqtt/ota — IDE/clang friendly).
  */
 bool wlanStaConnectedOk();
+
+/** Request background WiFi scan (executed in wlanLoop on main task only). */
+void wlanRequestWifiScanRefresh();
+
+/** True when cached scan results are ready for /wifi-scan JSON. */
+bool wlanWifiScanCacheReady();
+
+/** Copies up to maxRows SSIDs from cache; returns number copied (may be 0). */
+size_t wlanWifiScanCopySnapshot(WlanScanRow* out, size_t maxRows);

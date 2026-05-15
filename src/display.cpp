@@ -29,7 +29,12 @@ static GxEPD2_3C<GxEPD2_154_Z90c, GxEPD2_154_Z90c::HEIGHT> display(
 // BUSY/RST/DC: pinModes setzt main pinsInit() vor displayInit(); GxEPD2 nutzt diese vor init.
 
 static std::atomic<bool> g_heartRedrawPending{false};
-static bool                g_displaySpiSuspendedLowPower = false;
+/** Scheduled from other FreeRTOS tasks for main-task-only E-Ink draws. */
+static std::atomic<bool>     g_deferredAuthCodePending{false};
+static std::atomic<uint32_t> g_deferredAuthCodeValue{0};
+static std::atomic<bool>     g_deferredSplashPending{false};
+static std::atomic<bool>     g_deferredHeartScreenPending{false};
+static bool                  g_displaySpiSuspendedLowPower = false;
 
 void requestHeartRedraw() {
     g_heartRedrawPending.store(true, std::memory_order_release);
@@ -37,6 +42,33 @@ void requestHeartRedraw() {
 
 bool consumeHeartRedraw() {
     return g_heartRedrawPending.exchange(false, std::memory_order_acq_rel);
+}
+
+void requestDeferredDrawAuthCode(uint32_t code) {
+    g_deferredAuthCodeValue.store(code, std::memory_order_relaxed);
+    g_deferredAuthCodePending.store(true, std::memory_order_release);
+}
+
+void requestDeferredDrawSplashScreen() {
+    g_deferredSplashPending.store(true, std::memory_order_release);
+}
+
+void requestDeferredDrawHeartScreen() {
+    g_deferredHeartScreenPending.store(true, std::memory_order_release);
+}
+
+void displayProcessDeferredDrawsOnMainTask() {
+    if (g_deferredAuthCodePending.exchange(false, std::memory_order_acq_rel)) {
+        drawAuthCode(g_deferredAuthCodeValue.load(std::memory_order_relaxed));
+        return;
+    }
+    if (g_deferredSplashPending.exchange(false, std::memory_order_acq_rel)) {
+        drawSplashScreen();
+        return;
+    }
+    if (g_deferredHeartScreenPending.exchange(false, std::memory_order_acq_rel)) {
+        drawHeartWithNumber();
+    }
 }
 
 static void displayResumeSpiForDraw() {

@@ -8,6 +8,7 @@
 #include "wlan.h"
 
 #include <Arduino.h>
+#include <atomic>
 #include <climits>
 #include <driver/gpio.h>
 #include <esp_log.h>
@@ -88,6 +89,33 @@ static void ledHoldWhenIdle() {
 }
 
 static void (*s_authCancelHandler)() = nullptr;
+
+static std::atomic<bool> s_authBlinkWantOnFromWeb{false};
+static std::atomic<bool> s_authBlinkWantOffFromWeb{false};
+
+void buttonRequestAuthBlinkOnFromAsync() {
+    s_authBlinkWantOnFromWeb.store(true, std::memory_order_release);
+}
+
+void buttonRequestAuthBlinkOffFromAsync() {
+    s_authBlinkWantOffFromWeb.store(true, std::memory_order_release);
+}
+
+static void consumeAuthBlinkRequestsFromWeb() {
+    if (s_authBlinkWantOffFromWeb.exchange(false, std::memory_order_acq_rel)) {
+        if (ledTxPhase == LedTxPhase::AuthOn || ledTxPhase == LedTxPhase::AuthOff) {
+            ledTxPhase = LedTxPhase::Idle;
+            ledHoldWhenIdle();
+        }
+    }
+    if (s_authBlinkWantOnFromWeb.exchange(false, std::memory_order_acq_rel)) {
+        if (ledTxPhase == LedTxPhase::Idle) {
+            ledTxPhase = LedTxPhase::AuthOn;
+            ledOutput(LOW);
+            armLedPhase(500);
+        }
+    }
+}
 
 void buttonSetAuthCancelHandler(void (*fn)()) {
     s_authCancelHandler = fn;
@@ -175,6 +203,7 @@ void buttonEnableLedGpioHoldForLightSleep() {
 }
 
 void buttonAdvanceLedSequence() {
+    consumeAuthBlinkRequestsFromWeb();
     if (ledTxPhase == LedTxPhase::Idle) {
         return;
     }
@@ -253,6 +282,7 @@ static void triggerFactoryReset() {
 }
 
 void buttonLoop() {
+    consumeAuthBlinkRequestsFromWeb();
     const int raw            = digitalRead(kButtonGpio);
     const unsigned long nowMs = millis();
     if (raw != btn.lastRawReading) {
@@ -281,8 +311,12 @@ void buttonLoop() {
                     if (s_authCancelHandler != nullptr) {
                         s_authCancelHandler();
                     }
-                } else if (!ledSendSequenceActive() && mqttCfg.server[0] != '\0' && !configIsApMode()) {
-                    startMqttSendLedSequence();
+                } else if (!ledSendSequenceActive() && !configIsApMode()) {
+                    MqttConfig btnMqttCfg{};
+                    mqttCfgSnapshot(&btnMqttCfg);
+                    if (btnMqttCfg.server[0] != '\0') {
+                        startMqttSendLedSequence();
+                    }
                 }
             }
             btn.heldDown              = false;

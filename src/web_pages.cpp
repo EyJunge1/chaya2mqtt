@@ -14,6 +14,14 @@
 #include "web_auth.h"
 #include <cstdio>
 
+static AsyncResponseStream* beginResponseStreamOr500(AsyncWebServerRequest* req, const char* mime) {
+    AsyncResponseStream* resp = req->beginResponseStream(mime);
+    if (resp == nullptr) {
+        req->send(500);
+    }
+    return resp;
+}
+
 static void appendHtmlEscaped(Print& out, const char* s) {
     if (s == nullptr) {
         return;
@@ -30,10 +38,14 @@ static void appendHtmlEscaped(Print& out, const char* s) {
     }
 }
 
-static void appendJsonEscapedString(Print& out, const String& str) {
+static void appendJsonEscapedCStr(Print& out, const char* str) {
     out.print('"');
-    for (size_t i = 0; i < str.length(); ++i) {
-        const unsigned char c = static_cast<unsigned char>(str[i]);
+    if (str == nullptr) {
+        out.print('"');
+        return;
+    }
+    for (const unsigned char* p = reinterpret_cast<const unsigned char*>(str); *p != '\0'; ++p) {
+        const unsigned char c = *p;
         switch (c) {
             case '"': out.print(F("\\\"")); break;
             case '\\': out.print(F("\\\\")); break;
@@ -45,7 +57,7 @@ static void appendJsonEscapedString(Print& out, const String& str) {
             default:
                 if (c < 0x20U) {
                     char buf[8];
-                    snprintf(buf, sizeof(buf), "\\u%04x", c);
+                    snprintf(buf, sizeof(buf), "\\u%04x", static_cast<unsigned>(c));
                     out.print(buf);
                 } else {
                     out.write(static_cast<char>(c));
@@ -70,7 +82,10 @@ static void streamPageHeader(Print& out, const char* title) {
 }
 
 void streamAuthPage(AsyncWebServerRequest* req, bool wrongCode) {
-    AsyncResponseStream* resp = req->beginResponseStream("text/html");
+    AsyncResponseStream* resp = beginResponseStreamOr500(req, "text/html");
+    if (resp == nullptr) {
+        return;
+    }
     streamPageHeader(*resp, "Sign in");
     resp->print(F("<h1>Web access</h1>"));
     if (wrongCode) {
@@ -103,7 +118,10 @@ void streamAuthPage(AsyncWebServerRequest* req, bool wrongCode) {
 }
 
 void streamSimpleDonePage(AsyncWebServerRequest* req, const char* title, const char* message) {
-    AsyncResponseStream* resp = req->beginResponseStream("text/html");
+    AsyncResponseStream* resp = beginResponseStreamOr500(req, "text/html");
+    if (resp == nullptr) {
+        return;
+    }
     streamPageHeader(*resp, title);
     resp->print(F("<h1>"));
     resp->print(title);
@@ -114,7 +132,10 @@ void streamSimpleDonePage(AsyncWebServerRequest* req, const char* title, const c
 }
 
 void streamDashboard(AsyncWebServerRequest* req) {
-    AsyncResponseStream* resp = req->beginResponseStream("text/html");
+    AsyncResponseStream* resp = beginResponseStreamOr500(req, "text/html");
+    if (resp == nullptr) {
+        return;
+    }
     streamPageHeader(*resp, "Dashboard");
     resp->print(F("<h1>Chaya2MQTT</h1><div class='grid'>"));
     if (configIsApMode()) {
@@ -142,10 +163,12 @@ void streamDashboard(AsyncWebServerRequest* req) {
 }
 
 void streamWifiPage(AsyncWebServerRequest* req) {
-    WiFi.scanDelete();
-    WiFi.scanNetworks(true, false, false, 500, 0, nullptr, nullptr);
+    wlanRequestWifiScanRefresh();
 
-    AsyncResponseStream* resp = req->beginResponseStream("text/html");
+    AsyncResponseStream* resp = beginResponseStreamOr500(req, "text/html");
+    if (resp == nullptr) {
+        return;
+    }
     streamPageHeader(*resp, "Wi-Fi");
     resp->print(F("<h1>Wi-Fi Setup</h1>"));
     if (WiFi.status() == WL_CONNECTED && WiFi.localIP()[0] != 0) {
@@ -159,8 +182,18 @@ void streamWifiPage(AsyncWebServerRequest* req) {
     }
     resp->print(
         F("<p class='hint' id='st'>Scanning…</p><ul id='list'></ul>"
-          "<form method='post' action='/wifi-connect' id='wf'>"
-          "<label for='ssid'>SSID</label>"
+          "<form method='post' action='/wifi-connect' id='wf'>"));
+    if (!configIsApMode() && configGetWebAuthEnabled()) {
+        resp->print(F("<input type='hidden' name='csrf_token' value='"));
+        {
+            char csrfB[24];
+            snprintf(csrfB, sizeof(csrfB), "%lu", static_cast<unsigned long>(webAuthGetCsrfToken()));
+            appendHtmlEscaped(*resp, csrfB);
+        }
+        resp->print(F("'/>"));
+    }
+    resp->print(
+        F("<label for='ssid'>SSID</label>"
           "<input name='ssid' id='ssid' required maxlength='32' autocomplete='off'/>"
           "<label for='pwd'>Password</label>"
           "<input name='password' id='pwd' type='password' maxlength='64' autocomplete='current-password'/>"
@@ -172,38 +205,40 @@ void streamWifiPage(AsyncWebServerRequest* req) {
 }
 
 void handleWifiScanJson(AsyncWebServerRequest* req) {
-    const int16_t n = WiFi.scanComplete();
-    if (n == WIFI_SCAN_RUNNING) {
-        req->send(202);
-        return;
-    }
-    if (n == WIFI_SCAN_FAILED) {
-        WiFi.scanDelete();
-        WiFi.scanNetworks(true, false, false, 500, 0, nullptr, nullptr);
+    if (!wlanWifiScanCacheReady()) {
         req->send(202);
         return;
     }
 
-    AsyncResponseStream* resp = req->beginResponseStream("application/json");
+    WlanScanRow rows[40];
+    const size_t n = wlanWifiScanCopySnapshot(rows, sizeof(rows) / sizeof(rows[0]));
+
+    AsyncResponseStream* resp = beginResponseStreamOr500(req, "application/json");
+    if (resp == nullptr) {
+        return;
+    }
     resp->print('[');
-    for (int i = 0; i < n; ++i) {
+    for (size_t i = 0; i < n; ++i) {
         if (i > 0) {
             resp->print(',');
         }
         resp->print(F("{\"ssid\":"));
-        appendJsonEscapedString(*resp, WiFi.SSID(i));
+        appendJsonEscapedCStr(*resp, rows[i].ssid);
         resp->print(F(",\"rssi\":"));
-        resp->print(static_cast<int>(WiFi.RSSI(i)));
-        const bool open = (WiFi.encryptionType(i) == WIFI_AUTH_OPEN);
-        resp->print(open ? F(",\"open\":true}") : F(",\"open\":false}"));
+        resp->print(rows[i].rssi);
+        resp->print(rows[i].open ? F(",\"open\":true}") : F(",\"open\":false}"));
     }
     resp->print(']');
-    WiFi.scanDelete();
     req->send(resp);
+
+    wlanRequestWifiScanRefresh();
 }
 
 void streamUpdatePage(AsyncWebServerRequest* req) {
-    AsyncResponseStream* resp = req->beginResponseStream("text/html");
+    AsyncResponseStream* resp = beginResponseStreamOr500(req, "text/html");
+    if (resp == nullptr) {
+        return;
+    }
     streamPageHeader(*resp, "OTA Update");
     resp->print(F("<h1>OTA Update</h1>"
                   "<p class='hint'>Installed firmware version: <strong>"));
@@ -223,7 +258,13 @@ void streamUpdatePage(AsyncWebServerRequest* req) {
 }
 
 void streamMqttHtmlPage(AsyncWebServerRequest* req, bool showSavedBanner) {
-    AsyncResponseStream* response = req->beginResponseStream("text/html");
+    MqttConfig cfg{};
+    mqttCfgSnapshot(&cfg);
+
+    AsyncResponseStream* response = beginResponseStreamOr500(req, "text/html");
+    if (response == nullptr) {
+        return;
+    }
     streamPageHeader(*response, "MQTT");
     response->print(F("<h1>MQTT Settings</h1>"));
     if (showSavedBanner) {
@@ -238,9 +279,9 @@ void streamMqttHtmlPage(AsyncWebServerRequest* req, bool showSavedBanner) {
     }
     response->print(F("'/><label for='srv'>Broker (hostname or IP)</label>"
                       "<input id='srv' name='mqtt_server' maxlength='127' value='"));
-    appendHtmlEscaped(*response, mqttCfg.server);
+    appendHtmlEscaped(*response, cfg.server);
     char portBuf[8];
-    snprintf(portBuf, sizeof(portBuf), "%u", static_cast<unsigned>(mqttCfg.port));
+    snprintf(portBuf, sizeof(portBuf), "%u", static_cast<unsigned>(cfg.port));
     response->print(F("'/>"
                       "<label for='prt'>Port</label>"
                       "<input id='prt' name='mqtt_port' type='number' min='1' max='65535' value='"));
@@ -248,23 +289,23 @@ void streamMqttHtmlPage(AsyncWebServerRequest* req, bool showSavedBanner) {
     response->print(F("'/>"
                       "<label for='usr'>Username (optional)</label>"
                       "<input id='usr' name='mqtt_user' maxlength='63' value='"));
-    appendHtmlEscaped(*response, mqttCfg.username);
+    appendHtmlEscaped(*response, cfg.username);
     response->print(F("'/>"
                       "<label for='pw'>Password (optional)</label>"
                       "<input id='pw' name='mqtt_pass' type='password' maxlength='63' "
                       "autocomplete='current-password' "
                       "placeholder='"));
-    if (mqttCfg.password[0] != '\0') {
+    if (cfg.password[0] != '\0') {
         response->print(F("(saved — leave blank to keep)"));
     }
     response->print(F("'/>"
                       "<label for='tpub'>Publish topic</label>"
                       "<input id='tpub' name='mqtt_topic_pub' maxlength='127' value='"));
-    appendHtmlEscaped(*response, mqttCfg.topicPub);
+    appendHtmlEscaped(*response, cfg.topicPub);
     response->print(F("'/>"
                       "<label for='tsub'>Subscribe topic</label>"
                       "<input id='tsub' name='mqtt_topic_sub' maxlength='127' value='"));
-    appendHtmlEscaped(*response, mqttCfg.topicSub);
+    appendHtmlEscaped(*response, cfg.topicSub);
     response->print(F("'/>"
                       "<button type='submit'>Save</button></form>"
                       "<a class='btn-back' href='/'>Back</a></body></html>"));
@@ -272,7 +313,10 @@ void streamMqttHtmlPage(AsyncWebServerRequest* req, bool showSavedBanner) {
 }
 
 void streamSettingsPage(AsyncWebServerRequest* req, bool showSavedBanner) {
-    AsyncResponseStream* response = req->beginResponseStream("text/html");
+    AsyncResponseStream* response = beginResponseStreamOr500(req, "text/html");
+    if (response == nullptr) {
+        return;
+    }
     streamPageHeader(*response, "Settings");
     response->print(F("<h1>Settings</h1>"));
     if (showSavedBanner) {

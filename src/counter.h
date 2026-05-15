@@ -15,7 +15,6 @@ extern int sentCountBaseline;
 uint32_t calendarDaySinceEpochUtc(time_t utc);
 
 void loadHeartCounter();
-void loadHeartSentCounter();
 /** @return true if NVS write succeeded */
 bool saveHeartCounter();
 /** @return true if NVS write succeeded */

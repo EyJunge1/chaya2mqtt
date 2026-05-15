@@ -46,6 +46,13 @@ static uint64_t computeLightSleepTimerUs() {
     return kLightSleepIdleUs;
 }
 
+/** True if broker host is non-empty (snapshot; safe vs. concurrent config updates). */
+static bool mqttHasServerConfigured() {
+    MqttConfig cfg{};
+    mqttCfgSnapshot(&cfg);
+    return cfg.server[0] != '\0';
+}
+
 /** Same assignments as display/button (GxEPD2 SPI + panel); do not use pins 6–11 (flash). */
 static void pinsInit() {
     pinMode(pins::kDisplayBusy, INPUT);
@@ -126,6 +133,7 @@ void loop() {
 
     /* WiFi-Reconnect: WiFi.onEvent in setupWiFi (see wlanLoop / webAdminLoop). */
 
+    displayProcessDeferredDrawsOnMainTask();
     if (consumeHeartRedraw()) {
         drawHeartWithNumber();
     }
@@ -143,7 +151,7 @@ void loop() {
     } else if (mqttIsConnected()) {
         /* Kein Light Sleep bei aktiver TLS-Session: sonst BEACON_TIMEOUT / Socket-Fehler. */
         delay(50);
-    } else if (mqttCfg.server[0] == '\0') {
+    } else if (!mqttHasServerConfigured()) {
         /* MQTT noch nicht konfiguriert: Web-Admin muss erreichbar sein (mDNS). */
         delay(50);
     } else {

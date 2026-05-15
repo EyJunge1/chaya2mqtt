@@ -18,7 +18,6 @@
 #include <cstdlib>
 #include <cstring>
 #include <esp_log.h>
-#include <freertos/portmacro.h>
 
 #if defined(CORE_DEBUG_LEVEL) && CORE_DEBUG_LEVEL > 0
 static const char* TAG = "WEB";
@@ -35,9 +34,11 @@ static bool              g_routesRegistered = false;
 static std::atomic<bool> g_rebootRequested{false};
 static std::atomic<bool> g_wifiConnectRequested{false};
 static std::atomic<bool> g_mqttApplyPending{false};
+static std::atomic<bool> g_settingsApplyPending{false};
 
-static MqttConfig   g_mqttPendingCfg;
-static portMUX_TYPE s_mqttCfgMux = portMUX_INITIALIZER_UNLOCKED;
+static uint8_t           s_pendingResetDays     = 7;
+static bool              s_pendingWebAuthEnabled = false;
+static portMUX_TYPE      s_settingsPendingMux   = portMUX_INITIALIZER_UNLOCKED;
 
 static bool parseBodyParam(AsyncWebServerRequest* req, const char* name, char* out, size_t outLen) {
     if (req == nullptr || !req->hasParam(name, true)) {
@@ -52,6 +53,16 @@ static bool parseBodyParam(AsyncWebServerRequest* req, const char* name, char* o
 }
 
 static void handleWifiConnectPost(AsyncWebServerRequest* req) {
+    if (!configIsApMode()) {
+        if (!webAuthIsAuthenticated(req)) {
+            req->redirect(F("/auth"));
+            return;
+        }
+        if (!webAuthValidateCsrfPost(req)) {
+            req->redirect(F("/wifi"));
+            return;
+        }
+    }
     char ssid[33];
     char password[65];
     ssid[0]     = '\0';
@@ -109,9 +120,7 @@ static void handleMqttPost(AsyncWebServerRequest* req) {
     }
 
     MqttConfig pending{};
-    portENTER_CRITICAL(&s_mqttCfgMux);
-    pending = mqttCfg;
-    portEXIT_CRITICAL(&s_mqttCfgMux);
+    mqttCfgSnapshot(&pending);
 
     if (req->hasParam("mqtt_server", true)) {
         const AsyncWebParameter* p = req->getParam("mqtt_server", true);
@@ -162,9 +171,14 @@ static void handleMqttPost(AsyncWebServerRequest* req) {
         strlcpy(pending.topicPub, kMqttDefaultTopicPub, sizeof(pending.topicPub));
         strlcpy(pending.topicSub, kMqttDefaultTopicSub, sizeof(pending.topicSub));
     }
-    portENTER_CRITICAL(&s_mqttCfgMux);
-    g_mqttPendingCfg = pending;
-    portEXIT_CRITICAL(&s_mqttCfgMux);
+    if (!mqttTopicSyntaxOk(pending.server, sizeof(pending.server))
+        || !mqttTopicSyntaxOk(pending.topicPub, sizeof(pending.topicPub))
+        || !mqttTopicSyntaxOk(pending.topicSub, sizeof(pending.topicSub))) {
+        ESP_LOGW(TAG, "MQTT: ungueltige Topics oder leerer Broker");
+        req->redirect(F("/mqtt"));
+        return;
+    }
+    mqttCfgStorePending(&pending);
     g_mqttApplyPending.store(true, std::memory_order_release);
     req->redirect(F("/mqtt?saved=1"));
 }
@@ -186,8 +200,11 @@ static void handleSettingsPost(AsyncWebServerRequest* req) {
             days          = (v >= 0 && v <= 30) ? static_cast<uint8_t>(v) : 7;
         }
     }
-    configSetResetPeriodDays(days);
-    configSetWebAuthEnabled(req->hasParam("auth_enabled", true));
+    portENTER_CRITICAL(&s_settingsPendingMux);
+    s_pendingResetDays     = days;
+    s_pendingWebAuthEnabled = req->hasParam("auth_enabled", true);
+    portEXIT_CRITICAL(&s_settingsPendingMux);
+    g_settingsApplyPending.store(true, std::memory_order_release);
     req->redirect(F("/settings?saved=1"));
 }
 
@@ -285,18 +302,25 @@ void webAdminRegisterRoutes() {
 void webAdminLoop() {
     webAuthLoop();
 
+    if (g_settingsApplyPending.exchange(false, std::memory_order_acq_rel)) {
+        uint8_t daysApply = 7;
+        bool    authApply = false;
+        portENTER_CRITICAL(&s_settingsPendingMux);
+        daysApply = s_pendingResetDays;
+        authApply = s_pendingWebAuthEnabled;
+        portEXIT_CRITICAL(&s_settingsPendingMux);
+        configSetResetPeriodDays(daysApply);
+        configSetWebAuthEnabled(authApply);
+    }
+
     if (g_mqttApplyPending.exchange(false, std::memory_order_acq_rel)) {
-        MqttConfig localCfg;
-        portENTER_CRITICAL(&s_mqttCfgMux);
-        localCfg = g_mqttPendingCfg;
-        portEXIT_CRITICAL(&s_mqttCfgMux);
-        portENTER_CRITICAL(&s_mqttCfgMux);
-        mqttCfg = localCfg;
-        portEXIT_CRITICAL(&s_mqttCfgMux);
+        mqttCfgApplyPendingToActive();
         saveMQTTConfig();
         mqttDisconnect();
         mqttSetup();
-        if (mqttCfg.server[0] != '\0') {
+        MqttConfig applied{};
+        mqttCfgSnapshot(&applied);
+        if (applied.server[0] != '\0') {
             requestHeartRedraw();
         }
     }

@@ -36,14 +36,17 @@ static unsigned long mqttCurrentBackoffMs = kMqttBackoffInitialMs;
 
 /** Eine Verbindungsrunde; Rückgabe: Millisekunden bis zum nächsten Versuch. */
 static unsigned long mqttTryConnectSinglePass() {
+    MqttConfig cfg{};
+    mqttCfgSnapshot(&cfg);
+
     char clientId[24];
     snprintf(clientId, sizeof(clientId), "Chaya2MQTT-%04lX",
              static_cast<unsigned long>(esp_random() & 0xffffU));
 
     ESP_LOGI(TAG, "Verbinde mit MQTT (TLS)... Server: %s:%u, Client: %s",
-             mqttCfg.server, mqttCfg.port, clientId);
+             cfg.server, cfg.port, clientId);
 
-    if (strlen(mqttCfg.server) == 0) {
+    if (strlen(cfg.server) == 0) {
         ESP_LOGW(TAG, "Kein MQTT-Server konfiguriert. Wartungs-AP nutzen oder /mqtt im Einrichtungs-WLAN");
         return 60000;
     }
@@ -53,15 +56,14 @@ static unsigned long mqttTryConnectSinglePass() {
         return 5000;
     }
 
-    // topicPub bis 127 Zeichen + "/lwt" (4) + NUL -> mind. 132 Byte; 140 fuer Rand.
     char willTopic[140];
-    snprintf(willTopic, sizeof(willTopic), "%s/lwt", mqttCfg.topicPub);
+    snprintf(willTopic, sizeof(willTopic), "%s/lwt", cfg.topicPub);
 
-    if (client.connect(clientId, mqttCfg.username, mqttCfg.password, willTopic, 1, true, "offline", true)) {
-        ESP_LOGI(TAG, "Verbunden! Subscribing zu Topic (QoS 1): %s", mqttCfg.topicSub);
+    if (client.connect(clientId, cfg.username, cfg.password, willTopic, 1, true, "offline", true)) {
+        ESP_LOGI(TAG, "Verbunden! Subscribing zu Topic (QoS 1): %s", cfg.topicSub);
         (void)client.publish(willTopic, "online", true);
         mqttCurrentBackoffMs = kMqttBackoffInitialMs;
-        if (!client.subscribe(mqttCfg.topicSub, 1)) {
+        if (!client.subscribe(cfg.topicSub, 1)) {
             ESP_LOGE(TAG, "Subscribe fehlgeschlagen, disconnect fuer Retry");
             client.disconnect();
             const unsigned long waitMs = mqttCurrentBackoffMs;
@@ -81,7 +83,9 @@ static unsigned long mqttTryConnectSinglePass() {
 
 // NOLINTNEXTLINE(readability-non-const-parameter) - PubSubClient callback signature is fixed
 static void mqttCallback(char* topic, byte* payload, unsigned int length) {
-    if (strcmp(topic, mqttCfg.topicSub) != 0) {
+    MqttConfig cfg{};
+    mqttCfgSnapshot(&cfg);
+    if (strcmp(topic, cfg.topicSub) != 0) {
         ESP_LOGD(TAG, "Payload ignoriert (Topic != topicSub)");
         return;
     }
@@ -118,6 +122,9 @@ bool mqttPublishChaya() {
         ESP_LOGW(TAG, "Publish fehlgeschlagen: nicht verbunden");
         return false;
     }
+    MqttConfig cfg{};
+    mqttCfgSnapshot(&cfg);
+
     char buf[16];
     const long nextVal = static_cast<long>(heartSentCounter) + 1L;
     if (nextVal > INT_MAX) {
@@ -125,7 +132,7 @@ bool mqttPublishChaya() {
         return false;
     }
     static_cast<void>(snprintf(buf, sizeof(buf), "%ld", nextVal));
-    return client.publish(mqttCfg.topicPub, buf, true);
+    return client.publish(cfg.topicPub, buf, true);
 }
 
 void mqttDisconnect() {
@@ -133,12 +140,15 @@ void mqttDisconnect() {
 }
 
 void mqttSetup() {
+    MqttConfig cfg{};
+    mqttCfgSnapshot(&cfg);
+
     espClient.setCACertBundle(x509_crt_bundle_start,
                               x509_crt_bundle_end - x509_crt_bundle_start);
     if (!client.setBufferSize(512)) {
         ESP_LOGW(TAG, "setBufferSize(512) fehlgeschlagen, PubSubClient nutzt vorhandenen Buffer");
     }
-    client.setServer(mqttCfg.server, mqttCfg.port);
+    client.setServer(cfg.server, cfg.port);
     client.setCallback(mqttCallback);
     // E-Paper Full-Refresh blockiert ~8s; längeres Keep-Alive verhindert Broker-Timeout bei zwei Refreshes hintereinander.
     client.setKeepAlive(60);
@@ -153,7 +163,9 @@ bool mqttIsConnected() {
 }
 
 void mqttLoop() {
-    if (mqttCfg.server[0] == '\0') {
+    MqttConfig cfg{};
+    mqttCfgSnapshot(&cfg);
+    if (cfg.server[0] == '\0') {
         return;
     }
 

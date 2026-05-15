@@ -221,21 +221,6 @@ void loadHeartCounter() {
     loadCounterBaseline();
 }
 
-void loadHeartSentCounter() {
-    Preferences preferences;
-    if (!preferences.begin("chaya", true)) {
-        ESP_LOGW(TAG, "NVS chaya: lesen sentCount fehlgeschlagen, = 0");
-        heartSentCounter              = 0;
-        lastCommittedHeartSentCounter = heartSentCounter;
-        lastHeartSentCounterSaveMs    = millis();
-        return;
-    }
-    heartSentCounter = std::max<int32_t>(preferences.getInt("sentCount", 0), 0);
-    preferences.end();
-    lastCommittedHeartSentCounter = heartSentCounter;
-    lastHeartSentCounterSaveMs    = millis();
-}
-
 bool saveHeartCounter() {
     Preferences preferences;
     if (!preferences.begin("chaya", false)) {

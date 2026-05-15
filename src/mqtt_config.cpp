@@ -4,6 +4,7 @@
 #include <Preferences.h>
 #include <cstring>
 #include <esp_log.h>
+#include <freertos/portmacro.h>
 
 #if defined(CORE_DEBUG_LEVEL) && CORE_DEBUG_LEVEL > 0
 static const char* TAG = "CFG";
@@ -12,6 +13,33 @@ static constexpr const char* TAG __attribute__((unused)) = "";
 #endif
 
 MqttConfig mqttCfg;
+
+static MqttConfig           s_mqttPendingCfg{};
+static portMUX_TYPE s_mqttCfgMux = portMUX_INITIALIZER_UNLOCKED;
+
+void mqttCfgSnapshot(MqttConfig* out) {
+    if (out == nullptr) {
+        return;
+    }
+    portENTER_CRITICAL(&s_mqttCfgMux);
+    *out = mqttCfg;
+    portEXIT_CRITICAL(&s_mqttCfgMux);
+}
+
+void mqttCfgStorePending(const MqttConfig* pending) {
+    if (pending == nullptr) {
+        return;
+    }
+    portENTER_CRITICAL(&s_mqttCfgMux);
+    s_mqttPendingCfg = *pending;
+    portEXIT_CRITICAL(&s_mqttCfgMux);
+}
+
+void mqttCfgApplyPendingToActive() {
+    portENTER_CRITICAL(&s_mqttCfgMux);
+    mqttCfg = s_mqttPendingCfg;
+    portEXIT_CRITICAL(&s_mqttCfgMux);
+}
 
 void loadMQTTConfig() {
     Preferences preferences;
@@ -45,16 +73,18 @@ void loadMQTTConfig() {
 }
 
 void saveMQTTConfig() {
+    MqttConfig snap{};
+    mqttCfgSnapshot(&snap);
     Preferences preferences;
     if (!preferences.begin("mqtt", false)) {
         ESP_LOGE(TAG, "NVS mqtt: schreiben fehlgeschlagen");
         return;
     }
-    preferences.putString("server", mqttCfg.server);
-    preferences.putInt("port", mqttCfg.port);
-    preferences.putString("user", mqttCfg.username);
-    preferences.putString("pass", mqttCfg.password);
-    preferences.putString("topic_pub", mqttCfg.topicPub);
-    preferences.putString("topic_sub", mqttCfg.topicSub);
+    preferences.putString("server", snap.server);
+    preferences.putInt("port", snap.port);
+    preferences.putString("user", snap.username);
+    preferences.putString("pass", snap.password);
+    preferences.putString("topic_pub", snap.topicPub);
+    preferences.putString("topic_sub", snap.topicSub);
     preferences.end();
 }

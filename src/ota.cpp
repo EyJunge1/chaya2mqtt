@@ -1,3 +1,5 @@
+#include <WiFi.h>
+
 #include <Arduino.h>
 
 #include "ota.h"
@@ -21,6 +23,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <ctime>
+#include <memory>
 #include <esp_log.h>
 #include <esp_ota_ops.h>
 #include <esp_partition.h>
@@ -51,12 +54,12 @@ static char g_otaUrl[kOtaUrlMax];
 static uint32_t s_cachedNvUpdateDay     = UINT32_MAX;
 static bool     s_nvUpdateDayCacheValid = false;
 
-/** Large JSON accumulator — static to avoid multi-KiB stack usage under TLS. */
+/** GitHub release JSON max read size (heap-allocated only inside checkGithubUpdate). */
 static constexpr size_t kGithubJsonBuf = 8192;
-static char             s_githubJsonBuf[kGithubJsonBuf];
 
-/** OTA streaming read buffer */
-static constexpr size_t kOtaChunkSize = 4096;
+/** OTA streaming read buffer (TLS); static to keep stack small in httpStreamFirmwareToOtaVerified. */
+static constexpr size_t                    kOtaChunkSize = 4096;
+static std::array<uint8_t, kOtaChunkSize> s_otaFwReadChunk{};
 
 static uint32_t semverPackFromTag(const char* tag) {
     if (tag == nullptr || tag[0] == '\0') {
@@ -267,7 +270,6 @@ static bool httpStreamFirmwareToOtaVerified(WiFiClientSecure& tls, const char* b
 
     WiFiClient& stream       = https.getStream();
     size_t      totalWritten = 0;
-    std::array<uint8_t, kOtaChunkSize> chunk{};
 
     const int           contentLen = https.getSize();
     const unsigned long startMs    = millis();
@@ -289,13 +291,13 @@ static bool httpStreamFirmwareToOtaVerified(WiFiClientSecure& tls, const char* b
                 delay(1);
                 continue;
             }
-            const int take = std::min(remain, static_cast<int>(chunk.size()));
-            const size_t n = stream.readBytes(chunk.data(), static_cast<size_t>(take));
+            const int take = std::min(remain, static_cast<int>(s_otaFwReadChunk.size()));
+            const size_t n = stream.readBytes(s_otaFwReadChunk.data(), static_cast<size_t>(take));
             if (n == 0) {
                 break;
             }
-            mbedtls_sha256_update(&sha, chunk.data(), n);
-            err = esp_ota_write(otaHandle, chunk.data(), n);
+            mbedtls_sha256_update(&sha, s_otaFwReadChunk.data(), n);
+            err = esp_ota_write(otaHandle, s_otaFwReadChunk.data(), n);
             if (err != ESP_OK) {
                 ESP_LOGE(TAG, "esp_ota_write: %s", esp_err_to_name(err));
                 esp_ota_abort(otaHandle);
@@ -329,12 +331,12 @@ static bool httpStreamFirmwareToOtaVerified(WiFiClientSecure& tls, const char* b
                 delay(1);
                 continue;
             }
-            const size_t n = stream.readBytes(chunk.data(), chunk.size());
+            const size_t n = stream.readBytes(s_otaFwReadChunk.data(), s_otaFwReadChunk.size());
             if (n == 0) {
                 break;
             }
-            mbedtls_sha256_update(&sha, chunk.data(), n);
-            err = esp_ota_write(otaHandle, chunk.data(), n);
+            mbedtls_sha256_update(&sha, s_otaFwReadChunk.data(), n);
+            err = esp_ota_write(otaHandle, s_otaFwReadChunk.data(), n);
             if (err != ESP_OK) {
                 ESP_LOGE(TAG, "esp_ota_write: %s", esp_err_to_name(err));
                 esp_ota_abort(otaHandle);
@@ -435,7 +437,15 @@ static bool checkGithubUpdate() {
         return false;
     }
 
-    auto&               stream          = https.getStream();
+    std::unique_ptr<char[]> jsonHeap(new (std::nothrow) char[kGithubJsonBuf]);
+    if (!jsonHeap) {
+        ESP_LOGE(TAG, "GitHub API: JSON-Puffer allozieren fehlgeschlagen");
+        https.end();
+        return false;
+    }
+    char* const jsonBuf = jsonHeap.get();
+
+    auto&               stream       = https.getStream();
     char                remoteTag[64];
     size_t              len             = 0;
     const unsigned long streamStartMs = millis();
@@ -452,7 +462,7 @@ static bool checkGithubUpdate() {
         if (toRead <= 0) {
             break;
         }
-        const int n = stream.readBytes(s_githubJsonBuf + len, toRead);
+        const int n = stream.readBytes(jsonBuf + len, toRead);
         if (n <= 0) {
             break;
         }
@@ -463,7 +473,7 @@ static bool checkGithubUpdate() {
 
     const bool parseOk =
         (len > 0)
-        && githubExtractTagFromJsonBuffer(s_githubJsonBuf, len, remoteTag, sizeof(remoteTag));
+        && githubExtractTagFromJsonBuffer(jsonBuf, len, remoteTag, sizeof(remoteTag));
 
     if (!parseOk) {
         ESP_LOGE(TAG, "GitHub: konnte tag_name nicht parsen");
