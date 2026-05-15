@@ -95,11 +95,15 @@ static void displaySuspendSpiLowPower() {
 void displayInit() {
     SPI.begin(/*SCK=*/ pins::kSpiSck, /*MISO=*/ pins::kSpiMiso, /*MOSI=*/ pins::kSpiMosi,
               /*SS=*/ pins::kSpiCs);
-#if defined(CORE_DEBUG_LEVEL) && CORE_DEBUG_LEVEL > 0
-    display.init(115200, true, 2, false);
-#else
+    /* Register loop task with Task WDT so esp_task_wdt_reset() during long E-Ink updates is valid (ESP-IDF 5+). */
+    static bool mainTaskWdtRegistered = false;
+    if (!mainTaskWdtRegistered) {
+        if (esp_task_wdt_add(nullptr) == ESP_OK) {
+            mainTaskWdtRegistered = true;
+        }
+    }
+    /* Baud 0: avoid GxEPD2 UART spam ("Update_Full") on Serial; use ESP_LOG only in debug builds. */
     display.init(0, true, 2, false);
-#endif
 }
 
 /** Small ↓ (incoming): tip points toward larger y. */

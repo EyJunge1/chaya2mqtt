@@ -57,6 +57,10 @@ static unsigned long mqttTryConnectSinglePass() {
         ESP_LOGD(TAG, "WiFi not connected, deferring MQTT attempt");
         return kMqttWifiDownBackoffMs;
     }
+    if (!wlanStaStableForMqtt()) {
+        ESP_LOGD(TAG, "WiFi not stable yet after GOT_IP, deferring MQTT attempt");
+        return kMqttNtpRetryMs;
+    }
 
     char clientId[24];
     snprintf(clientId, sizeof(clientId), "Chaya2MQTT-%04lX",

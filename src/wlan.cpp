@@ -48,6 +48,14 @@ static unsigned long     s_wifiReconnectNextAllowedMs = 0;
 static uint32_t          s_wifiReconnectFailCount     = 0;
 static std::atomic<bool> s_mdnsRestartNeeded{false};
 
+/** While false, DISCONNECT events do not call WiFi.reconnect() (setup does its own wait). */
+static bool s_wifiSetupComplete = false;
+
+/** Last millis() when ARDUINO_EVENT_WIFI_STA_GOT_IP fired; 0 after disconnect. Used by MQTT stability guard. */
+static unsigned long s_staLastGotIpWallMs = 0;
+
+static constexpr unsigned long kStaStableAfterGotIpMs = 3000UL;
+
 /** WiFi scan only from main task: cache for /wifi-scan JSON. */
 static constexpr size_t      kMaxScanCache = 40;
 static WlanScanRow           s_wifiScanCache[kMaxScanCache]{};
@@ -271,6 +279,10 @@ static void wifiStationEvent(arduino_event_id_t event) {
     }
     switch (event) {
         case ARDUINO_EVENT_WIFI_STA_DISCONNECTED: {
+            s_staLastGotIpWallMs = 0;
+            if (!s_wifiSetupComplete) {
+                break;
+            }
             const unsigned long nowMs = millis();
             if (nowMs < s_wifiReconnectNextAllowedMs) {
                 ESP_LOGD(TAG, "WLAN reconnect übersprungen (Backoff)");
@@ -291,6 +303,7 @@ static void wifiStationEvent(arduino_event_id_t event) {
             break;
         }
         case ARDUINO_EVENT_WIFI_STA_GOT_IP:
+            s_staLastGotIpWallMs           = millis();
             s_wifiReconnectFailCount     = 0;
             s_wifiReconnectNextAllowedMs = 0;
             ESP_LOGI(TAG, "WLAN Sta-IP: %s", WiFi.localIP().toString().c_str());
@@ -302,6 +315,7 @@ static void wifiStationEvent(arduino_event_id_t event) {
 }
 
 void setupWiFi() {
+    s_wifiSetupComplete = false;
     webAdminRegisterRoutes();
 
     Preferences preferences;
@@ -341,27 +355,32 @@ void setupWiFi() {
         g_lastFailedBootSsid[0] = '\0';
         /* No modem sleep until MQTT session is up — avoids BEACON_TIMEOUT during TLS/handshake. */
         WiFi.setSleep(false);
-        configTime(0, 0, "pool.ntp.org", "time.cloudflare.com");
         esp_wifi_set_ps(WIFI_PS_NONE);
         (void)esp_wifi_set_bandwidth(WIFI_IF_STA, WIFI_BW_HT20);
         esp_wifi_set_max_tx_power(52);
 
-        if (WiFi.status() != WL_CONNECTED || WiFi.localIP()[0] == 0) {
-            ESP_LOGW(TAG, "STA lost during setup, reconnecting");
-            WiFi.reconnect();
-            const unsigned long rStart = millis();
-            while ((WiFi.status() != WL_CONNECTED || WiFi.localIP()[0] == 0)
-                   && millis() - rStart < 8000) {
-                delay(100);
-            }
+        /* esp_wifi_set_bandwidth() can briefly disassociate — wait for STA + IPv4 before mDNS/configTime. */
+        constexpr unsigned long kBandwidthSettleWaitMs = 8000UL;
+        const unsigned long     bwWaitStart            = millis();
+        while ((WiFi.status() != WL_CONNECTED || WiFi.localIP()[0] == 0)
+               && millis() - bwWaitStart < kBandwidthSettleWaitMs) {
+            delay(100);
         }
+        staConnected = (WiFi.status() == WL_CONNECTED && WiFi.localIP()[0] != 0);
 
-        if (!MDNS.begin(kDeviceHostname)) {
-            ESP_LOGW(TAG, "mDNS.begin fehlgeschlagen");
+        if (staConnected) {
+            configTime(0, 0, "pool.ntp.org", "time.cloudflare.com");
+            if (!MDNS.begin(kDeviceHostname)) {
+                ESP_LOGW(TAG, "mDNS.begin fehlgeschlagen");
+            }
+            MDNS.addService("http", "tcp", 80);
+            ESP_LOGI(TAG, "WLAN STA bereit (%s / %s)", kDeviceHostname, WiFi.localIP().toString().c_str());
+        } else {
+            ESP_LOGW(TAG, "STA did not recover after WiFi parameter changes — falling back to AP mode");
         }
-        MDNS.addService("http", "tcp", 80);
-        ESP_LOGI(TAG, "WLAN STA bereit (%s / %s)", kDeviceHostname, WiFi.localIP().toString().c_str());
-    } else {
+    }
+
+    if (!staConnected) {
         g_apMode = true;
 
         if (ssid[0] != '\0') {
@@ -384,6 +403,7 @@ void setupWiFi() {
         ESP_LOGI(TAG, "WLAN AP: %s, IP %s", kSetupApSsid, WiFi.softAPIP().toString().c_str());
     }
 
+    s_wifiSetupComplete = true;
     webAdminWebServer().begin();
 }
 
@@ -445,6 +465,13 @@ void wlanLoop() {
 
 bool wlanStaConnectedOk() {
     return WiFi.status() == WL_CONNECTED && WiFi.localIP()[0] != 0;
+}
+
+bool wlanStaStableForMqtt() {
+    if (!wlanStaConnectedOk() || s_staLastGotIpWallMs == 0) {
+        return false;
+    }
+    return (millis() - s_staLastGotIpWallMs) >= kStaStableAfterGotIpMs;
 }
 
 bool wlanNtpSynced() {

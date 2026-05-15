@@ -32,6 +32,11 @@ struct WlanScanRow {
  */
 bool wlanStaConnectedOk();
 
+/**
+ * STA has been connected with IPv4 for a short settle period after last GOT_IP (reduces MQTT/TLS during WiFi churn).
+ */
+bool wlanStaStableForMqtt();
+
 /** True when wall clock looks plausible (SNTP finished); needed before TLS cert verification. */
 bool wlanNtpSynced();
 
