@@ -103,9 +103,15 @@ Wichtige Funktionen: `loadHeartCounter`, `saveHeartCounter`, `maybeSaveHeartCoun
 
 ---
 
-## `web_admin.h` / `web_admin.cpp`
+## `src/web/admin.h` / `admin.cpp`
 
 **Zweck:** `AsyncWebServer` (Singleton Port 80), Route-Registrierung, POST-Handler; **`webAdminLoop()`** wendet MQTT-Formular an, Reboot/Wi‑Fi-Neustart, ruft **`otaLoop()`**.
+
+---
+
+## `src/web/auth.h` / `auth.cpp`
+
+**Zweck:** Zugriffsschutz für die Admin-UI: Session, CSRF, `/auth`, Redirects für unauthentifizierte Requests; `webAuthLoop()`.
 
 ---
 
@@ -120,11 +126,11 @@ Wichtige Funktionen: `loadHeartCounter`, `saveHeartCounter`, `maybeSaveHeartCoun
 
 ---
 
-## `web_pages.h` / `web_pages.cpp`
+## `src/web/pages.h` / `pages.cpp`
 
-**Zweck:** HTML-Streaming (Dashboard, Wi‑Fi-Scan-JSON, MQTT-Formular, Settings, Update-Seite); gemeinsames CSS via `web_styles.h`.
+**Zweck:** HTML-Streaming (Dashboard, Wi‑Fi-Scan-JSON, MQTT-Formular, Settings, Update-Seite); gemeinsames CSS via `src/web/styles.h`, Wi‑Fi-Scan-JS via `src/web/wifi_scan_js.h`.
 
-**Lokale UI-Entwicklung:** Quellen unter `web/` (`style.css`, `wifi_scan.js`, HTML-Mockups). Vorschau: `python3 web/devserver.py` (Port 8080). Vor jedem Build erzeugt `web/build_web.py` (PlatformIO `extra_scripts`) die Header `web_styles.h` und `web_wifi_scan_js.h` — nicht manuell editieren.
+**Hinweis:** Die Header `styles.h` und `wifi_scan_js.h` sind eingebettete Assets; bei einem zukünftigen Build-Skript die Ausgabe nach `src/web/` schreiben.
 
 ---
 

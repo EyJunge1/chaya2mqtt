@@ -2,8 +2,8 @@
 
 #include "counter.h"
 #include "pins.h"
-#include "web_admin.h"
-#include "web_auth.h"
+#include "web/admin.h"
+#include "web/auth.h"
 
 #include <Arduino.h>
 #include <WiFi.h>

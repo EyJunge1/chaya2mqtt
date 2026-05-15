@@ -1,4 +1,4 @@
-#include "web_admin.h"
+#include "admin.h"
 
 #include "constants.h"
 #include "counter.h"
@@ -6,8 +6,8 @@
 #include "mqtt.h"
 #include "mqtt_config.h"
 #include "ota.h"
-#include "web_auth.h"
-#include "web_pages.h"
+#include "auth.h"
+#include "pages.h"
 #include "wlan.h"
 
 #include <Arduino.h>

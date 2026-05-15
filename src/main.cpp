@@ -14,8 +14,8 @@
 #include "mqtt.h"
 #include "mqtt_config.h"
 #include "pins.h"
-#include "web_admin.h"
-#include "web_auth.h"
+#include "web/admin.h"
+#include "web/auth.h"
 #include "wlan.h"
 
 #if defined(CORE_DEBUG_LEVEL) && CORE_DEBUG_LEVEL > 0

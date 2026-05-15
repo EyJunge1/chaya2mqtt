@@ -3,15 +3,15 @@
 #include <WiFiType.h>
 #include <ESPAsyncWebServer.h>
 
-#include "web_pages.h"
+#include "pages.h"
 
 #include "mqtt_config.h"
 #include "counter.h"
 #include "version.h"
 #include "wlan.h"
-#include "web_styles.h"
-#include "web_wifi_scan_js.h"
-#include "web_auth.h"
+#include "styles.h"
+#include "wifi_scan_js.h"
+#include "auth.h"
 #include <cstdio>
 
 static AsyncResponseStream* beginResponseStreamOr500(AsyncWebServerRequest* req, const char* mime) {

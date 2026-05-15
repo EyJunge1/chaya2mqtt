@@ -77,9 +77,12 @@ chaya2mqtt/
     ├── pins.h
     ├── counter.cpp / counter.h     # Zähler & Baselines NVS
     ├── wlan.cpp / wlan.h           # WiFi/AP/DNS/mDNS; Factory Reset (Name wlan ≠ Arduino WiFi.h)
-    ├── web_admin.cpp / web_admin.h # HTTP-Routen
-    ├── web_pages.cpp / web_pages.h # HTML
-    ├── web_styles.h
+    ├── web/                        # HTTP-Admin-GUI (ESPAsyncWebServer)
+    │   ├── admin.cpp / admin.h     # Routen, webAdminLoop
+    │   ├── auth.cpp / auth.h       # Sessions, CSRF
+    │   ├── pages.cpp / pages.h     # HTML-Streaming
+    │   ├── styles.h                # eingebettetes CSS
+    │   └── wifi_scan_js.h          # eingebettetes JS (Wi‑Fi-Scan)
     ├── ota.cpp / ota.h             # Firmware-Update / GitHub-Check
     ├── display.cpp / display.h
     ├── mqtt.cpp / mqtt.h

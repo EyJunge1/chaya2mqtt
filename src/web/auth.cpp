@@ -1,10 +1,10 @@
-#include "web_auth.h"
+#include "auth.h"
 
 #include "button.h"
 #include "counter.h"
 #include "display.h"
 #include "mqtt_config.h"
-#include "web_pages.h"
+#include "pages.h"
 #include "wlan.h"
 
 #include <Arduino.h>

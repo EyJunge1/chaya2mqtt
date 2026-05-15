@@ -9,9 +9,9 @@ Die Firmware ist in **mehrere fokussierte Module** plus `main.cpp` aufgeteilt:
 | **mqtt_config** | `mqtt_config.h`, `mqtt_config.cpp`, `constants.h` | MQTT-Brokereinstellungen (NVS Namespace `mqtt`), gemeinsame Konstanten |
 | **counter** | `counter.h`, `counter.cpp` | Herz-Zähler / Sent-Zähler, Baselines, periodischer Display-Reset (NVS `chaya`, `cfg`) |
 | **wlan** | `wlan.h`, `wlan.cpp`, `pins.h` | STA/AP, Captive DNS, mDNS, NTP, Reconnect-Backoff; registriert `AsyncWebServer`-Routen; Factory Reset |
-| **web_admin** | `web_admin.h`, `web_admin.cpp` | HTTP-Routen und Formular-Handler (Dashboard, Wi‑Fi, MQTT, Settings); `webAdminLoop()` |
+| **web_admin** | `src/web/admin.h`, `src/web/admin.cpp` | HTTP-Routen und Formular-Handler (Dashboard, Wi‑Fi, MQTT, Settings); `webAdminLoop()` |
 | **ota** | `ota.h`, `ota.cpp` | GitHub-Versionscheck, täglicher Auto-Check (NVS), Firmware-Download (`HTTPUpdate`) |
-| **web_pages** | `web_pages.h`, `web_pages.cpp` | HTML-Antworten (Streaming), eingebettetes CSS über `web_styles.h` |
+| **web_pages** | `src/web/pages.h`, `src/web/pages.cpp` | HTML-Antworten (Streaming), eingebettetes CSS über `src/web/styles.h` |
 | **display** | `display.h`, `display.cpp` | GxEPD2-Initialisierung, Zeichnen Herz + Zähler-Deltas |
 | **mqtt** | `mqtt.h`, `mqtt.cpp` | TLS-Client, Broker-Verbindung, Subscribe/Publish, Callback setzt `heartCounter` |
 | **button** | `button.h`, `button.cpp` | GPIO Taster + LED, Kurzdruck → Publish, Langdruck → Factory Reset |
