@@ -326,9 +326,12 @@ void setupWiFi() {
         WiFi.setScanMethod(WIFI_ALL_CHANNEL_SCAN);
         WiFi.setSortMethod(WIFI_CONNECT_AP_BY_SIGNAL);
         WiFi.begin(ssid, pass);
+        /* Register before wait + before esp_wifi_set_bandwidth (can briefly disassociate). */
+        WiFi.onEvent(wifiStationEvent);
 
         const unsigned long start = millis();
-        while (WiFi.status() != WL_CONNECTED && millis() - start < 10000) {
+        while ((WiFi.status() != WL_CONNECTED || WiFi.localIP()[0] == 0)
+               && millis() - start < 10000) {
             delay(100);
         }
         staConnected = (WiFi.status() == WL_CONNECTED && WiFi.localIP()[0] != 0);
@@ -342,11 +345,21 @@ void setupWiFi() {
         esp_wifi_set_ps(WIFI_PS_NONE);
         (void)esp_wifi_set_bandwidth(WIFI_IF_STA, WIFI_BW_HT20);
         esp_wifi_set_max_tx_power(52);
+
+        if (WiFi.status() != WL_CONNECTED || WiFi.localIP()[0] == 0) {
+            ESP_LOGW(TAG, "STA lost during setup, reconnecting");
+            WiFi.reconnect();
+            const unsigned long rStart = millis();
+            while ((WiFi.status() != WL_CONNECTED || WiFi.localIP()[0] == 0)
+                   && millis() - rStart < 8000) {
+                delay(100);
+            }
+        }
+
         if (!MDNS.begin(kDeviceHostname)) {
             ESP_LOGW(TAG, "mDNS.begin fehlgeschlagen");
         }
         MDNS.addService("http", "tcp", 80);
-        WiFi.onEvent(wifiStationEvent);
         ESP_LOGI(TAG, "WLAN STA bereit (%s / %s)", kDeviceHostname, WiFi.localIP().toString().c_str());
     } else {
         g_apMode = true;
