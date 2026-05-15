@@ -35,6 +35,12 @@ bool wlanStaConnectedOk();
 /** True when wall clock looks plausible (SNTP finished); needed before TLS cert verification. */
 bool wlanNtpSynced();
 
+/**
+ * When active, apply WiFi modem power save (STA only). Call false when MQTT disconnects so STA
+ * can reconnect reliably; call true after a successful MQTT connection.
+ */
+void wlanSetStaPowerSaveMqttActive(bool mqttSessionActive);
+
 /** Request background WiFi scan (executed in wlanLoop on main task only). */
 void wlanRequestWifiScanRefresh();
 

@@ -154,6 +154,9 @@ void loop() {
     } else if (!mqttHasServerConfigured()) {
         /* MQTT noch nicht konfiguriert: Web-Admin muss erreichbar sein (mDNS). */
         delay(50);
+    } else if (!wlanStaConnectedOk()) {
+        /* No light-sleep without STA: would block WiFi reconnect. */
+        delay(50);
     } else {
         static uint64_t lastArmedLightSleepTimerUs = UINT64_MAX;
         const uint64_t lightSleepTimerUs = computeLightSleepTimerUs();

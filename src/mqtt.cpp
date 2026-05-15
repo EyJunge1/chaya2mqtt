@@ -30,6 +30,8 @@ static PubSubClient client(espClient);
 
 static constexpr unsigned long kMqttBackoffInitialMs = 5000;
 static constexpr unsigned long kMqttBackoffMaxMs = 60000;
+/** Longer wait when STA is down so reconnect/logging is not spammed. */
+static constexpr unsigned long kMqttWifiDownBackoffMs = 20000UL;
 
 static unsigned long lastMqttAttemptAt = 0;
 static unsigned long mqttBackoffMs = 0;
@@ -46,22 +48,22 @@ static unsigned long mqttTryConnectSinglePass() {
     MqttConfig cfg{};
     mqttCfgSnapshot(&cfg);
 
-    char clientId[24];
-    snprintf(clientId, sizeof(clientId), "Chaya2MQTT-%04lX",
-             static_cast<unsigned long>(esp_random() & 0xffffU));
-
-    ESP_LOGI(TAG, "Verbinde mit MQTT (TLS)... Server: %s:%u, Client: %s",
-             cfg.server, cfg.port, clientId);
-
     if (strlen(cfg.server) == 0) {
         ESP_LOGW(TAG, "Kein MQTT-Server konfiguriert. Wartungs-AP nutzen oder /mqtt im Einrichtungs-WLAN");
         return 60000;
     }
 
     if (!wlanStaConnectedOk()) {
-        ESP_LOGW(TAG, "WiFi nicht verbunden, warte auf Reconnect");
-        return 5000;
+        ESP_LOGD(TAG, "WiFi not connected, deferring MQTT attempt");
+        return kMqttWifiDownBackoffMs;
     }
+
+    char clientId[24];
+    snprintf(clientId, sizeof(clientId), "Chaya2MQTT-%04lX",
+             static_cast<unsigned long>(esp_random() & 0xffffU));
+
+    ESP_LOGI(TAG, "Verbinde mit MQTT (TLS)... Server: %s:%u, Client: %s",
+             cfg.server, cfg.port, clientId);
 
     if (millis() < kMqttNtpStartupGuardMs && !wlanNtpSynced()) {
         ESP_LOGI(TAG, "Warte auf NTP vor MQTT/TLS (%lu ms)", kMqttNtpRetryMs);
@@ -190,10 +192,14 @@ void mqttLoop() {
     const bool connected = client.connected();
 
     static bool wasConnected = false;
+    if (wasConnected && !connected) {
+        wlanSetStaPowerSaveMqttActive(false);
+    }
     if (connected && !wasConnected) {
         lastMqttAttemptAt = 0;
         mqttBackoffMs = 0;
         mqttCurrentBackoffMs = kMqttBackoffInitialMs;
+        wlanSetStaPowerSaveMqttActive(true);
     }
     wasConnected = connected;
 

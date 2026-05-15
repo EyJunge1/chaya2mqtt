@@ -336,9 +336,10 @@ void setupWiFi() {
 
     if (staConnected) {
         g_lastFailedBootSsid[0] = '\0';
-        WiFi.setSleep(true);
+        /* No modem sleep until MQTT session is up — avoids BEACON_TIMEOUT during TLS/handshake. */
+        WiFi.setSleep(false);
         configTime(0, 0, "pool.ntp.org", "time.cloudflare.com");
-        esp_wifi_set_ps(WIFI_PS_MIN_MODEM);
+        esp_wifi_set_ps(WIFI_PS_NONE);
         (void)esp_wifi_set_bandwidth(WIFI_IF_STA, WIFI_BW_HT20);
         esp_wifi_set_max_tx_power(52);
         if (!MDNS.begin(kDeviceHostname)) {
@@ -437,4 +438,20 @@ bool wlanNtpSynced() {
     /* Jan 1 2024 UTC — mbedTLS needs plausible wall time for TLS certificate validity checks. */
     constexpr time_t kNtpMinPlausibleTime = 1704067200L;
     return time(nullptr) > kNtpMinPlausibleTime;
+}
+
+void wlanSetStaPowerSaveMqttActive(bool mqttSessionActive) {
+    if (g_apMode) {
+        return;
+    }
+    if (mqttSessionActive) {
+        if (!wlanStaConnectedOk()) {
+            return;
+        }
+        WiFi.setSleep(true);
+        esp_wifi_set_ps(WIFI_PS_MIN_MODEM);
+    } else {
+        WiFi.setSleep(false);
+        esp_wifi_set_ps(WIFI_PS_NONE);
+    }
 }
