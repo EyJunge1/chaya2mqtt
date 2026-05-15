@@ -108,8 +108,8 @@ void displayInit() {
 
 /** Small ↓ (incoming): tip points toward larger y. */
 static void drawArrowDown(int16_t cx, int16_t tipY) {
-    static constexpr int16_t kHalf = 6;
-    static constexpr int16_t kStemH = 12;
+    static constexpr int16_t kHalf = 9;
+    static constexpr int16_t kStemH = 16;
     const int16_t baseY = static_cast<int16_t>(tipY - 5);
     display.fillTriangle(cx, tipY, static_cast<int16_t>(cx - kHalf), baseY,
                          static_cast<int16_t>(cx + kHalf), baseY, GxEPD_BLACK);
@@ -119,8 +119,8 @@ static void drawArrowDown(int16_t cx, int16_t tipY) {
 
 /** Small ↑ (outgoing): tip points toward smaller y. */
 static void drawArrowUp(int16_t cx, int16_t tipY) {
-    static constexpr int16_t kHalf = 6;
-    static constexpr int16_t kStemH = 12;
+    static constexpr int16_t kHalf = 9;
+    static constexpr int16_t kStemH = 16;
     const int16_t baseY = static_cast<int16_t>(tipY + 5);
     display.fillTriangle(cx, tipY, static_cast<int16_t>(cx - kHalf), baseY,
                          static_cast<int16_t>(cx + kHalf), baseY, GxEPD_BLACK);
@@ -129,7 +129,7 @@ static void drawArrowUp(int16_t cx, int16_t tipY) {
 }
 
 static uint8_t footerTextSizeForDigitCount(size_t /*digitLen*/) {
-    return 2;
+    return 3;
 }
 
 /** Display delta vs baseline, cap at 999 with "999+" for overflow (layout-friendly). */
@@ -157,7 +157,7 @@ void drawHeartWithNumber() {
     static constexpr int kCircleY      = 50;
     /** Triangle base meets circles; width matches outer circle extent. */
     static constexpr int kTriangleTop    = kCircleY - 4;
-    static constexpr int kTriangleBottom  = 168;
+    static constexpr int kTriangleBottom  = 182;
     static constexpr int kMaxWidth       = 2 * (kCircleSpacing + kCircleRadius);
 
     const int dw = display.width();
@@ -177,14 +177,14 @@ void drawHeartWithNumber() {
     const uint8_t recvTextSize = footerTextSizeForDigitCount(recvLen);
     const uint8_t sentTextSize = footerTextSizeForDigitCount(sentLen);
 
-    /** Text top row: textSize 2 fits fully above y=200. */
-    static constexpr int kFooterTextTop = 180;
+    /** Text top row: textSize 3 fits fully above y=200. */
+    static constexpr int kFooterTextTop = 175;
     static constexpr int kLeftMargin       = 4;
     static constexpr int kRightMargin      = 4;
-    static constexpr int kArrowLane        = 14;
-    static constexpr int16_t kDownArrowCx    = 9;
-    static constexpr int16_t kDownArrowTipY = 195;
-    const int16_t           kUpArrowCx      = static_cast<int16_t>(dw - 9);
+    static constexpr int kArrowLane        = 22;
+    static constexpr int16_t kDownArrowCx    = 13;
+    static constexpr int16_t kDownArrowTipY = 198;
+    const int16_t           kUpArrowCx      = static_cast<int16_t>(dw - 13);
     static constexpr int16_t kUpArrowTipY = static_cast<int16_t>(kFooterTextTop + 1);
 
     int16_t rx1 = 0;
