@@ -45,14 +45,14 @@ static std::atomic<unsigned long>  s_authLockoutUntilMs{0};
 
 static bool isPublicPath(const String& uri) {
     if (configIsApMode()) {
-        if (uri == "/wifi" || uri.startsWith("/wifi-scan")
+        if (uri == "/wifi" || uri.startsWith("/wifi-scan") || uri == "/wifi-status"
             || uri.startsWith("/wifi-connect")) {
             return true;
         }
         return uri == "/" || uri == "/favicon.ico";
     }
-    if (uri == "/wifi" || uri.startsWith("/wifi-scan") || uri.startsWith("/wifi-connect")
-        || uri.startsWith("/auth")) {
+    if (uri == "/wifi" || uri.startsWith("/wifi-scan") || uri == "/wifi-status"
+        || uri.startsWith("/wifi-connect") || uri.startsWith("/auth")) {
         return true;
     }
     return false;

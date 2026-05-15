@@ -6,12 +6,13 @@
 #include "pages.h"
 
 #include "mqtt_config.h"
-#include "mqtt.h"
 #include "counter.h"
 #include "version.h"
 #include "wlan.h"
 #include "styles.h"
 #include "wifi_scan_js.h"
+#include "wifi_status_js.h"
+#include "mqtt_status_js.h"
 #include "wifi_connect_test_js.h"
 #include "auth.h"
 #include <cstdio>
@@ -181,16 +182,8 @@ void streamWifiPage(AsyncWebServerRequest* req) {
         return;
     }
     streamPageHeader(*resp, "Wi-Fi");
-    resp->print(F("<h1>Wi-Fi Setup</h1>"));
-    if (WiFi.status() == WL_CONNECTED && WiFi.localIP()[0] != 0) {
-        resp->print(F("<p class='hint'>Connected: <strong>"));
-        appendHtmlEscaped(*resp, WiFi.SSID().c_str());
-        resp->print(F("</strong>, IP "));
-        resp->print(WiFi.localIP().toString());
-        resp->print(F(", RSSI "));
-        resp->print(static_cast<int>(WiFi.RSSI()));
-        resp->print(F(" dBm</p>"));
-    }
+    resp->print(F("<h1>Wi-Fi Setup</h1>"
+                   "<p id='cs' class='hint'></p>"));
     resp->print(
         F("<p class='hint' id='st'>Scanning…</p><ul id='list'></ul>"
           "<form method='post' action='/wifi-connect' id='wf'>"));
@@ -210,6 +203,8 @@ void streamWifiPage(AsyncWebServerRequest* req) {
           "<input name='password' id='pwd' type='password' maxlength='64' autocomplete='current-password'/>"
           "<button type='submit'>Connect</button></form>"
           "<script>"));
+    resp->print(reinterpret_cast<const __FlashStringHelper*>(WIFI_STATUS_JS));
+    resp->print(F("</script><script>"));
     resp->print(reinterpret_cast<const __FlashStringHelper*>(WIFI_SCAN_JS));
     resp->print(F("</script><a class='btn-back' href='/'>Back</a></body></html>"));
     req->send(resp);
@@ -313,15 +308,11 @@ void streamMqttHtmlPage(AsyncWebServerRequest* req, bool showSavedBanner) {
         response->print(F("<p class='ok'>&#10003; Saved. MQTT will reconnect.</p>"));
     }
     if (cfg.server[0] != '\0') {
-        if (mqttIsConnected()) {
-            response->print(F("<p class='hint'>Connected to <strong>"));
-            appendHtmlEscaped(*response, cfg.server);
-            response->print(F("</strong>:"));
-            response->print(portBuf);
-            response->print(F("</p>"));
-        } else {
-            response->print(F("<p class='err'>Not connected</p>"));
-        }
+        response->print(F("<p id='ms' class='hint' data-broker='"));
+        appendHtmlEscaped(*response, cfg.server);
+        response->print(F("' data-port='"));
+        response->print(portBuf);
+        response->print(F("'>Checking\xe2\x80\xa6</p>"));
     }
     response->print(F("<form method='post' action='/mqtt'>"
                       "<input type='hidden' name='csrf_token' value='"));
@@ -359,7 +350,13 @@ void streamMqttHtmlPage(AsyncWebServerRequest* req, bool showSavedBanner) {
     appendHtmlEscaped(*response, cfg.topicSub);
     response->print(F("'/>"
                       "<button type='submit'>Save</button></form>"
-                      "<a class='btn-back' href='/'>Back</a></body></html>"));
+                      "<a class='btn-back' href='/'>Back</a>"));
+    if (cfg.server[0] != '\0') {
+        response->print(F("<script>"));
+        response->print(reinterpret_cast<const __FlashStringHelper*>(MQTT_STATUS_JS));
+        response->print(F("</script>"));
+    }
+    response->print(F("</body></html>"));
     req->send(response);
 }
 

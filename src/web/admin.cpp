@@ -11,6 +11,7 @@
 #include "wlan.h"
 
 #include <Arduino.h>
+#include <WiFi.h>
 #include <ESPAsyncWebServer.h>
 #include <atomic>
 #include <cerrno>
@@ -192,6 +193,44 @@ static void handleWifiConnectAbortPost(AsyncWebServerRequest* req) {
     req->redirect(F("/wifi"));
 }
 
+static void handleWifiStatusGet(AsyncWebServerRequest* req) {
+    AsyncResponseStream* resp = req->beginResponseStream("application/json");
+    if (resp == nullptr) {
+        req->send(500);
+        return;
+    }
+    if (WiFi.status() == WL_CONNECTED && WiFi.localIP()[0] != 0) {
+        resp->print(F("{\"connected\":true,\"ssid\":"));
+        appendJsonEscapedCStrWifiStatus(*resp, WiFi.SSID().c_str());
+        resp->print(F(",\"ip\":"));
+        const String ipStr = WiFi.localIP().toString();
+        appendJsonEscapedCStrWifiStatus(*resp, ipStr.c_str());
+        resp->print(F(",\"rssi\":"));
+        resp->print(static_cast<int>(WiFi.RSSI()));
+        resp->print('}');
+    } else {
+        resp->print(F("{\"connected\":false}"));
+    }
+    req->send(resp);
+}
+
+static void handleMqttStatusGet(AsyncWebServerRequest* req) {
+    if (configIsApMode()) {
+        req->redirect(F("/"));
+        return;
+    }
+    if (webAuthRedirectIfUnauthenticated(req)) {
+        return;
+    }
+    AsyncResponseStream* resp = req->beginResponseStream("application/json");
+    if (resp == nullptr) {
+        req->send(500);
+        return;
+    }
+    resp->print(mqttIsConnected() ? F("{\"connected\":true}") : F("{\"connected\":false}"));
+    req->send(resp);
+}
+
 static void handleUpdateCheckPost(AsyncWebServerRequest* req) {
     if (!webAuthIsAuthenticated(req)) {
         req->redirect(F("/auth"));
@@ -340,6 +379,9 @@ void webAdminRegisterRoutes() {
     ws.on("/wifi-scan", HTTP_GET, [](AsyncWebServerRequest* rq) {
         handleWifiScanJson(rq);
     });
+    ws.on("/wifi-status", HTTP_GET, [](AsyncWebServerRequest* rq) {
+        handleWifiStatusGet(rq);
+    });
     ws.on("/wifi-connect-status", HTTP_GET,
         [](AsyncWebServerRequest* rq) { handleWifiConnectStatusGet(rq); });
     ws.on("/wifi-connect-commit", HTTP_POST,
@@ -390,6 +432,9 @@ void webAdminRegisterRoutes() {
             return;
         }
         handleMqttPost(rq);
+    });
+    ws.on("/mqtt-status", HTTP_GET, [](AsyncWebServerRequest* rq) {
+        handleMqttStatusGet(rq);
     });
 
     ws.on("/settings", HTTP_GET, [](AsyncWebServerRequest* rq) {
