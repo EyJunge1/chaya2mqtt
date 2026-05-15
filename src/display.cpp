@@ -149,15 +149,15 @@ void drawHeartWithNumber() {
     ESP_LOGI(TAG, "Zeichne rotes Herz mit Zaehlern...");
 
     static constexpr int kCenterX     = 100;
-    /** Vertical position: leaves room for corner counters (-footer band). */
-    static constexpr int kCenterY    = 68;
     static constexpr int kHeartSize  = 80;
     static constexpr int kCircleRadius = (kHeartSize / 2) + 4;
-    static constexpr int kCircleY = kCenterY - (kHeartSize / 3);
     static constexpr int kCircleSpacing = (kHeartSize / 2) - 3;
-    static constexpr int kTriangleTop = kCenterY - 2;
-    static constexpr int kTriangleBottom = kCenterY + kHeartSize + 20;
-    static constexpr int kMaxWidth = kHeartSize + 61;
+    /** Circle center Y: keeps round tops fully on-screen (200px height). */
+    static constexpr int kCircleY      = 50;
+    /** Triangle base meets circles; width matches outer circle extent. */
+    static constexpr int kTriangleTop    = kCircleY - 4;
+    static constexpr int kTriangleBottom  = 155;
+    static constexpr int kMaxWidth       = 2 * (kCircleSpacing + kCircleRadius);
 
     const int dw = display.width();
     const int dh = display.height();
@@ -176,14 +176,15 @@ void drawHeartWithNumber() {
     const uint8_t recvTextSize = footerTextSizeForDigitCount(recvLen);
     const uint8_t sentTextSize = footerTextSizeForDigitCount(sentLen);
 
-    static constexpr int kFooterBaselineY = 188;
+    /** Text top row: textSize 2 fits fully above y=200. */
+    static constexpr int kFooterTextTop = 180;
     static constexpr int kLeftMargin       = 4;
     static constexpr int kRightMargin      = 4;
     static constexpr int kArrowLane        = 14;
     static constexpr int16_t kDownArrowCx    = 9;
-    static constexpr int16_t kDownArrowTipY = static_cast<int16_t>(kFooterBaselineY - 2);
+    static constexpr int16_t kDownArrowTipY = 195;
     const int16_t           kUpArrowCx      = static_cast<int16_t>(dw - 9);
-    const int16_t kUpArrowTipY = static_cast<int16_t>(kFooterBaselineY - 22);
+    static constexpr int16_t kUpArrowTipY = static_cast<int16_t>(kFooterTextTop + 1);
 
     int16_t rx1 = 0;
     int16_t ry1 = 0;
@@ -236,12 +237,12 @@ void drawHeartWithNumber() {
 
         display.setTextSize(recvTextSize);
         display.setCursor(static_cast<int16_t>(recvTextCursorX),
-                          static_cast<int16_t>(kFooterBaselineY));
+                          static_cast<int16_t>(kFooterTextTop));
         display.print(recvBuf);
 
         display.setTextSize(sentTextSize);
         display.setCursor(static_cast<int16_t>(sentTextCursorX),
-                          static_cast<int16_t>(kFooterBaselineY));
+                          static_cast<int16_t>(kFooterTextTop));
         display.print(sentBuf);
 
     } while (display.nextPage());
