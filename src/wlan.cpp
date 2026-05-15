@@ -425,3 +425,9 @@ void wlanLoop() {
 bool wlanStaConnectedOk() {
     return WiFi.status() == WL_CONNECTED && WiFi.localIP()[0] != 0;
 }
+
+bool wlanNtpSynced() {
+    /* Jan 1 2024 UTC — mbedTLS needs plausible wall time for TLS certificate validity checks. */
+    constexpr time_t kNtpMinPlausibleTime = 1704067200L;
+    return time(nullptr) > kNtpMinPlausibleTime;
+}

@@ -17,6 +17,7 @@
 #include <cstring>
 #include <esp_log.h>
 #include <esp_random.h>
+#include <esp32-hal-cpu.h>
 
 #if defined(CORE_DEBUG_LEVEL) && CORE_DEBUG_LEVEL > 0
 static const char* TAG = "MQTT";
@@ -33,6 +34,12 @@ static constexpr unsigned long kMqttBackoffMaxMs = 60000;
 static unsigned long lastMqttAttemptAt = 0;
 static unsigned long mqttBackoffMs = 0;
 static unsigned long mqttCurrentBackoffMs = kMqttBackoffInitialMs;
+
+/** After boot, wait briefly for SNTP before TLS (avoids MBEDTLS_ERR_X509_CERT_VERIFY_FAILED at epoch). */
+static constexpr unsigned long kMqttNtpStartupGuardMs = 30000UL;
+static constexpr unsigned long kMqttNtpRetryMs        = 2000UL;
+
+static constexpr uint32_t kMqttTlsBoostCpuMhz = 240;
 
 /** Eine Verbindungsrunde; Rückgabe: Millisekunden bis zum nächsten Versuch. */
 static unsigned long mqttTryConnectSinglePass() {
@@ -56,10 +63,20 @@ static unsigned long mqttTryConnectSinglePass() {
         return 5000;
     }
 
+    if (millis() < kMqttNtpStartupGuardMs && !wlanNtpSynced()) {
+        ESP_LOGI(TAG, "Warte auf NTP vor MQTT/TLS (%lu ms)", kMqttNtpRetryMs);
+        return kMqttNtpRetryMs;
+    }
+
     char willTopic[140];
     snprintf(willTopic, sizeof(willTopic), "%s/lwt", cfg.topicPub);
 
-    if (client.connect(clientId, cfg.username, cfg.password, willTopic, 1, true, "offline", true)) {
+    setCpuFrequencyMhz(static_cast<int>(kMqttTlsBoostCpuMhz));
+    const bool connected =
+        client.connect(clientId, cfg.username, cfg.password, willTopic, 1, true, "offline", true);
+    setCpuFrequencyMhz(80);
+
+    if (connected) {
         ESP_LOGI(TAG, "Verbunden! Subscribing zu Topic (QoS 1): %s", cfg.topicSub);
         (void)client.publish(willTopic, "online", true);
         mqttCurrentBackoffMs = kMqttBackoffInitialMs;

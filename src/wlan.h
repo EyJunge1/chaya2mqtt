@@ -32,6 +32,9 @@ struct WlanScanRow {
  */
 bool wlanStaConnectedOk();
 
+/** True when wall clock looks plausible (SNTP finished); needed before TLS cert verification. */
+bool wlanNtpSynced();
+
 /** Request background WiFi scan (executed in wlanLoop on main task only). */
 void wlanRequestWifiScanRefresh();
 
