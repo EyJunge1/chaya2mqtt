@@ -379,6 +379,8 @@ void setupWiFi() {
             }
             MDNS.addService("http", "tcp", 80);
             ESP_LOGI(TAG, "WLAN STA bereit (%s / %s)", kDeviceHostname, WiFi.localIP().toString().c_str());
+            /* Default inactive time (~6 s) triggers BEACON_TIMEOUT during long TLS on the main loop. */
+            (void)esp_wifi_set_inactive_time(WIFI_IF_STA, 30);
         } else {
             ESP_LOGW(TAG, "STA did not recover after WiFi parameter changes — falling back to AP mode");
         }
