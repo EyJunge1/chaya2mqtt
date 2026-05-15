@@ -15,6 +15,7 @@
 #include <atomic>
 #include <cerrno>
 #include <cstdint>
+#include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <esp_log.h>
@@ -52,6 +53,51 @@ static bool parseBodyParam(AsyncWebServerRequest* req, const char* name, char* o
     return true;
 }
 
+/** Minimal JSON string escape for /wifi-connect-status SSID field. */
+static void appendJsonEscapedCStrWifiStatus(Print& out, const char* str) {
+    out.print('"');
+    if (str == nullptr) {
+        out.print('"');
+        return;
+    }
+    for (const unsigned char* p = reinterpret_cast<const unsigned char*>(str); *p != '\0'; ++p) {
+        const unsigned char c = *p;
+        switch (c) {
+            case '"':
+                out.print(F("\\\""));
+                break;
+            case '\\':
+                out.print(F("\\\\"));
+                break;
+            case '\b':
+                out.print(F("\\b"));
+                break;
+            case '\f':
+                out.print(F("\\f"));
+                break;
+            case '\n':
+                out.print(F("\\n"));
+                break;
+            case '\r':
+                out.print(F("\\r"));
+                break;
+            case '\t':
+                out.print(F("\\t"));
+                break;
+            default:
+                if (c < 0x20U) {
+                    char buf[8];
+                    snprintf(buf, sizeof(buf), "\\u%04x", static_cast<unsigned>(c));
+                    out.print(buf);
+                } else {
+                    out.write(static_cast<char>(c));
+                }
+                break;
+        }
+    }
+    out.print('"');
+}
+
 static void handleWifiConnectPost(AsyncWebServerRequest* req) {
     if (!configIsApMode()) {
         if (!webAuthIsAuthenticated(req)) {
@@ -72,6 +118,15 @@ static void handleWifiConnectPost(AsyncWebServerRequest* req) {
         return;
     }
     (void)parseBodyParam(req, "password", password, sizeof(password));
+    if (configIsApMode()) {
+        if (!wlanStartWifiConnectionTest(ssid, password)) {
+            req->redirect(F("/wifi"));
+            return;
+        }
+        req->redirect(F("/wifi-testing"));
+        return;
+    }
+
     if (!configSaveWiFiCredentials(ssid, password)) {
         req->redirect(F("/wifi"));
         return;
@@ -81,6 +136,60 @@ static void handleWifiConnectPost(AsyncWebServerRequest* req) {
         "Wi-Fi gespeichert. Ger&auml;t startet neu.<br>"
         "MQTT und weitere Einstellungen unter "
         "<strong>http://chaya2mqtt.local</strong> konfigurieren (gleiches WLAN).");
+}
+
+static void handleWifiConnectStatusGet(AsyncWebServerRequest* req) {
+    if (!configIsApMode()) {
+        req->send(404);
+        return;
+    }
+
+    AsyncResponseStream* resp = req->beginResponseStream("application/json");
+    if (resp == nullptr) {
+        req->send(500);
+        return;
+    }
+
+    const WlanWifiConnectionTestState tst = wlanGetWifiConnectionTestState();
+    const char*                       stStr =
+        tst == WlanWifiConnectionTestState::Idle ? "idle" :
+            tst == WlanWifiConnectionTestState::Testing ? "testing" :
+                                                        tst == WlanWifiConnectionTestState::Ok   ? "ok" :
+                                                                                                   "fail";
+    char ssid[33]{};
+    (void)wlanWifiConnectionTestSsidSnapshot(ssid, sizeof(ssid));
+
+    resp->print(F("{\"state\":"));
+    resp->print('"');
+    resp->print(stStr);
+    resp->print(F("\",\"ssid\":"));
+    appendJsonEscapedCStrWifiStatus(*resp, ssid);
+    resp->print('}');
+    req->send(resp);
+}
+
+static void handleWifiConnectCommitPost(AsyncWebServerRequest* req) {
+    if (!configIsApMode()) {
+        req->redirect(F("/"));
+        return;
+    }
+    if (!wlanCommitWifiConnectionTestAndScheduleReboot()) {
+        req->redirect(F("/wifi-testing"));
+        return;
+    }
+    streamSimpleDonePage(req, "Wi-Fi",
+        "Wi-Fi gespeichert. Ger&auml;t startet neu.<br>"
+        "MQTT und weitere Einstellungen unter "
+        "<strong>http://chaya2mqtt.local</strong> konfigurieren (gleiches WLAN).");
+}
+
+static void handleWifiConnectAbortPost(AsyncWebServerRequest* req) {
+    if (!configIsApMode()) {
+        req->redirect(F("/"));
+        return;
+    }
+    wlanAbortWifiConnectionTest();
+    req->redirect(F("/wifi"));
 }
 
 static void handleUpdateCheckPost(AsyncWebServerRequest* req) {
@@ -227,9 +336,16 @@ void webAdminRegisterRoutes() {
     ws.on("/wifi", HTTP_GET, [](AsyncWebServerRequest* rq) {
         streamWifiPage(rq);
     });
+    ws.on("/wifi-testing", HTTP_GET, [](AsyncWebServerRequest* rq) { streamWifiTestingPage(rq); });
     ws.on("/wifi-scan", HTTP_GET, [](AsyncWebServerRequest* rq) {
         handleWifiScanJson(rq);
     });
+    ws.on("/wifi-connect-status", HTTP_GET,
+        [](AsyncWebServerRequest* rq) { handleWifiConnectStatusGet(rq); });
+    ws.on("/wifi-connect-commit", HTTP_POST,
+        [](AsyncWebServerRequest* rq) { handleWifiConnectCommitPost(rq); });
+    ws.on("/wifi-connect-abort", HTTP_POST,
+        [](AsyncWebServerRequest* rq) { handleWifiConnectAbortPost(rq); });
     ws.on("/wifi-connect", HTTP_POST, [](AsyncWebServerRequest* rq) {
         handleWifiConnectPost(rq);
     });
@@ -297,6 +413,10 @@ void webAdminRegisterRoutes() {
     ws.onNotFound([](AsyncWebServerRequest* rq) {
         rq->redirect(F("/"));
     });
+}
+
+void webAdminScheduleWifiConfiguredReboot() {
+    g_wifiConnectRequested.store(true, std::memory_order_release);
 }
 
 void webAdminLoop() {

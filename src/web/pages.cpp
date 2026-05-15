@@ -11,6 +11,7 @@
 #include "wlan.h"
 #include "styles.h"
 #include "wifi_scan_js.h"
+#include "wifi_connect_test_js.h"
 #include "auth.h"
 #include <cstdio>
 
@@ -139,8 +140,17 @@ void streamDashboard(AsyncWebServerRequest* req) {
     streamPageHeader(*resp, "Dashboard");
     resp->print(F("<h1>Chaya2MQTT</h1><div class='grid'>"));
     if (configIsApMode()) {
-        resp->print(F("<a class='card' href='/wifi'>Wi-Fi Setup</a></div>"
-                      "<p class='hint'>WLAN einrichten, um das Ger&auml;t mit dem Netzwerk zu verbinden.<br>"
+        resp->print(F("<a class='card' href='/wifi'>Wi-Fi Setup</a></div>"));
+        {
+            char bootFailSsid[33];
+            if (wlanLastStaBootFailureSsidSnapshot(bootFailSsid, sizeof(bootFailSsid))) {
+                resp->print(
+                    F("<p class='hint' style='color:#b00'>Verbindung mit dem gespeicherten WLAN &quot;"));
+                appendHtmlEscaped(*resp, bootFailSsid);
+                resp->print(F("&quot; ist fehlgeschlagen. Bitte WLAN erneut einrichten.</p>"));
+            }
+        }
+        resp->print(F("<p class='hint'>WLAN einrichten, um das Ger&auml;t mit dem Netzwerk zu verbinden.<br>"
                       "MQTT und weitere Einstellungen sind danach unter "
                       "<strong>http://chaya2mqtt.local</strong> verf&uuml;gbar.</p>"));
     } else {
@@ -201,6 +211,35 @@ void streamWifiPage(AsyncWebServerRequest* req) {
           "<script>"));
     resp->print(reinterpret_cast<const __FlashStringHelper*>(WIFI_SCAN_JS));
     resp->print(F("</script><a class='btn-back' href='/'>Back</a></body></html>"));
+    req->send(resp);
+}
+
+void streamWifiTestingPage(AsyncWebServerRequest* req) {
+    if (!configIsApMode()) {
+        req->redirect(F("/"));
+        return;
+    }
+    if (wlanGetWifiConnectionTestState() == WlanWifiConnectionTestState::Idle) {
+        req->redirect(F("/wifi"));
+        return;
+    }
+
+    AsyncResponseStream* resp = beginResponseStreamOr500(req, "text/html");
+    if (resp == nullptr) {
+        return;
+    }
+    streamPageHeader(*resp, "Wi-Fi test");
+    resp->print(F("<h1>Wi-Fi connection test</h1>"
+                  "<p class='hint' id='st'>Starting…</p>"
+                  "<div id='failActions' style='display:none'>"
+                  "<form method='post' action='/wifi-connect-abort'>"
+                  "<button type='submit'>Back to Wi-Fi setup</button>"
+                  "</form></div>"
+                  "<form id='commitForm' method='post' action='/wifi-connect-commit'></form>"
+                  "<script>"));
+    resp->print(reinterpret_cast<const __FlashStringHelper*>(WIFI_CONNECT_TEST_JS));
+    resp->print(F("</script>"
+                  "<p class='hint'><a class='btn-back' href='/'>Dashboard</a></p></body></html>"));
     req->send(resp);
 }
 

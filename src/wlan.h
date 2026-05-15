@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstddef>
+#include <cstdint>
 
 void setupWiFi();
 void resetAllSettings();
@@ -39,3 +40,28 @@ bool wlanWifiScanCacheReady();
 
 /** Copies up to maxRows SSIDs from cache; returns number copied (may be 0). */
 size_t wlanWifiScanCopySnapshot(WlanScanRow* out, size_t maxRows);
+
+/** Last boot: STA connect with stored credentials failed; AP fallback (empty if none). */
+bool wlanLastStaBootFailureSsidSnapshot(char* outSsid, size_t maxLen);
+
+/** Wi‑Fi credential test during AP setup (before NVS commit). */
+enum class WlanWifiConnectionTestState : uint8_t {
+    Idle    = 0,
+    Testing = 1,
+    Ok      = 2,
+    Fail    = 3,
+};
+
+/** Start STA join test while softAP stays up (AP mode only). */
+bool wlanStartWifiConnectionTest(const char* ssid, const char* password);
+
+/** Stop test, disconnect STA interface, reset to Idle. */
+void wlanAbortWifiConnectionTest();
+
+WlanWifiConnectionTestState wlanGetWifiConnectionTestState();
+
+/** SSID currently being tested or last result context; false if Idle. */
+bool wlanWifiConnectionTestSsidSnapshot(char* outSsid, size_t maxLen);
+
+/** If state Ok and STA still has IPv4: write NVS, schedule reboot. */
+bool wlanCommitWifiConnectionTestAndScheduleReboot();
