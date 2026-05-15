@@ -74,6 +74,13 @@ static void wifiConnectionTestAdvanceFromLoop() {
     if (st == WL_CONNECTED && WiFi.localIP()[0] != 0) {
         ESP_LOGI(TAG, "WLAN connection test OK, IP %s", WiFi.localIP().toString().c_str());
         s_wifiConnTestState = WlanWifiConnectionTestState::Ok;
+        if (!configSaveWiFiCredentials(s_wifiConnTestSsid, s_wifiConnTestPass)) {
+            ESP_LOGE(TAG, "WLAN connection test: NVS credentials save failed");
+            disconnectStaIfaceKeepSoftAp();
+            s_wifiConnTestState = WlanWifiConnectionTestState::Fail;
+            return;
+        }
+        webAdminScheduleWifiConfiguredReboot();
         return;
     }
     /* Treat definitive failure statuses without waiting full timeout */
@@ -145,8 +152,8 @@ bool wlanStartWifiConnectionTest(const char* ssid, const char* password) {
 
     WiFi.persistent(false);
     WiFi.setAutoReconnect(false);
-    WiFi.config(INADDR_NONE, INADDR_NONE, INADDR_NONE, INADDR_NONE);
     WiFi.setHostname(kDeviceHostname);
+    WiFi.config(INADDR_NONE, INADDR_NONE, INADDR_NONE, INADDR_NONE);
     WiFi.setScanMethod(WIFI_ALL_CHANNEL_SCAN);
     WiFi.setSortMethod(WIFI_CONNECT_AP_BY_SIGNAL);
     WiFi.begin(s_wifiConnTestSsid, s_wifiConnTestPass);
@@ -311,9 +318,9 @@ void setupWiFi() {
     bool staConnected = false;
 
     if (ssid[0] != '\0') {
+        WiFi.setHostname(kDeviceHostname);
         WiFi.mode(WIFI_STA);
         WiFi.config(INADDR_NONE, INADDR_NONE, INADDR_NONE, INADDR_NONE);
-        WiFi.setHostname(kDeviceHostname);
         WiFi.persistent(false);
         WiFi.setAutoReconnect(false);
         WiFi.setScanMethod(WIFI_ALL_CHANNEL_SCAN);
@@ -350,13 +357,13 @@ void setupWiFi() {
         WiFi.mode(WIFI_OFF);
         delay(100);
         WiFi.softAPConfig(IPAddress(4, 3, 2, 1), IPAddress(4, 3, 2, 1), IPAddress(255, 255, 255, 0));
+        WiFi.setHostname(kDeviceHostname);
         WiFi.mode(WIFI_AP_STA);
         WiFi.softAP(kSetupApSsid);
         delay(50);
         WiFi.persistent(false);
         WiFi.setAutoReconnect(false);
         WiFi.disconnect(false, false);
-        WiFi.setHostname(kDeviceHostname);
         delay(100);
         g_dnsServer.setErrorReplyCode(DNSReplyCode::NoError);
         g_dnsServer.start(53, "*", WiFi.softAPIP());
