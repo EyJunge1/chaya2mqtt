@@ -6,6 +6,7 @@
 #include "pages.h"
 
 #include "mqtt_config.h"
+#include "mqtt.h"
 #include "counter.h"
 #include "version.h"
 #include "wlan.h"
@@ -299,6 +300,8 @@ void streamUpdatePage(AsyncWebServerRequest* req) {
 void streamMqttHtmlPage(AsyncWebServerRequest* req, bool showSavedBanner) {
     MqttConfig cfg{};
     mqttCfgSnapshot(&cfg);
+    char portBuf[8];
+    snprintf(portBuf, sizeof(portBuf), "%u", static_cast<unsigned>(cfg.port));
 
     AsyncResponseStream* response = beginResponseStreamOr500(req, "text/html");
     if (response == nullptr) {
@@ -308,6 +311,17 @@ void streamMqttHtmlPage(AsyncWebServerRequest* req, bool showSavedBanner) {
     response->print(F("<h1>MQTT Settings</h1>"));
     if (showSavedBanner) {
         response->print(F("<p class='ok'>&#10003; Saved. MQTT will reconnect.</p>"));
+    }
+    if (cfg.server[0] != '\0') {
+        if (mqttIsConnected()) {
+            response->print(F("<p class='ok'>&#10003; Connected to <strong>"));
+            appendHtmlEscaped(*response, cfg.server);
+            response->print(F("</strong>:"));
+            response->print(portBuf);
+            response->print(F("</p>"));
+        } else {
+            response->print(F("<p class='err'>&#10007; Not connected</p>"));
+        }
     }
     response->print(F("<form method='post' action='/mqtt'>"
                       "<input type='hidden' name='csrf_token' value='"));
@@ -319,8 +333,6 @@ void streamMqttHtmlPage(AsyncWebServerRequest* req, bool showSavedBanner) {
     response->print(F("'/><label for='srv'>Broker (hostname or IP)</label>"
                       "<input id='srv' name='mqtt_server' maxlength='127' value='"));
     appendHtmlEscaped(*response, cfg.server);
-    char portBuf[8];
-    snprintf(portBuf, sizeof(portBuf), "%u", static_cast<unsigned>(cfg.port));
     response->print(F("'/>"
                       "<label for='prt'>Port</label>"
                       "<input id='prt' name='mqtt_port' type='number' min='1' max='65535' value='"));
