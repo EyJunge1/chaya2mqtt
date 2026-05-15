@@ -104,8 +104,8 @@ void displayInit() {
 
 /** Small ↓ (incoming): tip points toward larger y. */
 static void drawArrowDown(int16_t cx, int16_t tipY) {
-    static constexpr int16_t kHalf = 4;
-    static constexpr int16_t kStemH = 8;
+    static constexpr int16_t kHalf = 6;
+    static constexpr int16_t kStemH = 12;
     const int16_t baseY = static_cast<int16_t>(tipY - 5);
     display.fillTriangle(cx, tipY, static_cast<int16_t>(cx - kHalf), baseY,
                          static_cast<int16_t>(cx + kHalf), baseY, GxEPD_BLACK);
@@ -115,8 +115,8 @@ static void drawArrowDown(int16_t cx, int16_t tipY) {
 
 /** Small ↑ (outgoing): tip points toward smaller y. */
 static void drawArrowUp(int16_t cx, int16_t tipY) {
-    static constexpr int16_t kHalf = 4;
-    static constexpr int16_t kStemH = 8;
+    static constexpr int16_t kHalf = 6;
+    static constexpr int16_t kStemH = 12;
     const int16_t baseY = static_cast<int16_t>(tipY + 5);
     display.fillTriangle(cx, tipY, static_cast<int16_t>(cx - kHalf), baseY,
                          static_cast<int16_t>(cx + kHalf), baseY, GxEPD_BLACK);
@@ -124,10 +124,7 @@ static void drawArrowUp(int16_t cx, int16_t tipY) {
                      GxEPD_BLACK);
 }
 
-static uint8_t footerTextSizeForDigitCount(size_t digitLen) {
-    if (digitLen >= 3) {
-        return 1;
-    }
+static uint8_t footerTextSizeForDigitCount(size_t /*digitLen*/) {
     return 2;
 }
 
@@ -156,7 +153,7 @@ void drawHeartWithNumber() {
     static constexpr int kCircleY      = 50;
     /** Triangle base meets circles; width matches outer circle extent. */
     static constexpr int kTriangleTop    = kCircleY - 4;
-    static constexpr int kTriangleBottom  = 155;
+    static constexpr int kTriangleBottom  = 168;
     static constexpr int kMaxWidth       = 2 * (kCircleSpacing + kCircleRadius);
 
     const int dw = display.width();
