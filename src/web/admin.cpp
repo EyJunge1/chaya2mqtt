@@ -483,7 +483,7 @@ void webAdminLoop() {
         saveMQTTConfig();
         mqttDisconnect();
         mqttSetup();
-        mqttPostponeConnect(30000UL);
+        mqttPostponeConnect(3000UL);
         requestHeartRedraw();
     }
 
