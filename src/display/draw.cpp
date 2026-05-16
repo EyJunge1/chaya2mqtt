@@ -1,8 +1,8 @@
 #include "display.h"
-#include "display_internal.h"
+#include "internal.h"
 
 #include "constants.h"
-#include "counter.h"
+#include "heart/counter.h"
 
 #include <GxEPD2_3C.h>
 #include <Arduino.h>

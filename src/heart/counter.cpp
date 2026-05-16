@@ -1,10 +1,10 @@
 #include "counter.h"
 
-#include "app_config.h"
+#include "config/app_config.h"
 #include "constants.h"
-#include "display.h"
-#include "nvs_utils.h"
-#include "wlan.h"
+#include "display/display.h"
+#include "config/nvs_utils.h"
+#include "wifi/wlan.h"
 
 #include "log_tag.h"
 

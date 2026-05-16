@@ -60,4 +60,4 @@ size_t wlanWifiScanCopySnapshot(WlanScanRow* out, size_t maxRows);
 /** Last boot: STA connect with stored credentials failed; AP fallback (empty if none). */
 bool wlanLastStaBootFailureSsidSnapshot(char* outSsid, size_t maxLen);
 
-#include "wifi_test.h"
+#include "test.h"

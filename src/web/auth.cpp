@@ -1,12 +1,12 @@
 #include "auth.h"
 
-#include "app_config.h"
-#include "button.h"
-#include "counter.h"
-#include "display.h"
-#include "mqtt_config.h"
+#include "config/app_config.h"
+#include "hw/button.h"
+#include "heart/counter.h"
+#include "display/display.h"
+#include "mqtt/config.h"
 #include "pages.h"
-#include "wlan.h"
+#include "wifi/wlan.h"
 
 #include <Arduino.h>
 #include <ESPAsyncWebServer.h>

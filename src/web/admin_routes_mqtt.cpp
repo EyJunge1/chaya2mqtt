@@ -3,11 +3,11 @@
 #include "admin_globals.h"
 #include "admin_routes.h"
 
-#include "app_config.h"
+#include "config/app_config.h"
 #include "constants.h"
-#include "mqtt.h"
-#include "mqtt_config.h"
-#include "wlan.h"
+#include "mqtt/mqtt.h"
+#include "mqtt/config.h"
+#include "wifi/wlan.h"
 
 #include "auth.h"
 #include "pages.h"

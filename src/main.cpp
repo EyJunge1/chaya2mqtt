@@ -7,16 +7,16 @@
 
 #include "log_tag.h"
 
-#include "app_config.h"
-#include "button.h"
-#include "counter.h"
-#include "display.h"
-#include "mqtt.h"
-#include "mqtt_config.h"
-#include "pins.h"
+#include "config/app_config.h"
+#include "hw/button.h"
+#include "heart/counter.h"
+#include "display/display.h"
+#include "mqtt/mqtt.h"
+#include "mqtt/config.h"
+#include "hw/pins.h"
 #include "web/admin.h"
 #include "web/auth.h"
-#include "wlan.h"
+#include "wifi/wlan.h"
 
 DEFINE_LOG_TAG("MAIN");
 

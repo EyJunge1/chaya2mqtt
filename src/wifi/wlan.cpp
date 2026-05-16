@@ -1,9 +1,9 @@
 #include "wlan.h"
 
 #include "constants.h"
-#include "counter.h"
-#include "nvs_utils.h"
-#include "pins.h"
+#include "heart/counter.h"
+#include "config/nvs_utils.h"
+#include "hw/pins.h"
 #include "web/admin.h"
 #include "web/auth.h"
 

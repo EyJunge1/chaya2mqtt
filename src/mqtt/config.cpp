@@ -1,7 +1,7 @@
-#include "mqtt_config.h"
+#include "config.h"
 
 #include "constants.h"
-#include "nvs_utils.h"
+#include "config/nvs_utils.h"
 
 #include "log_tag.h"
 

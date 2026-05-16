@@ -1,8 +1,8 @@
 #include "display.h"
-#include "display_internal.h"
+#include "internal.h"
 
-#include "button.h"
-#include "pins.h"
+#include "hw/button.h"
+#include "hw/pins.h"
 #include "web/auth.h"
 
 #include <GxEPD2_3C.h>

@@ -1,11 +1,11 @@
 #include "button.h"
 
-#include "mqtt_config.h"
+#include "mqtt/config.h"
 #include "pins.h"
-#include "counter.h"
-#include "display.h"
-#include "mqtt.h"
-#include "wlan.h"
+#include "heart/counter.h"
+#include "display/display.h"
+#include "mqtt/mqtt.h"
+#include "wifi/wlan.h"
 
 #include <Arduino.h>
 #include <atomic>

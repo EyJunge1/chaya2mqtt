@@ -1,14 +1,14 @@
 #include "ota.h"
 
-#include "ota_github.h"
-#include "ota_flash.h"
+#include "github.h"
+#include "flash.h"
 
-#include "app_config.h"
+#include "config/app_config.h"
 #include "constants.h"
-#include "counter.h"
+#include "heart/counter.h"
 #include "version.h"
-#include "wlan.h"
-#include "nvs_utils.h"
+#include "wifi/wlan.h"
+#include "config/nvs_utils.h"
 
 #include <Arduino.h>
 #include <atomic>

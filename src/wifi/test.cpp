@@ -1,4 +1,4 @@
-#include "wifi_test.h"
+#include "test.h"
 
 #include "constants.h"
 #include "wlan.h"

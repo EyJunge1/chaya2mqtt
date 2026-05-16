@@ -3,9 +3,9 @@
 #include "admin_globals.h"
 #include "admin_routes.h"
 
-#include "app_config.h"
+#include "config/app_config.h"
 #include "constants.h"
-#include "wlan.h"
+#include "wifi/wlan.h"
 #include "web_utils.h"
 
 #include "auth.h"

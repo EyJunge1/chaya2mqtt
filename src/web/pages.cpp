@@ -6,20 +6,20 @@
 
 #include "pages.h"
 
-#include "app_config.h"
+#include "config/app_config.h"
 #include "constants.h"
-#include "mqtt_config.h"
-#include "counter.h"
+#include "mqtt/config.h"
+#include "heart/counter.h"
 #include "version.h"
-#include "wlan.h"
+#include "wifi/wlan.h"
 #include "web_utils.h"
-#include "styles.h"
-#include "wifi_scan_js.h"
-#include "wifi_status_js.h"
-#include "mqtt_status_js.h"
-#include "wifi_connect_test_js.h"
-#include "common_js.h"
-#include "chaya_js.h"
+#include "web/assets/styles.h"
+#include "web/assets/wifi_scan_js.h"
+#include "web/assets/wifi_status_js.h"
+#include "web/assets/mqtt_status_js.h"
+#include "web/assets/wifi_connect_test_js.h"
+#include "web/assets/common_js.h"
+#include "web/assets/chaya_js.h"
 
 static void printCommonCss(Print& out) {
     out.print(reinterpret_cast<const __FlashStringHelper*>(WEB_COMMON_CSS));

@@ -2,11 +2,11 @@
 
 #include "mqtt.h"
 
-#include "mqtt_config.h"
+#include "config.h"
 #include "tls_bundle.h"
-#include "counter.h"
-#include "display.h"
-#include "wlan.h"
+#include "heart/counter.h"
+#include "display/display.h"
+#include "wifi/wlan.h"
 #include <WiFiClientSecure.h>
 #include <PubSubClient.h>
 #include <algorithm>

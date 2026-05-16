@@ -5,13 +5,13 @@
 #include "admin_globals.h"
 #include "admin_routes.h"
 
-#include "app_config.h"
-#include "counter.h"
-#include "display.h"
-#include "mqtt.h"
-#include "mqtt_config.h"
-#include "ota.h"
-#include "wlan.h"
+#include "config/app_config.h"
+#include "heart/counter.h"
+#include "display/display.h"
+#include "mqtt/mqtt.h"
+#include "mqtt/config.h"
+#include "ota/ota.h"
+#include "wifi/wlan.h"
 #include "auth.h"
 
 #include <ESPAsyncWebServer.h>

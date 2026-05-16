@@ -1,4 +1,4 @@
-#include "ota_flash.h"
+#include "flash.h"
 
 #include "tls_bundle.h"
 

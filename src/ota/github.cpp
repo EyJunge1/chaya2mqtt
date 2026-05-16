@@ -1,7 +1,7 @@
-#include "ota_github.h"
+#include "github.h"
 
 #include "version.h"
-#include "wlan.h"
+#include "wifi/wlan.h"
 
 #include "tls_bundle.h"
 
