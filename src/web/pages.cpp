@@ -1,4 +1,5 @@
 #include <Arduino.h>
+#include <cstdio>
 #include <WiFi.h>
 #include <WiFiType.h>
 #include <ESPAsyncWebServer.h>
@@ -19,8 +20,6 @@
 #include "wifi_connect_test_js.h"
 #include "common_js.h"
 #include "chaya_js.h"
-#include "auth.h"
-#include <cstdio>
 
 static void printCommonCss(Print& out) {
     out.print(reinterpret_cast<const __FlashStringHelper*>(WEB_COMMON_CSS));
@@ -71,11 +70,9 @@ void streamAuthPage(AsyncWebServerRequest* req, bool wrongCode, unsigned lockout
             }
         }
     }
-    char csrfBuf[24];
-    snprintf(csrfBuf, sizeof(csrfBuf), "%lu", static_cast<unsigned long>(webAuthGetCsrfToken()));
     resp->print(F("<form method='post' action='/auth' autocapitalize='off'>"
                    "<input type='hidden' name='csrf_token' value='"));
-    appendHtmlEscaped(*resp, csrfBuf);
+    appendCurrentWebCsrfTokenEscaped(*resp);
     resp->print(F("'/><input type='hidden' name='next' value='"));
     appendHtmlEscaped(*resp, next.c_str());
     resp->print(F("'/><label for='code'>Code</label>"
@@ -114,9 +111,13 @@ void streamWifiCommitDonePage(AsyncWebServerRequest* req, const char* staIp) {
     resp->print(F("/'><strong>http://"));
     resp->print(staIp);
     resp->print(F("</strong></a></p>"
-                  "<p class='hint'>Alternativ (ein Ger&auml;t im Netz): "
-                  "<a href='http://chaya2mqtt.local/'><strong>http://chaya2mqtt.local</strong></a></p>"
-                  "<p class='hint'>MQTT und weitere Einstellungen nach dem Neustart im gleichen WLAN.</p>"
+                  "<p class='hint'>Alternatively (same LAN): "
+                  "<a href='"));
+    resp->print(kDeviceHttpOrigin);
+    resp->print(F("'><strong>"));
+    resp->print(kDeviceHttpOrigin);
+    resp->print(F("</strong></a></p>"
+                  "<p class='hint'>Configure MQTT after reboot on the same Wi-Fi.</p>"
                   "</body></html>"));
     req->send(resp);
 }
@@ -139,9 +140,10 @@ void streamDashboard(AsyncWebServerRequest* req) {
                 resp->print(F("&quot; ist fehlgeschlagen. Bitte WLAN erneut einrichten.</p>"));
             }
         }
-        resp->print(F("<p class='hint'>WLAN einrichten, um das Ger&auml;t mit dem Netzwerk zu verbinden.<br>"
-                      "MQTT und weitere Einstellungen sind danach unter "
-                      "<strong>http://chaya2mqtt.local</strong> verf&uuml;gbar.</p>"));
+        resp->print(F("<p class='hint'>Set up Wi-Fi first, then use MQTT etc. via "
+                       "<strong>"));
+        resp->print(kDeviceHttpOrigin);
+        resp->print(F("</strong></p>"));
     } else {
         resp->print(F("<a class='card' href='/wifi'>Wi-Fi</a>"
                       "<a class='card' href='/mqtt'>MQTT</a>"
@@ -152,14 +154,12 @@ void streamDashboard(AsyncWebServerRequest* req) {
         }
         resp->print(F("<form method='post' action='/reboot'>"
                        "<input type='hidden' name='csrf_token' value='"));
-        {
-            char b[24];
-            snprintf(b, sizeof(b), "%lu", static_cast<unsigned long>(webAuthGetCsrfToken()));
-            appendHtmlEscaped(*resp, b);
-        }
+        appendCurrentWebCsrfTokenEscaped(*resp);
         resp->print(F("'/><button type='submit' class='card danger'>Reboot</button></form>"
                       "</div>"
-                      "<div class='chaya-panel'><h2>chaya2mqtt</h2>"
+                      "<div class='chaya-panel'><h2>"));
+    resp->print(kDeviceHostname);
+    resp->print(F("</h2>"
                       "<div class='chaya-counters'><div class='chaya-counter-box'>"
                       "<div class='chaya-counter-label'>Empfangen</div>"
                       "<div class='chaya-counter-val' id='chaya-rx'>&hellip;</div></div>"
@@ -167,11 +167,7 @@ void streamDashboard(AsyncWebServerRequest* req) {
                       "<div class='chaya-counter-val' id='chaya-tx'>&hellip;</div></div></div>"
                       "<form id='chaya-form' autocomplete='off'>"
                       "<input type='hidden' name='csrf_token' value='"));
-        {
-            char chayaCsrf[24];
-            snprintf(chayaCsrf, sizeof(chayaCsrf), "%lu", static_cast<unsigned long>(webAuthGetCsrfToken()));
-            appendHtmlEscaped(*resp, chayaCsrf);
-        }
+        appendCurrentWebCsrfTokenEscaped(*resp);
         resp->print(
             F("'/><button type='submit' id='chaya-send-btn'>Senden</button></form></div>"
               "<script>"));
@@ -197,11 +193,7 @@ void streamWifiPage(AsyncWebServerRequest* req) {
           "<form method='post' action='/wifi-connect' id='wf'>"));
     if (!configIsApMode() && configGetWebAuthEnabled()) {
         resp->print(F("<input type='hidden' name='csrf_token' value='"));
-        {
-            char csrfB[24];
-            snprintf(csrfB, sizeof(csrfB), "%lu", static_cast<unsigned long>(webAuthGetCsrfToken()));
-            appendHtmlEscaped(*resp, csrfB);
-        }
+        appendCurrentWebCsrfTokenEscaped(*resp);
         resp->print(F("'/>"));
     }
     resp->print(
@@ -289,11 +281,7 @@ void streamUpdatePage(AsyncWebServerRequest* req) {
     resp->print(F("</strong></p>"
                   "<form method='post' action='/update-check'>"
                   "<input type='hidden' name='csrf_token' value='"));
-    {
-        char b[24];
-        snprintf(b, sizeof(b), "%lu", static_cast<unsigned long>(webAuthGetCsrfToken()));
-        appendHtmlEscaped(*resp, b);
-    }
+    appendCurrentWebCsrfTokenEscaped(*resp);
     resp->print(F("'/><button type='submit'>Check for Update</button>"
                   "</form>"
                   "<a class='btn-back' href='/'>Back</a></body></html>"));
@@ -324,11 +312,7 @@ void streamMqttHtmlPage(AsyncWebServerRequest* req, bool showSavedBanner) {
     }
     response->print(F("<form method='post' action='/mqtt'>"
                       "<input type='hidden' name='csrf_token' value='"));
-    {
-        char b[24];
-        snprintf(b, sizeof(b), "%lu", static_cast<unsigned long>(webAuthGetCsrfToken()));
-        appendHtmlEscaped(*response, b);
-    }
+    appendCurrentWebCsrfTokenEscaped(*response);
     response->print(F("'/><label for='srv'>Broker (hostname or IP)</label>"
                       "<input id='srv' name='mqtt_server' maxlength='127' value='"));
     appendHtmlEscaped(*response, cfg.server);
@@ -380,11 +364,7 @@ void streamSettingsPage(AsyncWebServerRequest* req, bool showSavedBanner) {
     }
     response->print(F("<form method='post' action='/settings'>"
                       "<input type='hidden' name='csrf_token' value='"));
-    {
-        char b[24];
-        snprintf(b, sizeof(b), "%lu", static_cast<unsigned long>(webAuthGetCsrfToken()));
-        appendHtmlEscaped(*response, b);
-    }
+    appendCurrentWebCsrfTokenEscaped(*response);
     response->print(F("'/><label for='reset_days'>Display counter reset (days)</label>"
                        "<input type='number' id='reset_days' name='reset_days' min='0' max='30' value='"));
     {

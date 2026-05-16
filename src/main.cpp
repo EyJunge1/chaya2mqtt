@@ -5,6 +5,8 @@
 #include <esp_system.h>
 #include <esp32-hal-cpu.h>
 
+#include "log_tag.h"
+
 #include "app_config.h"
 #include "button.h"
 #include "counter.h"
@@ -16,11 +18,7 @@
 #include "web/auth.h"
 #include "wlan.h"
 
-#if defined(CORE_DEBUG_LEVEL) && CORE_DEBUG_LEVEL > 0
-static const char* TAG = "MAIN";
-#else
-static constexpr const char* TAG __attribute__((unused)) = "";
-#endif
+DEFINE_LOG_TAG("MAIN");
 
 /** Same assignments as display/button (GxEPD2 SPI + panel); do not use pins 6–11 (flash). */
 static void pinsInit() {
@@ -46,7 +44,7 @@ void setup() {
 
     pinsInit();
     displayInit();
-    ESP_LOGI(TAG, "Display initialisiert");
+    ESP_LOGI(TAG, "Display initialized");
 
     buttonInit();
 
@@ -60,7 +58,7 @@ void setup() {
 
     buttonSetAuthBlinkShortPressHandler(webAuthHandleButtonDuringAuthBlink);
 
-    ESP_LOGI(TAG, "Setup abgeschlossen");
+    ESP_LOGI(TAG, "Setup complete");
 
     if (mqttCfg.server[0] != '\0') {
         drawHeartWithNumber();

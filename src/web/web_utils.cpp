@@ -1,5 +1,7 @@
 #include "web_utils.h"
 
+#include "auth.h"
+
 #include <ESPAsyncWebServer.h>
 #include <cstdio>
 
@@ -9,6 +11,12 @@ AsyncResponseStream* beginResponseStreamOr500(AsyncWebServerRequest* req, const 
         req->send(500);
     }
     return resp;
+}
+
+void appendCurrentWebCsrfTokenEscaped(Print& out) {
+    char b[24];
+    snprintf(b, sizeof(b), "%lu", static_cast<unsigned long>(webAuthGetCsrfToken()));
+    appendHtmlEscaped(out, b);
 }
 
 void appendHtmlEscaped(Print& out, const char* s) {

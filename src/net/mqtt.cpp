@@ -23,14 +23,15 @@
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
 
-#if defined(CORE_DEBUG_LEVEL) && CORE_DEBUG_LEVEL > 0
-static const char* TAG = "MQTT";
-#else
-static constexpr const char* TAG __attribute__((unused)) = "";
-#endif
+#include "log_tag.h"
+
+DEFINE_LOG_TAG("MQTT");
 
 static WiFiClientSecure espClient;
 static PubSubClient client(espClient);
+
+/** When NVS has no broker configured, avoid tight reconnect attempts. */
+static constexpr unsigned long kMqttBrokerMissingBackoffMs = 60000UL;
 
 static constexpr unsigned long kMqttBackoffInitialMs = 30000;
 static constexpr unsigned long kMqttBackoffMaxMs = 60000;
@@ -114,8 +115,8 @@ static unsigned long mqttTryConnectPrecheckAndStartTask() {
 
     if (strlen(cfg.server) == 0) {
         ESP_LOGW(TAG,
-                 "Kein MQTT-Server konfiguriert. Wartungs-AP nutzen oder /mqtt im Einrichtungs-WLAN");
-        return 60000;
+                 "No MQTT broker configured — use setup AP or /mqtt on the provisioning network");
+        return kMqttBrokerMissingBackoffMs;
     }
 
     if (!wlanStaConnectedOk()) {
@@ -127,7 +128,7 @@ static unsigned long mqttTryConnectPrecheckAndStartTask() {
         return kMqttNtpRetryMs;
     }
     if (!wlanNtpSynced()) {
-        ESP_LOGI(TAG, "NTP nicht synchronisiert, MQTT/TLS verschoben (retry in %lu ms)",
+        ESP_LOGI(TAG, "NTP not synced — deferring MQTT/TLS (retry in %lu ms)",
                  static_cast<unsigned long>(kMqttNtpRetryMs));
         return kMqttNtpRetryMs;
     }
@@ -136,7 +137,7 @@ static unsigned long mqttTryConnectPrecheckAndStartTask() {
     snprintf(clientId, sizeof(clientId), "Chaya2MQTT-%04lX",
              static_cast<unsigned long>(esp_random() & 0xffffU));
 
-    ESP_LOGI(TAG, "Verbinde mit MQTT (TLS)... Server: %s:%u, Client: %s", cfg.server, cfg.port,
+    ESP_LOGI(TAG, "Connecting to MQTT over TLS... server %s:%u client %s", cfg.server, cfg.port,
              clientId);
 
     char willTopic[140];
@@ -148,7 +149,7 @@ static unsigned long mqttTryConnectPrecheckAndStartTask() {
 
     auto* params = new (std::nothrow) MqttConnectTaskParams{};
     if (params == nullptr) {
-        ESP_LOGE(TAG, "MQTT connect task: Speicher zu knapp");
+        ESP_LOGE(TAG, "MQTT connect task: out of memory for params");
         return kMqttBackoffInitialMs;
     }
     params->cfg = cfg;
@@ -163,7 +164,7 @@ static unsigned long mqttTryConnectPrecheckAndStartTask() {
     if (ok != pdPASS) {
         delete params;
         s_connectPhase.store(static_cast<int>(MqttConnectPhase::Idle), std::memory_order_release);
-        ESP_LOGE(TAG, "MQTT connect task: xTaskCreatePinnedToCore fehlgeschlagen");
+        ESP_LOGE(TAG, "MQTT connect task: xTaskCreatePinnedToCore failed");
         return kMqttBackoffInitialMs;
     }
 
@@ -178,34 +179,34 @@ static void mqttFinalizeConnectSuccess() {
     char willTopic[140];
     snprintf(willTopic, sizeof(willTopic), "%s/lwt", cfg.topicPub);
 
-    ESP_LOGI(TAG, "Verbunden! Subscribing zu Topic (QoS 1): %s", cfg.topicSub);
+    ESP_LOGI(TAG, "MQTT connected; subscribing (QoS 1): %s", cfg.topicSub);
     (void)client.publish(willTopic, "online", true);
     mqttCurrentBackoffMs = kMqttBackoffInitialMs;
     if (!client.subscribe(cfg.topicSub, 1)) {
-        ESP_LOGE(TAG, "Subscribe fehlgeschlagen, disconnect fuer Retry");
+        ESP_LOGE(TAG, "MQTT subscribe failed — disconnecting for retry");
         client.disconnect();
         const unsigned long waitMs = mqttCurrentBackoffMs;
         mqttCurrentBackoffMs       = std::min(mqttCurrentBackoffMs * 2UL, kMqttBackoffMaxMs);
         mqttBackoffMs              = waitMs;
         lastMqttAttemptAt          = millis();
-        ESP_LOGI(TAG, "Naechster Versuch in %lu s (Subscribe-Fehler)", waitMs / 1000UL);
+        ESP_LOGI(TAG, "Next connect attempt in %lu s (subscribe error)", waitMs / 1000UL);
     }
 }
 
 /** Run on main task after DoneFail — exclusive PubSubClient access. */
 static void mqttFinalizeConnectFailure() {
-    ESP_LOGE(TAG, "Verbindung fehlgeschlagen, rc=%d", client.state());
+    ESP_LOGE(TAG, "MQTT connect failed, PubSubClient state rc=%d", client.state());
 
     unsigned long waitMs = mqttCurrentBackoffMs;
     if (!wlanStaConnectedOk()) {
         waitMs = std::max(waitMs, kMqttWifiLostDuringTlsBackoffMs);
-        ESP_LOGW(TAG, "WLAN nach TLS-Versuch nicht OK — Backoff %lu s", waitMs / 1000UL);
+        ESP_LOGW(TAG, "Wi-Fi not healthy after TLS attempt — backing off %lu s", waitMs / 1000UL);
     }
 
     mqttCurrentBackoffMs = std::min(mqttCurrentBackoffMs * 2UL, kMqttBackoffMaxMs);
     mqttBackoffMs        = waitMs;
     lastMqttAttemptAt    = millis();
-    ESP_LOGI(TAG, "Naechster Versuch in %lu s (exponentieller Backoff)", waitMs / 1000UL);
+    ESP_LOGI(TAG, "Next connect attempt in %lu s (exponential backoff)", waitMs / 1000UL);
 }
 
 // NOLINTNEXTLINE(readability-non-const-parameter) - PubSubClient callback signature is fixed
@@ -213,11 +214,11 @@ static void mqttCallback(char* topic, byte* payload, unsigned int length) {
     MqttConfig cfg{};
     mqttCfgSnapshot(&cfg);
     if (strcmp(topic, cfg.topicSub) != 0) {
-        ESP_LOGD(TAG, "Payload ignoriert (Topic != topicSub)");
+        ESP_LOGD(TAG, "Ignoring MQTT payload (wrong topic)");
         return;
     }
     if (length == 0 || length > 10U) {
-        ESP_LOGD(TAG, "Ungueltiger Zaehler-Payload (len=%u)", length);
+        ESP_LOGD(TAG, "Invalid counter payload length %u", length);
         return;
     }
 
@@ -231,7 +232,7 @@ static void mqttCallback(char* topic, byte* payload, unsigned int length) {
     /* On ESP32, long == int; ERANGE still catches overflow from strtol. */
     if (errno == ERANGE || endPtr != buf + length || parsed < 0
         || parsed > static_cast<long>(INT_MAX)) {
-        ESP_LOGD(TAG, "Zaehler-Payload nicht vollstaendig gueltige Zahl");
+        ESP_LOGD(TAG, "Counter payload is not a plain integer");
         return;
     }
 
@@ -240,18 +241,18 @@ static void mqttCallback(char* topic, byte* payload, unsigned int length) {
         return;
     }
 
-    ESP_LOGI(TAG, "Zaehler empfangen (remote gesendete Herzen): %d", newCounter);
+    ESP_LOGI(TAG, "Heart counter from MQTT (remote): %d", newCounter);
     heartCounter = newCounter;
     requestHeartRedraw();
 }
 
 bool mqttPublishChaya() {
     if (mqttIsConnectInProgress()) {
-        ESP_LOGW(TAG, "Publish uebersprungen: TLS-Connect laeuft");
+        ESP_LOGW(TAG, "Publish skipped: TLS connect task running");
         return false;
     }
     if (!client.connected()) {
-        ESP_LOGW(TAG, "Publish fehlgeschlagen: nicht verbunden");
+        ESP_LOGW(TAG, "Publish skipped: not connected");
         return false;
     }
     MqttConfig cfg{};
@@ -260,7 +261,7 @@ bool mqttPublishChaya() {
     char buf[16];
     const long nextVal = static_cast<long>(heartSentCounter) + 1L;
     if (nextVal > INT_MAX) {
-        ESP_LOGW(TAG, "Publish uebersprungen: heartSentCounter hat Maximum");
+        ESP_LOGW(TAG, "Publish skipped: heartSentCounter at maximum");
         return false;
     }
     static_cast<void>(snprintf(buf, sizeof(buf), "%ld", nextVal));
@@ -288,7 +289,7 @@ void mqttSetup() {
     espClient.setConnectionTimeout(3000);
     espClient.setHandshakeTimeout(5);
     if (!client.setBufferSize(512)) {
-        ESP_LOGW(TAG, "setBufferSize(512) fehlgeschlagen, PubSubClient nutzt vorhandenen Buffer");
+        ESP_LOGW(TAG, "setBufferSize(512) failed — using existing PubSubClient buffer");
     }
     client.setServer(mqttCfg.server, mqttCfg.port);
     client.setCallback(mqttCallback);

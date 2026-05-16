@@ -17,11 +17,9 @@
 #include <esp_random.h>
 #include <freertos/portmacro.h>
 
-#if defined(CORE_DEBUG_LEVEL) && CORE_DEBUG_LEVEL > 0
-static const char* TAG = "AUTH";
-#else
-static constexpr const char* TAG __attribute__((unused)) = "";
-#endif
+#include "log_tag.h"
+
+DEFINE_LOG_TAG("AUTH");
 
 static constexpr unsigned long kChallengeTtlMs   = 300000UL; // 5 min
 static constexpr unsigned long kConfirmWindowMs  = 10000UL; // wait for physical button
@@ -160,7 +158,7 @@ static String urlEncodePathQuery(const String& s) {
         } else {
             char buf[4];
             snprintf(buf, sizeof(buf), "%%%02X", static_cast<unsigned char>(ch));
-            out += buf;
+            out.concat(buf);
         }
     }
     return out;
@@ -202,7 +200,7 @@ static void authConfirmWindowExpired() {
 }
 
 static void authChallengeExpired() {
-    ESP_LOGI(TAG, "Auth-Code abgelaufen");
+    ESP_LOGI(TAG, "Web auth challenge code expired");
     awaitingClearAtomic();
     challengeClearAtomic();
     buttonRequestAuthBlinkOffFromAsync();

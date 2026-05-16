@@ -13,11 +13,9 @@
 #include <driver/gpio.h>
 #include <esp_log.h>
 
-#if defined(CORE_DEBUG_LEVEL) && CORE_DEBUG_LEVEL > 0
-static const char* TAG = "BTN";
-#else
-static constexpr const char* TAG __attribute__((unused)) = "";
-#endif
+#include "log_tag.h"
+
+DEFINE_LOG_TAG("BTN");
 
 static constexpr int kButtonLedPin = pins::kButtonLed;
 
@@ -176,7 +174,7 @@ static constexpr LedPhaseRow kLedPhaseRows[] = {
 };
 
 static void startMqttSendLedSequence() {
-    ESP_LOGI(TAG, "Button-Druck erkannt, sende MQTT (LED-Sequenz)");
+    ESP_LOGI(TAG, "Button press: publishing MQTT (LED sequence)");
     ledTxPhase = LedTxPhase::PreOn1;
     ledOutput(HIGH);
     armLedPhase(100);
@@ -234,7 +232,7 @@ void buttonAdvanceLedSequence() {
         case LedTxPhase::PublishTry: {
             const bool ok = mqttPublishChaya();
             if (ok) {
-                ESP_LOGI(TAG, "MQTT Nachricht erfolgreich gesendet");
+                ESP_LOGI(TAG, "MQTT message published OK");
                 if (heartSentCounter < INT_MAX) {
                     heartSentCounter++;
                 }
@@ -245,7 +243,7 @@ void buttonAdvanceLedSequence() {
             } else {
                 publishFailCount++;
                 if (publishFailCount >= kPublishMaxAttempts) {
-                    ESP_LOGW(TAG, "MQTT Sendung fehlgeschlagen");
+                    ESP_LOGW(TAG, "MQTT publish failed after retries");
                     ledOutput(HIGH);
                     ledTxPhase = LedTxPhase::FailOn1;
                     armLedPhase(kFailFlashMs);

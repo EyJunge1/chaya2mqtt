@@ -11,13 +11,9 @@
 #include <cstring>
 #include <esp_log.h>
 
-#if defined(CORE_DEBUG_LEVEL) && CORE_DEBUG_LEVEL > 0
-static const char* TAG = "WIFI";
-#else
-static constexpr const char* TAG __attribute__((unused)) = "";
-#endif
+#include "log_tag.h"
 
-static constexpr char kDeviceHostname[] = "chaya2mqtt";
+DEFINE_LOG_TAG("WIFI");
 
 static constexpr unsigned long kWifiConnectionTestTimeoutMs = 15000UL;
 

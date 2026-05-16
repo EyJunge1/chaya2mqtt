@@ -3,10 +3,12 @@
 #include "app_config.h"
 #include "constants.h"
 #include "display.h"
+#include "nvs_utils.h"
 #include "wlan.h"
 
+#include "log_tag.h"
+
 #include <Arduino.h>
-#include <Preferences.h>
 #include <algorithm>
 #include <cstdint>
 #include <cstdio>
@@ -14,11 +16,11 @@
 #include <esp_log.h>
 #include <time.h>
 
-#if defined(CORE_DEBUG_LEVEL) && CORE_DEBUG_LEVEL > 0
-static const char* TAG = "CTR";
-#else
-static constexpr const char* TAG __attribute__((unused)) = "";
-#endif
+DEFINE_LOG_TAG("CTR");
+
+namespace {
+constexpr const char kNvsNsChaya[] = "chaya";
+} // namespace
 
 int heartCounter     = 0;
 int heartSentCounter = 0;
@@ -28,11 +30,72 @@ int sentCountBaseline = 0;
 
 static uint32_t s_lastResetCalendarDayUtc = UINT32_MAX;
 
-static int           lastCommittedHeartCounter                = 0;
-static unsigned long lastHeartCounterSaveMs                   = 0;
-static int           lastCommittedHeartSentCounter            = 0;
-static unsigned long lastHeartSentCounterSaveMs               = 0;
-static constexpr unsigned long kHeartCounterSaveMinIntervalMs = 30000;
+namespace {
+
+constexpr unsigned long kHeartCounterSaveMinIntervalMs = 30000UL;
+
+/** NVS-backed int with periodic commit (same namespace "chaya") to reduce flash wear. */
+class DebouncedChayaCounter {
+public:
+    DebouncedChayaCounter(int* value, const char* nvsKey, const char* saveFailMsg)
+        : value_(value)
+        , nvsKey_(nvsKey)
+        , saveFailMsg_(saveFailMsg)
+        , lastCommitted_(*value)
+        , lastSaveMs_(0) {}
+
+    void syncAfterExternalLoad(unsigned long ms) {
+        lastCommitted_ = *value_;
+        lastSaveMs_    = ms;
+    }
+
+    void resetCommittedAndTimestamps(unsigned long ms) {
+        lastCommitted_ = *value_;
+        lastSaveMs_    = ms;
+    }
+
+    bool save() {
+        if (!app_nvs::writeInt(kNvsNsChaya, nvsKey_, *value_)) {
+            ESP_LOGE(TAG, "%s", saveFailMsg_);
+            return false;
+        }
+        return true;
+    }
+
+    void maybeSave() {
+        if (*value_ == lastCommitted_) {
+            return;
+        }
+        const unsigned long now = millis();
+        if (now - lastSaveMs_ >= kHeartCounterSaveMinIntervalMs) {
+            if (save()) {
+                lastCommitted_ = *value_;
+                lastSaveMs_    = now;
+            }
+        }
+    }
+
+    void flushIfDirty() {
+        if (*value_ != lastCommitted_) {
+            if (save()) {
+                lastCommitted_ = *value_;
+                lastSaveMs_    = millis();
+            }
+        }
+    }
+
+private:
+    int*                value_;
+    const char*         nvsKey_;
+    const char*         saveFailMsg_;
+    int                 lastCommitted_;
+    unsigned long       lastSaveMs_;
+};
+
+DebouncedChayaCounter s_rxCounter(&heartCounter, "counter", "NVS chaya: write counter failed");
+DebouncedChayaCounter s_txCounter(&heartSentCounter, "sentCount", "NVS chaya: write sentCount failed");
+
+} // namespace
 
 uint32_t calendarDaySinceEpochUtc(time_t utc) {
     if (utc < 0) {
@@ -42,30 +105,33 @@ uint32_t calendarDaySinceEpochUtc(time_t utc) {
 }
 
 void loadCounterBaseline() {
-    Preferences preferences;
-    if (!preferences.begin("chaya", true)) {
+    if (!app_nvs::namespaceExists(kNvsNsChaya)) {
         ESP_LOGI(TAG, "NVS chaya namespace not present yet, baselines = 0");
         counterBaseline           = 0;
         sentCountBaseline         = 0;
         s_lastResetCalendarDayUtc = UINT32_MAX;
         return;
     }
-    counterBaseline           = std::max<int32_t>(preferences.getInt("cntBase", 0), 0);
-    sentCountBaseline         = std::max<int32_t>(preferences.getInt("sntBase", 0), 0);
-    s_lastResetCalendarDayUtc = preferences.getUInt("rstDay", UINT32_MAX);
-    preferences.end();
+    counterBaseline = std::max<int32_t>(app_nvs::readInt(kNvsNsChaya, "cntBase", 0), 0);
+    sentCountBaseline
+        = std::max<int32_t>(app_nvs::readInt(kNvsNsChaya, "sntBase", 0), 0);
+    s_lastResetCalendarDayUtc =
+        app_nvs::readUInt(kNvsNsChaya, "rstDay", UINT32_MAX);
 }
 
 static bool persistCounterBaselineState() {
-    Preferences preferences;
-    if (!preferences.begin("chaya", false)) {
-        ESP_LOGE(TAG, "NVS chaya: Baseline schreiben fehlgeschlagen");
+    if (!app_nvs::writeInt(kNvsNsChaya, "cntBase", counterBaseline)) {
+        ESP_LOGE(TAG, "NVS chaya: failed to write baseline");
         return false;
     }
-    preferences.putInt("cntBase", counterBaseline);
-    preferences.putInt("sntBase", sentCountBaseline);
-    preferences.putUInt("rstDay", s_lastResetCalendarDayUtc);
-    preferences.end();
+    if (!app_nvs::writeInt(kNvsNsChaya, "sntBase", sentCountBaseline)) {
+        ESP_LOGE(TAG, "NVS chaya: failed to write baseline");
+        return false;
+    }
+    if (!app_nvs::writeUInt(kNvsNsChaya, "rstDay", s_lastResetCalendarDayUtc)) {
+        ESP_LOGE(TAG, "NVS chaya: failed to write baseline");
+        return false;
+    }
     return true;
 }
 
@@ -131,103 +197,63 @@ void maybeResetDisplayBaselinesWhenCapped() {
 }
 
 void loadHeartCounter() {
-    Preferences preferences;
-    if (!preferences.begin("chaya", true)) {
+    const unsigned long t = millis();
+    if (!app_nvs::namespaceExists(kNvsNsChaya)) {
         ESP_LOGI(TAG, "NVS chaya namespace not present yet, counters = 0");
-        heartCounter                  = 0;
-        heartSentCounter              = 0;
-        lastCommittedHeartCounter     = 0;
-        lastCommittedHeartSentCounter = 0;
-        lastHeartCounterSaveMs        = millis();
-        lastHeartSentCounterSaveMs    = millis();
+        heartCounter     = 0;
+        heartSentCounter = 0;
+        s_rxCounter.resetCommittedAndTimestamps(t);
+        s_txCounter.resetCommittedAndTimestamps(t);
         loadCounterBaseline();
         return;
     }
-    heartCounter     = std::max<int32_t>(preferences.getInt("counter", 0), 0);
-    heartSentCounter = std::max<int32_t>(preferences.getInt("sentCount", 0), 0);
-    preferences.end();
-    lastCommittedHeartCounter     = heartCounter;
-    lastCommittedHeartSentCounter = heartSentCounter;
-    lastHeartCounterSaveMs        = millis();
-    lastHeartSentCounterSaveMs    = millis();
+    heartCounter     = std::max<int32_t>(app_nvs::readInt(kNvsNsChaya, "counter", 0), 0);
+    heartSentCounter = std::max<int32_t>(app_nvs::readInt(kNvsNsChaya, "sentCount", 0), 0);
+    s_rxCounter.syncAfterExternalLoad(t);
+    s_txCounter.syncAfterExternalLoad(t);
     loadCounterBaseline();
 }
 
 bool saveHeartCounter() {
-    Preferences preferences;
-    if (!preferences.begin("chaya", false)) {
-        ESP_LOGE(TAG, "NVS chaya: schreiben fehlgeschlagen");
-        return false;
+    const bool ok = s_rxCounter.save();
+    if (ok) {
+        s_rxCounter.syncAfterExternalLoad(millis());
     }
-    preferences.putInt("counter", heartCounter);
-    preferences.end();
-    return true;
+    return ok;
 }
 
 bool saveHeartSentCounter() {
-    Preferences preferences;
-    if (!preferences.begin("chaya", false)) {
-        ESP_LOGE(TAG, "NVS chaya: schreiben sentCount fehlgeschlagen");
-        return false;
+    const bool ok = s_txCounter.save();
+    if (ok) {
+        s_txCounter.syncAfterExternalLoad(millis());
     }
-    preferences.putInt("sentCount", heartSentCounter);
-    preferences.end();
-    return true;
+    return ok;
 }
 
 void maybeSaveHeartCounter() {
-    if (heartCounter == lastCommittedHeartCounter) {
-        return;
-    }
-    const unsigned long now = millis();
-    if (now - lastHeartCounterSaveMs >= kHeartCounterSaveMinIntervalMs) {
-        if (saveHeartCounter()) {
-            lastCommittedHeartCounter = heartCounter;
-            lastHeartCounterSaveMs    = now;
-        }
-    }
+    s_rxCounter.maybeSave();
 }
 
 void maybeSaveHeartSentCounter() {
-    if (heartSentCounter == lastCommittedHeartSentCounter) {
-        return;
-    }
-    const unsigned long now = millis();
-    if (now - lastHeartSentCounterSaveMs >= kHeartCounterSaveMinIntervalMs) {
-        if (saveHeartSentCounter()) {
-            lastCommittedHeartSentCounter = heartSentCounter;
-            lastHeartSentCounterSaveMs    = now;
-        }
-    }
+    s_txCounter.maybeSave();
 }
 
 void flushHeartCounterIfDirty() {
-    if (heartCounter != lastCommittedHeartCounter) {
-        if (saveHeartCounter()) {
-            lastCommittedHeartCounter = heartCounter;
-            lastHeartCounterSaveMs    = millis();
-        }
-    }
+    s_rxCounter.flushIfDirty();
 }
 
 void flushHeartSentCounterIfDirty() {
-    if (heartSentCounter != lastCommittedHeartSentCounter) {
-        if (saveHeartSentCounter()) {
-            lastCommittedHeartSentCounter = heartSentCounter;
-            lastHeartSentCounterSaveMs    = millis();
-        }
-    }
+    s_txCounter.flushIfDirty();
 }
 
 void counterResetRamAfterFactoryClear() {
-    heartCounter                  = 0;
-    heartSentCounter              = 0;
-    counterBaseline               = 0;
-    sentCountBaseline             = 0;
-    s_lastResetCalendarDayUtc     = UINT32_MAX;
-    lastCommittedHeartCounter     = 0;
-    lastCommittedHeartSentCounter = 0;
-    lastHeartCounterSaveMs        = millis();
-    lastHeartSentCounterSaveMs    = millis();
+    heartCounter              = 0;
+    heartSentCounter          = 0;
+    counterBaseline           = 0;
+    sentCountBaseline         = 0;
+    s_lastResetCalendarDayUtc = UINT32_MAX;
+    const unsigned long t = millis();
+    s_rxCounter.resetCommittedAndTimestamps(t);
+    s_txCounter.resetCommittedAndTimestamps(t);
     app_configResetRamAfterFactoryClear();
 }

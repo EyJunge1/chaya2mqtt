@@ -7,6 +7,36 @@
 /** Thin wrappers around Arduino Preferences (NVS) for fewer open/close mistakes. */
 namespace app_nvs {
 
+/** @return whether the namespace exists for read-only open. */
+inline bool namespaceExists(const char* ns) {
+    Preferences prefs;
+    if (!prefs.begin(ns, true)) {
+        return false;
+    }
+    prefs.end();
+    return true;
+}
+
+inline bool clearNamespace(const char* ns) {
+    Preferences prefs;
+    if (!prefs.begin(ns, false)) {
+        return false;
+    }
+    prefs.clear();
+    prefs.end();
+    return true;
+}
+
+inline bool hasKey(const char* ns, const char* key) {
+    Preferences prefs;
+    if (!prefs.begin(ns, true)) {
+        return false;
+    }
+    const bool ok = prefs.isKey(key);
+    prefs.end();
+    return ok;
+}
+
 inline uint8_t readUChar(const char* ns, const char* key, uint8_t defaultVal) {
     Preferences prefs;
     if (!prefs.begin(ns, true)) {

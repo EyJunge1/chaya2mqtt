@@ -16,6 +16,13 @@ constexpr uint16_t kMqttDefaultTlsPort = 8883;
 constexpr size_t kWifiSsidMaxLen = 33U;
 constexpr size_t kWifiPassMaxLen = 65U;
 
+/** Station / mDNS hostname (no dots). */
+constexpr const char kDeviceHostname[] = "chaya2mqtt";
+/** Captive-portal AP SSID during setup. */
+constexpr const char kSetupApSsid[] = "Chaya2MQTT";
+/** User-facing origin for HTML links (includes trailing slash for href bases). */
+constexpr const char kDeviceHttpOrigin[] = "http://chaya2mqtt.local/";
+
 /** Display delta shown before rolling baseline ("999+" overflow UI uses same cap). */
 constexpr int kDisplayCounterMax = 999;
 

@@ -2,6 +2,7 @@
 
 #include "constants.h"
 #include "counter.h"
+#include "nvs_utils.h"
 #include "pins.h"
 #include "web/admin.h"
 #include "web/auth.h"
@@ -12,26 +13,23 @@
 #include <DNSServer.h>
 #include <ESPAsyncWebServer.h>
 #include <ESPmDNS.h>
-#include <Preferences.h>
-#include "nvs_utils.h"
-#include <cstring>
 
 #include <algorithm>
 #include <atomic>
+#include <cerrno>
+#include <climits>
 #include <cstdint>
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
 #include <driver/gpio.h>
 #include <esp_log.h>
 #include <esp_wifi.h>
 #include <time.h>
 
-#if defined(CORE_DEBUG_LEVEL) && CORE_DEBUG_LEVEL > 0
-static const char* TAG = "WIFI";
-#else
-static constexpr const char* TAG __attribute__((unused)) = "";
-#endif
+#include "log_tag.h"
 
-static constexpr char kDeviceHostname[] = "chaya2mqtt";
-static constexpr char kSetupApSsid[]    = "Chaya2MQTT";
+DEFINE_LOG_TAG("WIFI");
 
 /** SSID NVS pointed at when STA join failed during boot (AP fallback); cleared after successful STA boot. */
 static char g_lastFailedBootSsid[kWifiSsidMaxLen]{};
@@ -145,11 +143,11 @@ bool configSaveWiFiCredentials(const char* ssid, const char* password) {
         return false;
     }
     if (!app_nvs::writeString("wifi", "ssid", ssid)) {
-        ESP_LOGE(TAG, "NVS wifi: schreiben fehlgeschlagen (/wifi-connect)");
+        ESP_LOGE(TAG, "NVS wifi: credential write failed");
         return false;
     }
     if (!app_nvs::writeString("wifi", "pass", password != nullptr ? password : "")) {
-        ESP_LOGE(TAG, "NVS wifi: schreiben fehlgeschlagen (/wifi-connect)");
+        ESP_LOGE(TAG, "NVS wifi: credential write failed");
         return false;
     }
     return true;
@@ -171,10 +169,10 @@ static void wifiStationEvent(arduino_event_id_t event) {
             }
             const unsigned long nowMs = millis();
             if (nowMs < s_wifiReconnectNextAllowedMs) {
-                ESP_LOGD(TAG, "WLAN reconnect übersprungen (Backoff)");
+                ESP_LOGD(TAG, "WLAN reconnect skipped (backoff)");
                 break;
             }
-            ESP_LOGW(TAG, "WLAN getrennt, versuche Reconnect...");
+            ESP_LOGW(TAG, "WLAN disconnected, attempting reconnect...");
             if (WiFi.getMode() == WIFI_STA || WiFi.getMode() == WIFI_AP_STA) {
                 WiFi.reconnect();
                 constexpr unsigned long kBaseBackoffMs = 3000UL;
@@ -192,7 +190,7 @@ static void wifiStationEvent(arduino_event_id_t event) {
             s_staLastGotIpWallMs           = millis();
             s_wifiReconnectFailCount     = 0;
             s_wifiReconnectNextAllowedMs = 0;
-            ESP_LOGI(TAG, "WLAN Sta-IP: %s", WiFi.localIP().toString().c_str());
+            ESP_LOGI(TAG, "WLAN STA IP: %s", WiFi.localIP().toString().c_str());
             s_mdnsRestartNeeded.store(true, std::memory_order_release);
             break;
         default:
@@ -242,12 +240,12 @@ void setupWiFi() {
 
         configTime(0, 0, "pool.ntp.org", "time.cloudflare.com");
         if (!MDNS.begin(kDeviceHostname)) {
-            ESP_LOGW(TAG, "mDNS.begin fehlgeschlagen");
+            ESP_LOGW(TAG, "mDNS.begin failed");
         }
         MDNS.addService("http", "tcp", 80);
         /* Default inactive time (~6 s) triggers BEACON_TIMEOUT during long TLS on the main loop. */
         (void)esp_wifi_set_inactive_time(WIFI_IF_STA, 30);
-        ESP_LOGI(TAG, "WLAN STA bereit (%s / %s)", kDeviceHostname, WiFi.localIP().toString().c_str());
+        ESP_LOGI(TAG, "WLAN STA ready (%s / %s)", kDeviceHostname, WiFi.localIP().toString().c_str());
     }
 
     if (!staConnected) {
@@ -270,7 +268,7 @@ void setupWiFi() {
         delay(100);
         g_dnsServer.setErrorReplyCode(DNSReplyCode::NoError);
         g_dnsServer.start(53, "*", WiFi.softAPIP());
-        ESP_LOGI(TAG, "WLAN AP: %s, IP %s", kSetupApSsid, WiFi.softAPIP().toString().c_str());
+        ESP_LOGI(TAG, "WLAN AP %s IP %s", kSetupApSsid, WiFi.softAPIP().toString().c_str());
     }
 
     s_wifiSetupComplete = true;
@@ -283,7 +281,7 @@ void releaseGpioHoldBeforeRestart() {
 }
 
 void resetAllSettings() {
-    ESP_LOGW(TAG, "Factory Reset: alle Einstellungen loeschen...");
+    ESP_LOGW(TAG, "Factory reset: erasing all settings...");
     wlanAbortWifiConnectionTest();
     g_lastFailedBootSsid[0] = '\0';
     webAuthInvalidateSession();
@@ -295,23 +293,10 @@ void resetAllSettings() {
     WiFi.disconnect(true, true);
     WiFi.mode(WIFI_MODE_NULL);
 
-    Preferences preferences;
-    if (preferences.begin("wifi", false)) {
-        preferences.clear();
-        preferences.end();
-    }
-    if (preferences.begin("mqtt", false)) {
-        preferences.clear();
-        preferences.end();
-    }
-    if (preferences.begin("cfg", false)) {
-        preferences.clear();
-        preferences.end();
-    }
-    if (preferences.begin("chaya", false)) {
-        preferences.clear();
-        preferences.end();
-    }
+    static_cast<void>(app_nvs::clearNamespace("wifi"));
+    static_cast<void>(app_nvs::clearNamespace("mqtt"));
+    static_cast<void>(app_nvs::clearNamespace("cfg"));
+    static_cast<void>(app_nvs::clearNamespace("chaya"));
     counterResetRamAfterFactoryClear();
     delay(500);
     releaseGpioHoldBeforeRestart();
@@ -327,7 +312,7 @@ void wlanLoop() {
     if (s_mdnsRestartNeeded.exchange(false, std::memory_order_acq_rel) && !g_apMode) {
         MDNS.end();
         if (!MDNS.begin(kDeviceHostname)) {
-            ESP_LOGW(TAG, "mDNS.begin nach GOT_IP fehlgeschlagen");
+            ESP_LOGW(TAG, "mDNS.begin after GOT_IP failed");
         }
         MDNS.addService("http", "tcp", 80);
     }

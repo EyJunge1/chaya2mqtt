@@ -9,4 +9,7 @@ AsyncResponseStream* beginResponseStreamOr500(AsyncWebServerRequest* req, const 
 
 void appendHtmlEscaped(Print& out, const char* s);
 
+/** Print current HTTP CSRF token (decimal) escaped for HTML attribute/text. Requires auth initialized. */
+void appendCurrentWebCsrfTokenEscaped(Print& out);
+
 void appendJsonEscapedCStr(Print& out, const char* str);

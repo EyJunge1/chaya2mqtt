@@ -1,24 +1,27 @@
 #include "mqtt_config.h"
 
+#include "constants.h"
+#include "nvs_utils.h"
+
+#include "log_tag.h"
+
 #include <Arduino.h>
-#include <Preferences.h>
 #include <atomic>
 #include <cstring>
 #include <esp_log.h>
 #include <freertos/portmacro.h>
 
-#if defined(CORE_DEBUG_LEVEL) && CORE_DEBUG_LEVEL > 0
-static const char* TAG = "CFG";
-#else
-static constexpr const char* TAG __attribute__((unused)) = "";
-#endif
+DEFINE_LOG_TAG("MQTTCFG");
 
 MqttConfig mqttCfg;
 
-static MqttConfig           s_mqttPendingCfg{};
-static portMUX_TYPE s_mqttCfgMux = portMUX_INITIALIZER_UNLOCKED;
-
+static MqttConfig     s_mqttPendingCfg{};
+static portMUX_TYPE   s_mqttCfgMux      = portMUX_INITIALIZER_UNLOCKED;
 static std::atomic<bool> s_mqttCfgDirty{true};
+
+namespace {
+constexpr const char kNvMqtt[] = "mqtt";
+} // namespace
 
 static void mqttCfgMarkDirty() {
     s_mqttCfgDirty.store(true, std::memory_order_release);
@@ -54,52 +57,54 @@ void mqttCfgApplyPendingToActive() {
 }
 
 void loadMQTTConfig() {
-    Preferences preferences;
-    if (!preferences.begin("mqtt", true)) {
-        ESP_LOGI(TAG, "NVS mqtt namespace not present yet, using defaults");
+    if (!app_nvs::namespaceExists(kNvMqtt)) {
+        ESP_LOGI(TAG, "NVS mqtt namespace not present, using MQTT defaults");
         strlcpy(mqttCfg.topicPub, kMqttDefaultTopicPub, sizeof(mqttCfg.topicPub));
         strlcpy(mqttCfg.topicSub, kMqttDefaultTopicSub, sizeof(mqttCfg.topicSub));
         mqttCfgMarkDirty();
         return;
     }
-    if (!preferences.isKey("server")) {
-        preferences.end();
-        ESP_LOGI(TAG, "MQTT noch nicht konfiguriert, nutze Defaults");
+    if (!app_nvs::hasKey(kNvMqtt, "server")) {
+        ESP_LOGI(TAG, "MQTT not configured yet in NVS, using defaults");
         strlcpy(mqttCfg.topicPub, kMqttDefaultTopicPub, sizeof(mqttCfg.topicPub));
         strlcpy(mqttCfg.topicSub, kMqttDefaultTopicSub, sizeof(mqttCfg.topicSub));
         mqttCfgMarkDirty();
         return;
     }
-    preferences.getString("server", mqttCfg.server, sizeof(mqttCfg.server));
-    const int p = preferences.getInt("port", static_cast<int>(kMqttDefaultTlsPort));
-    mqttCfg.port = normalizeMqttPort(p);
-    preferences.getString("user", mqttCfg.username, sizeof(mqttCfg.username));
-    preferences.getString("pass", mqttCfg.password, sizeof(mqttCfg.password));
-    if (preferences.getString("topic_pub", mqttCfg.topicPub, sizeof(mqttCfg.topicPub)) == 0
+    static_cast<void>(
+        app_nvs::readString(kNvMqtt, "server", mqttCfg.server, sizeof(mqttCfg.server)));
+    const int portRaw = app_nvs::readInt(kNvMqtt, "port", static_cast<int>(kMqttDefaultTlsPort));
+    mqttCfg.port = normalizeMqttPort(portRaw);
+    static_cast<void>(
+        app_nvs::readString(kNvMqtt, "user", mqttCfg.username, sizeof(mqttCfg.username)));
+    static_cast<void>(
+        app_nvs::readString(kNvMqtt, "pass", mqttCfg.password, sizeof(mqttCfg.password)));
+
+    if (app_nvs::readString(kNvMqtt, "topic_pub", mqttCfg.topicPub, sizeof(mqttCfg.topicPub))
+            == 0U
         || mqttCfg.topicPub[0] == '\0') {
         strlcpy(mqttCfg.topicPub, kMqttDefaultTopicPub, sizeof(mqttCfg.topicPub));
     }
-    if (preferences.getString("topic_sub", mqttCfg.topicSub, sizeof(mqttCfg.topicSub)) == 0
+    if (app_nvs::readString(kNvMqtt, "topic_sub", mqttCfg.topicSub, sizeof(mqttCfg.topicSub))
+            == 0U
         || mqttCfg.topicSub[0] == '\0') {
         strlcpy(mqttCfg.topicSub, kMqttDefaultTopicSub, sizeof(mqttCfg.topicSub));
     }
-    preferences.end();
     mqttCfgMarkDirty();
 }
 
 void saveMQTTConfig() {
     MqttConfig snap{};
     mqttCfgSnapshot(&snap);
-    Preferences preferences;
-    if (!preferences.begin("mqtt", false)) {
-        ESP_LOGE(TAG, "NVS mqtt: schreiben fehlgeschlagen");
-        return;
+
+    bool ok = true;
+    ok = ok && app_nvs::writeString(kNvMqtt, "server", snap.server);
+    ok = ok && app_nvs::writeInt(kNvMqtt, "port", static_cast<int>(snap.port));
+    ok = ok && app_nvs::writeString(kNvMqtt, "user", snap.username);
+    ok = ok && app_nvs::writeString(kNvMqtt, "pass", snap.password);
+    ok = ok && app_nvs::writeString(kNvMqtt, "topic_pub", snap.topicPub);
+    ok = ok && app_nvs::writeString(kNvMqtt, "topic_sub", snap.topicSub);
+    if (!ok) {
+        ESP_LOGE(TAG, "NVS mqtt: persist failed");
     }
-    preferences.putString("server", snap.server);
-    preferences.putInt("port", snap.port);
-    preferences.putString("user", snap.username);
-    preferences.putString("pass", snap.password);
-    preferences.putString("topic_pub", snap.topicPub);
-    preferences.putString("topic_sub", snap.topicSub);
-    preferences.end();
 }

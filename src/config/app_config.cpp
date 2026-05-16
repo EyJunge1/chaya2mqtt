@@ -5,11 +5,9 @@
 #include <Arduino.h>
 #include <esp_log.h>
 
-#if defined(CORE_DEBUG_LEVEL) && CORE_DEBUG_LEVEL > 0
-static const char* TAG = "CFG";
-#else
-static constexpr const char* TAG __attribute__((unused)) = "";
-#endif
+#include "log_tag.h"
+
+DEFINE_LOG_TAG("CFG");
 
 static constexpr const char kNvNamespaceCfg[] = "cfg";
 static constexpr const char kNvRstPeriod[]    = "rstPeriod";
@@ -28,7 +26,7 @@ bool configGetWebAuthEnabled() {
 
 void configSetWebAuthEnabled(bool enabled) {
     if (!app_nvs::writeUChar(kNvNamespaceCfg, kNvAuthEn, enabled ? 1 : 0)) {
-        ESP_LOGE(TAG, "NVS cfg: authEn schreiben fehlgeschlagen");
+        ESP_LOGE(TAG, "NVS cfg: failed to persist authEn");
         return;
     }
     s_webAuthEnabledCached = enabled;
@@ -56,7 +54,7 @@ void configSetResetPeriodDays(uint8_t days) {
         days = 30U;
     }
     if (!app_nvs::writeUChar(kNvNamespaceCfg, kNvRstPeriod, days)) {
-        ESP_LOGE(TAG, "NVS cfg: rstPeriod schreiben fehlgeschlagen");
+        ESP_LOGE(TAG, "NVS cfg: failed to persist rstPeriod");
         return;
     }
     s_resetPeriodDaysCached = days;
