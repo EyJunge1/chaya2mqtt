@@ -340,7 +340,7 @@ void setupWiFi() {
         WiFi.setScanMethod(WIFI_ALL_CHANNEL_SCAN);
         WiFi.setSortMethod(WIFI_CONNECT_AP_BY_SIGNAL);
         WiFi.begin(ssid, pass);
-        /* Register before wait + before esp_wifi_set_bandwidth (can briefly disassociate). */
+        /* Register early so GOT_IP / DISCONNECT are handled during setup waits. */
         WiFi.onEvent(wifiStationEvent);
 
         const unsigned long start = millis();
@@ -356,34 +356,16 @@ void setupWiFi() {
         /* No modem sleep until MQTT session is up — avoids BEACON_TIMEOUT during TLS/handshake. */
         WiFi.setSleep(false);
         esp_wifi_set_ps(WIFI_PS_NONE);
-        (void)esp_wifi_set_bandwidth(WIFI_IF_STA, WIFI_BW_HT20);
         esp_wifi_set_max_tx_power(52);
-        /* Event handler does not reconnect while s_wifiSetupComplete is false; auto-reconnect is off. */
-        WiFi.reconnect();
-        /* Let ASSOC_LEAVE propagate so the wait loop does not see a stale WL_CONNECTED. */
-        delay(500);
 
-        /* esp_wifi_set_bandwidth() can briefly disassociate — wait for STA + IPv4 before mDNS/configTime. */
-        constexpr unsigned long kBandwidthSettleWaitMs = 8000UL;
-        const unsigned long     bwWaitStart            = millis();
-        while ((WiFi.status() != WL_CONNECTED || WiFi.localIP()[0] == 0)
-               && millis() - bwWaitStart < kBandwidthSettleWaitMs) {
-            delay(100);
+        configTime(0, 0, "pool.ntp.org", "time.cloudflare.com");
+        if (!MDNS.begin(kDeviceHostname)) {
+            ESP_LOGW(TAG, "mDNS.begin fehlgeschlagen");
         }
-        staConnected = (WiFi.status() == WL_CONNECTED && WiFi.localIP()[0] != 0);
-
-        if (staConnected) {
-            configTime(0, 0, "pool.ntp.org", "time.cloudflare.com");
-            if (!MDNS.begin(kDeviceHostname)) {
-                ESP_LOGW(TAG, "mDNS.begin fehlgeschlagen");
-            }
-            MDNS.addService("http", "tcp", 80);
-            ESP_LOGI(TAG, "WLAN STA bereit (%s / %s)", kDeviceHostname, WiFi.localIP().toString().c_str());
-            /* Default inactive time (~6 s) triggers BEACON_TIMEOUT during long TLS on the main loop. */
-            (void)esp_wifi_set_inactive_time(WIFI_IF_STA, 30);
-        } else {
-            ESP_LOGW(TAG, "STA did not recover after WiFi parameter changes — falling back to AP mode");
-        }
+        MDNS.addService("http", "tcp", 80);
+        /* Default inactive time (~6 s) triggers BEACON_TIMEOUT during long TLS on the main loop. */
+        (void)esp_wifi_set_inactive_time(WIFI_IF_STA, 30);
+        ESP_LOGI(TAG, "WLAN STA bereit (%s / %s)", kDeviceHostname, WiFi.localIP().toString().c_str());
     }
 
     if (!staConnected) {

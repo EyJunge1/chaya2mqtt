@@ -179,7 +179,7 @@ Der Zaehlerstand und Baselines kommen aus **`counter.h`**.
 |----------|--------------|
 | `mqttSetup()` | `setBufferSize(512)` mit Pruefung des Rueckgabewerts; `setServer`, `setCallback`, `setKeepAlive(60)`, `setSocketTimeout(5)` (s), `setCACertBundle()` mit eingebettetem Mozilla-Bundle (bei sehr langen Portal-Strings ggf. Buffer in Code erhoehen) |
 | `mqttLoop()` | Wenn nicht verbunden: Connect-Versuch wenn `millis() - lastAttempt >= backoff` (overflow-sicher); bei Connect-Fehler exponentieller Backoff 5 s bis max. 60 s; **leerer MQTT-Server:** Warteintervall **60 s**; kein WLAN: **5 s**; bei **Uebergang** zu verbunden: Backoff zuruecksetzen; danach `client.loop()` |
-| `mqttMillisUntilNextConnectAttempt()` | Wenn nicht verbunden: verbleibende ms bis zum naechsten Connect-Versuch; **0** wenn verbunden oder Versuch faellig (fuer Light-Sleep-Timer in `main`) |
+| `mqttMillisUntilNextConnectAttempt()` | Wenn nicht verbunden: verbleibende ms bis zum naechsten Connect-Versuch; **0** wenn verbunden oder Versuch faellig (API; frueher fuer Light-Sleep-Timer in `main`, jetzt ohne Light Sleep) |
 | `mqttPublishChaya()` | Publiziert `heartSentCounter + 1` als Dezimalstring (**retained**) auf `mqtt_topic_pub`, wenn verbunden; **2** Versuche laufen nicht-blockierend in `button.cpp` (LED-State-Machine, Phase `PublishRetryWait`) |
 
 ### Callback `mqttCallback`

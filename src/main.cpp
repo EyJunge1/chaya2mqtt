@@ -1,10 +1,7 @@
 #include <Arduino.h>
-#include <algorithm>
 #include <cstdint>
-#include <driver/gpio.h>
 #include <esp_bt.h>
 #include <esp_log.h>
-#include <esp_sleep.h>
 #include <esp_system.h>
 #include <esp32-hal-cpu.h>
 
@@ -24,35 +21,6 @@ static const char* TAG = "MAIN";
 static constexpr const char* TAG __attribute__((unused)) = "";
 #endif
 
-/** Light-Sleep: kurz bei aktiver LED-Sequenz, laenger im Idle (Taster per GPIO-, WiFi per Event-Wakeup). */
-static constexpr uint64_t kLightSleepActiveUs = 10000ULL;   // 10 ms
-/** Idle: 2 s -- haeufigeres Aufwachen, damit PubSubClient::loop()/Keepalive beim Broker zuverlaessiger laufen. */
-static constexpr uint64_t kLightSleepIdleUs = 2000000ULL;  // 2 s
-
-static uint64_t computeLightSleepTimerUs() {
-    if (configIsApMode()) {
-        return kLightSleepActiveUs;
-    }
-    if (buttonIsLedTxSequenceActive() || buttonIsAuthBlinkActive()) {
-        return kLightSleepActiveUs;
-    }
-    const unsigned long mqttWaitMs = mqttMillisUntilNextConnectAttempt();
-    if (mqttWaitMs > 0) {
-        uint64_t alignUs = static_cast<uint64_t>(mqttWaitMs) * 1000ULL;
-        constexpr uint64_t kMinAlignUs = 10000ULL;
-        alignUs = std::max(kMinAlignUs, std::min(alignUs, kLightSleepIdleUs));
-        return alignUs;
-    }
-    return kLightSleepIdleUs;
-}
-
-/** True if broker host is non-empty (snapshot; safe vs. concurrent config updates). */
-static bool mqttHasServerConfigured() {
-    MqttConfig cfg{};
-    mqttCfgSnapshot(&cfg);
-    return cfg.server[0] != '\0';
-}
-
 /** Same assignments as display/button (GxEPD2 SPI + panel); do not use pins 6–11 (flash). */
 static void pinsInit() {
     pinMode(pins::kDisplayBusy, INPUT);
@@ -63,17 +31,6 @@ static void pinsInit() {
     pinMode(pins::kSpiMosi, OUTPUT);
     pinMode(pins::kSpiCs, OUTPUT);
     digitalWrite(pins::kSpiCs, HIGH);
-}
-
-/** Einmalig in setup(): GPIO- und WiFi-Wakeup aendern sich nicht. */
-static void armLightSleepStaticWakeups() {
-    gpio_wakeup_enable(static_cast<gpio_num_t>(pins::kButton), GPIO_INTR_HIGH_LEVEL);
-    esp_sleep_enable_gpio_wakeup();
-    esp_sleep_enable_wifi_wakeup();
-}
-
-static void armLightSleepTimerWakeup(uint64_t timerUs) {
-    esp_sleep_enable_timer_wakeup(timerUs);
 }
 
 void setup() {
@@ -101,8 +58,6 @@ void setup() {
     mqttSetup();
 
     buttonSetAuthCancelHandler(webAuthHandleButtonCancel);
-
-    armLightSleepStaticWakeups();
 
     ESP_LOGI(TAG, "Setup abgeschlossen");
 
@@ -146,24 +101,13 @@ void loop() {
     }
 #endif
 
+    /*
+     * Do not use esp_light_sleep_start(): with STA + MQTT backoff it correlated with rst:7 WDT resets
+     * and AUTH_FAIL cascades on reconnect. USB-powered device — uniform delay is stable enough.
+     */
     if (configIsApMode()) {
-        delay(10); /* FreeRTOS-Tasks (WiFi/DNS/HTTP) laufen lassen; etwas weniger Last im AP */
-    } else if (mqttIsConnected()) {
-        /* Kein Light Sleep bei aktiver TLS-Session: sonst BEACON_TIMEOUT / Socket-Fehler. */
-        delay(50);
-    } else if (!mqttHasServerConfigured()) {
-        /* MQTT noch nicht konfiguriert: Web-Admin muss erreichbar sein (mDNS). */
-        delay(50);
-    } else if (!wlanStaConnectedOk()) {
-        /* No light-sleep without STA: would block WiFi reconnect. */
-        delay(50);
+        delay(10); /* FreeRTOS (WiFi/DNS/HTTP) */
     } else {
-        static uint64_t lastArmedLightSleepTimerUs = UINT64_MAX;
-        const uint64_t lightSleepTimerUs = computeLightSleepTimerUs();
-        if (lightSleepTimerUs != lastArmedLightSleepTimerUs) {
-            armLightSleepTimerWakeup(lightSleepTimerUs);
-            lastArmedLightSleepTimerUs = lightSleepTimerUs;
-        }
-        esp_light_sleep_start();
+        delay(50);
     }
 }

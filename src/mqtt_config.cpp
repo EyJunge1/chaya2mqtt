@@ -44,7 +44,7 @@ void mqttCfgApplyPendingToActive() {
 void loadMQTTConfig() {
     Preferences preferences;
     if (!preferences.begin("mqtt", true)) {
-        ESP_LOGW(TAG, "NVS mqtt: lesen fehlgeschlagen, nutze Defaults");
+        ESP_LOGI(TAG, "NVS mqtt namespace not present yet, using defaults");
         strlcpy(mqttCfg.topicPub, kMqttDefaultTopicPub, sizeof(mqttCfg.topicPub));
         strlcpy(mqttCfg.topicSub, kMqttDefaultTopicSub, sizeof(mqttCfg.topicSub));
         return;

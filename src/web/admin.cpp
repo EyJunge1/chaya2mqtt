@@ -483,11 +483,8 @@ void webAdminLoop() {
         saveMQTTConfig();
         mqttDisconnect();
         mqttSetup();
-        MqttConfig applied{};
-        mqttCfgSnapshot(&applied);
-        if (applied.server[0] != '\0') {
-            requestHeartRedraw();
-        }
+        mqttPostponeConnect(30000UL);
+        requestHeartRedraw();
     }
 
     if (g_rebootRequested.exchange(false, std::memory_order_acq_rel)

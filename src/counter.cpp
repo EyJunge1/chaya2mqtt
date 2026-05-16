@@ -50,7 +50,7 @@ uint32_t calendarDaySinceEpochUtc(time_t utc) {
 void loadCounterBaseline() {
     Preferences preferences;
     if (!preferences.begin("chaya", true)) {
-        ESP_LOGW(TAG, "NVS chaya: Baseline lesen fehlgeschlagen, = 0");
+        ESP_LOGI(TAG, "NVS chaya namespace not present yet, baselines = 0");
         counterBaseline           = 0;
         sentCountBaseline         = 0;
         s_lastResetCalendarDayUtc = UINT32_MAX;
@@ -201,7 +201,7 @@ void maybeResetDisplayBaselinesWhenCapped() {
 void loadHeartCounter() {
     Preferences preferences;
     if (!preferences.begin("chaya", true)) {
-        ESP_LOGW(TAG, "NVS chaya: lesen fehlgeschlagen, Zaehler = 0");
+        ESP_LOGI(TAG, "NVS chaya namespace not present yet, counters = 0");
         heartCounter                  = 0;
         heartSentCounter              = 0;
         lastCommittedHeartCounter     = 0;
