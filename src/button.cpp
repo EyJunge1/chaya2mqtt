@@ -88,7 +88,7 @@ static void ledHoldWhenIdle() {
     gpio_hold_en(static_cast<gpio_num_t>(kButtonLedPin));
 }
 
-static void (*s_authCancelHandler)() = nullptr;
+static void (*s_authBlinkShortPressHandler)() = nullptr;
 
 static std::atomic<bool> s_authBlinkWantOnFromWeb{false};
 static std::atomic<bool> s_authBlinkWantOffFromWeb{false};
@@ -117,8 +117,8 @@ static void consumeAuthBlinkRequestsFromWeb() {
     }
 }
 
-void buttonSetAuthCancelHandler(void (*fn)()) {
-    s_authCancelHandler = fn;
+void buttonSetAuthBlinkShortPressHandler(void (*fn)()) {
+    s_authBlinkShortPressHandler = fn;
 }
 
 void buttonSetAuthBlinkActive(bool active) {
@@ -308,8 +308,8 @@ void buttonLoop() {
             const unsigned long held = nowMs - btn.pressStartMs;
             if (!btn.factoryResetTriggered && held >= kShortPressMinMs && held < kFactoryResetHoldMs) {
                 if (buttonIsAuthBlinkActive()) {
-                    if (s_authCancelHandler != nullptr) {
-                        s_authCancelHandler();
+                    if (s_authBlinkShortPressHandler != nullptr) {
+                        s_authBlinkShortPressHandler();
                     }
                 } else if (!ledSendSequenceActive() && !configIsApMode()) {
                     MqttConfig btnMqttCfg{};

@@ -25,8 +25,8 @@ bool webAuthIsAuthenticated(AsyncWebServerRequest* req);
 
 uint32_t webAuthGetCsrfToken();
 
-/** Short button press during pending code: cancel challenge (from button, no include-cycle). */
-void webAuthHandleButtonCancel();
+/** Short button press while auth LED blink is active: confirm reveal or no-op during code phase. */
+void webAuthHandleButtonDuringAuthBlink();
 
 /** Clear session cookie state (factory reset). */
 void webAuthInvalidateSession();

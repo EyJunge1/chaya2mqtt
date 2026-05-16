@@ -57,7 +57,7 @@ void setup() {
 
     mqttSetup();
 
-    buttonSetAuthCancelHandler(webAuthHandleButtonCancel);
+    buttonSetAuthBlinkShortPressHandler(webAuthHandleButtonDuringAuthBlink);
 
     ESP_LOGI(TAG, "Setup abgeschlossen");
 

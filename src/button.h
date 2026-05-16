@@ -24,7 +24,7 @@ bool buttonIsLedTxSequenceActive();
 void buttonRequestAuthBlinkOnFromAsync();
 void buttonRequestAuthBlinkOffFromAsync();
 
-/** Slow blink for web-login challenge; short press cancels via handler. */
-void buttonSetAuthCancelHandler(void (*fn)());
+/** Slow blink for web-login challenge; short press invokes handler (e.g. confirm reveal). */
+void buttonSetAuthBlinkShortPressHandler(void (*fn)());
 void buttonSetAuthBlinkActive(bool active);
 bool buttonIsAuthBlinkActive();

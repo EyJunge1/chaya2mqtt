@@ -31,6 +31,7 @@ static std::atomic<bool> g_heartRedrawPending{false};
 /** Scheduled from other FreeRTOS tasks for main-task-only E-Ink draws. */
 static std::atomic<bool>     g_deferredAuthCodePending{false};
 static std::atomic<uint32_t> g_deferredAuthCodeValue{0};
+static std::atomic<bool>     g_deferredAuthPromptPending{false};
 static std::atomic<bool>     g_deferredSplashPending{false};
 static std::atomic<bool>     g_deferredHeartScreenPending{false};
 static bool                  g_displaySpiSuspendedLowPower = false;
@@ -48,6 +49,10 @@ void requestDeferredDrawAuthCode(uint32_t code) {
     g_deferredAuthCodePending.store(true, std::memory_order_release);
 }
 
+void requestDeferredDrawAuthPrompt() {
+    g_deferredAuthPromptPending.store(true, std::memory_order_release);
+}
+
 void requestDeferredDrawSplashScreen() {
     g_deferredSplashPending.store(true, std::memory_order_release);
 }
@@ -59,6 +64,10 @@ void requestDeferredDrawHeartScreen() {
 void displayProcessDeferredDrawsOnMainTask() {
     if (g_deferredAuthCodePending.exchange(false, std::memory_order_acq_rel)) {
         drawAuthCode(g_deferredAuthCodeValue.load(std::memory_order_relaxed));
+        return;
+    }
+    if (g_deferredAuthPromptPending.exchange(false, std::memory_order_acq_rel)) {
+        drawAuthPrompt();
         return;
     }
     if (g_deferredSplashPending.exchange(false, std::memory_order_acq_rel)) {
@@ -249,6 +258,50 @@ void drawHeartWithNumber() {
     ESP_LOGI(TAG, "Rotes Herz mit Zaehlern gezeichnet");
 }
 
+void drawAuthPrompt() {
+    displayResumeSpiForDraw();
+
+    ESP_LOGI(TAG, "Zeichne Web-Auth Hinweis…");
+
+    static constexpr const char kPrompt[] = "Web Auth?";
+    const int                   dw      = display.width();
+    const int                   dh      = display.height();
+
+    display.setTextColor(GxEPD_BLACK);
+    uint8_t textSize = 3;
+    int16_t x1        = 0;
+    int16_t y1        = 0;
+    uint16_t w        = 0;
+    uint16_t h        = 0;
+    for (;;) {
+        display.setTextSize(textSize);
+        display.getTextBounds(kPrompt, 0, 0, &x1, &y1, &w, &h);
+        if (static_cast<int>(w) <= dw - 8 && static_cast<int>(h) <= dh - 8) {
+            break;
+        }
+        if (textSize <= 1) {
+            break;
+        }
+        textSize--;
+    }
+
+    const int cursorX = (dw - static_cast<int>(w)) / 2 - static_cast<int>(x1);
+    const int cursorY = (dh - static_cast<int>(h)) / 2 - static_cast<int>(y1);
+
+    display.setFullWindow();
+    display.firstPage();
+    do {
+        display.fillScreen(GxEPD_WHITE);
+        display.setCursor(static_cast<int16_t>(cursorX), static_cast<int16_t>(cursorY));
+        display.print(kPrompt);
+    } while (display.nextPage());
+
+    display.hibernate();
+    displaySuspendSpiLowPower();
+
+    ESP_LOGI(TAG, "Web-Auth Hinweis gezeichnet");
+}
+
 void drawAuthCode(uint32_t code) {
     displayResumeSpiForDraw();
 
@@ -257,20 +310,19 @@ void drawAuthCode(uint32_t code) {
     char digits[8];
     snprintf(digits, sizeof(digits), "%06lu", static_cast<unsigned long>(code % 1000000U));
 
-    const int  dw         = display.width();
-    const int  dh         = display.height();
-    const int  kBaselineY = 120;
+    const int dw = display.width();
+    const int dh = display.height();
 
     display.setTextColor(GxEPD_BLACK);
     uint8_t textSize = 4;
-    int16_t x1;
-    int16_t y1;
-    uint16_t w;
-    uint16_t h;
+    int16_t x1 = 0;
+    int16_t y1 = 0;
+    uint16_t w = 0;
+    uint16_t h = 0;
     for (;;) {
         display.setTextSize(textSize);
         display.getTextBounds(digits, 0, 0, &x1, &y1, &w, &h);
-        if (static_cast<int>(w) <= dw - 8 && static_cast<int>(h) <= dh - 24) {
+        if (static_cast<int>(w) <= dw - 8 && static_cast<int>(h) <= dh - 8) {
             break;
         }
         if (textSize <= 2) {
@@ -280,21 +332,15 @@ void drawAuthCode(uint32_t code) {
     }
 
     const int cursorX = (dw - static_cast<int>(w)) / 2 - static_cast<int>(x1);
-    const int cursorY = kBaselineY - static_cast<int>(y1);
+    const int cursorY = (dh - static_cast<int>(h)) / 2 - static_cast<int>(y1);
 
     display.setFullWindow();
     display.firstPage();
     do {
         display.fillScreen(GxEPD_WHITE);
-        display.setTextSize(1);
-        display.setCursor(4, 8);
-        display.print(F("Web login code"));
         display.setTextSize(textSize);
         display.setCursor(static_cast<int16_t>(cursorX), static_cast<int16_t>(cursorY));
         display.print(digits);
-        display.setTextSize(1);
-        display.setCursor(4, static_cast<int16_t>(dh - 20));
-        display.print(F("Press button to cancel"));
     } while (display.nextPage());
 
     display.hibernate();

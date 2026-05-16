@@ -84,17 +84,30 @@ static void streamPageHeader(Print& out, const char* title) {
     out.print(F("</head><body>"));
 }
 
-void streamAuthPage(AsyncWebServerRequest* req, bool wrongCode) {
+void streamAuthPage(AsyncWebServerRequest* req, bool wrongCode, unsigned lockoutRemainSec) {
     AsyncResponseStream* resp = beginResponseStreamOr500(req, "text/html");
     if (resp == nullptr) {
         return;
     }
     streamPageHeader(*resp, "Sign in");
     resp->print(F("<h1>Web access</h1>"));
-    if (wrongCode) {
+    if (lockoutRemainSec > 0) {
+        const unsigned mins = lockoutRemainSec / 60U;
+        const unsigned secs = lockoutRemainSec % 60U;
+        resp->print(
+            F("<p class='hint' style='color:#b00'>Too many incorrect attempts. "
+              "Locked for "));
+        resp->print(mins);
+        resp->print(F("m "));
+        resp->print(secs);
+        resp->print(F("s.</p>"));
+    } else if (wrongCode) {
         resp->print(F("<p class='hint' style='color:#b00'>Wrong code. Try again.</p>"));
     }
-    resp->print(F("<p class='hint'>Enter the 6-digit code shown on the device display.</p>"));
+    resp->print(
+        F("<p class='hint'>Authenticate on the device: press the physical button "
+          "within 10&nbsp;s while this page is shown to reveal the "
+          "<strong>six-digit code</strong> on the display, then enter it here.</p>"));
     String next = F("/");
     if (req->hasParam("next", false)) {
         const AsyncWebParameter* np = req->getParam("next", false);
@@ -190,6 +203,9 @@ void streamDashboard(AsyncWebServerRequest* req) {
         }
         resp->print(F("'/><button type='submit' class='card danger'>Reboot</button></form>"
                       "</div>"));
+        if (configGetWebAuthEnabled()) {
+            resp->print(F("<p class='hint'><a href='/logout'>Logout</a></p>"));
+        }
     }
     resp->print(F("</body></html>"));
     req->send(resp);

@@ -111,7 +111,7 @@ Wichtige Funktionen: `loadHeartCounter`, `saveHeartCounter`, `maybeSaveHeartCoun
 
 ## `src/web/auth.h` / `auth.cpp`
 
-**Zweck:** Zugriffsschutz für die Admin-UI: Session, CSRF, `/auth`, Redirects für unauthentifizierte Requests; `webAuthLoop()`.
+**Zweck:** Zugriffsschutz für die Admin-UI: Session (`chaya_sid`), CSRF, `/auth` GET/POST, `/logout`; Redirects für unauthentifizierte Requests; `webAuthLoop()` (Ablauf 10 s „Warten auf Tastendruck“ und 5 min Code-Challenge). Mehrfachfehlversuche → Sperre (siehe Konstanten in `auth.cpp`).
 
 ---
 
@@ -152,6 +152,9 @@ Der Zaehlerstand und Baselines kommen aus **`counter.h`**.
 |----------|--------------|
 | `displayInit()` | `SPI.begin(13, 12, 14, 15)`; `display.init(...)` mit **115200** nur wenn `CORE_DEBUG_LEVEL > 0`, sonst **0** (kein `Serial.begin` durch GxEPD2 im Release) |
 | `drawHeartWithNumber()` | Vollbild-Refresh: weisser Hintergrund, rotes Herz aus zwei Kreisen, `fillTriangle` fuer die Spitze, gefuellter Bereich, schwarze Zahl unten mittig (`setTextSize` **2--4** je nach Stellenzahl); danach `display.hibernate()` (Controller Deep Sleep, Bild bleibt bistabil) |
+| `drawAuthPrompt()` | Mittig „Web Auth?“ (Hinweis vor Tastenbestätigung) |
+| `drawAuthCode(unsigned)` | Mittig nur 6‑stelliger Login-Code (ohne zusätzliche Zeilen) |
+| `requestDeferredDrawAuthPrompt()`, `requestDeferredDrawAuthCode()` | E-Ink-Draw aus Web-Task in die Main Task einreihen (`displayProcessDeferredDrawsOnMainTask`) |
 | `requestHeartRedraw()` | Setzt internes Flag (nach MQTT-Empfang) |
 | `consumeHeartRedraw()` | Liefert `true` einmalig wenn Neuzeichnen angefordert; loescht das Flag |
 
@@ -222,7 +225,7 @@ Der Zaehlerstand und Baselines kommen aus **`counter.h`**.
 | `buttonInit()` | `pinMode(kButtonGpio, INPUT_PULLDOWN)`, `pinMode(kButtonLedPin, OUTPUT)` |
 | `buttonStartupBlink()` | 3x 200 ms an/aus (blockierend, nur beim Start); nutzt `ledOutput()` |
 | `buttonEnableLedGpioHoldForLightSleep()` | `gpio_hold_en` fuer LED-Pin nach Startup (von `main` nach Blink); bei jeder LED-Aenderung zuerst `gpio_hold_dis` (`ledOutput`) |
-| `buttonLoop()` | Zeitdebounce (~20 ms stabiler Pegel); `HIGH` = gedrueckt; bei **10 s** Halten ohne Loslassen: Blinkmuster, dann `resetAllSettings()`; beim Loslassen nach Kurzdruck (min. `kShortPressMinMs`, unter Factory-Hold): Start der nicht-blockierenden Sende-/LED-Sequenz wenn MQTT-Server gesetzt und nicht im AP |
+| `buttonLoop()` | Zeitdebounce (~20 ms stabiler Pegel); `HIGH` = gedrueckt; bei **10 s** Halten ohne Loslassen: Blinkmuster, dann `resetAllSettings()`; beim Loslassen nach Kurzdruck (min. `kShortPressMinMs`, unter Factory-Hold): bei aktivem Web-Auth‑Blink **`buttonSetAuthBlinkShortPressHandler`**, sonst ggf. MQTT-Sende-/LED-Sequenz wenn Server gesetzt und nicht im AP |
 | `buttonAdvanceLedSequence()` | Taktet die LED-Sequenz (2x Blink, MQTT-Publish, 500 ms Pause, 2x Blink); einfache Phasen ueber Tabelle `kLedPhaseRows`, Sonderlogik fuer `PreOff2`, `PublishTry` / `PublishRetryWait`, Ende `PostOff2` / `FailOff3` |
 | `buttonDebugStatus()` | Serial: Debug-Zaehler, Button- und LED-Pegel (Aufrufrhythmus nur noch in `main`, alle 5 s) |
 | `buttonIsLedTxSequenceActive()` | `true`, solange die MQTT-Sende-LED-Sequenz laeuft (von `main` fuer adaptiven Light-Sleep) |

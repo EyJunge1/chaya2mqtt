@@ -2,7 +2,7 @@
 
 class AsyncWebServerRequest;
 
-void streamAuthPage(AsyncWebServerRequest* req, bool wrongCode);
+void streamAuthPage(AsyncWebServerRequest* req, bool wrongCode, unsigned lockoutRemainSec = 0);
 void streamSimpleDonePage(AsyncWebServerRequest* req, const char* title, const char* message);
 /** After Wi-Fi test commit: done page with clickable STA IP (captured before disconnect). */
 void streamWifiCommitDonePage(AsyncWebServerRequest* req, const char* staIp);
