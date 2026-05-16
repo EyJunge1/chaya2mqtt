@@ -57,7 +57,7 @@ static void handleChayaSendPost(AsyncWebServerRequest* req) {
         req->send(403, "application/json", "{\"ok\":false}");
         return;
     }
-    if (!mqttIsConnected() || mqttIsConnectInProgress()) {
+    if (!mqttIsConnected()) {
         req->send(200, "application/json", "{\"ok\":false}");
         return;
     }

@@ -168,40 +168,37 @@ Der Zaehlerstand und Baselines kommen aus **`counter.h`**.
 
 ---
 
-## `src/net/mqtt.h` / `src/net/mqtt.cpp`
+## `src/mqtt/mqtt.h` / `src/mqtt/mqtt.cpp`
 
-**Zweck:** MQTT ueber TLS; Verbindung halten; bei Nachricht Counter setzen und Display aktualisieren.
+**Zweck:** MQTT ueber TLS mit **ESP-IDF `esp_mqtt_client`** (kein PubSubClient); Verbindung halten; bei Nachricht Counter setzen und Display aktualisieren.
 
 ### Kapselung
 
-`WiFiClientSecure` und `PubSubClient` sind **nur in `src/net/mqtt.cpp`** (file-static), nicht in `mqtt.h` exportiert.
+Der MQTT-Client-Handle und Event-Handler liegen nur in `mqtt.cpp`; `mqtt.h` exportiert keine TLS-Typen.
 
 ### Oeffentliche Funktionen
 
 | Funktion | Beschreibung |
 |----------|--------------|
-| `mqttSetup()` | `setBufferSize(512)` mit Pruefung des Rueckgabewerts; `setServer`, `setCallback`, `setKeepAlive(60)`, `setSocketTimeout(5)` (s), `setCACertBundle()` mit eingebettetem Mozilla-Bundle (bei sehr langen Portal-Strings ggf. Buffer in Code erhoehen) |
-| `mqttLoop()` | Wenn nicht verbunden: Connect-Versuch wenn `millis() - lastAttempt >= backoff` (overflow-sicher); bei Connect-Fehler exponentieller Backoff 5 s bis max. 60 s; **leerer MQTT-Server:** Warteintervall **60 s**; kein WLAN: **5 s**; bei **Uebergang** zu verbunden: Backoff zuruecksetzen; danach `client.loop()` |
-| `mqttMillisUntilNextConnectAttempt()` | Wenn nicht verbunden: verbleibende ms bis zum naechsten Connect-Versuch; **0** wenn verbunden oder Versuch faellig (API; frueher fuer Light-Sleep-Timer in `main`, jetzt ohne Light Sleep) |
-| `mqttPublishChaya()` | Publiziert `heartSentCounter + 1` als Dezimalstring (**retained**) auf `mqtt_topic_pub`, wenn verbunden; **2** Versuche laufen nicht-blockierend in `src/hw/button.cpp` (LED-State-Machine, Phase `PublishRetryWait`) |
+| `mqttSetup()` | Backoff/`s_connected`/Pending-Flags zuruecksetzen; vorhandenen Client stoppen und zerstoeren (`esp_mqtt_client_stop`/`destroy`). Neuer Verbindungsaufbau erfolgt erst in `mqttLoop()` sobald WiFi und NTP stehen |
+| `mqttLoop()` | Wenn keine Broker-URL: Client beenden. Wenn nicht verbunden und kein Pending-Handshake: Nach Backoff Precheck (leerer Server **60 s**, kein STA **20 s**, NTP/Stabilitaet **2 s**) `esp_mqtt_client_init`/`start`; bei TCP/TLS-Verlust: exponentieller Backoff **30 s** bis **60 s** (bei schwachem STA bis **90 s`). Kein `client.loop()` — MQTT laeuft im eigenen ESP-IDF-Task. Bei unbeabsichtigtem Disconnect zerstoert die Schleife den Client (**nicht im MQTT-Event-Handler**) und versucht später neu |
+| `mqttPublishChaya()` | Publiziert `heartSentCounter + 1` als Dezimalstring (**retained**, **QoS 0** wie zuvor PubSubClient) auf `mqtt_topic_pub`, wenn verbunden; **2** Versuche nicht-blockierend in `button.cpp` (Phase `PublishRetryWait`) |
 
-### Callback `mqttCallback`
+### Empfang (`MQTT_EVENT_DATA`)
 
-- Payload wird als Dezimalstring geparst (max. 10 Zeichen, `strtol`, `errno == ERANGE` wird geprueft); ungueltige Payloads werden ignoriert.
-- **Ignoriert** den Topic-Namen (`(void)topic`).
-- `heartCounter` wird direkt auf den empfangenen Wert **gesetzt** (kein `++`); `requestHeartRedraw()` nur, wenn sich der Wert geaendert hat.
-- Kein E-Paper im Callback; Persistenz des Zaehlers ueber `maybeSaveHeartCounter()` in `loop()` (throttled ~30 s).
+- Payload als Dezimalstring (max. 10 Zeichen, `strtol`, `errno == ERANGE`); Ungueltiges wird ignoriert.
+- Vergleich des Ziel-Topics per Laenge und `memcmp` gegen `mqttCfg.topicSub`.
+- `heartCounter` wird **gesetzt** (kein `++`); `requestHeartRedraw()` nur bei geaenderter Zahl.
 
 ### Implementierungsdetails
 
-- Subscribe: `client.subscribe(mqtt_topic_sub, 1)` (QoS 1); bei Fehlschlag Debug-Meldung (`MQTT: Subscribe fehlgeschlagen.`).
-- Last-Will-Topic: Puffer **140** Zeichen fuer `mqtt_topic_pub` + `"/lwt"`.
-- Verbindungs-/Debug-Serial nur bei `CORE_DEBUG_LEVEL > 0`.
-- Client-ID: `Chaya2MQTT-` + `esp_random()`-Hex (`snprintf`, kein Arduino-`String`).
-- Connect mit **Last Will**: Topic = Sende-Topic + Suffix `/lwt`, Payload `offline`, QoS 1, retain. Nach erfolgreichem Connect wird retained `"online"` auf dasselbe LWT-Topic gepublished.
-- CA-Bundle: Eingebautes Linker-Symbol `_binary_x509_crt_bundle_start` aus `libmbedtls.a` (ESP-IDF `CONFIG_MBEDTLS_CERTIFICATE_BUNDLE`). Kein externes Bundle noetig.
-- Keine separate DNS-Vorabfrage; Aufloesung erfolgt im TLS-/TCP-Stack beim Connect.
-- Ohne WLAN: nur Warte-Backoff (**kein** `WiFi.reconnect()` hier; **wlan** uebernimmt STA-Reconnect).
+- TLS: Projekt-X509-Bundle ueber `esp_crt_bundle_set` + Broker-`verification.crt_bundle_attach = esp_crt_bundle_attach`; `WiFiClientSecure` bleibt separat fuer OTA.
+- MQTT-Subscribe **QoS 1**; Zaehler-Publish wie frueher **QoS 0**, retained.
+- Last Will: `{topic_pub}/lwt`, `offline`, **QoS 1**, retain; nach CONNECT retained `online` auf dasselbe Topic.
+- `network.disable_auto_reconnect == true`; Reconnect-/Backoff-Taktung nur in `mqttLoop()`.
+- Puffergroesse MQTT **512** Bytes; MQTT-Task-Stack groesser als Arduino-Minimum (wie frueherer TLS-Verbindungs-Task).
+- Client-ID: `Chaya2MQTT-` + `esp_random()`-Hex.
+- Debug: `ESP_LOG` abhaengig von `CORE_DEBUG_LEVEL` (wie ueblich).
 
 ---
 

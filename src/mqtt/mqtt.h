@@ -9,20 +9,8 @@ void mqttLoop();
  */
 void mqttPostponeConnect(unsigned long delayMs);
 
-/** True wenn PubSubClient mit dem Broker verbunden ist (vor TLS-Light-Sleep-Schutz nutzen). */
+/** True when esp_mqtt_client is connected (TLS MQTT session established). */
 bool mqttIsConnected();
 
-/**
- * True while a background FreeRTOS task runs the blocking TLS MQTT connect.
- * Main loop must not use PubSubClient/WiFiClientSecure in parallel; skip light sleep while true.
- */
-bool mqttIsConnectInProgress();
-
-/** Sendet retained Zaehler (heartSentCounter+1) als Dezimalstring auf mqtt_topic_pub (TLS). */
+/** Send retained counter (heartSentCounter+1) as decimal string to mqtt_topic_pub (TLS). */
 bool mqttPublishChaya();
-
-/**
- * Millisekunden bis zum naechsten MQTT-Connect-Versuch (nicht verbunden).
- * @return 0 wenn verbunden oder Versuch faellig; sonst Rest bis Backoff-Ende.
- */
-unsigned long mqttMillisUntilNextConnectAttempt();
