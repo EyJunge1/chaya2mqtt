@@ -30,20 +30,8 @@ void flushHeartSentCounterIfDirty();
 void loadCounterBaseline();
 /** If NTP time is valid, roll display baselines on a UTC-day interval (retained MQTT counters unchanged). */
 void maybePeriodicallyResetCounters();
-/** If incoming or outgoing display delta reaches 999, reset that baseline so the display shows 0. */
+/** If incoming or outgoing display delta reaches cap, reset that baseline so the display shows 0. */
 void maybeResetDisplayBaselinesWhenCapped();
-
-/** Load reset interval (days) from NVS into RAM (call once at boot). */
-void configLoadResetPeriodFromNvs();
-
-/** Display reset interval: 0 = periodic reset off; 1–30 = UTC calendar days (default when unset in NVS: 7). */
-uint8_t configGetResetPeriodDays();
-void configSetResetPeriodDays(uint8_t days);
-
-/** Web UI access code (device display); NVS cfg/authEn, default off. */
-bool configGetWebAuthEnabled();
-void configSetWebAuthEnabled(bool enabled);
-void configLoadWebAuthFromNvs();
 
 /**
  * Reset all in-RAM counter/baseline/commit state after NVS clear (factory reset).

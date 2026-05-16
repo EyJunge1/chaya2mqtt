@@ -5,10 +5,13 @@
 
 #include "pages.h"
 
+#include "app_config.h"
+#include "constants.h"
 #include "mqtt_config.h"
 #include "counter.h"
 #include "version.h"
 #include "wlan.h"
+#include "web_utils.h"
 #include "styles.h"
 #include "wifi_scan_js.h"
 #include "wifi_status_js.h"
@@ -18,60 +21,6 @@
 #include "chaya_js.h"
 #include "auth.h"
 #include <cstdio>
-
-static AsyncResponseStream* beginResponseStreamOr500(AsyncWebServerRequest* req, const char* mime) {
-    AsyncResponseStream* resp = req->beginResponseStream(mime);
-    if (resp == nullptr) {
-        req->send(500);
-    }
-    return resp;
-}
-
-static void appendHtmlEscaped(Print& out, const char* s) {
-    if (s == nullptr) {
-        return;
-    }
-    for (; *s != '\0'; ++s) {
-        switch (*s) {
-            case '&': out.print(F("&amp;")); break;
-            case '"': out.print(F("&quot;")); break;
-            case '\'': out.print(F("&#39;")); break;
-            case '<': out.print(F("&lt;")); break;
-            case '>': out.print(F("&gt;")); break;
-            default: out.print(*s); break;
-        }
-    }
-}
-
-static void appendJsonEscapedCStr(Print& out, const char* str) {
-    out.print('"');
-    if (str == nullptr) {
-        out.print('"');
-        return;
-    }
-    for (const unsigned char* p = reinterpret_cast<const unsigned char*>(str); *p != '\0'; ++p) {
-        const unsigned char c = *p;
-        switch (c) {
-            case '"': out.print(F("\\\"")); break;
-            case '\\': out.print(F("\\\\")); break;
-            case '\b': out.print(F("\\b")); break;
-            case '\f': out.print(F("\\f")); break;
-            case '\n': out.print(F("\\n")); break;
-            case '\r': out.print(F("\\r")); break;
-            case '\t': out.print(F("\\t")); break;
-            default:
-                if (c < 0x20U) {
-                    char buf[8];
-                    snprintf(buf, sizeof(buf), "\\u%04x", static_cast<unsigned>(c));
-                    out.print(buf);
-                } else {
-                    out.write(static_cast<char>(c));
-                }
-                break;
-        }
-    }
-    out.print('"');
-}
 
 static void printCommonCss(Print& out) {
     out.print(reinterpret_cast<const __FlashStringHelper*>(WEB_COMMON_CSS));
@@ -182,7 +131,7 @@ void streamDashboard(AsyncWebServerRequest* req) {
     if (configIsApMode()) {
         resp->print(F("<a class='card' href='/wifi'>Wi-Fi Setup</a></div>"));
         {
-            char bootFailSsid[33];
+            char bootFailSsid[kWifiSsidMaxLen];
             if (wlanLastStaBootFailureSsidSnapshot(bootFailSsid, sizeof(bootFailSsid))) {
                 resp->print(
                     F("<p class='hint' style='color:#b00'>Verbindung mit dem gespeicherten WLAN &quot;"));

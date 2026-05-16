@@ -5,6 +5,7 @@
 #include <esp_system.h>
 #include <esp32-hal-cpu.h>
 
+#include "app_config.h"
 #include "button.h"
 #include "counter.h"
 #include "display.h"

@@ -309,9 +309,13 @@ bool mqttIsConnected() {
 }
 
 void mqttLoop() {
-    MqttConfig cfg{};
-    mqttCfgSnapshot(&cfg);
-    if (cfg.server[0] == '\0') {
+    static MqttConfig s_loopCfg{};
+    const bool        inProgEarly    = mqttIsConnectInProgress();
+    const bool        connectedEarly = !inProgEarly && client.connected();
+    if (!connectedEarly || mqttCfgConsumeDirtySnapshotNeeded()) {
+        mqttCfgSnapshot(&s_loopCfg);
+    }
+    if (s_loopCfg.server[0] == '\0') {
         return;
     }
 

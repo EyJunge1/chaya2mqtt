@@ -12,6 +12,13 @@ constexpr const char kMqttDefaultTopicSub[] = "chaya/to_a";
 
 constexpr uint16_t kMqttDefaultTlsPort = 8883;
 
+/** Wi-Fi SSID/password buffers (IEEE max + NUL). */
+constexpr size_t kWifiSsidMaxLen = 33U;
+constexpr size_t kWifiPassMaxLen = 65U;
+
+/** Display delta shown before rolling baseline ("999+" overflow UI uses same cap). */
+constexpr int kDisplayCounterMax = 999;
+
 /** Clamp MQTT port from integer form (e.g. HTML/API); invalid uses TLS default. */
 inline constexpr uint16_t normalizeMqttPort(int p) {
     return (p > 0 && p <= 65535) ? static_cast<uint16_t>(p) : kMqttDefaultTlsPort;
@@ -34,6 +41,28 @@ inline bool mqttTopicSyntaxOk(const char* topic, size_t maxLen) {
         }
         const unsigned char c = static_cast<unsigned char>(*p);
         if (c == ' ' || c == '#' || c == '+') {
+            return false;
+        }
+    }
+    return true;
+}
+
+/**
+ * MQTT broker host field (hostname or IP literal): fits in buffer with NUL, no control chars/spaces/wildcards.
+ * Not the same rules as MQTT topics (still rejects '#' / '+').
+ */
+inline bool mqttServerSyntaxOk(const char* host, size_t maxLen) {
+    if (host == nullptr || host[0] == '\0' || maxLen == 0U) {
+        return false;
+    }
+    size_t len = 0;
+    for (const char* p = host; *p != '\0'; ++p) {
+        ++len;
+        if (len >= maxLen) {
+            return false;
+        }
+        const unsigned char c = static_cast<unsigned char>(*p);
+        if (c < 0x20U || c == ' ' || c == '#' || c == '+') {
             return false;
         }
     }

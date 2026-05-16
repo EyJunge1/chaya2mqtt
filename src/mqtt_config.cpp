@@ -2,6 +2,7 @@
 
 #include <Arduino.h>
 #include <Preferences.h>
+#include <atomic>
 #include <cstring>
 #include <esp_log.h>
 #include <freertos/portmacro.h>
@@ -16,6 +17,16 @@ MqttConfig mqttCfg;
 
 static MqttConfig           s_mqttPendingCfg{};
 static portMUX_TYPE s_mqttCfgMux = portMUX_INITIALIZER_UNLOCKED;
+
+static std::atomic<bool> s_mqttCfgDirty{true};
+
+static void mqttCfgMarkDirty() {
+    s_mqttCfgDirty.store(true, std::memory_order_release);
+}
+
+bool mqttCfgConsumeDirtySnapshotNeeded() {
+    return s_mqttCfgDirty.exchange(false, std::memory_order_acq_rel);
+}
 
 void mqttCfgSnapshot(MqttConfig* out) {
     if (out == nullptr) {
@@ -39,6 +50,7 @@ void mqttCfgApplyPendingToActive() {
     portENTER_CRITICAL(&s_mqttCfgMux);
     mqttCfg = s_mqttPendingCfg;
     portEXIT_CRITICAL(&s_mqttCfgMux);
+    mqttCfgMarkDirty();
 }
 
 void loadMQTTConfig() {
@@ -47,6 +59,7 @@ void loadMQTTConfig() {
         ESP_LOGI(TAG, "NVS mqtt namespace not present yet, using defaults");
         strlcpy(mqttCfg.topicPub, kMqttDefaultTopicPub, sizeof(mqttCfg.topicPub));
         strlcpy(mqttCfg.topicSub, kMqttDefaultTopicSub, sizeof(mqttCfg.topicSub));
+        mqttCfgMarkDirty();
         return;
     }
     if (!preferences.isKey("server")) {
@@ -54,6 +67,7 @@ void loadMQTTConfig() {
         ESP_LOGI(TAG, "MQTT noch nicht konfiguriert, nutze Defaults");
         strlcpy(mqttCfg.topicPub, kMqttDefaultTopicPub, sizeof(mqttCfg.topicPub));
         strlcpy(mqttCfg.topicSub, kMqttDefaultTopicSub, sizeof(mqttCfg.topicSub));
+        mqttCfgMarkDirty();
         return;
     }
     preferences.getString("server", mqttCfg.server, sizeof(mqttCfg.server));
@@ -70,6 +84,7 @@ void loadMQTTConfig() {
         strlcpy(mqttCfg.topicSub, kMqttDefaultTopicSub, sizeof(mqttCfg.topicSub));
     }
     preferences.end();
+    mqttCfgMarkDirty();
 }
 
 void saveMQTTConfig() {

@@ -26,3 +26,6 @@ void mqttCfgStorePending(const MqttConfig* pending);
 
 /** Copy pending form to active mqttCfg (call from main loop only when applying). */
 void mqttCfgApplyPendingToActive();
+
+/** True once after NVS/form apply until consumed — used to refresh MQTT loop broker snapshot while connected. */
+bool mqttCfgConsumeDirtySnapshotNeeded();

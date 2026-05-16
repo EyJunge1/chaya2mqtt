@@ -1,6 +1,7 @@
 #include "admin.h"
 
 #include "constants.h"
+#include "app_config.h"
 #include "counter.h"
 #include "display.h"
 #include "mqtt.h"
@@ -8,6 +9,7 @@
 #include "ota.h"
 #include "auth.h"
 #include "pages.h"
+#include "web_utils.h"
 #include "wlan.h"
 
 #include <Arduino.h>
@@ -57,51 +59,6 @@ static bool parseBodyParam(AsyncWebServerRequest* req, const char* name, char* o
     return true;
 }
 
-/** Minimal JSON string escape for /wifi-connect-status SSID field. */
-static void appendJsonEscapedCStrWifiStatus(Print& out, const char* str) {
-    out.print('"');
-    if (str == nullptr) {
-        out.print('"');
-        return;
-    }
-    for (const unsigned char* p = reinterpret_cast<const unsigned char*>(str); *p != '\0'; ++p) {
-        const unsigned char c = *p;
-        switch (c) {
-            case '"':
-                out.print(F("\\\""));
-                break;
-            case '\\':
-                out.print(F("\\\\"));
-                break;
-            case '\b':
-                out.print(F("\\b"));
-                break;
-            case '\f':
-                out.print(F("\\f"));
-                break;
-            case '\n':
-                out.print(F("\\n"));
-                break;
-            case '\r':
-                out.print(F("\\r"));
-                break;
-            case '\t':
-                out.print(F("\\t"));
-                break;
-            default:
-                if (c < 0x20U) {
-                    char buf[8];
-                    snprintf(buf, sizeof(buf), "\\u%04x", static_cast<unsigned>(c));
-                    out.print(buf);
-                } else {
-                    out.write(static_cast<char>(c));
-                }
-                break;
-        }
-    }
-    out.print('"');
-}
-
 static void handleWifiConnectPost(AsyncWebServerRequest* req) {
     if (!configIsApMode()) {
         if (!webAuthIsAuthenticated(req)) {
@@ -113,8 +70,8 @@ static void handleWifiConnectPost(AsyncWebServerRequest* req) {
             return;
         }
     }
-    char ssid[33];
-    char password[65];
+    char ssid[kWifiSsidMaxLen];
+    char password[kWifiPassMaxLen];
     ssid[0]     = '\0';
     password[0] = '\0';
     if (!parseBodyParam(req, "ssid", ssid, sizeof(ssid)) || ssid[0] == '\0') {
@@ -160,14 +117,14 @@ static void handleWifiConnectStatusGet(AsyncWebServerRequest* req) {
             tst == WlanWifiConnectionTestState::Testing ? "testing" :
                                                         tst == WlanWifiConnectionTestState::Ok   ? "ok" :
                                                                                                    "fail";
-    char ssid[33]{};
+    char ssid[kWifiSsidMaxLen]{};
     (void)wlanWifiConnectionTestSsidSnapshot(ssid, sizeof(ssid));
 
     resp->print(F("{\"state\":"));
     resp->print('"');
     resp->print(stStr);
     resp->print(F("\",\"ssid\":"));
-    appendJsonEscapedCStrWifiStatus(*resp, ssid);
+    appendJsonEscapedCStr(*resp, ssid);
     resp->print('}');
     req->send(resp);
 }
@@ -203,10 +160,10 @@ static void handleWifiStatusGet(AsyncWebServerRequest* req) {
     }
     if (WiFi.status() == WL_CONNECTED && WiFi.localIP()[0] != 0) {
         resp->print(F("{\"connected\":true,\"ssid\":"));
-        appendJsonEscapedCStrWifiStatus(*resp, WiFi.SSID().c_str());
+        appendJsonEscapedCStr(*resp, WiFi.SSID().c_str());
         resp->print(F(",\"ip\":"));
         const String ipStr = WiFi.localIP().toString();
-        appendJsonEscapedCStrWifiStatus(*resp, ipStr.c_str());
+        appendJsonEscapedCStr(*resp, ipStr.c_str());
         resp->print(F(",\"rssi\":"));
         resp->print(static_cast<int>(WiFi.RSSI()));
         resp->print('}');
@@ -366,7 +323,7 @@ static void handleMqttPost(AsyncWebServerRequest* req) {
         strlcpy(pending.topicPub, kMqttDefaultTopicPub, sizeof(pending.topicPub));
         strlcpy(pending.topicSub, kMqttDefaultTopicSub, sizeof(pending.topicSub));
     }
-    if (!mqttTopicSyntaxOk(pending.server, sizeof(pending.server))
+    if (!mqttServerSyntaxOk(pending.server, sizeof(pending.server))
         || !mqttTopicSyntaxOk(pending.topicPub, sizeof(pending.topicPub))
         || !mqttTopicSyntaxOk(pending.topicSub, sizeof(pending.topicSub))) {
         ESP_LOGW(TAG, "MQTT: ungueltige Topics oder leerer Broker");

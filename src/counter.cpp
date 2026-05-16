@@ -1,5 +1,6 @@
 #include "counter.h"
 
+#include "app_config.h"
 #include "constants.h"
 #include "display.h"
 #include "wlan.h"
@@ -27,13 +28,6 @@ int sentCountBaseline = 0;
 
 static uint32_t s_lastResetCalendarDayUtc = UINT32_MAX;
 
-static constexpr const char kNvRstPeriod[] = "rstPeriod";
-
-static constexpr const char kNvAuthEn[] = "authEn";
-
-static uint8_t s_resetPeriodDaysCached = 7;
-static bool s_webAuthEnabledCached     = false;
-
 static int           lastCommittedHeartCounter                = 0;
 static unsigned long lastHeartCounterSaveMs                   = 0;
 static int           lastCommittedHeartSentCounter            = 0;
@@ -60,68 +54,6 @@ void loadCounterBaseline() {
     sentCountBaseline         = std::max<int32_t>(preferences.getInt("sntBase", 0), 0);
     s_lastResetCalendarDayUtc = preferences.getUInt("rstDay", UINT32_MAX);
     preferences.end();
-}
-
-void configLoadWebAuthFromNvs() {
-    Preferences prefs;
-    if (!prefs.begin("cfg", true)) {
-        s_webAuthEnabledCached = false;
-        return;
-    }
-    s_webAuthEnabledCached = (prefs.getUChar(kNvAuthEn, 0) != 0);
-    prefs.end();
-}
-
-bool configGetWebAuthEnabled() {
-    return s_webAuthEnabledCached;
-}
-
-void configSetWebAuthEnabled(bool enabled) {
-    Preferences prefs;
-    if (!prefs.begin("cfg", false)) {
-        ESP_LOGE(TAG, "NVS cfg: authEn schreiben fehlgeschlagen");
-        return;
-    }
-    prefs.putUChar(kNvAuthEn, enabled ? 1 : 0);
-    prefs.end();
-    s_webAuthEnabledCached = enabled;
-}
-
-void configLoadResetPeriodFromNvs() {
-    Preferences prefs;
-    if (!prefs.begin("cfg", true)) {
-        s_resetPeriodDaysCached = 7;
-        return;
-    }
-    const uint8_t raw = prefs.getUChar(kNvRstPeriod, 7);
-    prefs.end();
-    if (raw == 0U) {
-        s_resetPeriodDaysCached = 0;
-        return;
-    }
-    if (raw <= 30U) {
-        s_resetPeriodDaysCached = raw;
-        return;
-    }
-    s_resetPeriodDaysCached = 7;
-}
-
-uint8_t configGetResetPeriodDays() {
-    return s_resetPeriodDaysCached;
-}
-
-void configSetResetPeriodDays(uint8_t days) {
-    if (days > 30U) {
-        days = 30U;
-    }
-    Preferences prefs;
-    if (!prefs.begin("cfg", false)) {
-        ESP_LOGE(TAG, "NVS cfg: rstPeriod schreiben fehlgeschlagen");
-        return;
-    }
-    prefs.putUChar(kNvRstPeriod, days);
-    prefs.end();
-    s_resetPeriodDaysCached = days;
 }
 
 static bool persistCounterBaselineState() {
@@ -184,16 +116,16 @@ void maybeResetDisplayBaselinesWhenCapped() {
     bool changed = false;
     const int64_t dRecv = static_cast<int64_t>(heartCounter) - static_cast<int64_t>(counterBaseline);
     const int64_t dSent = static_cast<int64_t>(heartSentCounter) - static_cast<int64_t>(sentCountBaseline);
-    if (dRecv >= 999) {
+    if (dRecv >= kDisplayCounterMax) {
         counterBaseline = heartCounter;
         changed         = true;
     }
-    if (dSent >= 999) {
+    if (dSent >= kDisplayCounterMax) {
         sentCountBaseline = heartSentCounter;
         changed           = true;
     }
     if (changed && persistCounterBaselineState()) {
-        ESP_LOGI(TAG, "Display baseline reset (display reached 999)");
+        ESP_LOGI(TAG, "Display baseline reset (display reached cap)");
         requestHeartRedraw();
     }
 }
@@ -297,5 +229,5 @@ void counterResetRamAfterFactoryClear() {
     lastCommittedHeartSentCounter = 0;
     lastHeartCounterSaveMs        = millis();
     lastHeartSentCounterSaveMs    = millis();
-    s_webAuthEnabledCached        = false;
+    app_configResetRamAfterFactoryClear();
 }

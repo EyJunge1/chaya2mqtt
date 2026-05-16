@@ -9,10 +9,10 @@
 #include "tls_bundle.h"
 #include "version.h"
 #include "wlan.h"
+#include "nvs_utils.h"
 
 #include <ArduinoJson.h>
 #include <HTTPClient.h>
-#include <Preferences.h>
 #include <WiFiClientSecure.h>
 #include <algorithm>
 #include <atomic>
@@ -164,28 +164,18 @@ static bool githubExtractTagFromJsonBuffer(char* jsonBuf, size_t len, char* tagO
     return githubParseLatestTagLegacy(jsonBuf, tagOut, tagLen);
 }
 
-static bool nvLoadLastUpdateCalendarDay(uint32_t* outDayUtc) {
+static void nvLoadLastUpdateCalendarDay(uint32_t* outDayUtc) {
     if (outDayUtc == nullptr) {
-        return false;
+        return;
     }
-    Preferences prefs;
-    if (!prefs.begin(kCfgNamespace, true)) {
-        *outDayUtc = 0;
-        return false;
-    }
-    *outDayUtc = prefs.getUInt(kNvKeyUpdateCalendarDay, 0);
-    prefs.end();
-    return true;
+    *outDayUtc = app_nvs::readUInt(kCfgNamespace, kNvKeyUpdateCalendarDay, 0);
 }
 
 static void nvSaveLastUpdateCalendarDay(uint32_t dayUtc) {
-    Preferences prefs;
-    if (!prefs.begin(kCfgNamespace, false)) {
+    if (!app_nvs::writeUInt(kCfgNamespace, kNvKeyUpdateCalendarDay, dayUtc)) {
         ESP_LOGE(TAG, "NVS cfg: kann upd_day nicht schreiben");
         return;
     }
-    prefs.putUInt(kNvKeyUpdateCalendarDay, dayUtc);
-    prefs.end();
     s_cachedNvUpdateDay     = dayUtc;
     s_nvUpdateDayCacheValid = true;
 }

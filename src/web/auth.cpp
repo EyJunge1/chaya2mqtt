@@ -1,5 +1,6 @@
 #include "auth.h"
 
+#include "app_config.h"
 #include "button.h"
 #include "counter.h"
 #include "display.h"

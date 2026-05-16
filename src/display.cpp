@@ -1,6 +1,7 @@
 #include "display.h"
 
 #include "button.h"
+#include "constants.h"
 #include "counter.h"
 #include "pins.h"
 #include "web/auth.h"
@@ -142,13 +143,13 @@ static uint8_t footerTextSizeForDigitCount(size_t digitLen) {
     return digitLen <= 3 ? 4 : 3;
 }
 
-/** Display delta vs baseline, cap at 999 with "999+" for overflow (layout-friendly). */
+/** Display delta vs baseline, cap at kDisplayCounterMax with "NNN+" for overflow (layout-friendly). */
 static void formatCappedCounterForDisplay(int rawCounter, int baseline, char* buf, size_t buflen) {
     const int64_t delta64 =
         static_cast<int64_t>(rawCounter) - static_cast<int64_t>(baseline);
     const int64_t shown64 = std::max<int64_t>(0, std::min<int64_t>(delta64, 9999));
-    if (shown64 > 999) {
-        static_cast<void>(snprintf(buf, buflen, "999+"));
+    if (shown64 > static_cast<int64_t>(kDisplayCounterMax)) {
+        static_cast<void>(snprintf(buf, buflen, "%d+", kDisplayCounterMax));
     } else {
         static_cast<void>(snprintf(buf, buflen, "%lld", static_cast<long long>(shown64)));
     }
