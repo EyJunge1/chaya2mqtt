@@ -14,6 +14,8 @@
 #include "wifi_status_js.h"
 #include "mqtt_status_js.h"
 #include "wifi_connect_test_js.h"
+#include "common_js.h"
+#include "chaya_js.h"
 #include "auth.h"
 #include <cstdio>
 
@@ -81,7 +83,9 @@ static void streamPageHeader(Print& out, const char* title) {
     out.print(title);
     out.print(F("</title>"));
     printCommonCss(out);
-    out.print(F("</head><body>"));
+    out.print(F("<script>"));
+    out.print(reinterpret_cast<const __FlashStringHelper*>(COMMON_JS));
+    out.print(F("</script></head><body><div id='toast' class='toast'></div>"));
 }
 
 void streamAuthPage(AsyncWebServerRequest* req, bool wrongCode, unsigned lockoutRemainSec) {
@@ -205,7 +209,25 @@ void streamDashboard(AsyncWebServerRequest* req) {
             appendHtmlEscaped(*resp, b);
         }
         resp->print(F("'/><button type='submit' class='card danger'>Reboot</button></form>"
-                      "</div>"));
+                      "</div>"
+                      "<div class='chaya-panel'><h2>chaya2mqtt</h2>"
+                      "<div class='chaya-counters'><div class='chaya-counter-box'>"
+                      "<div class='chaya-counter-label'>Empfangen</div>"
+                      "<div class='chaya-counter-val' id='chaya-rx'>&hellip;</div></div>"
+                      "<div class='chaya-counter-box'><div class='chaya-counter-label'>Gesendet</div>"
+                      "<div class='chaya-counter-val' id='chaya-tx'>&hellip;</div></div></div>"
+                      "<form id='chaya-form' autocomplete='off'>"
+                      "<input type='hidden' name='csrf_token' value='"));
+        {
+            char chayaCsrf[24];
+            snprintf(chayaCsrf, sizeof(chayaCsrf), "%lu", static_cast<unsigned long>(webAuthGetCsrfToken()));
+            appendHtmlEscaped(*resp, chayaCsrf);
+        }
+        resp->print(
+            F("'/><button type='submit' id='chaya-send-btn'>Senden</button></form></div>"
+              "<script>"));
+        resp->print(reinterpret_cast<const __FlashStringHelper*>(CHAYA_JS));
+        resp->print(F("</script>"));
     }
     resp->print(F("</body></html>"));
     req->send(resp);
@@ -342,7 +364,7 @@ void streamMqttHtmlPage(AsyncWebServerRequest* req, bool showSavedBanner) {
     streamPageHeader(*response, "MQTT");
     response->print(F("<h1>MQTT Settings</h1>"));
     if (showSavedBanner) {
-        response->print(F("<p class='ok'>&#10003; Saved. MQTT will reconnect.</p>"));
+        response->print(F("<script>showToast('Gespeichert. MQTT verbindet neu.')</script>"));
     }
     if (cfg.server[0] != '\0') {
         response->print(F("<p id='ms' class='hint' data-broker='"));
@@ -405,7 +427,7 @@ void streamSettingsPage(AsyncWebServerRequest* req, bool showSavedBanner) {
     streamPageHeader(*response, "Settings");
     response->print(F("<h1>Settings</h1>"));
     if (showSavedBanner) {
-        response->print(F("<p class='ok'>&#10003; Saved.</p>"));
+        response->print(F("<script>showToast('Gespeichert.')</script>"));
     }
     response->print(F("<form method='post' action='/settings'>"
                       "<input type='hidden' name='csrf_token' value='"));

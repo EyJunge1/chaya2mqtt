@@ -209,4 +209,78 @@ input[type="checkbox"] {
     color: var(--text-bright);
     cursor: pointer;
 }
+
+.chaya-panel {
+    margin-top: 20px;
+    padding: 16px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--surface);
+}
+
+.chaya-panel h2 {
+    margin: 0 0 12px;
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--text-bright);
+    text-align: center;
+    text-transform: lowercase;
+}
+
+.chaya-counters {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+}
+
+.chaya-counter-box {
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px 8px;
+    text-align: center;
+    background: var(--bg);
+}
+
+.chaya-counter-label {
+    font-size: 0.7rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    opacity: 0.75;
+    margin-bottom: 6px;
+    color: var(--text);
+}
+
+.chaya-counter-val {
+    font-size: 1.6rem;
+    font-weight: 700;
+    color: var(--accent);
+    line-height: 1.2;
+}
+
+/* Global toast bar (fixed bottom center) */
+.toast {
+    position: fixed;
+    bottom: 24px;
+    left: 50%;
+    transform: translateX(-50%);
+    padding: 12px 20px;
+    border-radius: 8px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s;
+    white-space: nowrap;
+    font-weight: 600;
+    color: var(--text-bright);
+    z-index: 10000;
+}
+
+.toast.show {
+    opacity: 1;
+}
+
+.toast.err {
+    color: var(--danger);
+}
 </style>)chaya2mqtt_css";

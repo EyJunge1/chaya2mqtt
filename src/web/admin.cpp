@@ -13,7 +13,9 @@
 #include <Arduino.h>
 #include <WiFi.h>
 #include <ESPAsyncWebServer.h>
+#include <algorithm>
 #include <atomic>
+#include <climits>
 #include <cerrno>
 #include <cstdint>
 #include <cstdio>
@@ -37,6 +39,7 @@ static std::atomic<bool> g_rebootRequested{false};
 static std::atomic<bool> g_wifiConnectRequested{false};
 static std::atomic<bool> g_mqttApplyPending{false};
 static std::atomic<bool> g_settingsApplyPending{false};
+static std::atomic<bool> g_chayaSendRequested{false};
 
 static uint8_t           s_pendingResetDays     = 7;
 static bool              s_pendingWebAuthEnabled = false;
@@ -228,6 +231,51 @@ static void handleMqttStatusGet(AsyncWebServerRequest* req) {
     }
     resp->print(mqttIsConnected() ? F("{\"connected\":true}") : F("{\"connected\":false}"));
     req->send(resp);
+}
+
+static void handleChayaStatusGet(AsyncWebServerRequest* req) {
+    if (configIsApMode()) {
+        req->redirect(F("/"));
+        return;
+    }
+    if (webAuthRedirectIfUnauthenticated(req)) {
+        return;
+    }
+    AsyncResponseStream* resp = req->beginResponseStream("application/json");
+    if (resp == nullptr) {
+        req->send(500);
+        return;
+    }
+    const int rx = std::max(0, heartCounter - counterBaseline);
+    const int tx = std::max(0, heartSentCounter - sentCountBaseline);
+    resp->print(F("{\"rx\":"));
+    resp->print(rx);
+    resp->print(F(",\"tx\":"));
+    resp->print(tx);
+    resp->print(F(",\"connected\":"));
+    resp->print(mqttIsConnected() ? F("true}") : F("false}"));
+    req->send(resp);
+}
+
+static void handleChayaSendPost(AsyncWebServerRequest* req) {
+    if (configIsApMode()) {
+        req->redirect(F("/"));
+        return;
+    }
+    if (!webAuthIsAuthenticated(req)) {
+        req->send(401, "application/json", "{\"ok\":false}");
+        return;
+    }
+    if (!webAuthValidateCsrfPost(req)) {
+        req->send(403, "application/json", "{\"ok\":false}");
+        return;
+    }
+    if (!mqttIsConnected() || mqttIsConnectInProgress()) {
+        req->send(200, "application/json", "{\"ok\":false}");
+        return;
+    }
+    g_chayaSendRequested.store(true, std::memory_order_release);
+    req->send(200, "application/json", "{\"ok\":true}");
 }
 
 static void handleUpdateCheckPost(AsyncWebServerRequest* req) {
@@ -435,6 +483,16 @@ void webAdminRegisterRoutes() {
     ws.on("/mqtt-status", HTTP_GET, [](AsyncWebServerRequest* rq) {
         handleMqttStatusGet(rq);
     });
+    ws.on("/chaya-status", HTTP_GET, [](AsyncWebServerRequest* rq) {
+        handleChayaStatusGet(rq);
+    });
+    ws.on("/chaya-send", HTTP_POST, [](AsyncWebServerRequest* rq) {
+        if (configIsApMode()) {
+            rq->redirect(F("/"));
+            return;
+        }
+        handleChayaSendPost(rq);
+    });
 
     ws.on("/settings", HTTP_GET, [](AsyncWebServerRequest* rq) {
         if (configIsApMode()) {
@@ -484,6 +542,16 @@ void webAdminLoop() {
         mqttSetup();
         mqttPostponeConnect(3000UL);
         requestHeartRedraw();
+    }
+
+    if (g_chayaSendRequested.exchange(false, std::memory_order_acq_rel)) {
+        if (mqttPublishChaya()) {
+            if (heartSentCounter < INT_MAX) {
+                ++heartSentCounter;
+            }
+            maybeSaveHeartSentCounter();
+            requestHeartRedraw();
+        }
     }
 
     if (g_rebootRequested.exchange(false, std::memory_order_acq_rel)
