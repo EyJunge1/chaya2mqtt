@@ -2,21 +2,21 @@
 
 ## Moduluebersicht
 
-Die Firmware ist in **mehrere fokussierte Module** plus `main.cpp` aufgeteilt:
+Die Firmware ist in **mehrere fokussierte Module** plus `main.cpp` aufgeteilt. Unterverzeichnisse in `src/`: **`hw/`** (Peripherie), **`net/`** (WLAN, MQTT, OTA), **`config/`** (NVS-/App-Konfig), **`web/`** (HTTP-UI plus `web/assets/` für eingebettetes CSS/JS). `platformio.ini` enthält `-I`-Pfade dafür, sodass weiterhin z. B. `#include "button.h"` gilt.
 
 | Modul | Dateien | Aufgabe |
 |--------|---------|---------|
-| **mqtt_config** | `mqtt_config.h`, `mqtt_config.cpp`, `constants.h` | MQTT-Brokereinstellungen (NVS Namespace `mqtt`), gemeinsame Konstanten |
+| **mqtt_config** | `src/net/mqtt_config.h`, `src/net/mqtt_config.cpp`, `constants.h` | MQTT-Brokereinstellungen (NVS Namespace `mqtt`), gemeinsame Konstanten |
 | **counter** | `counter.h`, `counter.cpp` | Herz-Zähler / Sent-Zähler, Baselines, periodischer Display-Reset (NVS `chaya`, `cfg`) |
-| **wlan** | `wlan.h`, `wlan.cpp`, `pins.h` | STA/AP, Captive DNS, mDNS, NTP, Reconnect-Backoff; registriert `AsyncWebServer`-Routen; Factory Reset |
+| **wlan** | `src/net/wlan.h`, `src/net/wlan.cpp`, `src/hw/pins.h` | STA/AP, Captive DNS, mDNS, NTP, Reconnect-Backoff; registriert `AsyncWebServer`-Routen; Factory Reset |
 | **web_admin** | `src/web/admin.h`, `src/web/admin.cpp` | HTTP-Routen und Formular-Handler (Dashboard, Wi‑Fi, MQTT, Settings); `webAdminLoop()` |
-| **ota** | `ota.h`, `ota.cpp` | GitHub-Versionscheck, täglicher Auto-Check (NVS), Firmware-Download (`HTTPUpdate`) |
-| **web_pages** | `src/web/pages.h`, `src/web/pages.cpp` | HTML-Antworten (Streaming), eingebettetes CSS über `src/web/styles.h` |
-| **display** | `display.h`, `display.cpp` | GxEPD2-Initialisierung, Zeichnen Herz + Zähler-Deltas |
-| **mqtt** | `mqtt.h`, `mqtt.cpp` | TLS-Client, Broker-Verbindung, Subscribe/Publish, Callback setzt `heartCounter` |
-| **button** | `button.h`, `button.cpp` | GPIO Taster + LED, Kurzdruck → Publish, Langdruck → Factory Reset |
+| **ota** | `src/net/ota.h`, `src/net/ota.cpp` | GitHub-Versionscheck, täglicher Auto-Check (NVS), Firmware-Download (`HTTPUpdate`) |
+| **web_pages** | `src/web/pages.h`, `src/web/pages.cpp` | HTML-Antworten (Streaming), eingebettetes CSS über `src/web/assets/styles.h` |
+| **display** | `src/hw/display.h`, `src/hw/display.cpp` | GxEPD2-Initialisierung, Zeichnen Herz + Zähler-Deltas |
+| **mqtt** | `src/net/mqtt.h`, `src/net/mqtt.cpp` | TLS-Client, Broker-Verbindung, Subscribe/Publish, Callback setzt `heartCounter` |
+| **button** | `src/hw/button.h`, `src/hw/button.cpp` | GPIO Taster + LED, Kurzdruck → Publish, Langdruck → Factory Reset |
 
-`wlan.cpp` heisst **wlan** (nicht `wifi.*`), damit `#include <WiFi.h>` (Arduino) auf **case-insensitiven** Dateisystemen nicht mit einem Projekt-Header kollidiert.
+`src/net/wlan.cpp` heisst **wlan** (nicht `wifi.*`), damit `#include <WiFi.h>` (Arduino) auf **case-insensitiven** Dateisystemen nicht mit einem Projekt-Header kollidiert.
 
 `main.cpp` **orchestriert** die Initialisierung und ruft in `loop()` die Modul-Loops auf.
 
@@ -87,7 +87,7 @@ Beim **Empfang** einer Nachricht auf dem Empfangs-Topic wird der Payload als Dez
 Da Nachrichten als **retained** publiziert werden, liefert der Broker beim Reconnect automatisch den letzten Zaehlerstand -- Nachrichten, die waehrend einer Offline-Phase verpasst wurden, gehen nicht verloren.
 
 - **Transport:** `WiFiClientSecure` + `PubSubClient`
-- **TLS:** In `mqtt.cpp`: `WiFiClientSecure::setCACertBundle()` mit dem eingebauten Mozilla-CA-Bundle aus `libmbedtls.a` (ESP-IDF `CONFIG_MBEDTLS_CERTIFICATE_BUNDLE`)
+- **TLS:** In `src/net/mqtt.cpp`: `WiFiClientSecure::setCACertBundle()` mit dem eingebauten Mozilla-CA-Bundle aus `libmbedtls.a` (ESP-IDF `CONFIG_MBEDTLS_CERTIFICATE_BUNDLE`)
 - **Standard-Port in Konfiguration:** 8883
 
 ## Setup-Ablauf (`setup()`)
@@ -148,7 +148,7 @@ flowchart TD
     start --> btn --> led --> wl --> web --> cnt --> cap --> mq --> save --> redraw --> dbg --> arm --> wait --> start
 ```
 
-- **mqttLoop:** nicht-blockierender Reconnect mit Backoff (siehe `mqtt.cpp`).
+- **mqttLoop:** nicht-blockierender Reconnect mit Backoff (siehe `src/net/mqtt.cpp`).
 - **wlanLoop:** Captive DNS im AP, mDNS-Restart nach GOT_IP.
 - **webAdminLoop:** MQTT-Anwendung aus Formular, Reboot/Wi-Fi-Reconnect, **`otaLoop()`**.
 - **maybePeriodicallyResetCounters:** periodischer Zähler-Baseline-Roll (**counter**, nur wenn nicht AP, Intervall 0 = aus).

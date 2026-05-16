@@ -1,6 +1,6 @@
 # Code-Referenz (Module)
 
-Uebersicht aller Quelldateien unter `src/`: oeffentliche API, globale Symbole und relevante Implementierungsdetails.
+Uebersicht aller Quelldateien unter `src/` (hardware in `hw/`, netzwerk/MQTT/OTA in `net/`, NVS-/App-Konfig in `config/`, Web unter `web/` samt eingebetteter Assets unter `web/assets/`): oeffentliche API, globale Symbole und relevante Implementierungsdetails.
 
 ---
 
@@ -49,7 +49,7 @@ Uebersicht aller Quelldateien unter `src/`: oeffentliche API, globale Symbole un
 
 ---
 
-## `mqtt_config.h` / `mqtt_config.cpp`
+## `src/net/mqtt_config.h` / `src/net/mqtt_config.cpp`
 
 **Zweck:** Nur **MQTT-Broker-Konfiguration** im NVS-Namespace `mqtt` (Defaults und Port-Normalisierung in `constants.h`).
 
@@ -86,7 +86,7 @@ Wichtige Funktionen: `loadHeartCounter`, `saveHeartCounter`, `maybeSaveHeartCoun
 
 ---
 
-## `wlan.h` / `wlan.cpp`
+## `src/net/wlan.h` / `src/net/wlan.cpp`
 
 **Zweck:** WiFi STA/AP, Captive DNS (`DNSServer`), mDNS, NTP nach STA-Verbindung, Reconnect-Backoff (`WiFi.onEvent`), gemeinsamer HTTP-Server mit **web_admin**; Factory Reset.
 
@@ -115,7 +115,7 @@ Wichtige Funktionen: `loadHeartCounter`, `saveHeartCounter`, `maybeSaveHeartCoun
 
 ---
 
-## `ota.h` / `ota.cpp`
+## `src/net/ota.h` / `src/net/ota.cpp`
 
 **Zweck:** GitHub `releases/latest` (JSON `tag_name` via ArduinoJson mit Legacy-Fallback), täglicher Auto-Check (NVS `cfg`/`upd_day`), manueller Check-Button, Firmware-Install über `HTTPUpdate` (TLS + CA-Bundle).
 
@@ -128,13 +128,13 @@ Wichtige Funktionen: `loadHeartCounter`, `saveHeartCounter`, `maybeSaveHeartCoun
 
 ## `src/web/pages.h` / `pages.cpp`
 
-**Zweck:** HTML-Streaming (Dashboard, Wi‑Fi-Scan-JSON, MQTT-Formular, Settings, Update-Seite); gemeinsames CSS via `src/web/styles.h`, Wi‑Fi-Scan-JS via `src/web/wifi_scan_js.h`.
+**Zweck:** HTML-Streaming (Dashboard, Wi‑Fi-Scan-JSON, MQTT-Formular, Settings, Update-Seite); gemeinsames CSS via `src/web/assets/styles.h`, Wi‑Fi-Scan-JS via `src/web/assets/wifi_scan_js.h`.
 
-**Hinweis:** Die Header `styles.h` und `wifi_scan_js.h` sind eingebettete Assets; bei einem zukünftigen Build-Skript die Ausgabe nach `src/web/` schreiben.
+**Hinweis:** Die Header `styles.h` und `wifi_scan_js.h` sind eingebettete Assets; bei einem zukünftigen Build-Skript die Ausgabe nach `src/web/assets/` schreiben.
 
 ---
 
-## `display.h` / `display.cpp`
+## `src/hw/display.h` / `src/hw/display.cpp`
 
 **Zweck:** E-Paper ansteuern und Herz mit Zaehlerstand zeichnen.
 
@@ -142,7 +142,7 @@ Wichtige Funktionen: `loadHeartCounter`, `saveHeartCounter`, `maybeSaveHeartCoun
 
 | Symbol | Beschreibung |
 |--------|--------------|
-| Display-Instanz | nur in `display.cpp` (`static`), nicht exportiert -- CS=15, DC=27, RST=26, BUSY=25 |
+| Display-Instanz | nur in `src/hw/display.cpp` (`static`), nicht exportiert -- CS=15, DC=27, RST=26, BUSY=25 |
 
 Der Zaehlerstand und Baselines kommen aus **`counter.h`**.
 
@@ -168,13 +168,13 @@ Der Zaehlerstand und Baselines kommen aus **`counter.h`**.
 
 ---
 
-## `mqtt.h` / `mqtt.cpp`
+## `src/net/mqtt.h` / `src/net/mqtt.cpp`
 
 **Zweck:** MQTT ueber TLS; Verbindung halten; bei Nachricht Counter setzen und Display aktualisieren.
 
 ### Kapselung
 
-`WiFiClientSecure` und `PubSubClient` sind **nur in `mqtt.cpp`** (file-static), nicht in `mqtt.h` exportiert.
+`WiFiClientSecure` und `PubSubClient` sind **nur in `src/net/mqtt.cpp`** (file-static), nicht in `mqtt.h` exportiert.
 
 ### Oeffentliche Funktionen
 
@@ -183,7 +183,7 @@ Der Zaehlerstand und Baselines kommen aus **`counter.h`**.
 | `mqttSetup()` | `setBufferSize(512)` mit Pruefung des Rueckgabewerts; `setServer`, `setCallback`, `setKeepAlive(60)`, `setSocketTimeout(5)` (s), `setCACertBundle()` mit eingebettetem Mozilla-Bundle (bei sehr langen Portal-Strings ggf. Buffer in Code erhoehen) |
 | `mqttLoop()` | Wenn nicht verbunden: Connect-Versuch wenn `millis() - lastAttempt >= backoff` (overflow-sicher); bei Connect-Fehler exponentieller Backoff 5 s bis max. 60 s; **leerer MQTT-Server:** Warteintervall **60 s**; kein WLAN: **5 s**; bei **Uebergang** zu verbunden: Backoff zuruecksetzen; danach `client.loop()` |
 | `mqttMillisUntilNextConnectAttempt()` | Wenn nicht verbunden: verbleibende ms bis zum naechsten Connect-Versuch; **0** wenn verbunden oder Versuch faellig (API; frueher fuer Light-Sleep-Timer in `main`, jetzt ohne Light Sleep) |
-| `mqttPublishChaya()` | Publiziert `heartSentCounter + 1` als Dezimalstring (**retained**) auf `mqtt_topic_pub`, wenn verbunden; **2** Versuche laufen nicht-blockierend in `button.cpp` (LED-State-Machine, Phase `PublishRetryWait`) |
+| `mqttPublishChaya()` | Publiziert `heartSentCounter + 1` als Dezimalstring (**retained**) auf `mqtt_topic_pub`, wenn verbunden; **2** Versuche laufen nicht-blockierend in `src/hw/button.cpp` (LED-State-Machine, Phase `PublishRetryWait`) |
 
 ### Callback `mqttCallback`
 
@@ -205,7 +205,7 @@ Der Zaehlerstand und Baselines kommen aus **`counter.h`**.
 
 ---
 
-## `button.h` / `button.cpp`
+## `src/hw/button.h` / `src/hw/button.cpp`
 
 **Zweck:** Taster mit LED; Kurzdruck sendet MQTT; Langdruck setzt Geraet zurueck; Startup- und Feedback-Blinken.
 

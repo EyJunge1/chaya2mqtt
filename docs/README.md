@@ -73,21 +73,31 @@ chaya2mqtt/
 │   └── MODULES.md         # Code-Referenz
 └── src/
     ├── main.cpp
-    ├── mqtt_config.cpp / mqtt_config.h   # MQTT NVS (+ constants.h)
-    ├── pins.h
     ├── counter.cpp / counter.h     # Zähler & Baselines NVS
-    ├── wlan.cpp / wlan.h           # WiFi/AP/DNS/mDNS; Factory Reset (Name wlan ≠ Arduino WiFi.h)
-    ├── web/                        # HTTP-Admin-GUI (ESPAsyncWebServer)
-    │   ├── admin.cpp / admin.h     # Routen, webAdminLoop
-    │   ├── auth.cpp / auth.h       # Sessions, CSRF
-    │   ├── pages.cpp / pages.h     # HTML-Streaming
-    │   ├── styles.h                # eingebettetes CSS
-    │   └── wifi_scan_js.h          # eingebettetes JS (Wi‑Fi-Scan)
-    ├── ota.cpp / ota.h             # Firmware-Update / GitHub-Check
-    ├── display.cpp / display.h
-    ├── mqtt.cpp / mqtt.h
-    ├── button.cpp / button.h
-    └── version.h
+    ├── constants.h
+    ├── version.h
+    ├── tls_bundle.h
+    ├── hw/                           # Hardware
+    │   ├── button.cpp / button.h    # Taster + LED
+    │   ├── display.cpp / display.h  # E-Paper (GxEPD2)
+    │   └── pins.h                   # GPIO-Zuordnung (namespace pins)
+    ├── net/                         # WLAN, MQTT, OTA (Name wlan ≠ Arduino WiFi.h)
+    │   ├── wlan.cpp / wlan.h
+    │   ├── wifi_test.cpp / wifi_test.h
+    │   ├── mqtt.cpp / mqtt.h
+    │   ├── mqtt_config.cpp / mqtt_config.h
+    │   └── ota.cpp / ota.h          # Firmware-Update / GitHub-Check
+    ├── config/
+    │   ├── app_config.cpp / app_config.h
+    │   └── nvs_utils.h
+    └── web/                         # HTTP-Admin-GUI (ESPAsyncWebServer)
+        ├── admin.cpp / admin.h      # Routen, webAdminLoop
+        ├── auth.cpp / auth.h        # Sessions, CSRF
+        ├── pages.cpp / pages.h      # HTML-Streaming
+        ├── web_utils.cpp / web_utils.h
+        └── assets/                  # eingebettetes CSS/JS (PROGMEM Header)
+            ├── styles.h
+            └── wifi_scan_js.h       # u. a.; weitere *_js.h
 ```
 
 ## Abhängigkeiten (PlatformIO)
