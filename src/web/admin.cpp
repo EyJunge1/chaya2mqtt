@@ -174,11 +174,13 @@ static void handleWifiConnectCommitPost(AsyncWebServerRequest* req) {
         req->redirect(F("/"));
         return;
     }
+    /* Capture IP before commit: wlanAbortWifiConnectionTest() disconnects STA, zeroing localIP. */
+    const String staIp = WiFi.localIP().toString();
     if (!wlanCommitWifiConnectionTestAndScheduleReboot()) {
         req->redirect(F("/wifi-testing"));
         return;
     }
-    streamWifiCommitDonePage(req);
+    streamWifiCommitDonePage(req, staIp.c_str());
 }
 
 static void handleWifiConnectAbortPost(AsyncWebServerRequest* req) {

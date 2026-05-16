@@ -4,8 +4,8 @@ class AsyncWebServerRequest;
 
 void streamAuthPage(AsyncWebServerRequest* req, bool wrongCode);
 void streamSimpleDonePage(AsyncWebServerRequest* req, const char* title, const char* message);
-/** After Wi-Fi test commit (STA connected): done page with clickable STA IP for dashboard. */
-void streamWifiCommitDonePage(AsyncWebServerRequest* req);
+/** After Wi-Fi test commit: done page with clickable STA IP (captured before disconnect). */
+void streamWifiCommitDonePage(AsyncWebServerRequest* req, const char* staIp);
 void streamDashboard(AsyncWebServerRequest* req);
 void streamWifiPage(AsyncWebServerRequest* req);
 void streamWifiTestingPage(AsyncWebServerRequest* req);
