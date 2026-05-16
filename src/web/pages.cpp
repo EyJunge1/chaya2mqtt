@@ -193,9 +193,12 @@ void streamDashboard(AsyncWebServerRequest* req) {
         resp->print(F("<a class='card' href='/wifi'>Wi-Fi</a>"
                       "<a class='card' href='/mqtt'>MQTT</a>"
                       "<a class='card' href='/settings'>Settings</a>"
-                      "<a class='card' href='/update'>OTA Update</a>"
-                      "<form method='post' action='/reboot'>"
-                      "<input type='hidden' name='csrf_token' value='"));
+                      "<a class='card' href='/update'>OTA Update</a>"));
+        if (configGetWebAuthEnabled()) {
+            resp->print(F("<a class='card danger' href='/logout'>Logout</a>"));
+        }
+        resp->print(F("<form method='post' action='/reboot'>"
+                       "<input type='hidden' name='csrf_token' value='"));
         {
             char b[24];
             snprintf(b, sizeof(b), "%lu", static_cast<unsigned long>(webAuthGetCsrfToken()));
@@ -203,9 +206,6 @@ void streamDashboard(AsyncWebServerRequest* req) {
         }
         resp->print(F("'/><button type='submit' class='card danger'>Reboot</button></form>"
                       "</div>"));
-        if (configGetWebAuthEnabled()) {
-            resp->print(F("<p class='hint'><a href='/logout'>Logout</a></p>"));
-        }
     }
     resp->print(F("</body></html>"));
     req->send(resp);

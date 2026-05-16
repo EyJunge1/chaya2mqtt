@@ -104,6 +104,7 @@ void buttonRequestAuthBlinkOffFromAsync() {
 static void consumeAuthBlinkRequestsFromWeb() {
     if (s_authBlinkWantOffFromWeb.exchange(false, std::memory_order_acq_rel)) {
         if (ledTxPhase == LedTxPhase::AuthOn || ledTxPhase == LedTxPhase::AuthOff) {
+            ledOutput(LOW); /* off before gpio_hold freezes output */
             ledTxPhase = LedTxPhase::Idle;
             ledHoldWhenIdle();
         }
@@ -130,6 +131,7 @@ void buttonSetAuthBlinkActive(bool active) {
         }
     } else {
         if (ledTxPhase == LedTxPhase::AuthOn || ledTxPhase == LedTxPhase::AuthOff) {
+            ledOutput(LOW); /* off before gpio_hold freezes output */
             ledTxPhase = LedTxPhase::Idle;
             ledHoldWhenIdle();
         }
