@@ -277,6 +277,13 @@ void webAuthHandleButtonDuringAuthBlink() {
     requestDeferredDrawAuthCode(code);
 }
 
+void webAuthResetConfirmDeadline() {
+    if (!s_awaitingButtonConfirm.load(std::memory_order_acquire)) {
+        return;
+    }
+    s_confirmExpiresMs.store(millis() + kConfirmWindowMs, std::memory_order_release);
+}
+
 void webAuthLoop() {
     const unsigned long nowMs = millis();
 

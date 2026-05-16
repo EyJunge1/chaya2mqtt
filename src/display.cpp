@@ -2,6 +2,7 @@
 
 #include "counter.h"
 #include "pins.h"
+#include "web/auth.h"
 
 #include <GxEPD2_3C.h>
 #include <Arduino.h>
@@ -68,6 +69,7 @@ void displayProcessDeferredDrawsOnMainTask() {
     }
     if (g_deferredAuthPromptPending.exchange(false, std::memory_order_acq_rel)) {
         drawAuthPrompt();
+        webAuthResetConfirmDeadline();
         return;
     }
     if (g_deferredSplashPending.exchange(false, std::memory_order_acq_rel)) {

@@ -111,7 +111,7 @@ static void consumeAuthBlinkRequestsFromWeb() {
     if (s_authBlinkWantOnFromWeb.exchange(false, std::memory_order_acq_rel)) {
         if (ledTxPhase == LedTxPhase::Idle) {
             ledTxPhase = LedTxPhase::AuthOn;
-            ledOutput(LOW);
+            ledOutput(HIGH); /* Visible immediately (E-Ink draw blocks LED advance otherwise). */
             armLedPhase(500);
         }
     }
@@ -125,7 +125,7 @@ void buttonSetAuthBlinkActive(bool active) {
     if (active) {
         if (ledTxPhase == LedTxPhase::Idle) {
             ledTxPhase = LedTxPhase::AuthOn;
-            ledOutput(LOW);
+            ledOutput(HIGH);
             armLedPhase(500);
         }
     } else {

@@ -28,6 +28,12 @@ uint32_t webAuthGetCsrfToken();
 /** Short button press while auth LED blink is active: confirm reveal or no-op during code phase. */
 void webAuthHandleButtonDuringAuthBlink();
 
+/**
+ * Extend the confirm window after deferred E-Ink draw (drawAuthPrompt blocks main loop for seconds).
+ * No-op unless still awaiting physical button confirmation.
+ */
+void webAuthResetConfirmDeadline();
+
 /** Clear session cookie state (factory reset). */
 void webAuthInvalidateSession();
 

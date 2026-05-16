@@ -129,7 +129,7 @@ void streamAuthPage(AsyncWebServerRequest* req, bool wrongCode, unsigned lockout
                    "<input id='code' name='code' inputmode='numeric' pattern='[0-9]{6}' "
                    "maxlength='6' required placeholder='000000'/>"
                    "<button type='submit'>Unlock</button></form>"
-                   "<a class='btn-back' href='/'>Back</a></body></html>"));
+                   "</body></html>"));
     req->send(resp);
 }
 
