@@ -112,7 +112,7 @@ static void consumeAuthBlinkRequestsFromWeb() {
     if (s_authBlinkWantOnFromWeb.exchange(false, std::memory_order_acq_rel)) {
         if (ledTxPhase == LedTxPhase::Idle) {
             ledTxPhase = LedTxPhase::AuthOn;
-            ledOutput(HIGH); /* Visible immediately (E-Ink draw blocks LED advance otherwise). */
+            ledOutput(HIGH);
             armLedPhase(500);
         }
     }

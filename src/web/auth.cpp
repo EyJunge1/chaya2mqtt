@@ -208,7 +208,7 @@ static void authChallengeExpired() {
     scheduleMainTaskScreenAfterAuthFlow();
 }
 
-/** If idle, starts 10 s window + prompt on display + LED blink. Skips restart if confirm or challenge already pending. */
+/** If idle, starts deferred prompt draw + LED blink after draw (see display). Skips restart if confirm or challenge already pending. */
 static void maybeStartAwaitingButtonConfirm(bool resetFailStreakFromGet) {
     if (s_awaitingButtonConfirm.load(std::memory_order_acquire)
         || s_challengePending.load(std::memory_order_acquire)) {
@@ -223,7 +223,7 @@ static void maybeStartAwaitingButtonConfirm(bool resetFailStreakFromGet) {
         s_authFailStreak.store(0, std::memory_order_relaxed);
     }
     requestDeferredDrawAuthPrompt();
-    buttonRequestAuthBlinkOnFromAsync();
+    /* Auth LED blink is started after drawAuthPrompt() completes — see display.cpp */
 }
 
 void webAuthInit() {

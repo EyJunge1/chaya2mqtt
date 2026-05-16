@@ -111,7 +111,7 @@ Wichtige Funktionen: `loadHeartCounter`, `saveHeartCounter`, `maybeSaveHeartCoun
 
 ## `src/web/auth.h` / `auth.cpp`
 
-**Zweck:** Zugriffsschutz für die Admin-UI: Session (`chaya_sid`), CSRF, `/auth` GET/POST, `/logout`; Redirects für unauthentifizierte Requests; `webAuthLoop()` (Ablauf 10 s „Warten auf Tastendruck“ nach sichtbarem Hinweis-Display — `webAuthResetConfirmDeadline()` startet dieses Fenster erst nach Ende des E‑Ink-`drawAuthPrompt()` — und 5 min Code-Challenge). Mehrfachfehlversuche → Sperre (siehe Konstanten in `auth.cpp`).
+**Zweck:** Zugriffsschutz für die Admin-UI: Session (`chaya_sid`), CSRF, `/auth` GET/POST, `/logout`; Redirects für unauthentifizierte Requests; `webAuthLoop()` (Ablauf 10 s „Warten auf Tastendruck“ nach sichtbarem Hinweis-Display — `webAuthResetConfirmDeadline()` startet dieses Fenster erst nach Ende des E‑Ink-`drawAuthPrompt()`, und dort ruft die Display-Pipeline ebenfalls `buttonSetAuthBlinkActive(true)` auf, damit der Auth‑LED‑Blink erst danach läuft; bis dahin bleibt die LED aus — und 5 min Code-Challenge). Mehrfachfehlversuche → Sperre (siehe Konstanten in `auth.cpp`).
 
 ---
 

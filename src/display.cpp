@@ -1,5 +1,6 @@
 #include "display.h"
 
+#include "button.h"
 #include "counter.h"
 #include "pins.h"
 #include "web/auth.h"
@@ -70,6 +71,7 @@ void displayProcessDeferredDrawsOnMainTask() {
     if (g_deferredAuthPromptPending.exchange(false, std::memory_order_acq_rel)) {
         drawAuthPrompt();
         webAuthResetConfirmDeadline();
+        buttonSetAuthBlinkActive(true);
         return;
     }
     if (g_deferredSplashPending.exchange(false, std::memory_order_acq_rel)) {
