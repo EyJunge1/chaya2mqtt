@@ -66,6 +66,7 @@ void requestDeferredDrawHeartScreen() {
 void displayProcessDeferredDrawsOnMainTask() {
     if (g_deferredAuthCodePending.exchange(false, std::memory_order_acq_rel)) {
         drawAuthCode(g_deferredAuthCodeValue.load(std::memory_order_relaxed));
+        buttonSetAuthBlinkActive(true); /* Blink again: code is visible, enter in web UI. */
         return;
     }
     if (g_deferredAuthPromptPending.exchange(false, std::memory_order_acq_rel)) {

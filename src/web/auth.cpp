@@ -275,6 +275,7 @@ void webAuthHandleButtonDuringAuthBlink() {
     const unsigned long expiresMs = millis() + kChallengeTtlMs;
     challengeBeginAtomic(code, expiresMs);
     requestDeferredDrawAuthCode(code);
+    buttonSetAuthBlinkActive(false); /* Immediate feedback: drawing code (E-Ink blocks loop). */
 }
 
 void webAuthResetConfirmDeadline() {
@@ -287,7 +288,8 @@ void webAuthResetConfirmDeadline() {
 void webAuthLoop() {
     const unsigned long nowMs = millis();
 
-    if (s_awaitingButtonConfirm.load(std::memory_order_acquire)) {
+    if (s_awaitingButtonConfirm.load(std::memory_order_acquire)
+        && buttonIsAuthBlinkActive()) {
         if (nowMs >= s_confirmExpiresMs.load(std::memory_order_acquire)) {
             authConfirmWindowExpired();
             return;
