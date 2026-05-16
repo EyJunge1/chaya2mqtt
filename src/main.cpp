@@ -63,7 +63,8 @@ void setup() {
 
     if (mqttCfg.server[0] != '\0') {
         drawHeartWithNumber();
-    } else {
+    } else if (configIsApMode()) {
+        /* STA without MQTT after WiFi setup: E-Ink still shows splash from AP boot — avoid redraw */
         drawSplashScreen();
     }
 
