@@ -4,7 +4,6 @@
 #include "constants.h"
 #include "heart/counter.h"
 
-#include <GxEPD2_3C.h>
 #include <Arduino.h>
 #include <algorithm>
 #include <cstdint>

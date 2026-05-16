@@ -5,15 +5,13 @@
 #include "hw/pins.h"
 #include "web/auth.h"
 
-#include <GxEPD2_3C.h>
 #include <Arduino.h>
 #include <SPI.h>
 #include <atomic>
 #include <driver/gpio.h>
 
-static ChayaEpdPanel display(GxEPD2_154_Z90c(/*CS=*/ pins::kSpiCs, /*DC=*/ pins::kDisplayDc,
-                                              /*RST=*/ pins::kDisplayRst,
-                                              /*BUSY=*/ pins::kDisplayBusy));
+static ChayaEpdPanel display(/*CS=*/ pins::kSpiCs, /*DC=*/ pins::kDisplayDc,
+                             /*RST=*/ pins::kDisplayRst, /*BUSY=*/ pins::kDisplayBusy);
 
 static std::atomic<bool> g_heartRedrawPending{false};
 static std::atomic<bool>     g_deferredAuthCodePending{false};
@@ -100,6 +98,6 @@ void displayInit() {
      * Do not register loopTask with esp_task_wdt: full-window 3C e-paper refresh can block >5s inside
      * nextPage(), which would trigger a task WDT abort. Long draws are expected on this device.
      */
-    /* Baud 0: avoid GxEPD2 UART spam ("Update_Full") on Serial; use ESP_LOG only in debug builds. */
+    /* Baud 0: no UART diag from display init; use ESP_LOG only in debug builds. */
     display.init(0, true, 2, false);
 }
