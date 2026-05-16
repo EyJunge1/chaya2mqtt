@@ -88,7 +88,7 @@ static void wifiConnectionTestAdvanceFromLoop() {
             s_wifiConnTestState = WlanWifiConnectionTestState::Fail;
             return;
         }
-        webAdminScheduleWifiConfiguredReboot();
+        /* Reboot from POST /wifi-connect-commit so the browser can poll state ok before restart. */
         return;
     }
     /* Treat definitive failure statuses without waiting full timeout */

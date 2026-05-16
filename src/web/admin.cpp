@@ -178,10 +178,7 @@ static void handleWifiConnectCommitPost(AsyncWebServerRequest* req) {
         req->redirect(F("/wifi-testing"));
         return;
     }
-    streamSimpleDonePage(req, "Wi-Fi",
-        "Wi-Fi gespeichert. Ger&auml;t startet neu.<br>"
-        "MQTT und weitere Einstellungen unter "
-        "<strong>http://chaya2mqtt.local</strong> konfigurieren (gleiches WLAN).");
+    streamWifiCommitDonePage(req);
 }
 
 static void handleWifiConnectAbortPost(AsyncWebServerRequest* req) {

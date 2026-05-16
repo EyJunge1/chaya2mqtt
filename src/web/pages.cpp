@@ -134,6 +134,28 @@ void streamSimpleDonePage(AsyncWebServerRequest* req, const char* title, const c
     req->send(resp);
 }
 
+void streamWifiCommitDonePage(AsyncWebServerRequest* req) {
+    AsyncResponseStream* resp = beginResponseStreamOr500(req, "text/html");
+    if (resp == nullptr) {
+        return;
+    }
+    streamPageHeader(*resp, "Wi-Fi");
+    const String ip = WiFi.localIP().toString();
+    resp->print(F("<h1>Wi-Fi</h1>"
+                  "<p class='ok'>Wi-Fi gespeichert. Ger&auml;t startet neu.</p>"
+                  "<p class='hint'>Danach Setup hier fortsetzen:</p>"
+                  "<p><a href='http://"));
+    resp->print(ip);
+    resp->print(F("/'><strong>http://"));
+    resp->print(ip);
+    resp->print(F("</strong></a></p>"
+                  "<p class='hint'>Alternativ (ein Ger&auml;t im Netz): "
+                  "<a href='http://chaya2mqtt.local/'><strong>http://chaya2mqtt.local</strong></a></p>"
+                  "<p class='hint'>MQTT und weitere Einstellungen nach dem Neustart im gleichen WLAN.</p>"
+                  "</body></html>"));
+    req->send(resp);
+}
+
 void streamDashboard(AsyncWebServerRequest* req) {
     AsyncResponseStream* resp = beginResponseStreamOr500(req, "text/html");
     if (resp == nullptr) {
