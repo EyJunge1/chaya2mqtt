@@ -10,6 +10,10 @@
 
 #pragma GCC diagnostic ignored "-Wunused-parameter"
 
+#if defined(ESP32)
+#include <esp_log.h>
+#endif
+
 EpdDriver154Z90c::EpdDriver154Z90c(int16_t cs, int16_t dc, int16_t rst, int16_t busy)
     : Adafruit_GFX(static_cast<int16_t>(kWidth), static_cast<int16_t>(kHeight)), _cs(cs), _dc(dc),
       _rst(rst), _busy(busy) {
@@ -418,7 +422,11 @@ void EpdDriver154Z90c::_waitWhileBusy(const char* comment, uint16_t busy_time) {
                 break;
             }
             if (micros() - start > _busy_timeout) {
+#if defined(ESP32)
+                ESP_LOGW("EPD", "Busy Timeout!");
+#else
                 Serial.println(F("Busy Timeout!"));
+#endif
                 break;
             }
 #if defined(ESP8266) || defined(ESP32)

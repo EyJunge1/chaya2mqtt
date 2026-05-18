@@ -147,21 +147,37 @@ static bool isSafeNextPath(const char* next) {
     return true;
 }
 
-static String urlEncodePathQuery(const String& s) {
-    String out;
-    out.reserve(s.length() * 3);
-    for (size_t i = 0; i < s.length(); ++i) {
-        const char ch = s[i];
-        if ((ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z') || (ch >= '0' && ch <= '9')
-            || ch == '-' || ch == '_' || ch == '.' || ch == '/' || ch == '?' || ch == '=' || ch == '&') {
-            out += ch;
-        } else {
-            char buf[4];
-            snprintf(buf, sizeof(buf), "%%%02X", static_cast<unsigned char>(ch));
-            out.concat(buf);
-        }
+/** Percent-encode path+query into out (ASCII). Returns false if outLen is insufficient. */
+static bool urlEncodePathQueryCStr(const char* s, char* out, size_t outLen) {
+    if (s == nullptr || out == nullptr || outLen == 0U) {
+        return false;
     }
-    return out;
+    size_t pos = 0;
+    for (; *s != '\0'; ++s) {
+        const unsigned char uch = static_cast<unsigned char>(*s);
+        char        chunk[5];
+        const char* piece;
+        size_t      pieceLen;
+        if ((uch >= 'a' && uch <= 'z') || (uch >= 'A' && uch <= 'Z') || (uch >= '0' && uch <= '9')
+            || uch == '-' || uch == '_' || uch == '.' || uch == '/' || uch == '?'
+            || uch == '=' || uch == '&') {
+            chunk[0] = static_cast<char>(uch);
+            chunk[1] = '\0';
+            piece    = chunk;
+            pieceLen = 1;
+        } else {
+            snprintf(chunk, sizeof(chunk), "%%%02X", uch);
+            pieceLen = strlen(chunk);
+            piece    = chunk;
+        }
+        if (pos + pieceLen + 1U > outLen) {
+            return false;
+        }
+        memcpy(out + pos, piece, pieceLen);
+        pos += pieceLen;
+    }
+    out[pos] = '\0';
+    return true;
 }
 
 static void scheduleMainTaskScreenAfterAuthFlow() {
@@ -252,7 +268,7 @@ bool webAuthValidateCsrfPost(AsyncWebServerRequest* req) {
     const uint32_t tok = webAuthGetCsrfToken();
     char           tmp[24];
     snprintf(tmp, sizeof(tmp), "%lu", static_cast<unsigned long>(tok));
-    return p->value() == tmp;
+    return strcmp(p->value().c_str(), tmp) == 0;
 }
 
 void webAuthHandleButtonDuringAuthBlink() {
@@ -313,8 +329,20 @@ bool webAuthRedirectIfUnauthenticated(AsyncWebServerRequest* req) {
     if (webAuthIsAuthenticated(req)) {
         return false;
     }
-    const String nextEnc = urlEncodePathQuery(uri);
-    req->redirect(String("/auth?next=") + nextEnc);
+    char nextEnc[256];
+    char loc[320];
+    if (!urlEncodePathQueryCStr(uri.c_str(), nextEnc, sizeof(nextEnc))) {
+        req->redirect(F("/auth"));
+        return true;
+    }
+    const int n = snprintf(loc, sizeof(loc), "/auth?next=%s", nextEnc);
+    if (n < 0 || static_cast<size_t>(n) >= sizeof(loc)) {
+        req->redirect(F("/auth"));
+        return true;
+    }
+    AsyncWebServerResponse* resp = req->beginResponse(302);
+    resp->addHeader(F("Location"), loc);
+    req->send(resp);
     return true;
 }
 

@@ -16,7 +16,7 @@ SemaphoreHandle_t  g_wifiApiMutex    = nullptr;
 
 void asyncInfraInit() {
     // Queues + mutexes shared across tasks; abort if allocation fails.
-    g_netCmdQueue     = xQueueCreate(8, sizeof(NetCmd));
+    g_netCmdQueue     = xQueueCreate(16, sizeof(NetCmd));
     g_displayCmdQueue = xQueueCreate(16, sizeof(DisplayMsg));
     g_mqttClientMutex   = xSemaphoreCreateMutex();
     g_chayaPublishMutex   = xSemaphoreCreateMutex();

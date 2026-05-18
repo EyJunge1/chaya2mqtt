@@ -13,8 +13,9 @@ struct MqttConfig {
     char     topicSub[128] = "chaya/to_a";
 };
 
-extern MqttConfig mqttCfg;
-
+/** Active broker config lives in mqtt/config.cpp — use mqttCfgSnapshot / mqttCfgStorePending /
+ *  mqttCfgApplyPendingToActive / mqttCfgTopicPubLockedCopy only (FreeRTOS mutex, not ISR-safe).
+ */
 void loadMQTTConfig();
 bool saveMQTTConfig();
 

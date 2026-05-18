@@ -81,18 +81,17 @@ ArMiddlewareCallback mwWifiConnectPostGuard() {
             next();
             return;
         }
-        // STA: hidden CSRF only when web auth is enabled.
-        if (!configGetWebAuthEnabled()) {
-            next();
-            return;
-        }
-        if (!webAuthIsAuthenticated(req)) {
-            req->redirect(F("/auth"));
-            return;
-        }
+        // STA: always require CSRF (hidden field from /wifi) so LAN attackers cannot forge POST without
+        // reading a page first. Session is still optional when Web-Auth is disabled.
         if (!webAuthValidateCsrfPost(req)) {
             req->redirect(F("/wifi"));
             return;
+        }
+        if (configGetWebAuthEnabled()) {
+            if (!webAuthIsAuthenticated(req)) {
+                req->redirect(F("/auth"));
+                return;
+            }
         }
         next();
     };

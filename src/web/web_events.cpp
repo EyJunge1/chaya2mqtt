@@ -21,26 +21,26 @@
 
 namespace {
 
-AsyncEventSource g_events("/events");
+AsyncEventSource s_events("/events");
 
-std::atomic<bool> g_forceBroadcast{false};
+std::atomic<bool> s_forceBroadcast{false};
 
-bool     g_haveLastChaya      = false;
-int      g_lastRx             = 0;
-int      g_lastTx             = 0;
-bool     g_lastMqttConn       = false;
-bool     g_haveLastWifi       = false;
-bool     g_lastWifiConnected  = false;
-char     g_lastWifiSsid[kWifiSsidMaxLen]{};
-char     g_lastWifiIp[16]{};
-int      g_lastWifiRssi       = 0;
-bool     g_haveLastMqttStatus = false;
-bool     g_lastMqttPageConn   = false;
+bool     s_haveLastChaya      = false;
+int      s_lastRx             = 0;
+int      s_lastTx             = 0;
+bool     s_lastMqttConn       = false;
+bool     s_haveLastWifi       = false;
+bool     s_lastWifiConnected  = false;
+char     s_lastWifiSsid[kWifiSsidMaxLen]{};
+char     s_lastWifiIp[16]{};
+int      s_lastWifiRssi       = 0;
+bool     s_haveLastMqttStatus = false;
+bool     s_lastMqttPageConn   = false;
 
-portMUX_TYPE g_esCacheMux = portMUX_INITIALIZER_UNLOCKED;
+portMUX_TYPE s_esCacheMux = portMUX_INITIALIZER_UNLOCKED;
 
 static void onEsConnect(AsyncEventSourceClient*) {
-    g_forceBroadcast.store(true, std::memory_order_release);
+    s_forceBroadcast.store(true, std::memory_order_release);
 }
 
 static size_t buildChayaPayload(int rx, int tx, bool connected, char* buf, size_t bufLen) {
@@ -81,7 +81,7 @@ static size_t buildMqttStatusPayload(bool connected, char* buf, size_t bufLen) {
 } // namespace
 
 void webEventsRegister(AsyncWebServer& ws) {
-    g_events.authorizeConnect([](AsyncWebServerRequest* req) {
+    s_events.authorizeConnect([](AsyncWebServerRequest* req) {
         if (configIsApMode()) {
             return true;
         }
@@ -90,12 +90,12 @@ void webEventsRegister(AsyncWebServer& ws) {
         }
         return webAuthIsAuthenticated(req);
     });
-    g_events.onConnect(onEsConnect);
-    ws.addHandler(&g_events);
+    s_events.onConnect(onEsConnect);
+    ws.addHandler(&s_events);
 }
 
 void webEventsTick() {
-    if (g_events.count() == 0) {
+    if (s_events.count() == 0) {
         return;
     }
 
@@ -110,13 +110,13 @@ void webEventsTick() {
     const bool mqttLineOk = mqttIsConnected();
     const bool mqttPageRelevant = mqttCfgIsBrokerConfigured();
 
-    const bool force = g_forceBroadcast.load(std::memory_order_acquire);
+    const bool force = s_forceBroadcast.load(std::memory_order_acquire);
     if (force) {
         s_wifiRfSkip = 99U;
     }
 
     bool chayaDirty =
-        force || !g_haveLastChaya || g_lastRx != rx || g_lastTx != tx || g_lastMqttConn != mqttLineOk;
+        force || !s_haveLastChaya || s_lastRx != rx || s_lastTx != tx || s_lastMqttConn != mqttLineOk;
 
     bool     wifiConn = false;
     char     curSsid[kWifiSsidMaxLen]{};
@@ -139,29 +139,29 @@ void webEventsTick() {
 
     bool wifiDirty = false;
     {
-        portENTER_CRITICAL(&g_esCacheMux);
+        portENTER_CRITICAL(&s_esCacheMux);
         wifiDirty =
-            force || !g_haveLastWifi || g_lastWifiConnected != wifiConn || g_lastWifiRssi != rssi
-            || strcmp(g_lastWifiSsid, curSsid) != 0 || strcmp(g_lastWifiIp, curIp) != 0;
+            force || !s_haveLastWifi || s_lastWifiConnected != wifiConn || s_lastWifiRssi != rssi
+            || strcmp(s_lastWifiSsid, curSsid) != 0 || strcmp(s_lastWifiIp, curIp) != 0;
         if (wifiDirty) {
-            g_haveLastWifi      = true;
-            g_lastWifiConnected = wifiConn;
-            strlcpy(g_lastWifiSsid, curSsid, sizeof(g_lastWifiSsid));
-            strlcpy(g_lastWifiIp, curIp, sizeof(g_lastWifiIp));
-            g_lastWifiRssi = rssi;
+            s_haveLastWifi      = true;
+            s_lastWifiConnected = wifiConn;
+            strlcpy(s_lastWifiSsid, curSsid, sizeof(s_lastWifiSsid));
+            strlcpy(s_lastWifiIp, curIp, sizeof(s_lastWifiIp));
+            s_lastWifiRssi = rssi;
         }
-        portEXIT_CRITICAL(&g_esCacheMux);
+        portEXIT_CRITICAL(&s_esCacheMux);
     }
 
     bool mqttStatusDirty = force;
     bool mqttConnNow     = false;
     if (mqttPageRelevant) {
         mqttConnNow = mqttIsConnected();
-        if (!g_haveLastMqttStatus || g_lastMqttPageConn != mqttConnNow) {
+        if (!s_haveLastMqttStatus || s_lastMqttPageConn != mqttConnNow) {
             mqttStatusDirty = true;
         }
     } else {
-        g_haveLastMqttStatus = false;
+        s_haveLastMqttStatus = false;
     }
 
     char buf[320];
@@ -169,12 +169,12 @@ void webEventsTick() {
     if (chayaDirty) {
         const size_t n = buildChayaPayload(rx, tx, mqttLineOk, buf, sizeof(buf));
         if (n > 0U && n < sizeof(buf)) {
-            g_events.send(buf, "chaya");
+            s_events.send(buf, "chaya");
         }
-        g_haveLastChaya = true;
-        g_lastRx        = rx;
-        g_lastTx        = tx;
-        g_lastMqttConn  = mqttLineOk;
+        s_haveLastChaya = true;
+        s_lastRx        = rx;
+        s_lastTx        = tx;
+        s_lastMqttConn  = mqttLineOk;
     }
 
     if (wifiDirty) {
@@ -185,18 +185,18 @@ void webEventsTick() {
             plen = buildWifiStatusPayload(false, nullptr, nullptr, 0, buf, sizeof(buf));
         }
         if (plen > 0U && plen < sizeof(buf)) {
-            g_events.send(buf, "wifi");
+            s_events.send(buf, "wifi");
         }
     }
 
     if (mqttStatusDirty && mqttPageRelevant) {
         const size_t plen = buildMqttStatusPayload(mqttConnNow, buf, sizeof(buf));
         if (plen > 0U && plen < sizeof(buf)) {
-            g_events.send(buf, "mqtt");
+            s_events.send(buf, "mqtt");
         }
-        g_haveLastMqttStatus = true;
-        g_lastMqttPageConn   = mqttConnNow;
+        s_haveLastMqttStatus = true;
+        s_lastMqttPageConn   = mqttConnNow;
     }
 
-    g_forceBroadcast.store(false, std::memory_order_release);
+    s_forceBroadcast.store(false, std::memory_order_release);
 }

@@ -5,6 +5,7 @@
 #include "async/task_handles.h"
 #include "hw/button.h"
 #include "hw/pins.h"
+// Nach Auth-UI: Session-Fenster + LED koordinieren (siehe web/auth.cpp — bewusste Kopplung).
 #include "web/auth.h"
 
 #include "diag/stack_monitor.h"
@@ -112,10 +113,15 @@ void displayInit() {
     SPI.begin(/*SCK=*/ pins::kSpiSck, /*MISO=*/ pins::kSpiMiso, /*MOSI=*/ pins::kSpiMosi,
               /*SS=*/ pins::kSpiCs);
     /*
+     * GxEPD2-style: serial_diag_bitrate, initial_full_refresh, reset_duration_ms, pulldown_rst_mode.
      * Do not register loopTask with esp_task_wdt: full-window 3C e-paper refresh can block >5s inside
      * nextPage(), which would trigger a task WDT abort. Long draws are expected on this device.
      */
-    display.init(0, true, 2, false);
+    static constexpr uint32_t  kEpdSerialDiagOff    = 0;
+    static constexpr bool      kEpdInitialFull      = true;
+    static constexpr uint16_t  kEpdResetDurationMs = 2;
+    static constexpr bool      kEpdPulldownRst       = false;
+    display.init(kEpdSerialDiagOff, kEpdInitialFull, kEpdResetDurationMs, kEpdPulldownRst);
 }
 
 void displayStartTask() {

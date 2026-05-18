@@ -18,6 +18,7 @@
 #include <Arduino.h>
 #include <esp_log.h>
 
+#include "diag/task_watchdog.h"
 #include "log_tag.h"
 
 DEFINE_LOG_TAG("OTA");
@@ -148,6 +149,7 @@ GithubCheckResult otaGithubEvaluateLatestRelease(char* firmwareUrlBuf,
     const unsigned long streamStartMs   = millis();
 
     while (https.connected() && len + 1 < kGithubJsonBuf && (millis() - streamStartMs) < 45000UL) {
+        chayaTaskWatchdogReset();
         if (stream.available() <= 0) {
             if (!https.connected()) {
                 break;

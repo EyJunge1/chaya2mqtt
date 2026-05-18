@@ -1,70 +1,28 @@
 # Code-Referenz (Module)
 
-Uebersicht aller Quelldateien unter `src/` (hardware in `hw/`, netzwerk/MQTT/OTA in `net/`, NVS-/App-Konfig in `config/`, Web unter `web/` samt eingebetteter Assets unter `web/assets/`): oeffentliche API, globale Symbole und relevante Implementierungsdetails.
+Uebersicht der Quellen unter `src/` (u.a. `hw/`, `wifi/`, `mqtt/`, `network/`, `async/`, `display/`, `heart/`, `ota/`, `web/` samt `web/assets/`).
 
 ---
 
 ## `main.cpp`
 
-**Zweck:** Einstiegspunkt, Initialisierungsreihenfolge, Hauptschleife, adaptiver Light-Sleep.
+**Zweck:** Bootstrap, Task-Start; kein klassischer Arduino-**`loop()`**-Stil (siehe auch `network_task`, `app_task`).
 
-### Ablauf `setup()`
+**Setup (gekuerzt):** `asyncInfraInit`, 240 MHz, BT aus, DFS; Display-Init + Task; `buttonInit`; NVS MQTT/Heart/CFG; `setupWiFi`; `mqttSetup`; **`buttonStartupBlink` vor `buttonStartTask`**; `networkTaskStart`, `otaTaskStart`, `appTaskStart`; deferred Draw-Requests.
 
-1. CPU **80 MHz** (`setCpuFrequencyMhz` / `board_build.f_cpu` in `platformio.ini`)
-2. Bluetooth aus: `btStop()`, `esp_bt_controller_mem_release(ESP_BT_MODE_BTDM)`
-3. `Serial.begin(115200)` nur wenn `CORE_DEBUG_LEVEL > 0`
-4. `displayInit()` -- SPI + E-Paper
-5. `buttonInit()`
-6. `loadMQTTConfig()` (**mqtt_config**)
-7. `loadHeartCounter()` (**counter**)
-8. `configLoadResetPeriodFromNvs()` (**counter**, cached reset period)
-9. `setupWiFi()` (**wlan**: registriert Routen, startet `AsyncWebServer`)
-10. `mqttSetup()`
-11. `armLightSleepStaticWakeups()` (GPIO Taster, WiFi-Wakeup); Timer-Wakeup in `loop()`
-12. Erste Zeichnung: `drawHeartWithNumber()` oder `drawSplashScreen()`
-13. `buttonStartupBlink()`, `buttonEnableLedGpioHoldForLightSleep()`
-
-### Hilfsfunktionen in `main.cpp` (file-static)
-
-| Funktion | Beschreibung |
-|----------|--------------|
-| `computeLightSleepTimerUs()` | **10 ms** bei aktivem Setup-Portal, aktiver LED-Senden-Sequenz oder wenn MQTT-Backoff laeuft ( Alignment auf Restzeit bis Connect-Versuch ); sonst **2 s** Idle |
-| `armLightSleepStaticWakeups()` | Einmalig: GPIO-Wakeup Taster, `esp_sleep_enable_gpio_wakeup`, `esp_sleep_enable_wifi_wakeup` |
-| `armLightSleepTimerWakeup(timerUs)` | `esp_sleep_enable_timer_wakeup` bei Timerwechsel |
-
-### Ablauf `loop()`
-
-| Aufruf | Bedeutung |
-|--------|-----------|
-| `buttonLoop()`, `buttonAdvanceLedSequence()` | Taster / LED-State-Machine |
-| `wlanLoop()` | (**wlan**) Captive DNS, mDNS nach GOT_IP |
-| `webAdminLoop()` | MQTT-Apply, Reboot/OTA queue, `otaLoop()` |
-| `maybePeriodicallyResetCounters()` | (**counter**) nur wenn nicht AP |
-| `maybeResetDisplayBaselinesWhenCapped()` | (**counter**) nur wenn nicht AP: wenn Anzeige-Delta einer Seite >= 999, Baseline auf aktuellen MQTT-Zähler |
-| `mqttLoop()` | MQTT + Backoff |
-| `maybeSaveHeartCounter()`, `maybeSaveHeartSentCounter()` | NVS throttled (~30 s) |
-| `consumeHeartRedraw()` / `drawHeartWithNumber()` | Display-Update bei MQTT |
-| `buttonDebugStatus()` | nur Debug-Build, alle 5 s |
-| `esp_light_sleep_start()` | kein Light-Sleep bei TLS verbunden, unkonfiguriertem MQTT-Server oder aktivem AP |
+**Laufzeit:** Schleifen verteilt auf **network** (WLAN/MQTT), **app** (`webAdminLoop`, SSE, Heartkeeping), **OTA**, **display**, **button**. `loop()` ruft `vTaskDelete`.
 
 ---
 
-## `src/net/mqtt_config.h` / `src/net/mqtt_config.cpp`
+## `src/mqtt/config.h` / `src/mqtt/config.cpp`
 
-**Zweck:** Nur **MQTT-Broker-Konfiguration** im NVS-Namespace `mqtt` (Defaults und Port-Normalisierung in `constants.h`).
+**Zweck:** MQTT-Broker-Konfiguration (NVS `mqtt`). Aktive **`MqttConfig`** ist in `config.cpp` statisch; Zugriff nur ueber **`mqttCfgSnapshot`**, **`mqttCfgStorePending`**, **`mqttCfgApplyPendingToActive`**, **`mqttCfgTopicPubLockedCopy`** usw.
 
-### Globale Variablen
-
-| Symbol | Typ | Beschreibung |
-|--------|-----|--------------|
-| `mqttCfg` | `MqttConfig` | `server`, `port`, `username`, `password`, `topicPub`, `topicSub` |
-
-### Funktionen
+### Funktionen (Auszug)
 
 | Funktion | Beschreibung |
 |----------|--------------|
-| `loadMQTTConfig()` | Lesen aus `mqtt`; Defaults fuer Topics wenn nicht gesetzt |
-| `saveMQTTConfig()` | Schreiben nach `mqtt` |
+| `loadMQTTConfig()` / `saveMQTTConfig()` | NVS Lesen/Schreiben |
 
 ---
 
@@ -187,7 +145,7 @@ Der MQTT-Client-Handle und Event-Handler liegen nur in `mqtt.cpp`; `mqtt.h` expo
 ### Empfang (`MQTT_EVENT_DATA`)
 
 - Payload als Dezimalstring (max. 10 Zeichen, `strtol`, `errno == ERANGE`); Ungueltiges wird ignoriert.
-- Vergleich des Ziel-Topics per Laenge und `memcmp` gegen `mqttCfg.topicSub`.
+- Vergleich des Ziel-Topics per Laenge und `memcmp` gegen das bei CONNECT zwischengespeicherte Subscribe-Topic (aus aktueller Config / Cache in `mqtt.cpp`).
 - `heartCounter` wird **gesetzt** (kein `++`); `requestHeartRedraw()` nur bei geaenderter Zahl.
 
 ### Implementierungsdetails
@@ -234,9 +192,9 @@ Der MQTT-Client-Handle und Event-Handler liegen nur in `mqtt.cpp`; `mqtt.h` expo
 
 ### Abhaengigkeiten
 
-- `#include "mqtt_config.h"` fuer `mqttCfg`
-- `#include "wlan.h"` fuer `resetAllSettings`, `configIsApMode`
-- `#include "counter.h"` fuer `heartSentCounter`, Speichern nach Publish
+- `#include "mqtt/config.h"` fuer `mqttCfgSnapshot` u.a.
+- `#include "wifi/wlan.h"` fuer `resetAllSettings`, `configIsApMode`
+- `#include "heart/counter.h"` fuer `heartSentCounter`, Speichern nach Publish
 
 ---
 

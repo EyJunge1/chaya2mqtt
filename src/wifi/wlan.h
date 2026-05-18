@@ -23,6 +23,9 @@ struct WlanScanRow {
     bool open;
 };
 
+/** Max rows returned by wlanWifiScanCopySnapshot (UI + driver work buffers sized to this). */
+constexpr size_t kWlanWifiScanCacheMaxRows = 40;
+
 bool wlanStaConnectedOk();
 
 /** STA up long enough after GOT_IP (MQTT/TLS guard). */
@@ -51,5 +54,3 @@ bool wlanReadStaLocalIpForCommit(char* outIp, size_t ipLen);
 
 /** Queued from WiFi event; run reconnect/backoff under network task. */
 void wlanHandleStaReconnectNetCmd();
-
-#include "test.h"

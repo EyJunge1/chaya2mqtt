@@ -12,6 +12,7 @@
 #include "heart/counter.h"
 #include "version.h"
 #include "wifi/wlan.h"
+#include "wifi/test.h"
 #include "web_utils.h"
 #include "web/assets/styles.h"
 #include "web/assets/wifi_scan_js.h"
@@ -245,7 +246,7 @@ void handleWifiScanJson(AsyncWebServerRequest* req) {
         return;
     }
 
-    WlanScanRow rows[40];
+    WlanScanRow rows[kWlanWifiScanCacheMaxRows];
     const size_t n = wlanWifiScanCopySnapshot(rows, sizeof(rows) / sizeof(rows[0]));
 
     AsyncResponseStream* resp = beginResponseStreamOr500(req, "application/json");

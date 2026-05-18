@@ -10,19 +10,42 @@
 #include <atomic>
 #include <cstring>
 #include <esp_log.h>
-#include <freertos/portmacro.h>
+
+#include <freertos/FreeRTOS.h>
+#include <freertos/semphr.h>
 
 DEFINE_LOG_TAG("MQTTCFG");
 
 // mqttCfg + optional web pending form; s_mqttCfgDirty forces mqttLoop snapshot refresh.
 
-MqttConfig mqttCfg;
-
-static MqttConfig     s_mqttPendingCfg{};
-static portMUX_TYPE   s_mqttCfgMux      = portMUX_INITIALIZER_UNLOCKED;
+static MqttConfig          mqttCfg{};
+static MqttConfig          s_mqttPendingCfg{};
+static SemaphoreHandle_t   s_mqttCfgMutex       = nullptr;
 static std::atomic<bool> s_mqttCfgDirty{true};
 
 namespace {
+inline void mqttCfgMutexEnsureCreated() {
+    if (s_mqttCfgMutex != nullptr) {
+        return;
+    }
+    s_mqttCfgMutex = xSemaphoreCreateMutex();
+    if (s_mqttCfgMutex == nullptr) {
+        ESP_LOGE(TAG, "mqtt cfg mutex alloc failed");
+        abort();
+    }
+}
+
+inline void mqttCfgLock() {
+    mqttCfgMutexEnsureCreated();
+    static_cast<void>(xSemaphoreTake(s_mqttCfgMutex, portMAX_DELAY));
+}
+
+inline void mqttCfgUnlock() {
+    if (s_mqttCfgMutex != nullptr) {
+        xSemaphoreGive(s_mqttCfgMutex);
+    }
+}
+
 constexpr const char kNvMqtt[] = "mqtt";
 
 void mqttCfgSanitizeAfterNvsLoad(MqttConfig& cfg) {
@@ -59,15 +82,15 @@ void mqttCfgSnapshot(MqttConfig* out) {
     if (out == nullptr) {
         return;
     }
-    portENTER_CRITICAL(&s_mqttCfgMux);
+    mqttCfgLock();
     *out = mqttCfg;
-    portEXIT_CRITICAL(&s_mqttCfgMux);
+    mqttCfgUnlock();
 }
 
 bool mqttCfgIsBrokerConfigured() {
-    portENTER_CRITICAL(&s_mqttCfgMux);
+    mqttCfgLock();
     const bool ok = mqttCfg.server[0] != '\0';
-    portEXIT_CRITICAL(&s_mqttCfgMux);
+    mqttCfgUnlock();
     return ok;
 }
 
@@ -75,24 +98,24 @@ void mqttCfgTopicPubLockedCopy(char* out, size_t outLen) {
     if (out == nullptr || outLen == 0U) {
         return;
     }
-    portENTER_CRITICAL(&s_mqttCfgMux);
+    mqttCfgLock();
     strlcpy(out, mqttCfg.topicPub, outLen);
-    portEXIT_CRITICAL(&s_mqttCfgMux);
+    mqttCfgUnlock();
 }
 
 void mqttCfgStorePending(const MqttConfig* pending) {
     if (pending == nullptr) {
         return;
     }
-    portENTER_CRITICAL(&s_mqttCfgMux);
+    mqttCfgLock();
     s_mqttPendingCfg = *pending;
-    portEXIT_CRITICAL(&s_mqttCfgMux);
+    mqttCfgUnlock();
 }
 
 void mqttCfgApplyPendingToActive() {
-    portENTER_CRITICAL(&s_mqttCfgMux);
+    mqttCfgLock();
     mqttCfg = s_mqttPendingCfg;
-    portEXIT_CRITICAL(&s_mqttCfgMux);
+    mqttCfgUnlock();
     mqttCfgMarkDirty();
 }
 
@@ -111,9 +134,9 @@ void loadMQTTConfig() {
             loaded.password[0] = '\0';
             loaded.port        = kMqttDefaultTlsPort;
             mqttCfgSanitizeAfterNvsLoad(loaded);
-            portENTER_CRITICAL(&s_mqttCfgMux);
+            mqttCfgLock();
             mqttCfg = loaded;
-            portEXIT_CRITICAL(&s_mqttCfgMux);
+            mqttCfgUnlock();
             mqttCfgMarkDirty();
             return;
         }
@@ -124,9 +147,9 @@ void loadMQTTConfig() {
             loaded.server[0] = '\0';
             prefs.end();
             mqttCfgSanitizeAfterNvsLoad(loaded);
-            portENTER_CRITICAL(&s_mqttCfgMux);
+            mqttCfgLock();
             mqttCfg = loaded;
-            portEXIT_CRITICAL(&s_mqttCfgMux);
+            mqttCfgUnlock();
             mqttCfgMarkDirty();
             return;
         }
@@ -147,9 +170,9 @@ void loadMQTTConfig() {
     }
 
     mqttCfgSanitizeAfterNvsLoad(loaded);
-    portENTER_CRITICAL(&s_mqttCfgMux);
+    mqttCfgLock();
     mqttCfg = loaded;
-    portEXIT_CRITICAL(&s_mqttCfgMux);
+    mqttCfgUnlock();
     mqttCfgMarkDirty();
 }
 

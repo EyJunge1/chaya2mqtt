@@ -102,6 +102,9 @@ void setup() {
     mqttSetup();
 
     buttonSetAuthBlinkShortPressHandler(webAuthHandleButtonDuringAuthBlink);
+    // Run startup blink before the button task touches the LED GPIO (otherwise both race on ledOutput).
+    buttonStartupBlink();
+
     buttonStartTask();
     networkTaskStart();
     otaTaskStart();
@@ -119,7 +122,6 @@ void setup() {
         }
     }
 
-    buttonStartupBlink();
     buttonEnableLedGpioHoldForLightSleep();
 }
 

@@ -170,16 +170,24 @@ static bool persistCounterBaselineState() {
     if (!chayaNvsWritesAllowed()) {
         return false;
     }
+    int         snapCntBase      = 0;
+    int         snapSntBase      = 0;
+    uint32_t    snapRstDay       = UINT32_MAX;
+    portENTER_CRITICAL(&s_heartDisplayMux);
+    snapCntBase = counterBaseline.load(std::memory_order_relaxed);
+    snapSntBase = sentCountBaseline.load(std::memory_order_relaxed);
+    snapRstDay  = s_lastResetCalendarDayUtc.load(std::memory_order_relaxed);
+    portEXIT_CRITICAL(&s_heartDisplayMux);
+
     app_nvs::ScopedNvsLock lock;
     Preferences            prefs;
     if (!prefs.begin(kNvsNsChaya, false)) {
         ESP_LOGE(TAG, "NVS chaya: open for baseline write failed");
         return false;
     }
-    const bool okCnt = prefs.putInt("cntBase", counterBaseline.load(std::memory_order_relaxed)) > 0U;
-    const bool okSnt = prefs.putInt("sntBase", sentCountBaseline.load(std::memory_order_relaxed)) > 0U;
-    const bool okDay = prefs.putUInt("rstDay", s_lastResetCalendarDayUtc.load(std::memory_order_relaxed))
-                       > 0U;
+    const bool okCnt = prefs.putInt("cntBase", snapCntBase) > 0U;
+    const bool okSnt = prefs.putInt("sntBase", snapSntBase) > 0U;
+    const bool okDay = prefs.putUInt("rstDay", snapRstDay) > 0U;
     prefs.end();
     if (!okCnt || !okSnt || !okDay) {
         ESP_LOGE(TAG, "NVS chaya: baseline write failed");

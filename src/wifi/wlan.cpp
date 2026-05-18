@@ -1,5 +1,7 @@
 #include "wlan.h"
 
+#include "test.h"
+
 #include "async/event_types.h"
 #include "async/task_handles.h"
 #include "constants.h"
@@ -20,7 +22,6 @@
 
 #include <algorithm>
 #include <atomic>
-#include <cstdint>
 #include <cerrno>
 #include <climits>
 #include <cstdint>
@@ -71,10 +72,9 @@ static std::atomic<unsigned long> s_staLastGotIpWallMs{0};
 static constexpr unsigned long kStaStableAfterGotIpMs = 3000UL;
 
 // Scan cache for /wifi-scan (filled in wlanLoop).
-static constexpr size_t      kMaxScanCache = 40;
-static WlanScanRow           s_wifiScanCache[kMaxScanCache]{};
-static wifi_ap_record_t      s_wifiScanApWorkRecords[kMaxScanCache]{};
-static WlanScanRow           s_wifiScanRowWork[kMaxScanCache]{};
+static WlanScanRow           s_wifiScanCache[kWlanWifiScanCacheMaxRows]{};
+static wifi_ap_record_t      s_wifiScanApWorkRecords[kWlanWifiScanCacheMaxRows]{};
+static WlanScanRow           s_wifiScanRowWork[kWlanWifiScanCacheMaxRows]{};
 static size_t                s_wifiScanCacheCount = 0;
 static std::atomic<bool>     s_wifiScanKick{false};
 static std::atomic<bool>     s_wifiScanInProgress{false};
@@ -273,8 +273,8 @@ static void wifiScanServiceOnMainTask() {
         return;
     }
 
-    const size_t toStore = std::min(static_cast<size_t>(n), kMaxScanCache);
-    uint16_t apFill = static_cast<uint16_t>(kMaxScanCache);
+    const size_t toStore = std::min(static_cast<size_t>(n), kWlanWifiScanCacheMaxRows);
+    uint16_t apFill = static_cast<uint16_t>(kWlanWifiScanCacheMaxRows);
     const esp_err_t  gr     = esp_wifi_scan_get_ap_records(&apFill, s_wifiScanApWorkRecords);
     if (gr != ESP_OK) {
         ESP_LOGW(TAG, "esp_wifi_scan_get_ap_records failed: %s", esp_err_to_name(gr));
@@ -347,7 +347,7 @@ static void wifiStationEvent(arduino_event_id_t event) {
             }
             if (g_netCmdQueue != nullptr) {
                 const NetCmd cmd = NetCmd::WifiReconnect;
-                if (xQueueSend(g_netCmdQueue, &cmd, 0) != pdTRUE) {
+                if (xQueueSend(g_netCmdQueue, &cmd, pdMS_TO_TICKS(50)) != pdTRUE) {
                     ESP_LOGW(TAG, "netCmd queue full (WifiReconnect)");
                 }
             }

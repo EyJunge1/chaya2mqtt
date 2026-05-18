@@ -2,7 +2,7 @@
 
 #include <cstddef>
 
-/** Inspect GitHub `releases/latest` and semver-compare vs APP_VERSION (see ota_github.cpp). */
+/** Inspect GitHub `releases/latest` and semver-compare vs APP_VERSION (implementation: ota/github.cpp). */
 enum class GithubCheckResult {
     ApiError           = 0,
     ParsedNoUpgrade    = 1,

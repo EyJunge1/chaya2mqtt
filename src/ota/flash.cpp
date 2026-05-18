@@ -14,6 +14,8 @@
 #include <cstring>
 #include <algorithm>
 #include <esp_log.h>
+
+#include "diag/task_watchdog.h"
 #include <esp_ota_ops.h>
 #include <esp_partition.h>
 #include <mbedtls/sha256.h>
@@ -133,6 +135,7 @@ bool httpFetchSha256Hex(WiFiClientSecure& tls, const char* shaUrl, char* hexOut,
     Stream& stream = https.getStream();
     size_t  len    = 0;
     while (https.connected() && len + 1 < hexOutLen) {
+        chayaTaskWatchdogReset();
         if (stream.available() <= 0) {
             if (!https.connected()) {
                 break;
@@ -199,6 +202,7 @@ bool httpStreamFirmwareToOtaVerified(WiFiClientSecure& tls, const char* binUrl,
         if (contentLen > 0) {
             int remain = contentLen;
             while (remain > 0) {
+                chayaTaskWatchdogReset();
                 if (millis() - startMs > 300000UL) {
                     abandonOtaSilent();
                     ESP_LOGE(TAG, "Firmware download timed out");
@@ -236,6 +240,7 @@ bool httpStreamFirmwareToOtaVerified(WiFiClientSecure& tls, const char* binUrl,
             return true;
         }
         while (https.connected() || stream.available() > 0) {
+            chayaTaskWatchdogReset();
             if (millis() - startMs > 300000UL) {
                 abandonOtaSilent();
                 ESP_LOGE(TAG, "Firmware download timed out");

@@ -7,6 +7,7 @@
 #include "constants.h"
 #include "ip_format.h"
 #include "wifi/wlan.h"
+#include "wifi/test.h"
 #include "web_middleware.h"
 #include "web_utils.h"
 

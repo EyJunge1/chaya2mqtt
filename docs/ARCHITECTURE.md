@@ -2,23 +2,24 @@
 
 ## Moduluebersicht
 
-Die Firmware ist in **mehrere fokussierte Module** plus `main.cpp` aufgeteilt. Unterverzeichnisse in `src/`: **`hw/`** (Peripherie), **`net/`** (WLAN, MQTT, OTA), **`config/`** (NVS-/App-Konfig), **`web/`** (HTTP-UI plus `web/assets/` für eingebettetes CSS/JS). `platformio.ini` enthält `-I`-Pfade dafür, sodass weiterhin z. B. `#include "button.h"` gilt.
+Die Firmware ist in **mehrere fokussierte Module** plus `main.cpp` aufgeteilt. Wichtige Ordner unter `src/`: **`hw/`**, **`wifi/`** (Dateien `wlan.*`), **`mqtt/`**, **`network/`**, **`async/`**, **`display/`**, **`heart/`**, **`ota/`**, **`web/`**, **`config/`**. `platformio.ini` nutzt u.a. `-Isrc/display/epd` fuer EPD-Includes.
 
 | Modul | Dateien | Aufgabe |
 |--------|---------|---------|
-| **mqtt_config** | `src/net/mqtt_config.h`, `src/net/mqtt_config.cpp`, `constants.h` | MQTT-Brokereinstellungen (NVS Namespace `mqtt`), gemeinsame Konstanten |
-| **counter** | `counter.h`, `counter.cpp` | Herz-Zähler / Sent-Zähler, Baselines, periodischer Display-Reset (NVS `chaya`, `cfg`) |
-| **wlan** | `src/net/wlan.h`, `src/net/wlan.cpp`, `src/hw/pins.h` | STA/AP, Captive DNS, mDNS, NTP, Reconnect-Backoff; registriert `AsyncWebServer`-Routen; Factory Reset |
-| **web_admin** | `src/web/admin.h`, `src/web/admin.cpp` | HTTP-Routen und Formular-Handler (Dashboard, Wi‑Fi, MQTT, Settings); `webAdminLoop()` |
-| **ota** | `src/net/ota.h`, `src/net/ota.cpp` | GitHub-Versionscheck, täglicher Auto-Check (NVS), Firmware-Download (`HTTPUpdate`) |
-| **web_pages** | `src/web/pages.h`, `src/web/pages.cpp` | HTML-Antworten (Streaming), eingebettetes CSS über `src/web/assets/styles.h` |
-| **display** | `src/hw/display.h`, `src/hw/display.cpp` | GxEPD2-Initialisierung, Zeichnen Herz + Zähler-Deltas |
-| **mqtt** | `src/mqtt/mqtt.h`, `src/mqtt/mqtt.cpp` | **`esp_mqtt_client`** (ESP-IDF MQTT), Broker TLS, Subscribe/Publish, Events setzen `heartCounter` |
-| **button** | `src/hw/button.h`, `src/hw/button.cpp` | GPIO Taster + LED, Kurzdruck → Publish, Langdruck → Factory Reset |
+| **MQTT-Konfig** | `src/mqtt/config.h`, `src/mqtt/config.cpp`, `constants.h` | MQTT im NVS `mqtt`; aktive Konfiguration nur per API (Snapshot/Pending), kein externes `mqttCfg`-Symbol |
+| **counter** | `src/heart/counter.h`, `src/heart/counter.cpp` | Herz-/Sent-Zaehler, Baselines, NVS `chaya` / App-`cfg` |
+| **wlan** | `src/wifi/wlan.h`, `src/wifi/wlan.cpp`, `src/hw/pins.h` | STA/AP, Captive DNS, mDNS, NTP, Reconnect |
+| **web_admin** | `src/web/admin.h`, `src/web/admin.cpp` | Routen und Handler; koordiniert mit `webAdminLoop()` im App-Task |
+| **ota** | `src/ota/*` | GitHub-/Release-API, Streaming-OTA mit SHA256 |
+| **web_pages** | `src/web/pages.h`, `src/web/pages.cpp` | HTML streaming, eingebettetes CSS unter `src/web/assets/` |
+| **display** | `src/display/*` | E-Paper-Panel, eigener Drawing-Task |
+| **mqtt** | `src/mqtt/mqtt.h`, `src/mqtt/mqtt.cpp` | **`esp_mqtt_client`**, TLS-Bundle, Events setzen Zaehler |
+| **button** | `src/hw/button.h`, `src/hw/button.cpp` | Taster + LED, eigener Task |
+| **network** | `src/network/network_task.*` | konsolidiert `wlanLoop` / `mqttLoop`, `NetCmd`-Queue |
 
-`src/net/wlan.cpp` heisst **wlan** (nicht `wifi.*`), damit `#include <WiFi.h>` (Arduino) auf **case-insensitiven** Dateisystemen nicht mit einem Projekt-Header kollidiert.
+`src/wifi/wlan.*` (**wlan**) vermeidet Namenskollision mit `<WiFi.h>`.
 
-`main.cpp` **orchestriert** die Initialisierung und ruft in `loop()` die Modul-Loops auf.
+`main.cpp` initialisiert in `setup()` und startet **FreeRTOS-Tasks**; **`loop()`** beendet sich mit `vTaskDelete` — Schleifenlogik laeuft in **network/app/ota/display/button**-Tasks.
 
 ## Abhaengigkeiten zwischen Modulen
 
@@ -55,11 +56,11 @@ flowchart LR
     web --> otaMod
 ```
 
-- **mqtt** nutzt `mqttCfg` aus **mqtt_config**, `heartCounter` aus **counter**, ruft **display** auf (`requestHeartRedraw`).
-- **display** liest Zähler und Baselines aus **counter** fuer die Darstellung.
-- **button** nutzt **wlan** (`resetAllSettings`, `configIsApMode`), **counter**, **mqtt** (`mqttPublishChaya()`).
-- **wlan** registriert Routen fuer **web_admin**; **main** ruft `wlanLoop()`, `webAdminLoop()` und bei STA `maybePeriodicallyResetCounters()` sowie `maybeResetDisplayBaselinesWhenCapped()` (**counter**).
-- **web_admin** ruft **ota** (`otaLoop`) fuer Updates.
+- **mqtt** nutzt **mqtt-config-API** (`mqttCfgSnapshot` / Pending-Funktionen), `heartCounter` aus **counter**, ruft **display** auf (`requestHeartRedraw`).
+- **display** liest Snapshots aus **counter**; nach Auth-Oberflaeche Schnittstelle zu **`web/auth`** fuer Bestaetigungsfenster.
+- **button** nutzt **wlan**, **mqtt** (`mqttPublishChaya*`; Mutex-Reihenfolge in **`mqtt/mqtt.h`**).
+- **wlan** / **web** / **`network_task`** verteilen Arbeit; periodische Counter-Reset-Checks laufen ueber **`app_task`** / Aufrufe aus dem Netzwerkpfad wo vorgesehen.
+- **web_admin** koordiniert unter anderem **ota** ueber **`webAdminLoop`**.
 
 ## Kommunikation: zwei Geraete ueber MQTT
 

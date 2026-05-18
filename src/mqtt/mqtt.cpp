@@ -124,7 +124,7 @@ static void mqttQueueKillClientFromEvent() {
         return;
     }
     const NetCmd cmd = NetCmd::MqttKillClient;
-    if (xQueueSend(g_netCmdQueue, &cmd, 0) != pdTRUE) {
+    if (xQueueSend(g_netCmdQueue, &cmd, pdMS_TO_TICKS(50)) != pdTRUE) {
         ESP_LOGW(TAG, "netCmd queue full (MqttKillClient)");
     }
 }
@@ -159,6 +159,8 @@ static void handleCounterPayload(const char* payload, unsigned int length) {
 }
 
 // Reassemble fragmented counter payload (esp_mqtt may split DATA).
+// IMPORTANT: Handler runs in the MQTT client task; esp_mqtt invokes this sequentially per client, so one
+// static reassembly buffer is safe. Do not use from multiple MQTT clients concurrently without scoping state.
 static bool feedFragmentedPayload(esp_mqtt_event_handle_t ev) {
     static char     accBuf[16];
     static uint32_t expectTotal = 0;
