@@ -227,9 +227,16 @@ void streamWifiTestingPage(AsyncWebServerRequest* req) {
                   "<p class='hint' id='st'>Starting…</p>"
                   "<div id='failActions' style='display:none'>"
                   "<form method='post' action='/wifi-connect-abort'>"
+                  "<input type='hidden' name='csrf_token' value='"));
+    appendCurrentWebCsrfTokenEscaped(*resp);
+    resp->print(F("'/>"
                   "<button type='submit'>Back to Wi-Fi setup</button>"
                   "</form></div>"
-                  "<form id='commitForm' method='post' action='/wifi-connect-commit'></form>"
+                  "<form id='commitForm' method='post' action='/wifi-connect-commit'>"
+                  "<input type='hidden' name='csrf_token' value='"));
+    appendCurrentWebCsrfTokenEscaped(*resp);
+    resp->print(F("'/>"
+                  "</form>"
                   "<script>window.__CHAYA_HTTP_ORIGIN__=\""));
     appendHtmlEscaped(*resp, kDeviceHttpOrigin);
     resp->print(F("\";</script><script>"));
