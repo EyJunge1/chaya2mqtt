@@ -176,6 +176,7 @@ void loadMQTTConfig() {
     mqttCfgMarkDirty();
 }
 
+// User/password are stored as plain Preferences strings; see docs/SECURITY.md (NVS / flash access).
 bool saveMQTTConfig() {
     MqttConfig snap{};
     mqttCfgSnapshot(&snap);

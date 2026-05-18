@@ -124,7 +124,8 @@ static void mqttQueueKillClientFromEvent() {
         return;
     }
     const NetCmd cmd = NetCmd::MqttKillClient;
-    if (xQueueSend(g_netCmdQueue, &cmd, pdMS_TO_TICKS(50)) != pdTRUE) {
+    if (xQueueSend(g_netCmdQueue, &cmd, pdMS_TO_TICKS(250)) != pdTRUE
+        && xQueueSend(g_netCmdQueue, &cmd, pdMS_TO_TICKS(250)) != pdTRUE) {
         ESP_LOGW(TAG, "netCmd queue full (MqttKillClient)");
     }
 }
@@ -155,7 +156,7 @@ static void handleCounterPayload(const char* payload, unsigned int length) {
 
     ESP_LOGI(TAG, "Heart counter from MQTT (remote): %d", newCounter);
     heartCounter.store(newCounter, std::memory_order_relaxed);
-    requestHeartRedraw();
+    requestHeartRedrawNonBlocking();
 }
 
 // Reassemble fragmented counter payload (esp_mqtt may split DATA).

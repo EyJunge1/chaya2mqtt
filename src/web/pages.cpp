@@ -1,7 +1,6 @@
 #include <Arduino.h>
 #include <cstdio>
 #include <WiFi.h>
-#include <WiFiType.h>
 #include <ESPAsyncWebServer.h>
 
 #include "pages.h"
@@ -29,7 +28,7 @@ static void printCommonCss(Print& out) {
 static void streamPageHeader(Print& out, const char* title) {
     out.print(F("<!DOCTYPE html><html lang='en'><head><meta charset='utf-8'>"
                 "<meta name='viewport' content='width=device-width,initial-scale=1'><title>"));
-    out.print(title);
+    appendHtmlEscaped(out, title);
     out.print(F("</title>"));
     printCommonCss(out);
     out.print(F("<script>"));
@@ -91,9 +90,9 @@ void streamSimpleDonePage(AsyncWebServerRequest* req, const char* title, const c
     }
     streamPageHeader(*resp, title);
     resp->print(F("<h1>"));
-    resp->print(title);
+    appendHtmlEscaped(*resp, title);
     resp->print(F("</h1><p class='ok'>"));
-    resp->print(message);
+    appendHtmlEscaped(*resp, message);
     resp->print(F("</p></body></html>"));
     req->send(resp);
 }
@@ -213,11 +212,11 @@ void streamWifiPage(AsyncWebServerRequest* req) {
 
 void streamWifiTestingPage(AsyncWebServerRequest* req) {
     if (!configIsApMode()) {
-        req->redirect(F("/"));
+        webRedirect(req, F("/"));
         return;
     }
     if (wlanGetWifiConnectionTestState() == WlanWifiConnectionTestState::Idle) {
-        req->redirect(F("/wifi"));
+        webRedirect(req, F("/wifi"));
         return;
     }
 
@@ -233,7 +232,9 @@ void streamWifiTestingPage(AsyncWebServerRequest* req) {
                   "<button type='submit'>Back to Wi-Fi setup</button>"
                   "</form></div>"
                   "<form id='commitForm' method='post' action='/wifi-connect-commit'></form>"
-                  "<script>"));
+                  "<script>window.__CHAYA_HTTP_ORIGIN__=\""));
+    appendHtmlEscaped(*resp, kDeviceHttpOrigin);
+    resp->print(F("\";</script><script>"));
     resp->print(reinterpret_cast<const __FlashStringHelper*>(WIFI_CONNECT_TEST_JS));
     resp->print(F("</script>"
                   "<p class='hint'><a class='btn-back' href='/'>Dashboard</a></p></body></html>"));
@@ -242,7 +243,7 @@ void streamWifiTestingPage(AsyncWebServerRequest* req) {
 
 void handleWifiScanJson(AsyncWebServerRequest* req) {
     if (!wlanWifiScanCacheReady()) {
-        req->send(202);
+        webSendEmpty(req, 202);
         return;
     }
 

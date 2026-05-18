@@ -21,7 +21,6 @@
 #include "mqtt/config.h"
 #include "network/network_task.h"
 #include "ota/ota_task.h"
-#include "hw/pins.h"
 #include "web/admin.h"
 #include "web/auth.h"
 #include "wifi/wlan.h"
@@ -48,18 +47,6 @@ static void otaTryMarkFirmwareValidIfPendingVerify() {
     } else {
         ESP_LOGI(TAG, "Firmware marked valid (rollback cancelled)");
     }
-}
-
-/** Same assignments as display/button (SPI + panel); do not use pins 6–11 (flash). */
-static void pinsInit() {
-    pinMode(pins::kDisplayBusy, INPUT);
-    pinMode(pins::kDisplayRst, OUTPUT);
-    pinMode(pins::kDisplayDc, OUTPUT);
-    pinMode(pins::kSpiMiso, INPUT);
-    pinMode(pins::kSpiSck, OUTPUT);
-    pinMode(pins::kSpiMosi, OUTPUT);
-    pinMode(pins::kSpiCs, OUTPUT);
-    digitalWrite(pins::kSpiCs, HIGH);
 }
 
 void setup() {
@@ -90,7 +77,6 @@ void setup() {
              static_cast<size_t>(esp_get_free_heap_size()),
              static_cast<size_t>(esp_get_minimum_free_heap_size()));
 
-    pinsInit();
     displayInit();
     displayStartTask();
     ESP_LOGI(TAG, "Display initialized");

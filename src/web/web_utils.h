@@ -5,9 +5,20 @@
 #include <cstddef>
 
 class AsyncWebServerRequest;
+class AsyncWebServerResponse;
 class AsyncResponseStream;
 
+void webAddSecurityHeaders(AsyncWebServerResponse* resp);
+
+void webRedirect(AsyncWebServerRequest* req, const __FlashStringHelper* location);
+
+void webRedirect(AsyncWebServerRequest* req, const char* location);
+
 AsyncResponseStream* beginResponseStreamOr500(AsyncWebServerRequest* req, const char* mime);
+
+void webSendJson(AsyncWebServerRequest* req, int code, const char* jsonBody);
+
+void webSendEmpty(AsyncWebServerRequest* req, int code);
 
 void appendHtmlEscaped(Print& out, const char* s);
 

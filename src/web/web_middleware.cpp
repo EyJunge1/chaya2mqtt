@@ -3,6 +3,7 @@
 #include "auth.h"
 #include "config/app_config.h"
 #include "log_tag.h"
+#include "web_utils.h"
 #include "wifi/wlan.h"
 
 #include <Arduino.h>
@@ -25,7 +26,7 @@ bool mwShouldLogThrottle(unsigned long nowMs, unsigned long* lastLoggedMs) {
 ArMiddlewareCallback mwRequireStaMode() {
     return [](AsyncWebServerRequest* req, ArMiddlewareNext next) {
         if (configIsApMode()) {
-            req->redirect(F("/"));
+            webRedirect(req, F("/"));
             return;
         }
         next();
@@ -35,7 +36,7 @@ ArMiddlewareCallback mwRequireStaMode() {
 ArMiddlewareCallback mwRequireApMode() {
     return [](AsyncWebServerRequest* req, ArMiddlewareNext next) {
         if (!configIsApMode()) {
-            req->redirect(F("/"));
+            webRedirect(req, F("/"));
             return;
         }
         next();
@@ -54,11 +55,11 @@ ArMiddlewareCallback mwRequireSessionRedirectGet() {
 ArMiddlewareCallback mwPostSessionAndCsrfRedirect(const char* csrfRedirectPath) {
     return [csrfRedirectPath](AsyncWebServerRequest* req, ArMiddlewareNext next) {
         if (!webAuthIsAuthenticated(req)) {
-            req->redirect(F("/auth"));
+            webRedirect(req, F("/auth"));
             return;
         }
         if (!webAuthValidateCsrfPost(req)) {
-            req->redirect(csrfRedirectPath);
+            webRedirect(req, csrfRedirectPath);
             return;
         }
         next();
@@ -74,14 +75,14 @@ ArMiddlewareCallback mwPostChayaSendGuard() {
             if (mwShouldLogThrottle(nowMs, &s_last401Ms)) {
                 ESP_LOGW(TAG, "/chaya JSON POST denied: no session (401)");
             }
-            req->send(401, "application/json", "{\"ok\":false}");
+            webSendJson(req, 401, "{\"ok\":false}");
             return;
         }
         if (!webAuthValidateCsrfPost(req)) {
             if (mwShouldLogThrottle(nowMs, &s_last403Ms)) {
                 ESP_LOGW(TAG, "/chaya JSON POST denied: CSRF mismatch (403)");
             }
-            req->send(403, "application/json", "{\"ok\":false}");
+            webSendJson(req, 403, "{\"ok\":false}");
             return;
         }
         next();
@@ -91,7 +92,7 @@ ArMiddlewareCallback mwPostChayaSendGuard() {
 ArMiddlewareCallback mwApPostCsrfRedirect(const char* redirectOnMismatch) {
     return [redirectOnMismatch](AsyncWebServerRequest* req, ArMiddlewareNext next) {
         if (!webAuthValidateCsrfPost(req)) {
-            req->redirect(redirectOnMismatch);
+            webRedirect(req, redirectOnMismatch);
             return;
         }
         next();
@@ -102,7 +103,7 @@ ArMiddlewareCallback mwWifiConnectPostGuard() {
     return [](AsyncWebServerRequest* req, ArMiddlewareNext next) {
         if (configIsApMode()) {
             if (!webAuthValidateCsrfPost(req)) {
-                req->redirect(F("/wifi"));
+                webRedirect(req, F("/wifi"));
                 return;
             }
             next();
@@ -111,12 +112,12 @@ ArMiddlewareCallback mwWifiConnectPostGuard() {
         // STA: always require CSRF (hidden field from /wifi) so LAN attackers cannot forge POST without
         // reading a page first. Session is still optional when Web-Auth is disabled.
         if (!webAuthValidateCsrfPost(req)) {
-            req->redirect(F("/wifi"));
+            webRedirect(req, F("/wifi"));
             return;
         }
         if (configGetWebAuthEnabled()) {
             if (!webAuthIsAuthenticated(req)) {
-                req->redirect(F("/auth"));
+                webRedirect(req, F("/auth"));
                 return;
             }
         }

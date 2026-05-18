@@ -2,6 +2,7 @@
 
 #include "admin.h"
 
+#include "web/deferred_reboot.h"
 #include "admin_globals.h"
 #include "admin_routes.h"
 
@@ -50,7 +51,7 @@ void webAdminRegisterRoutes() {
 }
 
 void webAdminScheduleWifiConfiguredReboot() {
-    g_webAdminWifiReconnectRequested.store(true, std::memory_order_release);
+    deferredRebootAfterWifiSave();
 }
 
 void webAdminLoop() {

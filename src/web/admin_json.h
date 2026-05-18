@@ -2,6 +2,8 @@
 
 #include <ESPAsyncWebServer.h>
 
+#include "web_utils.h"
+
 #include <cstddef>
 #include <cstdio>
 
@@ -9,9 +11,9 @@ template<size_t N, typename Fn>
 bool adminSendJsonWithBuffer(AsyncWebServerRequest* req, Fn&& build) {
     char buf[N];
     if (!build(buf, N)) {
-        req->send(500);
+        webSendEmpty(req, 500);
         return false;
     }
-    req->send(200, "application/json", buf);
+    webSendJson(req, 200, buf);
     return true;
 }

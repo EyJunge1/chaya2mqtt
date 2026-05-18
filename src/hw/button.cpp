@@ -35,6 +35,13 @@ static constexpr unsigned kPublishMaxAttempts             = 2;
 static constexpr unsigned long kPublishRetryDelayMs     = 25;
 static constexpr unsigned long kFailFlashMs               = 50;
 
+/** LED sequence timing (MQTT TX + auth blink). */
+static constexpr unsigned kLedSequenceStepMs      = 100;
+static constexpr unsigned kPostPublishWaitMs      = 500;
+static constexpr unsigned kAuthBlinkHalfPeriodMs = 500;
+static constexpr int      kFactoryResetLedBlinkCycles = 6;
+static constexpr unsigned long kFactoryResetLedBlinkPeriodMs = 120;
+
 static std::atomic<TaskHandle_t> s_buttonTaskHandle{nullptr};
 
 static struct {
@@ -132,7 +139,7 @@ static void consumeButtonCommands() {
             if (ledTxPhase.load(std::memory_order_relaxed) == LedTxPhase::Idle) {
                 ledTxPhase.store(LedTxPhase::AuthOn, std::memory_order_relaxed);
                 ledOutput(HIGH);
-                armLedPhase(500);
+                armLedPhase(kAuthBlinkHalfPeriodMs);
             }
             break;
         }
@@ -178,27 +185,27 @@ struct LedPhaseRow {
 };
 
 static constexpr LedPhaseRow kLedPhaseRows[] = {
-    {LedTxPhase::PreOn1, LOW, LedTxPhase::PreOff1, 100},
-    {LedTxPhase::PreOff1, HIGH, LedTxPhase::PreOn2, 100},
-    {LedTxPhase::PreOn2, LOW, LedTxPhase::PreOff2, 100},
-    {LedTxPhase::PostWait, HIGH, LedTxPhase::PostOn1, 100},
-    {LedTxPhase::PostOn1, LOW, LedTxPhase::PostOff1, 100},
-    {LedTxPhase::PostOff1, HIGH, LedTxPhase::PostOn2, 100},
-    {LedTxPhase::PostOn2, LOW, LedTxPhase::PostOff2, 100},
+    {LedTxPhase::PreOn1, LOW, LedTxPhase::PreOff1, kLedSequenceStepMs},
+    {LedTxPhase::PreOff1, HIGH, LedTxPhase::PreOn2, kLedSequenceStepMs},
+    {LedTxPhase::PreOn2, LOW, LedTxPhase::PreOff2, kLedSequenceStepMs},
+    {LedTxPhase::PostWait, HIGH, LedTxPhase::PostOn1, kLedSequenceStepMs},
+    {LedTxPhase::PostOn1, LOW, LedTxPhase::PostOff1, kLedSequenceStepMs},
+    {LedTxPhase::PostOff1, HIGH, LedTxPhase::PostOn2, kLedSequenceStepMs},
+    {LedTxPhase::PostOn2, LOW, LedTxPhase::PostOff2, kLedSequenceStepMs},
     {LedTxPhase::FailOn1, LOW, LedTxPhase::FailOff1, kFailFlashMs},
     {LedTxPhase::FailOff1, HIGH, LedTxPhase::FailOn2, kFailFlashMs},
     {LedTxPhase::FailOn2, LOW, LedTxPhase::FailOff2, kFailFlashMs},
     {LedTxPhase::FailOff2, HIGH, LedTxPhase::FailOn3, kFailFlashMs},
     {LedTxPhase::FailOn3, LOW, LedTxPhase::FailOff3, kFailFlashMs},
-    {LedTxPhase::AuthOn, LOW, LedTxPhase::AuthOff, 500},
-    {LedTxPhase::AuthOff, HIGH, LedTxPhase::AuthOn, 500},
+    {LedTxPhase::AuthOn, LOW, LedTxPhase::AuthOff, kAuthBlinkHalfPeriodMs},
+    {LedTxPhase::AuthOff, HIGH, LedTxPhase::AuthOn, kAuthBlinkHalfPeriodMs},
 };
 
 static void startMqttSendLedSequence() {
     ESP_LOGI(TAG, "Button press: publishing MQTT (LED sequence)");
     ledTxPhase.store(LedTxPhase::PreOn1, std::memory_order_relaxed);
     ledOutput(HIGH);
-    armLedPhase(100);
+    armLedPhase(kLedSequenceStepMs);
 }
 
 static void advanceLedSequence() {
@@ -232,7 +239,7 @@ static void advanceLedSequence() {
             if (ok) {
                 ESP_LOGI(TAG, "MQTT message published OK");
                 ledTxPhase.store(LedTxPhase::PostWait, std::memory_order_relaxed);
-                armLedPhase(500);
+                armLedPhase(kPostPublishWaitMs);
             } else {
                 publishFailCount++;
                 if (publishFailCount >= kPublishMaxAttempts) {
@@ -265,9 +272,9 @@ static void advanceLedSequence() {
 }
 
 static void triggerFactoryReset() {
-    for (int i = 0; i < 6; i++) {
+    for (int i = 0; i < kFactoryResetLedBlinkCycles; i++) {
         ledOutput((i % 2) == 0 ? HIGH : LOW);
-        vTaskDelay(pdMS_TO_TICKS(120));
+        vTaskDelay(pdMS_TO_TICKS(kFactoryResetLedBlinkPeriodMs));
     }
     ledOutput(LOW);
     resetAllSettings();

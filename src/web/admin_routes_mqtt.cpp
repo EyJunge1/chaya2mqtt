@@ -12,6 +12,7 @@
 #include "web_middleware.h"
 
 #include "pages.h"
+#include "web_utils.h"
 #include <ESPAsyncWebServer.h>
 #include <cerrno>
 #include <climits>
@@ -52,7 +53,7 @@ static void handleMqttPost(AsyncWebServerRequest* req) {
             const bool invalid = (errno == ERANGE) || (endPtr == p->value().c_str())
                                    || (*endPtr != '\0');
             if (invalid) {
-                req->redirect(F("/mqtt?e=port"));
+                webRedirect(req, F("/mqtt?e=port"));
                 return;
             }
             pending.port = normalizeMqttPort(static_cast<int>(v));
@@ -92,15 +93,15 @@ static void handleMqttPost(AsyncWebServerRequest* req) {
         || !mqttTopicSyntaxOk(pending.topicSub, sizeof(pending.topicSub))) {
         ESP_LOGW(TAG, "MQTT invalid: empty broker or bad topics");
         if (!mqttServerSyntaxOk(pending.server, sizeof(pending.server))) {
-            req->redirect(F("/mqtt?e=broker"));
+            webRedirect(req, F("/mqtt?e=broker"));
         } else {
-            req->redirect(F("/mqtt?e=topics"));
+            webRedirect(req, F("/mqtt?e=topics"));
         }
         return;
     }
     mqttCfgStorePending(&pending);
     g_webAdminMqttApplyPending.store(true, std::memory_order_release);
-    req->redirect(F("/mqtt?saved=1"));
+    webRedirect(req, F("/mqtt?saved=1"));
 }
 
 void adminRoutesRegisterMqtt(AsyncWebServer& ws) {

@@ -253,23 +253,27 @@ void maybeResetDisplayBaselinesWhenCapped() {
     if (configIsApMode()) {
         return;
     }
-    bool changed = false;
-    const int64_t dRecv = static_cast<int64_t>(heartCounter.load(std::memory_order_relaxed))
-                          - static_cast<int64_t>(counterBaseline.load(std::memory_order_relaxed));
-    const int64_t dSent = static_cast<int64_t>(heartSentCounter.load(std::memory_order_relaxed))
-                          - static_cast<int64_t>(sentCountBaseline.load(std::memory_order_relaxed));
+    bool    changed = false;
+    int32_t snapHeart = 0;
+    int32_t snapSent  = 0;
+    int32_t snapCb    = 0;
+    int32_t snapSb    = 0;
+    portENTER_CRITICAL(&s_heartDisplayMux);
+    snapHeart = heartCounter.load(std::memory_order_relaxed);
+    snapSent  = heartSentCounter.load(std::memory_order_relaxed);
+    snapCb    = counterBaseline.load(std::memory_order_relaxed);
+    snapSb    = sentCountBaseline.load(std::memory_order_relaxed);
+    const int64_t dRecv = static_cast<int64_t>(snapHeart) - static_cast<int64_t>(snapCb);
+    const int64_t dSent = static_cast<int64_t>(snapSent) - static_cast<int64_t>(snapSb);
     if (dRecv >= kDisplayCounterMax) {
-        portENTER_CRITICAL(&s_heartDisplayMux);
-        counterBaseline.store(heartCounter.load(std::memory_order_relaxed), std::memory_order_relaxed);
-        portEXIT_CRITICAL(&s_heartDisplayMux);
+        counterBaseline.store(snapHeart, std::memory_order_relaxed);
         changed = true;
     }
     if (dSent >= kDisplayCounterMax) {
-        portENTER_CRITICAL(&s_heartDisplayMux);
-        sentCountBaseline.store(heartSentCounter.load(std::memory_order_relaxed), std::memory_order_relaxed);
-        portEXIT_CRITICAL(&s_heartDisplayMux);
+        sentCountBaseline.store(snapSent, std::memory_order_relaxed);
         changed = true;
     }
+    portEXIT_CRITICAL(&s_heartDisplayMux);
     if (changed && persistCounterBaselineState()) {
         ESP_LOGI(TAG, "Display baseline reset (display reached cap)");
         requestHeartRedraw();

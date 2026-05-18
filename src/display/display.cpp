@@ -33,6 +33,17 @@ ChayaEpdPanel& displayPanel() {
     return display;
 }
 
+void displayHwInitPins() {
+    pinMode(pins::kDisplayBusy, INPUT);
+    pinMode(pins::kDisplayRst, OUTPUT);
+    pinMode(pins::kDisplayDc, OUTPUT);
+    pinMode(pins::kSpiMiso, INPUT);
+    pinMode(pins::kSpiSck, OUTPUT);
+    pinMode(pins::kSpiMosi, OUTPUT);
+    pinMode(pins::kSpiCs, OUTPUT);
+    digitalWrite(pins::kSpiCs, HIGH);
+}
+
 void displayResumeSpiForDraw() {
     if (g_displaySpiSuspendedLowPower) {
         gpio_hold_dis(static_cast<gpio_num_t>(pins::kSpiCs));
@@ -83,36 +94,39 @@ static void displayTaskFn(void*) {
     }
 }
 
-static void displayPostMsg(DisplayMsg::Cmd cmd, uint32_t payload = 0) {
+static void displayPostMsg(DisplayMsg::Cmd cmd, uint32_t payload, TickType_t waitTicks) {
     DisplayMsg msg{cmd, payload};
-    const bool authUi = (cmd == DisplayMsg::Cmd::DrawAuthPrompt || cmd == DisplayMsg::Cmd::DrawAuthCode);
-    const TickType_t wait = authUi ? pdMS_TO_TICKS(2000) : pdMS_TO_TICKS(100);
-    if (xQueueSend(g_displayCmdQueue, &msg, wait) != pdTRUE) {
+    if (xQueueSend(g_displayCmdQueue, &msg, waitTicks) != pdTRUE) {
         ESP_LOGW(TAG, "display queue full (cmd=%d)", static_cast<int>(cmd));
     }
 }
 
 void requestHeartRedraw() {
-    displayPostMsg(DisplayMsg::Cmd::DrawHeart);
+    displayPostMsg(DisplayMsg::Cmd::DrawHeart, 0, pdMS_TO_TICKS(100));
+}
+
+void requestHeartRedrawNonBlocking() {
+    displayPostMsg(DisplayMsg::Cmd::DrawHeart, 0, 0);
 }
 
 void requestDeferredDrawAuthCode(uint32_t code) {
-    displayPostMsg(DisplayMsg::Cmd::DrawAuthCode, code);
+    displayPostMsg(DisplayMsg::Cmd::DrawAuthCode, code, pdMS_TO_TICKS(2000));
 }
 
 void requestDeferredDrawAuthPrompt() {
-    displayPostMsg(DisplayMsg::Cmd::DrawAuthPrompt);
+    displayPostMsg(DisplayMsg::Cmd::DrawAuthPrompt, 0, pdMS_TO_TICKS(2000));
 }
 
 void requestDeferredDrawSplashScreen() {
-    displayPostMsg(DisplayMsg::Cmd::DrawSplash);
+    displayPostMsg(DisplayMsg::Cmd::DrawSplash, 0, pdMS_TO_TICKS(100));
 }
 
 void requestDeferredDrawHeartScreen() {
-    displayPostMsg(DisplayMsg::Cmd::DrawHeart);
+    displayPostMsg(DisplayMsg::Cmd::DrawHeart, 0, pdMS_TO_TICKS(100));
 }
 
 void displayInit() {
+    displayHwInitPins();
     SPI.begin(/*SCK=*/ pins::kSpiSck, /*MISO=*/ pins::kSpiMiso, /*MOSI=*/ pins::kSpiMosi,
               /*SS=*/ pins::kSpiCs);
     /*

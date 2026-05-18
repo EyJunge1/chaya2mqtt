@@ -6,12 +6,62 @@
 #include <cstdio>
 #include <cstring>
 
+void webAddSecurityHeaders(AsyncWebServerResponse* resp) {
+    if (resp == nullptr) {
+        return;
+    }
+    resp->addHeader(F("X-Frame-Options"), F("DENY"));
+    resp->addHeader(F("X-Content-Type-Options"), F("nosniff"));
+    resp->addHeader(F("Referrer-Policy"), F("no-referrer"));
+    resp->addHeader(F("Cache-Control"), F("no-store"));
+    resp->addHeader(F("Permissions-Policy"), F("camera=(), microphone=(), geolocation=()"));
+    resp->addHeader(F("Content-Security-Policy"),
+                    F("default-src 'self'; script-src 'unsafe-inline' 'self'; "
+                      "style-src 'unsafe-inline' 'self'; connect-src 'self'; "
+                      "img-src 'none'; base-uri 'none'; frame-ancestors 'none'"));
+}
+
+void webRedirect(AsyncWebServerRequest* req, const __FlashStringHelper* location) {
+    AsyncWebServerResponse* resp = req->beginResponse(302);
+    resp->addHeader(F("Location"), location);
+    webAddSecurityHeaders(resp);
+    req->send(resp);
+}
+
+void webRedirect(AsyncWebServerRequest* req, const char* location) {
+    if (location == nullptr) {
+        webRedirect(req, F("/"));
+        return;
+    }
+    AsyncWebServerResponse* resp = req->beginResponse(302);
+    resp->addHeader(F("Location"), location);
+    webAddSecurityHeaders(resp);
+    req->send(resp);
+}
+
 AsyncResponseStream* beginResponseStreamOr500(AsyncWebServerRequest* req, const char* mime) {
     AsyncResponseStream* resp = req->beginResponseStream(mime);
     if (resp == nullptr) {
-        req->send(500);
+        AsyncWebServerResponse* err = req->beginResponse(500);
+        webAddSecurityHeaders(err);
+        req->send(err);
+        return nullptr;
     }
+    webAddSecurityHeaders(resp);
     return resp;
+}
+
+void webSendJson(AsyncWebServerRequest* req, int code, const char* jsonBody) {
+    const char* body = (jsonBody != nullptr) ? jsonBody : "";
+    AsyncWebServerResponse* r = req->beginResponse(code, "application/json", body);
+    webAddSecurityHeaders(r);
+    req->send(r);
+}
+
+void webSendEmpty(AsyncWebServerRequest* req, int code) {
+    AsyncWebServerResponse* r = req->beginResponse(code);
+    webAddSecurityHeaders(r);
+    req->send(r);
 }
 
 void appendCurrentWebCsrfTokenEscaped(Print& out) {

@@ -3,9 +3,8 @@
 #include "ip_format.h"
 
 #include "async/task_handles.h"
+#include "web/deferred_reboot.h"
 #include "wlan.h"
-
-#include "web/admin.h"
 
 #include <Arduino.h>
 #include <WiFi.h>
@@ -187,9 +186,10 @@ bool wlanCommitWifiConnectionTestAndScheduleReboot() {
         return false;
     }
     if (!configSaveWiFiCredentials(ssidCopy, passCopy)) {
+        ESP_LOGW(TAG, "WLAN commit: configSaveWiFiCredentials failed (NVS full?)");
         return false;
     }
     wlanAbortWifiConnectionTest();
-    webAdminScheduleWifiConfiguredReboot();
+    deferredRebootAfterWifiSave();
     return true;
 }

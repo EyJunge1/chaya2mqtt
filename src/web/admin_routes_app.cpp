@@ -13,6 +13,7 @@
 #include "ota/ota.h"
 #include "pages.h"
 #include "web_middleware.h"
+#include "web_utils.h"
 
 #include <ESPAsyncWebServer.h>
 #include <esp_log.h>
@@ -33,12 +34,12 @@ static void handleChayaStatusGet(AsyncWebServerRequest* req) {
 
 static void handleChayaSendPost(AsyncWebServerRequest* req) {
     if (!mqttIsConnected()) {
-        req->send(503, "application/json", "{\"ok\":false}");
+        webSendJson(req, 503, "{\"ok\":false}");
         return;
     }
     const bool ok = mqttPublishChayaAndApplySentCounters();
     ESP_LOGI(TAG, "Web UI: chaya-send POST → %s", ok ? "ok" : "failed");
-    req->send(ok ? 200 : 503, "application/json", ok ? "{\"ok\":true}" : "{\"ok\":false}");
+    webSendJson(req, ok ? 200 : 503, ok ? "{\"ok\":true}" : "{\"ok\":false}");
 }
 
 static void handleUpdateCheckPost(AsyncWebServerRequest* req) {
@@ -68,7 +69,7 @@ static void handleSettingsPost(AsyncWebServerRequest* req) {
     g_webAdminPendingAuthEnabled = req->hasParam("auth_enabled", true);
     portEXIT_CRITICAL(&g_webAdminSettingsPendingMux);
     g_webAdminSettingsApplyPending.store(true, std::memory_order_release);
-    req->redirect(F("/settings?saved=1"));
+    webRedirect(req, F("/settings?saved=1"));
 }
 
 void adminRoutesRegisterApplication(AsyncWebServer& ws) {
@@ -130,7 +131,5 @@ void adminRoutesRegisterApplication(AsyncWebServer& ws) {
         h.addMiddleware(mwPostSessionAndCsrfRedirect("/settings"));
     }
 
-    ws.onNotFound([](AsyncWebServerRequest* rq) {
-        rq->redirect(F("/"));
-    });
+    ws.onNotFound([](AsyncWebServerRequest* rq) { webRedirect(rq, F("/")); });
 }

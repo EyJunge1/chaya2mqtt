@@ -5,7 +5,6 @@
 
 #include "tls_bundle.h"
 
-#include <ArduinoJson.h>
 #include <HTTPClient.h>
 #include <WiFi.h>
 #include <WiFiClientSecure.h>
@@ -85,16 +84,6 @@ bool githubExtractTagFromJsonBuffer(char* jsonBuf, size_t len, char* tagOut, siz
         len = kGithubJsonBuf - 1;
     }
     jsonBuf[len] = '\0';
-
-    JsonDocument         doc;
-    const DeserializationError err = deserializeJson(doc, jsonBuf);
-    if (!err) {
-        const char* tag = doc["tag_name"].as<const char*>();
-        if (tag != nullptr && tag[0] != '\0') {
-            strlcpy(tagOut, tag, tagLen);
-            return true;
-        }
-    }
     return githubParseLatestTagLegacy(jsonBuf, tagOut, tagLen);
 }
 

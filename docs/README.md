@@ -109,7 +109,6 @@ Definiert in `platformio.ini`:
 | **Adafruit GFX / BusIO** | Grafik-Primitives für das E-Paper-Panel |
 | **ESP-IDF MQTT** (`esp_mqtt_client`, über Arduino-ESP32 eingebunden) | MQTT über TLS (**keine** zusätzliche PubSubClient-Library) |
 | **ESPAsyncWebServer** | HTTP-Admin-Oberfläche + Captive-Portal-Modus |
-| **ArduinoJson** | GitHub-Release-JSON (`tag_name`) fuer OTA-Versionscheck |
 
 (E-Paper: projekteigener Treiber unter `src/display/epd/`, nicht GxEPD2.)
 

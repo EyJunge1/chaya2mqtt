@@ -14,6 +14,8 @@
 
 #if defined(ESP32)
 #include <esp_log.h>
+#include <freertos/FreeRTOS.h>
+#include <freertos/task.h>
 #endif
 
 DEFINE_LOG_TAG("EPD");
@@ -22,10 +24,8 @@ EpdDriver154Z90c::EpdDriver154Z90c(int16_t cs, int16_t dc, int16_t rst, int16_t 
     : Adafruit_GFX(static_cast<int16_t>(kWidth), static_cast<int16_t>(kHeight)), _cs(cs), _dc(dc),
       _rst(rst), _busy(busy) {
     _page_height = kPageHeight;
-    _pages         = static_cast<uint16_t>((HEIGHT / _page_height) + ((HEIGHT % _page_height) > 0));
-    _gfx_partial_window = false;
-    _current_page       = 0;
-    setFullWindow();
+    _pages   = static_cast<uint16_t>((HEIGHT / _page_height) + ((HEIGHT % _page_height) > 0));
+    _current_page = 0;
 }
 
 void EpdDriver154Z90c::init(uint32_t serial_diag_bitrate) {
@@ -34,12 +34,12 @@ void EpdDriver154Z90c::init(uint32_t serial_diag_bitrate) {
 
 void EpdDriver154Z90c::init(uint32_t serial_diag_bitrate, bool initial, uint16_t reset_duration,
                             bool pulldown_rst_mode) {
-    _initial_write       = initial;
-    _pulldown_rst_mode   = pulldown_rst_mode;
-    _power_is_on         = false;
-    _hibernating         = false;
-    _panel_controller_ready = false;
-    _reset_duration      = reset_duration;
+    _initial_write            = initial;
+    _pulldown_rst_mode        = pulldown_rst_mode;
+    _power_is_on              = false;
+    _hibernating              = false;
+    _panel_controller_ready   = false;
+    _reset_duration           = reset_duration;
     if (serial_diag_bitrate > 0) {
         Serial.begin(serial_diag_bitrate);
         _diag_enabled = true;
@@ -70,7 +70,6 @@ void EpdDriver154Z90c::init(uint32_t serial_diag_bitrate, bool initial, uint16_t
         pinMode(_busy, INPUT);
     }
     _current_page = 0;
-    setFullWindow();
 }
 
 void EpdDriver154Z90c::end() {
@@ -86,24 +85,12 @@ void EpdDriver154Z90c::end() {
     }
 }
 
-void EpdDriver154Z90c::setFullWindow() {
-    _gfx_partial_window = false;
-    _pw_x               = 0;
-    _pw_y               = 0;
-    _pw_w               = kWidth;
-    _pw_h               = static_cast<uint16_t>(HEIGHT);
-}
-
 void EpdDriver154Z90c::firstPage() {
     fillScreen(EPD_WHITE);
     _current_page = 0;
 }
 
 bool EpdDriver154Z90c::nextPage() {
-    if (_gfx_partial_window) {
-        // Partial window path not used by chaya2mqtt; full-window only.
-        return false;
-    }
     const uint16_t page_ys = static_cast<uint16_t>(_current_page) * _page_height;
     const uint16_t span =
         minU16(_page_height, static_cast<uint16_t>(static_cast<uint16_t>(HEIGHT) - page_ys));
@@ -112,7 +99,7 @@ bool EpdDriver154Z90c::nextPage() {
     _current_page++;
     if (_current_page == static_cast<int16_t>(_pages)) {
         _current_page = 0;
-        refresh(false);
+        refreshFull();
         powerOff();
         return false;
     }
@@ -154,21 +141,15 @@ void EpdDriver154Z90c::drawPixel(int16_t x, int16_t y, uint16_t color) {
     default:
         break;
     }
-    x -= static_cast<int16_t>(_pw_x);
-    y -= static_cast<int16_t>(_pw_y);
-    if ((x < 0) || (x >= static_cast<int16_t>(_pw_w)) || (y < 0) ||
-        (y >= static_cast<int16_t>(_pw_h))) {
-        return;
-    }
     y -= static_cast<int16_t>(_current_page * _page_height);
     if ((y < 0) || (y >= static_cast<int16_t>(_page_height))) {
         return;
     }
-    const uint32_t i = static_cast<uint32_t>(x) / 8U +
-                       static_cast<uint32_t>(y) * static_cast<uint32_t>(_pw_w / 8U);
+    const uint32_t i   = static_cast<uint32_t>(x) / 8U +
+                         static_cast<uint32_t>(y) * static_cast<uint32_t>(kWidth / 8U);
     const uint32_t bit = 7U - (static_cast<uint32_t>(x) % 8U);
-    _black_buffer[i]  = static_cast<uint8_t>(_black_buffer[i] | (1U << bit));
-    _color_buffer[i]  = static_cast<uint8_t>(_color_buffer[i] | (1U << bit));
+    _black_buffer[i]   = static_cast<uint8_t>(_black_buffer[i] | (1U << bit));
+    _color_buffer[i]   = static_cast<uint8_t>(_color_buffer[i] | (1U << bit));
     if (color == EPD_WHITE) {
         return;
     }
@@ -232,7 +213,7 @@ void EpdDriver154Z90c::writeImage(const uint8_t* black, const uint8_t* color, in
                        static_cast<uint16_t>(w1), static_cast<uint16_t>(h1));
     _writeCommand(0x24);
     {
-        uint8_t         row[32];
+        uint8_t       row[32];
         const int16_t rowBytes = w1 / 8;
         for (int16_t i = 0; i < h1; i++) {
             for (int16_t j = 0; j < rowBytes; j++) {
@@ -260,7 +241,7 @@ void EpdDriver154Z90c::writeImage(const uint8_t* black, const uint8_t* color, in
     }
     _writeCommand(0x26);
     {
-        uint8_t         row[32];
+        uint8_t       row[32];
         const int16_t rowBytes = w1 / 8;
         for (int16_t i = 0; i < h1; i++) {
             for (int16_t j = 0; j < rowBytes; j++) {
@@ -289,33 +270,8 @@ void EpdDriver154Z90c::writeImage(const uint8_t* black, const uint8_t* color, in
     delay(1);
 }
 
-void EpdDriver154Z90c::refresh(bool partial_update_mode) {
-    if (partial_update_mode) {
-        refresh(0, 0, static_cast<int16_t>(kWidth), static_cast<int16_t>(kHeight));
-    } else {
-        _updateFull();
-    }
-}
-
-void EpdDriver154Z90c::refresh(int16_t x, int16_t y, int16_t w, int16_t h) {
-    int16_t w1  = x < 0 ? w + x : w;
-    int16_t h1  = y < 0 ? h + y : h;
-    int16_t x1  = x < 0 ? 0 : x;
-    int16_t y1  = y < 0 ? 0 : y;
-    w1          = x1 + w1 < static_cast<int16_t>(kWidth) ? w1 : static_cast<int16_t>(kWidth) - x1;
-    h1          = y1 + h1 < static_cast<int16_t>(kHeight) ? h1 : static_cast<int16_t>(kHeight) - y1;
-    if ((w1 <= 0) || (h1 <= 0)) {
-        return;
-    }
-    w1 += x1 % 8;
-    if (w1 % 8 > 0) {
-        w1 += 8 - w1 % 8;
-    }
-    x1 -= x1 % 8;
-    _initPart();
-    _setPartialRamArea(static_cast<uint16_t>(x1), static_cast<uint16_t>(y1),
-                       static_cast<uint16_t>(w1), static_cast<uint16_t>(h1));
-    _updatePart();
+void EpdDriver154Z90c::refreshFull() {
+    _updateFull();
 }
 
 void EpdDriver154Z90c::_setPartialRamArea(uint16_t x, uint16_t y, uint16_t w, uint16_t h) {
@@ -380,15 +336,6 @@ void EpdDriver154Z90c::_updateFull() {
     _waitWhileBusy("_Update_Full", kFullRefreshMs);
 }
 
-void EpdDriver154Z90c::_updatePart() {
-    _writeCommand(0x22);
-    _writeData(0xF7);
-    _writeCommand(0x20);
-    _waitWhileBusy("_Update_Part", kPartialRefreshMs);
-}
-
-/* --- SPI / busy (from GxEPD2_EPD, stripped) --- */
-
 void EpdDriver154Z90c::_reset() {
     if (_rst < 0) {
         return;
@@ -415,13 +362,21 @@ void EpdDriver154Z90c::_reset() {
 
 void EpdDriver154Z90c::_waitWhileBusy(const char* comment, uint16_t busy_time) {
     if (_busy >= 0) {
+#if defined(ESP32)
+        vTaskDelay(pdMS_TO_TICKS(1));
+#else
         delay(1);
+#endif
         const unsigned long start = micros();
         while (true) {
             if (digitalRead(_busy) != kBusyLevel) {
                 break;
             }
+#if defined(ESP32)
+            vTaskDelay(pdMS_TO_TICKS(1));
+#else
             delay(1);
+#endif
             if (digitalRead(_busy) != kBusyLevel) {
                 break;
             }
@@ -505,15 +460,12 @@ void EpdDriver154Z90c::_writeConstantDataBytes(uint8_t value, size_t count) {
     if (count == 0U) {
         return;
     }
-    _p_spi->beginTransaction(_spi_settings);
-    if (_cs >= 0) {
-        digitalWrite(_cs, LOW);
+    constexpr size_t kChunk = 256U;
+    uint8_t          block[kChunk];
+    memset(block, value, sizeof(block));
+    while (count > 0U) {
+        const size_t n = (count > kChunk) ? kChunk : count;
+        _writeDataBulk(block, n);
+        count -= n;
     }
-    for (size_t i = 0; i < count; ++i) {
-        _p_spi->transfer(value);
-    }
-    if (_cs >= 0) {
-        digitalWrite(_cs, HIGH);
-    }
-    _p_spi->endTransaction();
 }

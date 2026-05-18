@@ -6,6 +6,7 @@
 #include "display/display.h"
 #include "mqtt/config.h"
 #include "pages.h"
+#include "web_utils.h"
 #include "wifi/wlan.h"
 
 #include <Arduino.h>
@@ -333,23 +334,24 @@ bool webAuthRedirectIfUnauthenticated(AsyncWebServerRequest* req) {
     char nextEnc[256];
     char loc[320];
     if (!urlEncodePathQueryCStr(uri.c_str(), nextEnc, sizeof(nextEnc))) {
-        req->redirect(F("/auth"));
+        webRedirect(req, F("/auth"));
         return true;
     }
     const int n = snprintf(loc, sizeof(loc), "/auth?next=%s", nextEnc);
     if (n < 0 || static_cast<size_t>(n) >= sizeof(loc)) {
-        req->redirect(F("/auth"));
+        webRedirect(req, F("/auth"));
         return true;
     }
     AsyncWebServerResponse* resp = req->beginResponse(302);
     resp->addHeader(F("Location"), loc);
+    webAddSecurityHeaders(resp);
     req->send(resp);
     return true;
 }
 
 static void handleAuthGet(AsyncWebServerRequest* req) {
     if (!configGetWebAuthEnabled()) {
-        req->redirect(F("/"));
+        webRedirect(req, F("/"));
         return;
     }
     bool wrong = false;
@@ -374,7 +376,7 @@ static unsigned lockoutRemainingSec(unsigned long nowMs) {
 
 static void handleAuthPost(AsyncWebServerRequest* req) {
     if (!configGetWebAuthEnabled()) {
-        req->redirect(F("/"));
+        webRedirect(req, F("/"));
         return;
     }
 
@@ -393,11 +395,11 @@ static void handleAuthPost(AsyncWebServerRequest* req) {
     }
 
     if (!webAuthValidateCsrfPost(req)) {
-        req->redirect(F("/auth?bad=1"));
+        webRedirect(req, F("/auth?bad=1"));
         return;
     }
     if (!req->hasParam("code", true)) {
-        req->redirect(F("/auth?bad=1"));
+        webRedirect(req, F("/auth?bad=1"));
         return;
     }
 
@@ -457,16 +459,17 @@ static void handleAuthPost(AsyncWebServerRequest* req) {
              kCookieName, hexCookie, static_cast<unsigned long>(kSessionCookieMaxAgeSec));
     resp->addHeader(F("Set-Cookie"), cookieBuf);
     ESP_LOGI(TAG, "Web auth session established (login)");
+    webAddSecurityHeaders(resp);
     req->send(resp);
 }
 
 static void handleLogoutGet(AsyncWebServerRequest* req) {
     if (!configGetWebAuthEnabled()) {
-        req->redirect(F("/"));
+        webRedirect(req, F("/"));
         return;
     }
     if (configIsApMode()) {
-        req->redirect(F("/"));
+        webRedirect(req, F("/"));
         return;
     }
 
@@ -482,6 +485,7 @@ static void handleLogoutGet(AsyncWebServerRequest* req) {
     resp->addHeader(
         F("Set-Cookie"),
         F("chaya_sid=; Path=/; HttpOnly; Max-Age=0; SameSite=Lax"));
+    webAddSecurityHeaders(resp);
     req->send(resp);
 }
 

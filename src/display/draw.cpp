@@ -45,7 +45,6 @@ void drawCenteredTextScreen(const char* text, uint8_t startSize, uint8_t minSize
     const int cursorX = (dw - static_cast<int>(w)) / 2 - static_cast<int>(x1);
     const int cursorY = (dh - static_cast<int>(h)) / 2 - static_cast<int>(y1);
 
-    epd.setFullWindow();
     epd.firstPage();
     do {
         epd.setTextSize(textSize);
@@ -159,7 +158,6 @@ void drawHeartWithNumber() {
     const int sentTextCursorX =
         dw - kRightMargin - kArrowLane - static_cast<int>(sw) - static_cast<int>(sx1);
 
-    epd.setFullWindow();
     epd.firstPage();
     do {
 

@@ -75,7 +75,7 @@ Wichtige Funktionen: `loadHeartCounter`, `saveHeartCounter`, `maybeSaveHeartCoun
 
 ## `src/net/ota.h` / `src/net/ota.cpp`
 
-**Zweck:** GitHub `releases/latest` (JSON `tag_name` via ArduinoJson mit Legacy-Fallback), täglicher Auto-Check (NVS `cfg`/`upd_day`), manueller Check-Button, Firmware-Install über `HTTPUpdate` (TLS + CA-Bundle).
+**Zweck:** GitHub `releases/latest` (JSON `tag_name` per einfachem String-Parser), täglicher Auto-Check (NVS `cfg`/`upd_day`), manueller Check-Button, Firmware-Install über `HTTPUpdate` (TLS + CA-Bundle).
 
 | Funktion | Beschreibung |
 |----------|--------------|

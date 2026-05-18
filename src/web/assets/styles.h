@@ -2,8 +2,8 @@
 
 #include <Arduino.h>
 
-/** Admin UI stylesheet. */
-static const char WEB_COMMON_CSS[] PROGMEM = R"chaya2mqtt_css(<style>
+/** Admin UI stylesheet (PROGMEM). Inline variable: single definition across TUs (C++17). */
+inline const char WEB_COMMON_CSS[] PROGMEM = R"chaya2mqtt_css(<style>
 :root {
     --bg: #0a0a0a;
     --surface: #141414;

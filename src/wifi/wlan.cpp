@@ -312,6 +312,7 @@ static void wifiScanServiceOnMainTask() {
     wlanWifiApiUnlock();
 }
 
+// Credentials are written as an unpacked blob in NVS (not app-level encrypted); see docs/SECURITY.md.
 bool configSaveWiFiCredentials(const char* ssid, const char* password) {
     if (ssid == nullptr || ssid[0] == '\0') {
         return false;
