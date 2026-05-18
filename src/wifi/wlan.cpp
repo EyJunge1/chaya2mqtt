@@ -1,9 +1,10 @@
 #include "wlan.h"
 
+#include "async/event_types.h"
+#include "async/task_handles.h"
 #include "constants.h"
 #include "ip_format.h"
 #include "heart/counter.h"
-#include "async/task_handles.h"
 #include "config/nvs_utils.h"
 #include "hw/pins.h"
 #include "web/admin.h"
@@ -19,6 +20,7 @@
 
 #include <algorithm>
 #include <atomic>
+#include <cstdint>
 #include <cerrno>
 #include <climits>
 #include <cstdint>
@@ -29,6 +31,7 @@
 #include <esp_log.h>
 #include <esp_wifi.h>
 #include <freertos/FreeRTOS.h>
+#include <freertos/queue.h>
 #include <freertos/task.h>
 #include <time.h>
 
@@ -124,6 +127,33 @@ static void wifiLoadCredentialsFromNvs(char* ssid, size_t ssidLen, char* pass, s
 } // namespace
 
 static void wifiStationEvent(arduino_event_id_t event);
+
+void wlanHandleStaReconnectNetCmd() {
+    if (g_apMode.load(std::memory_order_relaxed)) {
+        return;
+    }
+    const unsigned long    nowMs      = millis();
+    const unsigned long    nextAllowed = s_wifiReconnectNextAllowedMs.load(std::memory_order_relaxed);
+    if (nextAllowed != 0UL && static_cast<std::int32_t>(nowMs - nextAllowed) < 0) {
+        ESP_LOGD(TAG, "WLAN reconnect skipped (backoff)");
+        return;
+    }
+    ESP_LOGW(TAG, "WLAN disconnected, attempting reconnect...");
+    wlanWifiApiLock();
+    if (WiFi.getMode() == WIFI_STA || WiFi.getMode() == WIFI_AP_STA) {
+        WiFi.reconnect();
+        constexpr unsigned long kBaseBackoffMs = 3000UL;
+        constexpr unsigned long kMaxBackoffMs  = 120000UL;
+        const uint32_t          shift =
+            std::min(s_wifiReconnectFailCount.load(std::memory_order_relaxed),
+                     static_cast<uint32_t>(6));
+        const unsigned long backoff =
+            std::min(kBaseBackoffMs * (1UL << shift), kMaxBackoffMs);
+        s_wifiReconnectFailCount.fetch_add(1, std::memory_order_relaxed);
+        s_wifiReconnectNextAllowedMs.store(nowMs + backoff, std::memory_order_relaxed);
+    }
+    wlanWifiApiUnlock();
+}
 
 bool wlanLastStaBootFailureSsidSnapshot(char* outSsid, size_t maxLen) {
     if (outSsid == nullptr || maxLen == 0U) {
@@ -315,26 +345,12 @@ static void wifiStationEvent(arduino_event_id_t event) {
             if (!s_wifiSetupComplete.load(std::memory_order_acquire)) {
                 break;
             }
-            const unsigned long nowMs = millis();
-            if (nowMs < s_wifiReconnectNextAllowedMs.load(std::memory_order_relaxed)) {
-                ESP_LOGD(TAG, "WLAN reconnect skipped (backoff)");
-                break;
+            if (g_netCmdQueue != nullptr) {
+                const NetCmd cmd = NetCmd::WifiReconnect;
+                if (xQueueSend(g_netCmdQueue, &cmd, 0) != pdTRUE) {
+                    ESP_LOGW(TAG, "netCmd queue full (WifiReconnect)");
+                }
             }
-            ESP_LOGW(TAG, "WLAN disconnected, attempting reconnect...");
-            wlanWifiApiLock();
-            if (WiFi.getMode() == WIFI_STA || WiFi.getMode() == WIFI_AP_STA) {
-                WiFi.reconnect();
-                constexpr unsigned long kBaseBackoffMs = 3000UL;
-                constexpr unsigned long kMaxBackoffMs  = 120000UL;
-                const uint32_t          shift =
-                    std::min(s_wifiReconnectFailCount.load(std::memory_order_relaxed),
-                             static_cast<uint32_t>(6));
-                const unsigned long backoff =
-                    std::min(kBaseBackoffMs * (1UL << shift), kMaxBackoffMs);
-                s_wifiReconnectFailCount.fetch_add(1, std::memory_order_relaxed);
-                s_wifiReconnectNextAllowedMs.store(nowMs + backoff, std::memory_order_relaxed);
-            }
-            wlanWifiApiUnlock();
             break;
         }
         case ARDUINO_EVENT_WIFI_STA_GOT_IP: {
@@ -368,7 +384,6 @@ static bool setupWifiTryStaConnect(char* ssid, char* pass) {
     WiFi.setScanMethod(WIFI_ALL_CHANNEL_SCAN);
     WiFi.setSortMethod(WIFI_CONNECT_AP_BY_SIGNAL);
     WiFi.begin(ssid, pass);
-    WiFi.onEvent(wifiStationEvent);
     wlanWifiApiUnlock();
 
     const unsigned long start = millis();
@@ -465,6 +480,8 @@ void setupWiFi() {
         ESP_LOGD(TAG, "WLAN: no SSID in NVS (STA not configured or read failed)");
     }
 
+    WiFi.onEvent(wifiStationEvent);
+
     const bool staConnected = setupWifiTryStaConnect(ssid, pass);
 
     if (staConnected) {
@@ -491,6 +508,9 @@ void resetAllSettings() {
     portEXIT_CRITICAL(&g_lastFailedBootSsidMux);
     webAuthInvalidateSession();
     webAdminWebServer().end();
+    if (g_apMode.load(std::memory_order_relaxed)) {
+        g_dnsServer.stop();
+    }
     if (!g_apMode.load(std::memory_order_relaxed)) {
         MDNS.end();
     }
@@ -559,11 +579,10 @@ void wlanSetStaPowerSaveMqttActive(bool mqttSessionActive) {
             return;
         }
         WiFi.setSleep(true);
-        wlanWifiApiUnlock();
         esp_wifi_set_ps(WIFI_PS_MIN_MODEM);
     } else {
         WiFi.setSleep(false);
-        wlanWifiApiUnlock();
         esp_wifi_set_ps(WIFI_PS_NONE);
     }
+    wlanWifiApiUnlock();
 }

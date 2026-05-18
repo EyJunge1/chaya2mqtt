@@ -220,8 +220,10 @@ void maybePeriodicallyResetCounters() {
         return;
     }
 
+    portENTER_CRITICAL(&s_heartDisplayMux);
     counterBaseline.store(heartCounter.load(std::memory_order_relaxed), std::memory_order_relaxed);
     sentCountBaseline.store(heartSentCounter.load(std::memory_order_relaxed), std::memory_order_relaxed);
+    portEXIT_CRITICAL(&s_heartDisplayMux);
     s_lastResetCalendarDayUtc.store(currentDay, std::memory_order_relaxed);
     if (persistCounterBaselineState()) {
         ESP_LOGI(TAG, "Periodic display counter reset (%u days)", static_cast<unsigned>(periodDays));
@@ -239,12 +241,16 @@ void maybeResetDisplayBaselinesWhenCapped() {
     const int64_t dSent = static_cast<int64_t>(heartSentCounter.load(std::memory_order_relaxed))
                           - static_cast<int64_t>(sentCountBaseline.load(std::memory_order_relaxed));
     if (dRecv >= kDisplayCounterMax) {
+        portENTER_CRITICAL(&s_heartDisplayMux);
         counterBaseline.store(heartCounter.load(std::memory_order_relaxed), std::memory_order_relaxed);
-        changed         = true;
+        portEXIT_CRITICAL(&s_heartDisplayMux);
+        changed = true;
     }
     if (dSent >= kDisplayCounterMax) {
+        portENTER_CRITICAL(&s_heartDisplayMux);
         sentCountBaseline.store(heartSentCounter.load(std::memory_order_relaxed), std::memory_order_relaxed);
-        changed           = true;
+        portEXIT_CRITICAL(&s_heartDisplayMux);
+        changed = true;
     }
     if (changed && persistCounterBaselineState()) {
         ESP_LOGI(TAG, "Display baseline reset (display reached cap)");

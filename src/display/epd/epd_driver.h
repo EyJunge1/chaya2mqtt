@@ -54,6 +54,8 @@ private:
     void _waitWhileBusy(const char* comment, uint16_t busy_time);
     void _writeCommand(uint8_t c);
     void _writeData(uint8_t d);
+    void _writeDataBulk(const uint8_t* data, size_t len);
+    void _writeConstantDataBytes(uint8_t value, size_t count);
 
     void _setPartialRamArea(uint16_t x, uint16_t y, uint16_t w, uint16_t h);
     void _powerOffEp();
@@ -86,6 +88,7 @@ private:
     bool _initial_write = true;
     bool _power_is_on = false;
     bool _hibernating = false;
+    bool _panel_controller_ready = false;
     uint16_t _reset_duration = 10;
 
     bool _gfx_partial_window = false;

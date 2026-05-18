@@ -48,7 +48,6 @@ void drawCenteredTextScreen(const char* text, uint8_t startSize, uint8_t minSize
     epd.setFullWindow();
     epd.firstPage();
     do {
-        epd.fillScreen(GxEPD_WHITE);
         epd.setTextSize(textSize);
         epd.setCursor(static_cast<int16_t>(cursorX), static_cast<int16_t>(cursorY));
         epd.print(text);
@@ -163,7 +162,6 @@ void drawHeartWithNumber() {
     epd.setFullWindow();
     epd.firstPage();
     do {
-        epd.fillScreen(GxEPD_WHITE);
 
         epd.fillCircle(static_cast<int16_t>(kCenterX - kCircleSpacing),
                          static_cast<int16_t>(kCircleY),

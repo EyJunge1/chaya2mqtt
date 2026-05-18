@@ -2,6 +2,7 @@
 
 #include "mqtt.h"
 
+#include "async/event_types.h"
 #include "async/task_handles.h"
 #include "config.h"
 #include "constants.h"
@@ -23,6 +24,8 @@
 #include <esp_err.h>
 #include <esp_log.h>
 #include <esp_random.h>
+#include <freertos/FreeRTOS.h>
+#include <freertos/queue.h>
 #include <freertos/semphr.h>
 #include <freertos/portmacro.h>
 #include <mqtt_client.h>
@@ -39,9 +42,7 @@ static constexpr unsigned long kMqttWifiDownBackoffMs            = 20000UL;
 static constexpr unsigned long kMqttWifiLostDuringTlsBackoffMs   = 90000UL;
 static constexpr unsigned long kMqttNtpRetryMs                   = 2000UL;
 
-// Teardown/restart client from mqttLoop only (not from MQTT callback).
-static std::atomic<bool> s_needMqttKillFromLoop{false};
-
+// Teardown/restart client from mqttLoop / network task (not from MQTT callback).
 static esp_mqtt_client_handle_t s_client = nullptr;
 static std::atomic<bool>        s_connected{false};
 static std::atomic<bool> s_connectPending{false};
@@ -118,18 +119,30 @@ static unsigned long mqttConnectPrecheckDeferMs() {
     return 0;
 }
 
-static void handleCounterPayload(char* payload, unsigned int length) {
+static void mqttQueueKillClientFromEvent() {
+    if (g_netCmdQueue == nullptr) {
+        return;
+    }
+    const NetCmd cmd = NetCmd::MqttKillClient;
+    if (xQueueSend(g_netCmdQueue, &cmd, 0) != pdTRUE) {
+        ESP_LOGW(TAG, "netCmd queue full (MqttKillClient)");
+    }
+}
+
+static void handleCounterPayload(const char* payload, unsigned int length) {
     if (length == 0 || length > 10U) {
         ESP_LOGD(TAG, "Invalid counter payload length %u", length);
         return;
     }
 
-    payload[length] = '\0';
+    char buf[12];
+    memcpy(buf, payload, length);
+    buf[length] = '\0';
 
     char*     endPtr = nullptr;
     errno              = 0;
-    const long parsed  = strtol(payload, &endPtr, 10);
-    if (errno == ERANGE || endPtr != payload + length || parsed < 0
+    const long parsed  = strtol(buf, &endPtr, 10);
+    if (errno == ERANGE || endPtr != buf + length || parsed < 0
         || parsed > static_cast<long>(INT_MAX)) {
         ESP_LOGD(TAG, "Counter payload is not a plain integer");
         return;
@@ -261,7 +274,7 @@ static void mqttEventHandler(void* /*handler_args*/, esp_event_base_t /*base*/, 
         const bool intentional = s_disconnectIntentional.load(std::memory_order_acquire);
         if (!intentional) {
             applyDisconnectFailureBackoff(/*wifiSuspect=*/!wlanStaConnectedOk());
-            s_needMqttKillFromLoop.store(true, std::memory_order_release);
+            mqttQueueKillClientFromEvent();
         }
         break;
     }
@@ -390,7 +403,6 @@ static bool mqttEnsureClientAllocated() {
 // Stop + destroy client; prefer mqttKillClient() (mutex). Clear s_client before stop (reentrancy).
 static void mqttKillClientImpl() {
     if (s_client == nullptr) {
-        s_needMqttKillFromLoop.store(false, std::memory_order_release);
         return;
     }
 
@@ -416,7 +428,6 @@ static void mqttKillClientImpl() {
     s_connected.store(false, std::memory_order_release);
     s_connectPending.store(false, std::memory_order_release);
     s_disconnectIntentional.store(false, std::memory_order_release);
-    s_needMqttKillFromLoop.store(false, std::memory_order_release);
 }
 
 static void mqttKillClient() {
@@ -425,14 +436,6 @@ static void mqttKillClient() {
     mqttClientUnlock();
 }
 
-static void mqttProcessDeferredKillLocked() {
-    if (!s_needMqttKillFromLoop.exchange(false, std::memory_order_acq_rel)) {
-        return;
-    }
-    mqttKillClient();
-}
-
-// Publish heartSentCounter+1 to topic_pub. Caller holds g_chayaPublishMutex.
 static bool mqttPublishChayaLocked() {
     if (!s_connected.load(std::memory_order_acquire)) {
         ESP_LOGW(TAG, "Publish skipped: not connected");
@@ -535,15 +538,14 @@ static void mqttLoopTryReconnect(MqttConfig& loopCfg, unsigned long now) {
     bool backoffElapsed = false;
     portENTER_CRITICAL(&s_mqttBackoffMux);
     backoffElapsed = mqttBackoffMs == 0UL || ((now - lastMqttAttemptAt) >= mqttBackoffMs);
+    if (backoffElapsed) {
+        lastMqttAttemptAt = now;
+    }
     portEXIT_CRITICAL(&s_mqttBackoffMux);
 
     if (!backoffElapsed) {
         return;
     }
-
-    portENTER_CRITICAL(&s_mqttBackoffMux);
-    lastMqttAttemptAt = now;
-    portEXIT_CRITICAL(&s_mqttBackoffMux);
 
     const unsigned long deferMs = mqttConnectPrecheckDeferMs();
     if (deferMs != 0U) {
@@ -585,8 +587,6 @@ void mqttLoop() {
         mqttCfgSnapshot(&s_loopCfg);
     }
 
-    mqttProcessDeferredKillLocked();
-
     if (s_loopCfg.server[0] == '\0') {
         mqttClientLock();
         const bool hasClient = s_client != nullptr;
@@ -604,8 +604,6 @@ void mqttLoop() {
     mqttLoopApplyWifiPowerSaveOnConnectChange(connected, wasConnected);
 
     mqttLoopTryReconnect(s_loopCfg, now);
-
-    mqttProcessDeferredKillLocked();
 }
 
 void mqttPostponeConnect(unsigned long delayMs) {

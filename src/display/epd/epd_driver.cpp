@@ -1,5 +1,7 @@
 #include "epd_driver.h"
 
+#include <cstring>
+
 #if defined(ESP8266) || defined(ESP32)
 #include <pgmspace.h>
 #else
@@ -28,6 +30,7 @@ void EpdDriver154Z90c::init(uint32_t serial_diag_bitrate, bool initial, uint16_t
     _pulldown_rst_mode   = pulldown_rst_mode;
     _power_is_on         = false;
     _hibernating         = false;
+    _panel_controller_ready = false;
     _reset_duration      = reset_duration;
     if (serial_diag_bitrate > 0) {
         Serial.begin(serial_diag_bitrate);
@@ -119,10 +122,8 @@ void EpdDriver154Z90c::fillScreen(uint16_t color) {
     } else if (color == EPD_RED) {
         red = 0x00;
     }
-    for (uint32_t x = 0; x < sizeof(_black_buffer); x++) {
-        _black_buffer[x] = black;
-        _color_buffer[x] = red;
-    }
+    memset(_black_buffer, black, sizeof(_black_buffer));
+    memset(_color_buffer, red, sizeof(_color_buffer));
 }
 
 void EpdDriver154Z90c::drawPixel(int16_t x, int16_t y, uint16_t color) {
@@ -177,10 +178,12 @@ void EpdDriver154Z90c::hibernate() {
         _writeData(0x01);
         _hibernating = true;
     }
+    _panel_controller_ready = false;
 }
 
 void EpdDriver154Z90c::powerOff() {
     _powerOffEp();
+    _panel_controller_ready = false;
 }
 
 /* --- SSD1682 / GDEH0154Z90 --- */
@@ -190,13 +193,10 @@ void EpdDriver154Z90c::writeScreenBuffer(uint8_t black_value, uint8_t color_valu
     _initPart();
     _setPartialRamArea(0, 0, kWidth, kHeight);
     _writeCommand(0x24);
-    for (uint32_t i = 0; i < uint32_t(kWidth) * uint32_t(kHeight) / 8U; i++) {
-        _writeData(black_value);
-    }
+    const uint32_t planeBytes = uint32_t(kWidth) * uint32_t(kHeight) / 8U;
+    _writeConstantDataBytes(black_value, planeBytes);
     _writeCommand(0x26);
-    for (uint32_t i = 0; i < uint32_t(kWidth) * uint32_t(kHeight) / 8U; i++) {
-        _writeData(static_cast<uint8_t>(~color_value));
-    }
+    _writeConstantDataBytes(static_cast<uint8_t>(~color_value), planeBytes);
 }
 
 void EpdDriver154Z90c::writeImage(const uint8_t* black, const uint8_t* color, int16_t x, int16_t y,
@@ -223,49 +223,59 @@ void EpdDriver154Z90c::writeImage(const uint8_t* black, const uint8_t* color, in
     _setPartialRamArea(static_cast<uint16_t>(x1), static_cast<uint16_t>(y1),
                        static_cast<uint16_t>(w1), static_cast<uint16_t>(h1));
     _writeCommand(0x24);
-    for (int16_t i = 0; i < h1; i++) {
-        for (int16_t j = 0; j < w1 / 8; j++) {
-            uint8_t data = 0xFF;
-            if (black != nullptr) {
-                const int16_t idx =
-                    mirror_y ? j + dx / 8 + ((h - 1 - (i + dy))) * wb : j + dx / 8 + (i + dy) * wb;
-                if (pgm) {
+    {
+        uint8_t         row[32];
+        const int16_t rowBytes = w1 / 8;
+        for (int16_t i = 0; i < h1; i++) {
+            for (int16_t j = 0; j < rowBytes; j++) {
+                uint8_t data = 0xFF;
+                if (black != nullptr) {
+                    const int16_t idx =
+                        mirror_y ? j + dx / 8 + ((h - 1 - (i + dy))) * wb : j + dx / 8 + (i + dy) * wb;
+                    if (pgm) {
 #if defined(__AVR) || defined(ESP8266) || defined(ESP32)
-                    data = pgm_read_byte(&black[idx]);
+                        data = pgm_read_byte(&black[idx]);
 #else
-                    data = black[idx];
+                        data = black[idx];
 #endif
-                } else {
-                    data = black[idx];
+                    } else {
+                        data = black[idx];
+                    }
+                    if (invert) {
+                        data = static_cast<uint8_t>(~data);
+                    }
                 }
-                if (invert) {
-                    data = static_cast<uint8_t>(~data);
-                }
+                row[static_cast<size_t>(j)] = data;
             }
-            _writeData(data);
+            _writeDataBulk(row, static_cast<size_t>(rowBytes));
         }
     }
     _writeCommand(0x26);
-    for (int16_t i = 0; i < h1; i++) {
-        for (int16_t j = 0; j < w1 / 8; j++) {
-            uint8_t data = 0xFF;
-            if (color != nullptr) {
-                const int16_t idx =
-                    mirror_y ? j + dx / 8 + ((h - 1 - (i + dy))) * wb : j + dx / 8 + (i + dy) * wb;
-                if (pgm) {
+    {
+        uint8_t         row[32];
+        const int16_t rowBytes = w1 / 8;
+        for (int16_t i = 0; i < h1; i++) {
+            for (int16_t j = 0; j < rowBytes; j++) {
+                uint8_t data = 0xFF;
+                if (color != nullptr) {
+                    const int16_t idx =
+                        mirror_y ? j + dx / 8 + ((h - 1 - (i + dy))) * wb : j + dx / 8 + (i + dy) * wb;
+                    if (pgm) {
 #if defined(__AVR) || defined(ESP8266) || defined(ESP32)
-                    data = pgm_read_byte(&color[idx]);
+                        data = pgm_read_byte(&color[idx]);
 #else
-                    data = color[idx];
+                        data = color[idx];
 #endif
-                } else {
-                    data = color[idx];
+                    } else {
+                        data = color[idx];
+                    }
+                    if (invert) {
+                        data = static_cast<uint8_t>(~data);
+                    }
                 }
-                if (invert) {
-                    data = static_cast<uint8_t>(~data);
-                }
+                row[static_cast<size_t>(j)] = static_cast<uint8_t>(~data);
             }
-            _writeData(static_cast<uint8_t>(~data));
+            _writeDataBulk(row, static_cast<size_t>(rowBytes));
         }
     }
     delay(1);
@@ -345,10 +355,14 @@ void EpdDriver154Z90c::_initDisplay() {
     _writeCommand(0x18);
     _writeData(0x80);
     _setPartialRamArea(0, 0, kWidth, kHeight);
+    _power_is_on = true;
 }
 
 void EpdDriver154Z90c::_initPart() {
-    _initDisplay();
+    if (!_panel_controller_ready) {
+        _initDisplay();
+        _panel_controller_ready = true;
+    }
 }
 
 void EpdDriver154Z90c::_updateFull() {
@@ -356,7 +370,6 @@ void EpdDriver154Z90c::_updateFull() {
     _writeData(0xF7);
     _writeCommand(0x20);
     _waitWhileBusy("_Update_Full", kFullRefreshMs);
-    _power_is_on = false;
 }
 
 void EpdDriver154Z90c::_updatePart() {
@@ -364,7 +377,6 @@ void EpdDriver154Z90c::_updatePart() {
     _writeData(0xF7);
     _writeCommand(0x20);
     _waitWhileBusy("_Update_Part", kPartialRefreshMs);
-    _power_is_on = false;
 }
 
 /* --- SPI / busy (from GxEPD2_EPD, stripped) --- */
@@ -452,6 +464,38 @@ void EpdDriver154Z90c::_writeData(uint8_t d) {
         digitalWrite(_cs, LOW);
     }
     _p_spi->transfer(d);
+    if (_cs >= 0) {
+        digitalWrite(_cs, HIGH);
+    }
+    _p_spi->endTransaction();
+}
+
+void EpdDriver154Z90c::_writeDataBulk(const uint8_t* data, size_t len) {
+    if (len == 0U || data == nullptr) {
+        return;
+    }
+    _p_spi->beginTransaction(_spi_settings);
+    if (_cs >= 0) {
+        digitalWrite(_cs, LOW);
+    }
+    _p_spi->transferBytes(data, nullptr, len);
+    if (_cs >= 0) {
+        digitalWrite(_cs, HIGH);
+    }
+    _p_spi->endTransaction();
+}
+
+void EpdDriver154Z90c::_writeConstantDataBytes(uint8_t value, size_t count) {
+    if (count == 0U) {
+        return;
+    }
+    _p_spi->beginTransaction(_spi_settings);
+    if (_cs >= 0) {
+        digitalWrite(_cs, LOW);
+    }
+    for (size_t i = 0; i < count; ++i) {
+        _p_spi->transfer(value);
+    }
     if (_cs >= 0) {
         digitalWrite(_cs, HIGH);
     }

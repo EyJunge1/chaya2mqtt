@@ -48,6 +48,12 @@ static void handleNetCommand(NetCmd cmd) {
         mqttDisconnect();
         mqttSetup();
         break;
+    case NetCmd::MqttKillClient:
+        mqttDisconnect();
+        break;
+    case NetCmd::WifiReconnect:
+        wlanHandleStaReconnectNetCmd();
+        break;
     case NetCmd::OtaCheckRequested:
         otaQueueGithubCheck();
         break;

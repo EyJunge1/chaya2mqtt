@@ -6,6 +6,8 @@
 enum class NetCmd : uint8_t {
     MqttSettingsChanged,
     MqttReconnect,
+    MqttKillClient,
+    WifiReconnect,
     OtaCheckRequested,
 };
 

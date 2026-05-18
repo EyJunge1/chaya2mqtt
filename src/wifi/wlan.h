@@ -49,4 +49,7 @@ void wlanWifiApiUnlock();
 
 bool wlanReadStaLocalIpForCommit(char* outIp, size_t ipLen);
 
+/** Queued from WiFi event; run reconnect/backoff under network task. */
+void wlanHandleStaReconnectNetCmd();
+
 #include "test.h"
