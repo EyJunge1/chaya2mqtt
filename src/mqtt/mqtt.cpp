@@ -566,7 +566,7 @@ static void mqttLoopTryReconnect(MqttConfig& loopCfg, unsigned long now) {
     portEXIT_CRITICAL(&s_mqttBackoffMux);
 
     if (!backoffElapsed) {
-        unsigned long remMs   = 0;
+        unsigned long remMs    = 0;
         unsigned long periodMs = 0;
         portENTER_CRITICAL(&s_mqttBackoffMux);
         periodMs = mqttBackoffMs;
@@ -575,6 +575,8 @@ static void mqttLoopTryReconnect(MqttConfig& loopCfg, unsigned long now) {
             remMs = (elapsed < mqttBackoffMs) ? (mqttBackoffMs - elapsed) : 0UL;
         }
         portEXIT_CRITICAL(&s_mqttBackoffMux);
+        (void)remMs;
+        (void)periodMs;
         ESP_LOGD(TAG, "Reconnect backoff: %lu ms remaining (period %lu ms)", remMs, periodMs);
         return;
     }
