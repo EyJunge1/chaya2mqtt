@@ -40,16 +40,27 @@ jobs:
         run: pio run -e esp32dev-release
 
       - name: Compute firmware hashes
+        id: hashes
         run: |
           cd .pio/build/esp32dev-release
+          md5sum firmware.bin | awk '{print $1}' > firmware.md5
           sha256sum firmware.bin | awk '{print $1}' > firmware.sha256
-          sha512sum firmware.bin | awk '{print $1}' > firmware.sha512
+          echo "md5=$(cat firmware.md5)" >> $GITHUB_OUTPUT
+          echo "sha256=$(cat firmware.sha256)" >> $GITHUB_OUTPUT
 
       - name: Upload release artifact
         uses: softprops/action-gh-release@v2
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
+          generate_release_notes: true
+          body: |
+            ## Firmware ${{ github.ref_name }}
+
+            | Algorithmus | Hash |
+            |-------------|------|
+            | MD5         | `${{ steps.hashes.outputs.md5 }}` |
+            | SHA-256     | `${{ steps.hashes.outputs.sha256 }}` |
           files: |
             .pio/build/esp32dev-release/firmware.bin
+            .pio/build/esp32dev-release/firmware.md5
             .pio/build/esp32dev-release/firmware.sha256
-            .pio/build/esp32dev-release/firmware.sha512
