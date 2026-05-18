@@ -274,6 +274,20 @@ static void mqttEventHandler(void* /*handler_args*/, esp_event_base_t /*base*/, 
         s_connectPending.store(false, std::memory_order_release);
         // Voluntary mqttKillClient(): skip failure backoff.
         const bool intentional = s_disconnectIntentional.load(std::memory_order_acquire);
+        if (intentional) {
+            ESP_LOGI(TAG, "MQTT disconnected (intentional teardown)");
+        } else {
+            const esp_mqtt_error_codes_t* eh = ev->error_handle;
+            if (eh != nullptr) {
+                ESP_LOGW(TAG,
+                         "MQTT disconnected: error_type=%d connect_rc=%d tls=%s sock_errno=%d",
+                         static_cast<int>(eh->error_type),
+                         static_cast<int>(eh->connect_return_code), esp_err_to_name(eh->esp_tls_last_esp_err),
+                         eh->esp_transport_sock_errno);
+            } else {
+                ESP_LOGW(TAG, "MQTT disconnected");
+            }
+        }
         if (!intentional) {
             applyDisconnectFailureBackoff(/*wifiSuspect=*/!wlanStaConnectedOk());
             mqttQueueKillClientFromEvent();
@@ -594,6 +608,7 @@ void mqttLoop() {
         const bool hasClient = s_client != nullptr;
         mqttClientUnlock();
         if (hasClient || s_connectPending.load(std::memory_order_acquire)) {
+            ESP_LOGW(TAG, "MQTT broker not configured — stopping client");
             mqttKillClient();
         }
         return;

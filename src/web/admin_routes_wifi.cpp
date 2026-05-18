@@ -6,6 +6,7 @@
 #include "config/app_config.h"
 #include "constants.h"
 #include "ip_format.h"
+#include "log_tag.h"
 #include "wifi/wlan.h"
 #include "wifi/test.h"
 #include "web_middleware.h"
@@ -17,6 +18,9 @@
 
 #include <cstdio>
 #include <cstring>
+#include <esp_log.h>
+
+DEFINE_LOG_TAG("WIFIADM");
 
 static void handleWifiConnectPost(AsyncWebServerRequest* req) {
     char ssid[kWifiSsidMaxLen];
@@ -24,24 +28,29 @@ static void handleWifiConnectPost(AsyncWebServerRequest* req) {
     ssid[0]     = '\0';
     password[0] = '\0';
     if (!adminParseBodyParam(req, "ssid", ssid, sizeof(ssid)) || ssid[0] == '\0') {
+        ESP_LOGW(TAG, "Wi-Fi connect POST rejected: missing SSID");
         req->redirect(F("/wifi"));
         return;
     }
     (void)adminParseBodyParam(req, "password", password, sizeof(password));
     if (configIsApMode()) {
         if (!wlanStartWifiConnectionTest(ssid, password)) {
+            ESP_LOGW(TAG, "Wi-Fi connect test could not start (SSID=%s)", ssid);
             req->redirect(F("/wifi"));
             return;
         }
+        ESP_LOGI(TAG, "Wi-Fi connect test started (setup AP), SSID=%s", ssid);
         req->redirect(F("/wifi-testing"));
         return;
     }
 
     if (!configSaveWiFiCredentials(ssid, password)) {
+        ESP_LOGE(TAG, "Failed to persist Wi-Fi credentials");
         req->redirect(F("/wifi"));
         return;
     }
     g_webAdminWifiReconnectRequested.store(true, std::memory_order_release);
+    ESP_LOGI(TAG, "Wi-Fi credentials saved; STA reconnect scheduled");
 
     char doneMsg[200];
     snprintf(doneMsg, sizeof(doneMsg),
@@ -67,15 +76,18 @@ static void handleWifiConnectStatusGet(AsyncWebServerRequest* req) {
     const int h =
         snprintf(body, sizeof(body), "{\"state\":\"%s\",\"ssid\":", stStr);
     if (h < 0 || static_cast<size_t>(h) >= sizeof(body)) {
+        ESP_LOGE(TAG, "/wifi-connect-status JSON build overflow");
         req->send(500);
         return;
     }
     pos = static_cast<size_t>(h);
     if (!appendJsonStringQuotedEscaped(ssid, body, sizeof(body), &pos)) {
+        ESP_LOGE(TAG, "/wifi-connect-status SSID escape failed");
         req->send(500);
         return;
     }
     if (pos + 2U > sizeof(body)) {
+        ESP_LOGE(TAG, "/wifi-connect-status JSON too large");
         req->send(500);
         return;
     }
@@ -89,13 +101,16 @@ static void handleWifiConnectCommitPost(AsyncWebServerRequest* req) {
     char staIp[16]{};
     (void)wlanReadStaLocalIpForCommit(staIp, sizeof(staIp));
     if (!wlanCommitWifiConnectionTestAndScheduleReboot()) {
+        ESP_LOGW(TAG, "Wi-Fi setup commit refused (state not OK?)");
         req->redirect(F("/wifi-testing"));
         return;
     }
+    ESP_LOGI(TAG, "Wi-Fi setup credentials committed; device reboot scheduled");
     streamWifiCommitDonePage(req, staIp);
 }
 
 static void handleWifiConnectAbortPost(AsyncWebServerRequest* req) {
+    ESP_LOGI(TAG, "Wi-Fi setup connect test aborted by user");
     wlanAbortWifiConnectionTest();
     req->redirect(F("/wifi"));
 }
@@ -115,15 +130,18 @@ static void handleWifiStatusGet(AsyncWebServerRequest* req) {
     const int h = snprintf(body, sizeof(body),
                            "{\"connected\":true,\"ip\":\"%s\",\"rssi\":%d,\"ssid\":", ipStr, rssi);
     if (h < 0 || static_cast<size_t>(h) >= sizeof(body)) {
+        ESP_LOGE(TAG, "/wifi-status JSON prefix overflow");
         req->send(500);
         return;
     }
     pos = static_cast<size_t>(h);
     if (!appendJsonStringQuotedEscaped(ssidBuf, body, sizeof(body), &pos)) {
+        ESP_LOGE(TAG, "/wifi-status SSID escape failed");
         req->send(500);
         return;
     }
     if (pos + 2U > sizeof(body)) {
+        ESP_LOGE(TAG, "/wifi-status JSON too large");
         req->send(500);
         return;
     }

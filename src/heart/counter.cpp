@@ -17,6 +17,7 @@
 #include <algorithm>
 #include <atomic>
 #include <cstdint>
+#include <cinttypes>
 #include <cstdio>
 #include <cstring>
 #include <esp_log.h>
@@ -290,6 +291,14 @@ void loadHeartCounter() {
     sentCountBaseline.store(std::max<int32_t>(prefs.getInt("sntBase", 0), 0), std::memory_order_relaxed);
     s_lastResetCalendarDayUtc.store(prefs.getUInt("rstDay", UINT32_MAX), std::memory_order_relaxed);
     prefs.end();
+
+    ESP_LOGD(TAG,
+             "Counters loaded from NVS: counter=%d sent=%d cntBase=%d sntBase=%d rstDay=%" PRIu32,
+             heartCounter.load(std::memory_order_relaxed),
+             heartSentCounter.load(std::memory_order_relaxed),
+             counterBaseline.load(std::memory_order_relaxed),
+             sentCountBaseline.load(std::memory_order_relaxed),
+             s_lastResetCalendarDayUtc.load(std::memory_order_relaxed));
 
     heartDebounceLock();
     s_rxCounter.syncAfterExternalLoad(t);

@@ -9,6 +9,7 @@
 #include "web/auth.h"
 
 #include "diag/stack_monitor.h"
+#include "log_tag.h"
 
 #include <Arduino.h>
 #include <SPI.h>
@@ -18,6 +19,8 @@
 #include <esp_log.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
+
+DEFINE_LOG_TAG("DISP");
 
 // Only this task uses SPI/EPD; everyone else posts DisplayMsg.
 
@@ -85,7 +88,7 @@ static void displayPostMsg(DisplayMsg::Cmd cmd, uint32_t payload = 0) {
     const bool authUi = (cmd == DisplayMsg::Cmd::DrawAuthPrompt || cmd == DisplayMsg::Cmd::DrawAuthCode);
     const TickType_t wait = authUi ? pdMS_TO_TICKS(2000) : pdMS_TO_TICKS(100);
     if (xQueueSend(g_displayCmdQueue, &msg, wait) != pdTRUE) {
-        ESP_LOGW("DISP", "display queue full (cmd=%d)", static_cast<int>(cmd));
+        ESP_LOGW(TAG, "display queue full (cmd=%d)", static_cast<int>(cmd));
     }
 }
 
@@ -128,7 +131,7 @@ void displayStartTask() {
     const BaseType_t ok =
         xTaskCreatePinnedToCore(displayTaskFn, "display", 4096, nullptr, 3, nullptr, 1);
     if (ok != pdPASS) {
-        ESP_LOGE("DISP", "display task create failed");
+        ESP_LOGE(TAG, "display task create failed");
         abort();
     }
 }

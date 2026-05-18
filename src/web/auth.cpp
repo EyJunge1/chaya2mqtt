@@ -379,7 +379,15 @@ static void handleAuthPost(AsyncWebServerRequest* req) {
 
     const unsigned long nowMs = millis();
     if (nowMs < s_authLockoutUntilMs.load(std::memory_order_acquire)) {
-        streamAuthPage(req, false, lockoutRemainingSec(nowMs));
+        static unsigned long s_lastLockoutNoticeMs = 0;
+        const unsigned long  remSec                = lockoutRemainingSec(nowMs);
+        if (s_lastLockoutNoticeMs == 0U || nowMs - s_lastLockoutNoticeMs >= 60000UL) {
+            ESP_LOGW(TAG,
+                     "Web auth POST refused: lockout active (~%lu s remaining)",
+                     static_cast<unsigned long>(remSec));
+            s_lastLockoutNoticeMs = nowMs;
+        }
+        streamAuthPage(req, false, remSec);
         return;
     }
 
@@ -404,9 +412,13 @@ static void handleAuthPost(AsyncWebServerRequest* req) {
     if (!ok) {
         const unsigned fails =
             s_authFailStreak.fetch_add(1, std::memory_order_acq_rel) + 1U;
+        ESP_LOGD(TAG, "Web auth POST: invalid challenge code (%u/%u failures)", fails,
+                 static_cast<unsigned>(kAuthFailsForLock));
         if (fails >= kAuthFailsForLock) {
             s_authLockoutUntilMs.store(nowMs + kAuthLockoutMs, std::memory_order_release);
             s_authFailStreak.store(0, std::memory_order_release);
+            ESP_LOGW(TAG, "Web auth lockout activated after repeated failures (~%lu h)",
+                     static_cast<unsigned long>(kAuthLockoutMs / 3600000UL));
         }
         streamAuthPage(req, true);
         return;
@@ -443,6 +455,7 @@ static void handleAuthPost(AsyncWebServerRequest* req) {
     snprintf(cookieBuf, sizeof(cookieBuf), "%s=%s; Path=/; HttpOnly; Max-Age=%lu; SameSite=Lax",
              kCookieName, hexCookie, static_cast<unsigned long>(kSessionCookieMaxAgeSec));
     resp->addHeader(F("Set-Cookie"), cookieBuf);
+    ESP_LOGI(TAG, "Web auth session established (login)");
     req->send(resp);
 }
 
@@ -462,6 +475,7 @@ static void handleLogoutGet(AsyncWebServerRequest* req) {
     scheduleMainTaskScreenAfterAuthFlow();
 
     webAuthInvalidateSession();
+    ESP_LOGI(TAG, "Web auth session cleared (logout)");
     AsyncWebServerResponse* resp = req->beginResponse(302);
     resp->addHeader(F("Location"), String("/auth"));
     resp->addHeader(

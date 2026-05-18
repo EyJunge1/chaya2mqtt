@@ -5,6 +5,10 @@
 
 #include <esp_log.h>
 
+#include "log_tag.h"
+
+DEFINE_LOG_TAG("ASYNC");
+
 QueueHandle_t      g_netCmdQueue     = nullptr;
 QueueHandle_t      g_displayCmdQueue = nullptr;
 SemaphoreHandle_t  g_mqttClientMutex      = nullptr;
@@ -29,7 +33,7 @@ void asyncInfraInit() {
         || g_mqttClientMutex == nullptr || g_chayaPublishMutex == nullptr
         || g_heartDebounceMutex == nullptr || g_nvsMutex == nullptr
         || g_wifiTestMutex == nullptr || g_wifiApiMutex == nullptr) {
-        ESP_LOGE("ASYNC", "asyncInfraInit: queue/mutex allocation failed");
+        ESP_LOGE(TAG, "asyncInfraInit: queue/mutex allocation failed");
         abort();
     }
 }

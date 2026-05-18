@@ -1,5 +1,7 @@
 #include "epd_driver.h"
 
+#include "log_tag.h"
+
 #include <cstring>
 
 #if defined(ESP8266) || defined(ESP32)
@@ -13,6 +15,8 @@
 #if defined(ESP32)
 #include <esp_log.h>
 #endif
+
+DEFINE_LOG_TAG("EPD");
 
 EpdDriver154Z90c::EpdDriver154Z90c(int16_t cs, int16_t dc, int16_t rst, int16_t busy)
     : Adafruit_GFX(static_cast<int16_t>(kWidth), static_cast<int16_t>(kHeight)), _cs(cs), _dc(dc),
@@ -423,7 +427,7 @@ void EpdDriver154Z90c::_waitWhileBusy(const char* comment, uint16_t busy_time) {
             }
             if (micros() - start > _busy_timeout) {
 #if defined(ESP32)
-                ESP_LOGW("EPD", "Busy Timeout!");
+                ESP_LOGW(TAG, "Busy Timeout!");
 #else
                 Serial.println(F("Busy Timeout!"));
 #endif
@@ -435,10 +439,14 @@ void EpdDriver154Z90c::_waitWhileBusy(const char* comment, uint16_t busy_time) {
         }
 #if !defined(DISABLE_DIAGNOSTIC_OUTPUT)
         if (comment != nullptr && _diag_enabled) {
+#if defined(ESP32)
+            ESP_LOGD(TAG, "%s : %lu us", comment, static_cast<unsigned long>(micros() - start));
+#else
             const unsigned long elapsed = micros() - start;
             Serial.print(comment);
             Serial.print(F(" : "));
             Serial.println(elapsed);
+#endif
         }
 #else
         (void)comment;
