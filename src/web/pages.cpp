@@ -150,7 +150,10 @@ void streamDashboard(AsyncWebServerRequest* req) {
                       "<a class='card' href='/settings'>Settings</a>"
                       "<a class='card' href='/update'>OTA Update</a>"));
         if (configGetWebAuthEnabled()) {
-            resp->print(F("<a class='card danger' href='/logout'>Logout</a>"));
+            resp->print(F("<form method='post' action='/logout'>"
+                          "<input type='hidden' name='csrf_token' value='"));
+            appendCurrentWebCsrfTokenEscaped(*resp);
+            resp->print(F("'/><button type='submit' class='card danger'>Logout</button></form>"));
         }
         resp->print(F("<form method='post' action='/reboot'>"
                        "<input type='hidden' name='csrf_token' value='"));

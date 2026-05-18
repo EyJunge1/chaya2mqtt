@@ -145,6 +145,9 @@ static bool isSafeNextPath(const char* next) {
     if (strstr(next, "..") != nullptr) {
         return false;
     }
+    if (strcmp(next, "/logout") == 0) {
+        return false;
+    }
     return true;
 }
 
@@ -463,12 +466,20 @@ static void handleAuthPost(AsyncWebServerRequest* req) {
     req->send(resp);
 }
 
-static void handleLogoutGet(AsyncWebServerRequest* req) {
+static void handleLogoutPost(AsyncWebServerRequest* req) {
     if (!configGetWebAuthEnabled()) {
         webRedirect(req, F("/"));
         return;
     }
     if (configIsApMode()) {
+        webRedirect(req, F("/"));
+        return;
+    }
+    if (!webAuthIsAuthenticated(req)) {
+        webRedirect(req, F("/auth"));
+        return;
+    }
+    if (!webAuthValidateCsrfPost(req)) {
         webRedirect(req, F("/"));
         return;
     }
@@ -499,5 +510,5 @@ void webAuthInvalidateSession() {
 void webAuthRegisterRoutes(AsyncWebServer& ws) {
     ws.on("/auth", HTTP_GET, [](AsyncWebServerRequest* rq) { handleAuthGet(rq); });
     ws.on("/auth", HTTP_POST, [](AsyncWebServerRequest* rq) { handleAuthPost(rq); });
-    ws.on("/logout", HTTP_GET, [](AsyncWebServerRequest* rq) { handleLogoutGet(rq); });
+    ws.on("/logout", HTTP_POST, [](AsyncWebServerRequest* rq) { handleLogoutPost(rq); });
 }
