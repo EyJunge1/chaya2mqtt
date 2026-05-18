@@ -18,6 +18,10 @@
 #include <climits>
 #include <esp_log.h>
 
+#include "log_tag.h"
+
+DEFINE_LOG_TAG("ADMIN");
+
 // Routes, deferred flags, SSE tick.
 
 AsyncWebServer& webAdminWebServer() {
@@ -79,7 +83,7 @@ void webAdminLoop() {
         if (xQueueSend(g_netCmdQueue, &cmd, pdMS_TO_TICKS(500)) == pdTRUE) {
             g_webAdminMqttApplyPending.store(false, std::memory_order_release);
         } else {
-            ESP_LOGW("ADMIN", "netCmd queue full (MqttSettingsChanged)");
+            ESP_LOGW(TAG, "netCmd queue full (MqttSettingsChanged)");
         }
     }
 

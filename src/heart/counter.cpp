@@ -226,6 +226,15 @@ void maybePeriodicallyResetCounters() {
     const bool      shouldReset = (daysSinceReset >= static_cast<uint32_t>(periodDays));
 
     if (!shouldReset) {
+        static unsigned long s_lastNoResetLogMs = 0;
+        const unsigned long nowMs               = millis();
+        if (s_lastNoResetLogMs == 0UL || (nowMs - s_lastNoResetLogMs) >= 300000UL) {
+            s_lastNoResetLogMs = nowMs;
+            ESP_LOGD(TAG,
+                     "Periodic reset not due: %u / %u days since anchor day %" PRIu32 " (today %" PRIu32 ")",
+                     static_cast<unsigned>(daysSinceReset), static_cast<unsigned>(periodDays), lastDay,
+                     currentDay);
+        }
         return;
     }
 

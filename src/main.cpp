@@ -25,6 +25,7 @@
 #include "web/admin.h"
 #include "web/auth.h"
 #include "wifi/wlan.h"
+#include "version.h"
 
 DEFINE_LOG_TAG("MAIN");
 
@@ -85,6 +86,9 @@ void setup() {
     Serial.begin(115200);
 #endif
     ESP_LOGI(TAG, "=== Chaya2MQTT === rst:%d", static_cast<int>(esp_reset_reason()));
+    ESP_LOGI(TAG, "Firmware %s | heap free=%zu min_free=%zu", APP_VERSION,
+             static_cast<size_t>(esp_get_free_heap_size()),
+             static_cast<size_t>(esp_get_minimum_free_heap_size()));
 
     pinsInit();
     displayInit();

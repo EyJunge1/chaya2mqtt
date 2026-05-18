@@ -181,6 +181,7 @@ static bool feedFragmentedPayload(esp_mqtt_event_handle_t ev) {
             have        = 0;
             return false;
         }
+        ESP_LOGV(TAG, "MQTT fragment: new stream total_len=%" PRIu32, expectTotal);
     }
 
     if (expectTotal == 0U) {
@@ -197,9 +198,11 @@ static bool feedFragmentedPayload(esp_mqtt_event_handle_t ev) {
     have += add;
 
     if (have < expectTotal) {
+        ESP_LOGV(TAG, "MQTT fragment: partial %u/%" PRIu32 " bytes", have, expectTotal);
         return false;
     }
 
+    ESP_LOGV(TAG, "MQTT fragment: complete %" PRIu32 " bytes", expectTotal);
     handleCounterPayload(accBuf, expectTotal);
     have        = 0;
     expectTotal = 0;
@@ -479,6 +482,9 @@ static bool mqttPublishChayaLocked() {
     const int pid = esp_mqtt_client_publish(cli, topicPub, buf, static_cast<int>(strlen(buf)), /*qos=*/0,
                                             /*retain=*/1);
     mqttClientUnlock();
+    if (pid >= 0) {
+        ESP_LOGD(TAG, "Published chaya → %s payload=%s (msg_id=%d)", topicPub, buf, pid);
+    }
     return pid >= 0;
 }
 
@@ -560,6 +566,16 @@ static void mqttLoopTryReconnect(MqttConfig& loopCfg, unsigned long now) {
     portEXIT_CRITICAL(&s_mqttBackoffMux);
 
     if (!backoffElapsed) {
+        unsigned long remMs   = 0;
+        unsigned long periodMs = 0;
+        portENTER_CRITICAL(&s_mqttBackoffMux);
+        periodMs = mqttBackoffMs;
+        if (mqttBackoffMs > 0U) {
+            const unsigned long elapsed = now - lastMqttAttemptAt;
+            remMs = (elapsed < mqttBackoffMs) ? (mqttBackoffMs - elapsed) : 0UL;
+        }
+        portEXIT_CRITICAL(&s_mqttBackoffMux);
+        ESP_LOGD(TAG, "Reconnect backoff: %lu ms remaining (period %lu ms)", remMs, periodMs);
         return;
     }
 
@@ -568,6 +584,7 @@ static void mqttLoopTryReconnect(MqttConfig& loopCfg, unsigned long now) {
         portENTER_CRITICAL(&s_mqttBackoffMux);
         mqttBackoffMs = deferMs;
         portEXIT_CRITICAL(&s_mqttBackoffMux);
+        ESP_LOGD(TAG, "MQTT connect deferred by precheck (%lu ms)", deferMs);
         return;
     }
 

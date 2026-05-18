@@ -193,9 +193,22 @@ bool httpStreamFirmwareToOtaVerified(WiFiClientSecure& tls, const char* binUrl,
     size_t              totalWritten = 0;
     const int           contentLen   = https.getSize();
     const unsigned long startMs      = millis();
+    size_t              otaNextProgressLogAt = 512U * 1024U;
 
     const auto abandonOtaSilent = [&]() {
         otaSess.abandon();
+    };
+
+    auto noteOtaProgress = [&]() {
+        while (totalWritten >= otaNextProgressLogAt) {
+            if (contentLen > 0) {
+                ESP_LOGI(TAG, "OTA progress: %u / %d bytes", static_cast<unsigned>(totalWritten),
+                         contentLen);
+            } else {
+                ESP_LOGI(TAG, "OTA progress: %u bytes (chunked body)", static_cast<unsigned>(totalWritten));
+            }
+            otaNextProgressLogAt += 512U * 1024U;
+        }
     };
 
     auto streamBodyShaAndWrite = [&](void) -> bool {
@@ -230,6 +243,7 @@ bool httpStreamFirmwareToOtaVerified(WiFiClientSecure& tls, const char* binUrl,
                     return false;
                 }
                 totalWritten += n;
+                noteOtaProgress();
                 remain -= static_cast<int>(n);
             }
             if (remain != 0) {
@@ -266,6 +280,7 @@ bool httpStreamFirmwareToOtaVerified(WiFiClientSecure& tls, const char* binUrl,
                 return false;
             }
             totalWritten += n;
+            noteOtaProgress();
         }
         return true;
     };

@@ -329,6 +329,7 @@ bool webAuthRedirectIfUnauthenticated(AsyncWebServerRequest* req) {
     if (webAuthIsAuthenticated(req)) {
         return false;
     }
+    ESP_LOGD(TAG, "Redirect unauthenticated request → /auth (uri=%s)", uri.c_str());
     char nextEnc[256];
     char loc[320];
     if (!urlEncodePathQueryCStr(uri.c_str(), nextEnc, sizeof(nextEnc))) {

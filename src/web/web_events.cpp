@@ -11,11 +11,16 @@
 
 #include <Arduino.h>
 #include <ESPAsyncWebServer.h>
+#include <esp_log.h>
 
 #include <atomic>
 #include <climits>
 #include <cstdio>
 #include <cstring>
+
+#include "log_tag.h"
+
+DEFINE_LOG_TAG("SSE");
 
 // /events SSE hub for dashboard scripts.
 
@@ -24,6 +29,7 @@ namespace {
 AsyncEventSource s_events("/events");
 
 std::atomic<bool> s_forceBroadcast{false};
+std::atomic<bool> s_loggedFirstSseClient{false};
 
 bool     s_haveLastChaya      = false;
 int      s_lastRx             = 0;
@@ -40,6 +46,9 @@ bool     s_lastMqttPageConn   = false;
 portMUX_TYPE s_esCacheMux = portMUX_INITIALIZER_UNLOCKED;
 
 static void onEsConnect(AsyncEventSourceClient*) {
+    if (!s_loggedFirstSseClient.exchange(true, std::memory_order_acq_rel)) {
+        ESP_LOGD(TAG, "SSE: first client connected");
+    }
     s_forceBroadcast.store(true, std::memory_order_release);
 }
 

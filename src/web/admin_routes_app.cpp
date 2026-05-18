@@ -15,6 +15,11 @@
 #include "web_middleware.h"
 
 #include <ESPAsyncWebServer.h>
+#include <esp_log.h>
+
+#include "log_tag.h"
+
+DEFINE_LOG_TAG("WEB");
 
 static void handleChayaStatusGet(AsyncWebServerRequest* req) {
     const int rx = heartDisplayRxDelta();
@@ -32,16 +37,19 @@ static void handleChayaSendPost(AsyncWebServerRequest* req) {
         return;
     }
     const bool ok = mqttPublishChayaAndApplySentCounters();
+    ESP_LOGI(TAG, "Web UI: chaya-send POST → %s", ok ? "ok" : "failed");
     req->send(ok ? 200 : 503, "application/json", ok ? "{\"ok\":true}" : "{\"ok\":false}");
 }
 
 static void handleUpdateCheckPost(AsyncWebServerRequest* req) {
+    ESP_LOGI(TAG, "Web UI: update-check POST (GitHub)");
     otaQueueGithubCheck();
     streamSimpleDonePage(req, "Update",
         "Checking GitHub for updates — the device may install shortly afterward.");
 }
 
 static void handleRebootPost(AsyncWebServerRequest* req) {
+    ESP_LOGI(TAG, "Web UI: reboot POST");
     g_webAdminRebootRequested.store(true, std::memory_order_release);
     streamSimpleDonePage(req, "Reboot", "Rebooting…");
 }

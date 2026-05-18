@@ -122,6 +122,13 @@ static void wifiLoadCredentialsFromNvs(char* ssid, size_t ssidLen, char* pass, s
         prefs.getString("pass", pass, passLen);
     }
     prefs.end();
+
+    if (ssid[0] != '\0') {
+        ESP_LOGD(TAG, "WiFi NVS: credentials loaded (ssid=%s, packed=%s)", ssid,
+                 loadedFromPacked ? "yes" : "no");
+    } else {
+        ESP_LOGD(TAG, "WiFi NVS: no SSID stored");
+    }
 }
 
 } // namespace
@@ -375,6 +382,7 @@ static bool setupWifiTryStaConnect(char* ssid, char* pass) {
     if (ssid[0] == '\0') {
         return false;
     }
+    ESP_LOGI(TAG, "WLAN STA connecting to '%s'…", ssid);
     wlanWifiApiLock();
     WiFi.setHostname(kDeviceHostname);
     WiFi.mode(WIFI_STA);
