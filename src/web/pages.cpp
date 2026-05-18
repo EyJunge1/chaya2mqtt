@@ -191,11 +191,9 @@ void streamWifiPage(AsyncWebServerRequest* req) {
     resp->print(
         F("<p class='hint' id='st'>Scanning…</p><ul id='list'></ul>"
           "<form method='post' action='/wifi-connect' id='wf'>"));
-    if (!configIsApMode() && configGetWebAuthEnabled()) {
-        resp->print(F("<input type='hidden' name='csrf_token' value='"));
-        appendCurrentWebCsrfTokenEscaped(*resp);
-        resp->print(F("'/>"));
-    }
+    resp->print(F("<input type='hidden' name='csrf_token' value='"));
+    appendCurrentWebCsrfTokenEscaped(*resp);
+    resp->print(F("'/>"));
     resp->print(
         F("<label for='ssid'>SSID</label>"
           "<input name='ssid' id='ssid' required maxlength='32' autocomplete='off'/>"
