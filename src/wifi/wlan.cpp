@@ -73,7 +73,6 @@ static constexpr unsigned long kStaStableAfterGotIpMs = 3000UL;
 
 // Scan cache for /wifi-scan (filled in wlanLoop).
 static WlanScanRow           s_wifiScanCache[kWlanWifiScanCacheMaxRows]{};
-static wifi_ap_record_t      s_wifiScanApWorkRecords[kWlanWifiScanCacheMaxRows]{};
 static WlanScanRow           s_wifiScanRowWork[kWlanWifiScanCacheMaxRows]{};
 static size_t                s_wifiScanCacheCount = 0;
 static std::atomic<bool>     s_wifiScanKick{false};
@@ -280,25 +279,16 @@ static void wifiScanServiceOnMainTask() {
         return;
     }
 
-    const size_t toStore = std::min(static_cast<size_t>(n), kWlanWifiScanCacheMaxRows);
-    uint16_t apFill = static_cast<uint16_t>(kWlanWifiScanCacheMaxRows);
-    const esp_err_t  gr     = esp_wifi_scan_get_ap_records(&apFill, s_wifiScanApWorkRecords);
-    if (gr != ESP_OK) {
-        ESP_LOGW(TAG, "esp_wifi_scan_get_ap_records failed: %s", esp_err_to_name(gr));
-        WiFi.scanDelete();
-        s_wifiScanInProgress.store(false, std::memory_order_release);
-        s_wifiScanHasValidCache.store(false, std::memory_order_release);
-        s_wifiScanKick.store(true, std::memory_order_release);
-        wlanWifiApiUnlock();
-        return;
-    }
-    const size_t usable = std::min(static_cast<size_t>(apFill), toStore);
+    // Arduino core already drained esp_wifi_scan_get_ap_records in _scanDone(); use WiFiScan API.
+    const size_t usable = std::min(static_cast<size_t>(n), kWlanWifiScanCacheMaxRows);
     for (size_t i = 0; i < usable; ++i) {
-        strlcpy(s_wifiScanRowWork[i].ssid,
-                reinterpret_cast<const char*>(s_wifiScanApWorkRecords[i].ssid),
+        const uint8_t       idx    = static_cast<uint8_t>(i);
+        const String        ssidStr = WiFi.SSID(idx);
+        s_wifiScanRowWork[i].rssi   = static_cast<int>(WiFi.RSSI(idx));
+        s_wifiScanRowWork[i].open =
+            (WiFi.encryptionType(idx) == WIFI_AUTH_OPEN);
+        strlcpy(s_wifiScanRowWork[i].ssid, ssidStr.c_str(),
                 sizeof(s_wifiScanRowWork[i].ssid));
-        s_wifiScanRowWork[i].rssi = s_wifiScanApWorkRecords[i].rssi;
-        s_wifiScanRowWork[i].open = (s_wifiScanApWorkRecords[i].authmode == WIFI_AUTH_OPEN);
     }
     portENTER_CRITICAL(&s_wifiScanCacheMux);
     s_wifiScanCacheCount = usable;
