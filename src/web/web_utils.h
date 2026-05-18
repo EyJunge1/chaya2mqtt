@@ -2,6 +2,8 @@
 
 #include <Arduino.h>
 
+#include <cstddef>
+
 class AsyncWebServerRequest;
 class AsyncResponseStream;
 
@@ -9,7 +11,8 @@ AsyncResponseStream* beginResponseStreamOr500(AsyncWebServerRequest* req, const 
 
 void appendHtmlEscaped(Print& out, const char* s);
 
-/** Print current HTTP CSRF token (decimal) escaped for HTML attribute/text. Requires auth initialized. */
 void appendCurrentWebCsrfTokenEscaped(Print& out);
 
 void appendJsonEscapedCStr(Print& out, const char* str);
+
+bool appendJsonStringQuotedEscaped(const char* str, char* buf, size_t bufLen, size_t* inOutPos);

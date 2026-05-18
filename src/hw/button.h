@@ -6,12 +6,11 @@
 static constexpr int kButtonGpio = pins::kButton;
 
 void buttonInit();
+/** ISR + FreeRTOS task for debounce, LED, publish; call after buttonInit(). */
+void buttonStartTask();
 void buttonStartupBlink();
 /** Nach Startup-Blink: LED-Pegel im Light-Sleep halten (weniger Glitches). */
 void buttonEnableLedGpioHoldForLightSleep();
-void buttonLoop();
-/** Nicht-blockierende MQTT-Sende-LED-Sequenz (State Machine). */
-void buttonAdvanceLedSequence();
 
 #if defined(CORE_DEBUG_LEVEL) && CORE_DEBUG_LEVEL > 0
 void buttonDebugStatus();
@@ -20,7 +19,7 @@ void buttonDebugStatus();
 /** True, solange die nicht-blockierende MQTT-Sende-LED-Sequenz laeuft (fuer adaptiven Light-Sleep). */
 bool buttonIsLedTxSequenceActive();
 
-/** Queued from AsyncWeb task; applied in buttonAdvanceLedSequence / buttonLoop on main task. */
+/** Queued from AsyncWeb task; consumed on button task via cmd queue. */
 void buttonRequestAuthBlinkOnFromAsync();
 void buttonRequestAuthBlinkOffFromAsync();
 

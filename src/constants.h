@@ -12,6 +12,10 @@ constexpr const char kMqttDefaultTopicSub[] = "chaya/to_a";
 
 constexpr uint16_t kMqttDefaultTlsPort = 8883;
 
+constexpr uint32_t kMqttClientTaskStackBytes = 10240U;
+constexpr int      kMqttKeepAliveSeconds   = 60;
+constexpr int      kMqttOutboxLimitBytes   = 4096;
+
 /** Wi-Fi SSID/password buffers (IEEE max + NUL). */
 constexpr size_t kWifiSsidMaxLen = 33U;
 constexpr size_t kWifiPassMaxLen = 65U;
@@ -20,6 +24,11 @@ constexpr size_t kWifiPassMaxLen = 65U;
 constexpr const char kDeviceHostname[] = "chaya2mqtt";
 /** Captive-portal AP SSID during setup. */
 constexpr const char kSetupApSsid[] = "Chaya2MQTT";
+
+constexpr unsigned long kWifiStaBootConnectTimeoutMs = 10000UL;
+constexpr uint8_t       kWifiStaMaxTxPowerQuarterDbm = 52U;
+constexpr uint16_t      kWifiStaInactiveTimeSeconds  = 30U;
+
 /** User-facing origin for HTML links (includes trailing slash for href bases). */
 constexpr const char kDeviceHttpOrigin[] = "http://chaya2mqtt.local/";
 

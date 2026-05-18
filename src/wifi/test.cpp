@@ -1,6 +1,8 @@
 #include "test.h"
 
-#include "constants.h"
+#include "ip_format.h"
+
+#include "async/task_handles.h"
 #include "wlan.h"
 
 #include "web/admin.h"
@@ -13,50 +15,84 @@
 
 #include "log_tag.h"
 
-DEFINE_LOG_TAG("WIFI");
+DEFINE_LOG_TAG("WIFI_TST");
+
+// STA join test in AP mode before NVS commit.
 
 static constexpr unsigned long kWifiConnectionTestTimeoutMs = 15000UL;
 
-static char                  s_wifiConnTestSsid[kWifiSsidMaxLen]{};
-static char                  s_wifiConnTestPass[kWifiPassMaxLen]{};
-static unsigned long       s_wifiConnTestStartMs       = 0;
+static char                        s_wifiConnTestSsid[kWifiSsidMaxLen]{};
+static char                        s_wifiConnTestPass[kWifiPassMaxLen]{};
+static unsigned long             s_wifiConnTestStartMs       = 0;
 static WlanWifiConnectionTestState s_wifiConnTestState = WlanWifiConnectionTestState::Idle;
 
-static void disconnectStaIfaceKeepSoftAp() {
-    /* Do not wipe credentials in NVS — only detach STA radio from the AP/network. */
-    if (WiFi.getMode() == WIFI_AP_STA || WiFi.getMode() == WIFI_STA) {
-        WiFi.disconnect(false, false);
+static inline void wifiTestLock() {
+    if (g_wifiTestMutex != nullptr) {
+        xSemaphoreTake(g_wifiTestMutex, portMAX_DELAY);
     }
 }
 
+static inline void wifiTestUnlock() {
+    if (g_wifiTestMutex != nullptr) {
+        xSemaphoreGive(g_wifiTestMutex);
+    }
+}
+
+static void disconnectStaIfaceKeepSoftAp() {
+    // Disconnect STA only; do not touch NVS.
+    wlanWifiApiLock();
+    if (WiFi.getMode() == WIFI_AP_STA || WiFi.getMode() == WIFI_STA) {
+        WiFi.disconnect(false, false);
+    }
+    wlanWifiApiUnlock();
+}
+
 void wifiConnectionTestServiceLoop() {
-    if (s_wifiConnTestState != WlanWifiConnectionTestState::Testing) {
+    wifiTestLock();
+    const WlanWifiConnectionTestState st = s_wifiConnTestState;
+    wifiTestUnlock();
+
+    if (st != WlanWifiConnectionTestState::Testing) {
         return;
     }
-    const wl_status_t st = WiFi.status();
-    if (st == WL_CONNECTED && WiFi.localIP()[0] != 0) {
-        ESP_LOGI(TAG, "WLAN connection test OK, IP %s", WiFi.localIP().toString().c_str());
+    wlanWifiApiLock();
+    const wl_status_t wst = WiFi.status();
+    const bool          haveIp =
+        (wst == WL_CONNECTED && WiFi.localIP()[0] != 0);
+    char ipStr[16]{};
+    if (haveIp) {
+        formatIpv4ToBuf(WiFi.localIP(), ipStr, sizeof(ipStr));
+    }
+    wlanWifiApiUnlock();
+    if (haveIp) {
+        ESP_LOGI(TAG, "WLAN connection test OK, IP %s", ipStr);
+        wifiTestLock();
         s_wifiConnTestState = WlanWifiConnectionTestState::Ok;
-        if (!configSaveWiFiCredentials(s_wifiConnTestSsid, s_wifiConnTestPass)) {
-            ESP_LOGE(TAG, "WLAN connection test: NVS credentials save failed");
-            disconnectStaIfaceKeepSoftAp();
-            s_wifiConnTestState = WlanWifiConnectionTestState::Fail;
-            return;
-        }
-        /* Reboot from POST /wifi-connect-commit so the browser can poll state ok before restart. */
+        wifiTestUnlock();
+        // NVS save happens at POST /wifi-connect-commit.
         return;
     }
-    /* Treat definitive failure statuses without waiting full timeout */
-    if (st == WL_NO_SSID_AVAIL || st == WL_CONNECT_FAILED || st == WL_CONNECTION_LOST) {
-        ESP_LOGW(TAG, "WLAN connection test failed (status=%d)", static_cast<int>(st));
+    // Fail fast on definitive WiFi status.
+    wlanWifiApiLock();
+    const wl_status_t wst2 = WiFi.status();
+    wlanWifiApiUnlock();
+    if (wst2 == WL_NO_SSID_AVAIL || wst2 == WL_CONNECT_FAILED || wst2 == WL_CONNECTION_LOST) {
+        ESP_LOGW(TAG, "WLAN connection test failed (status=%d)", static_cast<int>(wst2));
         disconnectStaIfaceKeepSoftAp();
+        wifiTestLock();
         s_wifiConnTestState = WlanWifiConnectionTestState::Fail;
+        wifiTestUnlock();
         return;
     }
-    if (millis() - s_wifiConnTestStartMs > kWifiConnectionTestTimeoutMs) {
+    wifiTestLock();
+    const unsigned long started = s_wifiConnTestStartMs;
+    wifiTestUnlock();
+    if (millis() - started > kWifiConnectionTestTimeoutMs) {
         ESP_LOGW(TAG, "WLAN connection test timeout");
         disconnectStaIfaceKeepSoftAp();
+        wifiTestLock();
         s_wifiConnTestState = WlanWifiConnectionTestState::Fail;
+        wifiTestUnlock();
     }
 }
 
@@ -64,27 +100,39 @@ bool wlanWifiConnectionTestSsidSnapshot(char* outSsid, size_t maxLen) {
     if (outSsid == nullptr || maxLen == 0U) {
         return false;
     }
-    if (s_wifiConnTestState == WlanWifiConnectionTestState::Idle) {
+    wifiTestLock();
+    const WlanWifiConnectionTestState st = s_wifiConnTestState;
+    if (st == WlanWifiConnectionTestState::Idle) {
+        wifiTestUnlock();
         outSsid[0] = '\0';
         return false;
     }
     strlcpy(outSsid, s_wifiConnTestSsid, maxLen);
+    wifiTestUnlock();
     return true;
 }
 
 WlanWifiConnectionTestState wlanGetWifiConnectionTestState() {
-    return s_wifiConnTestState;
+    wifiTestLock();
+    const WlanWifiConnectionTestState st = s_wifiConnTestState;
+    wifiTestUnlock();
+    return st;
 }
 
 void wlanAbortWifiConnectionTest() {
+    wifiTestLock();
     if (s_wifiConnTestState == WlanWifiConnectionTestState::Idle) {
+        wifiTestUnlock();
         return;
     }
+    wifiTestUnlock();
     disconnectStaIfaceKeepSoftAp();
+    wifiTestLock();
     memset(s_wifiConnTestSsid, 0, sizeof(s_wifiConnTestSsid));
     memset(s_wifiConnTestPass, 0, sizeof(s_wifiConnTestPass));
     s_wifiConnTestStartMs = 0;
     s_wifiConnTestState   = WlanWifiConnectionTestState::Idle;
+    wifiTestUnlock();
 }
 
 bool wlanStartWifiConnectionTest(const char* ssid, const char* password) {
@@ -93,11 +141,16 @@ bool wlanStartWifiConnectionTest(const char* ssid, const char* password) {
     }
     wlanAbortWifiConnectionTest();
 
+    wifiTestLock();
     strlcpy(s_wifiConnTestSsid, ssid, sizeof(s_wifiConnTestSsid));
     strlcpy(s_wifiConnTestPass, password != nullptr ? password : "", sizeof(s_wifiConnTestPass));
+    s_wifiConnTestStartMs = millis();
+    s_wifiConnTestState   = WlanWifiConnectionTestState::Testing;
+    wifiTestUnlock();
 
+    wlanWifiApiLock();
     if (WiFi.getMode() != WIFI_AP_STA && WiFi.getMode() != WIFI_AP) {
-        /* Should not happen in AP setup */
+        // Unexpected in AP-only setup.
         ESP_LOGW(TAG, "wlanStartWifiConnectionTest: unexpected WiFi mode");
     }
 
@@ -108,22 +161,32 @@ bool wlanStartWifiConnectionTest(const char* ssid, const char* password) {
     WiFi.setScanMethod(WIFI_ALL_CHANNEL_SCAN);
     WiFi.setSortMethod(WIFI_CONNECT_AP_BY_SIGNAL);
     WiFi.begin(s_wifiConnTestSsid, s_wifiConnTestPass);
+    wlanWifiApiUnlock();
 
-    s_wifiConnTestStartMs = millis();
-    s_wifiConnTestState   = WlanWifiConnectionTestState::Testing;
     ESP_LOGI(TAG, "WLAN connection test started for SSID \"%s\"", s_wifiConnTestSsid);
     return true;
 }
 
 bool wlanCommitWifiConnectionTestAndScheduleReboot() {
-    if (s_wifiConnTestState != WlanWifiConnectionTestState::Ok) {
+    wifiTestLock();
+    const WlanWifiConnectionTestState st = s_wifiConnTestState;
+    char ssidCopy[kWifiSsidMaxLen]{};
+    char passCopy[kWifiPassMaxLen]{};
+    if (st == WlanWifiConnectionTestState::Ok) {
+        strlcpy(ssidCopy, s_wifiConnTestSsid, sizeof(ssidCopy));
+        strlcpy(passCopy, s_wifiConnTestPass, sizeof(passCopy));
+    }
+    wifiTestUnlock();
+
+    if (st != WlanWifiConnectionTestState::Ok) {
         return false;
     }
-    if (WiFi.status() != WL_CONNECTED || WiFi.localIP()[0] == 0) {
+    char ipProbe[16]{};
+    if (!wlanReadStaLocalIpForCommit(ipProbe, sizeof(ipProbe))) {
         ESP_LOGW(TAG, "WLAN commit refused: STA not connected");
         return false;
     }
-    if (!configSaveWiFiCredentials(s_wifiConnTestSsid, s_wifiConnTestPass)) {
+    if (!configSaveWiFiCredentials(ssidCopy, passCopy)) {
         return false;
     }
     wlanAbortWifiConnectionTest();

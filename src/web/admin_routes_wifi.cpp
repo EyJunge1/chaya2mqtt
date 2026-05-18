@@ -5,29 +5,19 @@
 
 #include "config/app_config.h"
 #include "constants.h"
+#include "ip_format.h"
 #include "wifi/wlan.h"
+#include "web_middleware.h"
 #include "web_utils.h"
 
-#include "auth.h"
 #include "pages.h"
 
-#include <Arduino.h>
 #include <ESPAsyncWebServer.h>
-#include <WiFi.h>
 
 #include <cstdio>
+#include <cstring>
 
 static void handleWifiConnectPost(AsyncWebServerRequest* req) {
-    if (!configIsApMode()) {
-        if (!webAuthIsAuthenticated(req)) {
-            req->redirect(F("/auth"));
-            return;
-        }
-        if (!webAuthValidateCsrfPost(req)) {
-            req->redirect(F("/wifi"));
-            return;
-        }
-    }
     char ssid[kWifiSsidMaxLen];
     char password[kWifiPassMaxLen];
     ssid[0]     = '\0';
@@ -62,107 +52,133 @@ static void handleWifiConnectPost(AsyncWebServerRequest* req) {
 }
 
 static void handleWifiConnectStatusGet(AsyncWebServerRequest* req) {
-    if (!configIsApMode()) {
-        req->send(404);
-        return;
-    }
-
-    AsyncResponseStream* resp = req->beginResponseStream("application/json");
-    if (resp == nullptr) {
-        req->send(500);
-        return;
-    }
-
     const WlanWifiConnectionTestState tst = wlanGetWifiConnectionTestState();
     const char*                       stStr =
         tst == WlanWifiConnectionTestState::Idle ? "idle" :
-            tst == WlanWifiConnectionTestState::Testing ? "testing" :
-                                                        tst == WlanWifiConnectionTestState::Ok   ? "ok"
-                                                                                                 : "fail";
+        tst == WlanWifiConnectionTestState::Testing ? "testing" :
+        tst == WlanWifiConnectionTestState::Ok      ? "ok" :
+                                                      "fail";
     char ssid[kWifiSsidMaxLen]{};
     (void)wlanWifiConnectionTestSsidSnapshot(ssid, sizeof(ssid));
 
-    resp->print(F("{\"state\":"));
-    resp->print('"');
-    resp->print(stStr);
-    resp->print(F("\",\"ssid\":"));
-    appendJsonEscapedCStr(*resp, ssid);
-    resp->print('}');
-    req->send(resp);
+    char   body[256]{};
+    size_t pos = 0;
+    const int h =
+        snprintf(body, sizeof(body), "{\"state\":\"%s\",\"ssid\":", stStr);
+    if (h < 0 || static_cast<size_t>(h) >= sizeof(body)) {
+        req->send(500);
+        return;
+    }
+    pos = static_cast<size_t>(h);
+    if (!appendJsonStringQuotedEscaped(ssid, body, sizeof(body), &pos)) {
+        req->send(500);
+        return;
+    }
+    if (pos + 2U > sizeof(body)) {
+        req->send(500);
+        return;
+    }
+    body[pos++] = '}';
+    body[pos]   = '\0';
+    req->send(200, "application/json", body);
 }
 
 static void handleWifiConnectCommitPost(AsyncWebServerRequest* req) {
-    if (!configIsApMode()) {
-        req->redirect(F("/"));
-        return;
-    }
-    /* Capture IP before commit: wlanAbortWifiConnectionTest() disconnects STA. */
-    const String staIp = WiFi.localIP().toString();
+    // Snapshot IP before commit tears down STA.
+    char staIp[16]{};
+    (void)wlanReadStaLocalIpForCommit(staIp, sizeof(staIp));
     if (!wlanCommitWifiConnectionTestAndScheduleReboot()) {
         req->redirect(F("/wifi-testing"));
         return;
     }
-    streamWifiCommitDonePage(req, staIp.c_str());
+    streamWifiCommitDonePage(req, staIp);
 }
 
 static void handleWifiConnectAbortPost(AsyncWebServerRequest* req) {
-    if (!configIsApMode()) {
-        req->redirect(F("/"));
-        return;
-    }
     wlanAbortWifiConnectionTest();
     req->redirect(F("/wifi"));
 }
 
 static void handleWifiStatusGet(AsyncWebServerRequest* req) {
-    AsyncResponseStream* resp = req->beginResponseStream("application/json");
-    if (resp == nullptr) {
+    bool connected = false;
+    char ipStr[16]{};
+    char ssidBuf[kWifiSsidMaxLen]{};
+    int  rssi = 0;
+    wlanFillStaLinkSnapshot(&connected, ipStr, sizeof(ipStr), ssidBuf, sizeof(ssidBuf), &rssi);
+    if (!connected) {
+        req->send(200, "application/json", "{\"connected\":false}");
+        return;
+    }
+    char   body[384]{};
+    size_t pos = 0;
+    const int h = snprintf(body, sizeof(body),
+                           "{\"connected\":true,\"ip\":\"%s\",\"rssi\":%d,\"ssid\":", ipStr, rssi);
+    if (h < 0 || static_cast<size_t>(h) >= sizeof(body)) {
         req->send(500);
         return;
     }
-    if (WiFi.status() == WL_CONNECTED && WiFi.localIP()[0] != 0) {
-        resp->print(F("{\"connected\":true,\"ssid\":"));
-        appendJsonEscapedCStr(*resp, WiFi.SSID().c_str());
-        resp->print(F(",\"ip\":"));
-        const String ipStr = WiFi.localIP().toString();
-        appendJsonEscapedCStr(*resp, ipStr.c_str());
-        resp->print(F(",\"rssi\":"));
-        resp->print(static_cast<int>(WiFi.RSSI()));
-        resp->print('}');
-    } else {
-        resp->print(F("{\"connected\":false}"));
+    pos = static_cast<size_t>(h);
+    if (!appendJsonStringQuotedEscaped(ssidBuf, body, sizeof(body), &pos)) {
+        req->send(500);
+        return;
     }
-    req->send(resp);
+    if (pos + 2U > sizeof(body)) {
+        req->send(500);
+        return;
+    }
+    body[pos++] = '}';
+    body[pos]   = '\0';
+    req->send(200, "application/json", body);
 }
 
 void adminRoutesRegisterWifi(AsyncWebServer& ws) {
-    ws.on("/wifi", HTTP_GET,
-        [](AsyncWebServerRequest* rq) {
-            streamWifiPage(rq);
+    {
+        AsyncCallbackWebHandler& h =
+            ws.on("/wifi", HTTP_GET, [](AsyncWebServerRequest* rq) { streamWifiPage(rq); });
+        h.addMiddleware(mwWifiInfoOrApOpenGet());
+    }
+    {
+        AsyncCallbackWebHandler& h = ws.on(
+            "/wifi-testing", HTTP_GET, [](AsyncWebServerRequest* rq) { streamWifiTestingPage(rq); });
+        h.addMiddleware(mwWifiInfoOrApOpenGet());
+    }
+    {
+        AsyncCallbackWebHandler& h =
+            ws.on("/wifi-scan", HTTP_GET, [](AsyncWebServerRequest* rq) { handleWifiScanJson(rq); });
+        h.addMiddleware(mwWifiInfoOrApOpenGet());
+    }
+    {
+        AsyncCallbackWebHandler& h =
+            ws.on("/wifi-status", HTTP_GET, [](AsyncWebServerRequest* rq) { handleWifiStatusGet(rq); });
+        h.addMiddleware(mwWifiInfoOrApOpenGet());
+    }
+    {
+        AsyncCallbackWebHandler& h = ws.on("/wifi-connect-status", HTTP_GET,
+            [](AsyncWebServerRequest* rq) {
+                handleWifiConnectStatusGet(rq);
+            });
+        h.addMiddleware(mwRequireApMode());
+    }
+    {
+        AsyncCallbackWebHandler& h = ws.on("/wifi-connect-commit", HTTP_POST,
+            [](AsyncWebServerRequest* rq) {
+                handleWifiConnectCommitPost(rq);
+            });
+        h.addMiddleware(mwRequireApMode());
+        h.addMiddleware(mwApPostCsrfRedirect("/wifi-testing"));
+    }
+    {
+        AsyncCallbackWebHandler& h = ws.on("/wifi-connect-abort", HTTP_POST,
+            [](AsyncWebServerRequest* rq) {
+                handleWifiConnectAbortPost(rq);
+            });
+        h.addMiddleware(mwRequireApMode());
+        h.addMiddleware(mwApPostCsrfRedirect("/wifi"));
+    }
+    {
+        AsyncCallbackWebHandler& h = ws.on("/wifi-connect", HTTP_POST, [](AsyncWebServerRequest* rq) {
+            handleWifiConnectPost(rq);
         });
-    ws.on("/wifi-testing", HTTP_GET,
-        [](AsyncWebServerRequest* rq) {
-            streamWifiTestingPage(rq);
-        });
-    ws.on("/wifi-scan", HTTP_GET, [](AsyncWebServerRequest* rq) {
-        handleWifiScanJson(rq);
-    });
-    ws.on("/wifi-status", HTTP_GET, [](AsyncWebServerRequest* rq) {
-        handleWifiStatusGet(rq);
-    });
-    ws.on("/wifi-connect-status", HTTP_GET,
-        [](AsyncWebServerRequest* rq) {
-            handleWifiConnectStatusGet(rq);
-        });
-    ws.on("/wifi-connect-commit", HTTP_POST,
-        [](AsyncWebServerRequest* rq) {
-            handleWifiConnectCommitPost(rq);
-        });
-    ws.on("/wifi-connect-abort", HTTP_POST,
-        [](AsyncWebServerRequest* rq) {
-            handleWifiConnectAbortPost(rq);
-        });
-    ws.on("/wifi-connect", HTTP_POST, [](AsyncWebServerRequest* rq) {
-        handleWifiConnectPost(rq);
-    });
+        h.addMiddleware(mwWifiConnectPostGuard());
+    }
 }

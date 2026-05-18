@@ -1,6 +1,7 @@
 #include <Arduino.h>
 
 #include "admin_globals.h"
+#include "admin_json.h"
 #include "admin_routes.h"
 
 #include "config/app_config.h"
@@ -9,98 +10,43 @@
 #include "mqtt/mqtt.h"
 #include "wifi/wlan.h"
 
-#include "auth.h"
-#include "display/display.h"
-#include "mqtt/config.h"
 #include "ota/ota.h"
 #include "pages.h"
-#include "web_utils.h"
+#include "web_middleware.h"
 
 #include <ESPAsyncWebServer.h>
-#include <algorithm>
-#include <climits>
 
 static void handleChayaStatusGet(AsyncWebServerRequest* req) {
-    if (configIsApMode()) {
-        req->redirect(F("/"));
-        return;
-    }
-    if (webAuthRedirectIfUnauthenticated(req)) {
-        return;
-    }
-    AsyncResponseStream* resp = req->beginResponseStream("application/json");
-    if (resp == nullptr) {
-        req->send(500);
-        return;
-    }
-    const int rx = std::max(0, heartCounter - counterBaseline);
-    const int tx = std::max(0, heartSentCounter - sentCountBaseline);
-    resp->print(F("{\"rx\":"));
-    resp->print(rx);
-    resp->print(F(",\"tx\":"));
-    resp->print(tx);
-    resp->print(F(",\"connected\":"));
-    resp->print(mqttIsConnected() ? F("true}") : F("false}"));
-    req->send(resp);
+    const int rx = heartDisplayRxDelta();
+    const int tx = heartDisplayTxDelta();
+    adminSendJsonWithBuffer<144>(req, [rx, tx](char* b, size_t n) {
+        const int w = snprintf(b, n, "{\"rx\":%d,\"tx\":%d,\"connected\":%s}", rx, tx,
+                               mqttIsConnected() ? "true" : "false");
+        return w > 0 && static_cast<size_t>(w) < n;
+    });
 }
 
 static void handleChayaSendPost(AsyncWebServerRequest* req) {
-    if (configIsApMode()) {
-        req->redirect(F("/"));
-        return;
-    }
-    if (!webAuthIsAuthenticated(req)) {
-        req->send(401, "application/json", "{\"ok\":false}");
-        return;
-    }
-    if (!webAuthValidateCsrfPost(req)) {
-        req->send(403, "application/json", "{\"ok\":false}");
-        return;
-    }
     if (!mqttIsConnected()) {
-        req->send(200, "application/json", "{\"ok\":false}");
+        req->send(503, "application/json", "{\"ok\":false}");
         return;
     }
-    g_webAdminChayaSendRequested.store(true, std::memory_order_release);
-    req->send(200, "application/json", "{\"ok\":true}");
+    const bool ok = mqttPublishChayaAndApplySentCounters();
+    req->send(ok ? 200 : 503, "application/json", ok ? "{\"ok\":true}" : "{\"ok\":false}");
 }
 
 static void handleUpdateCheckPost(AsyncWebServerRequest* req) {
-    if (!webAuthIsAuthenticated(req)) {
-        req->redirect(F("/auth"));
-        return;
-    }
-    if (!webAuthValidateCsrfPost(req)) {
-        req->redirect(F("/update"));
-        return;
-    }
     otaQueueGithubCheck();
     streamSimpleDonePage(req, "Update",
         "Checking GitHub for updates — the device may install shortly afterward.");
 }
 
 static void handleRebootPost(AsyncWebServerRequest* req) {
-    if (!webAuthIsAuthenticated(req)) {
-        req->redirect(F("/auth"));
-        return;
-    }
-    if (!webAuthValidateCsrfPost(req)) {
-        req->redirect(F("/"));
-        return;
-    }
     g_webAdminRebootRequested.store(true, std::memory_order_release);
     streamSimpleDonePage(req, "Reboot", "Rebooting…");
 }
 
 static void handleSettingsPost(AsyncWebServerRequest* req) {
-    if (!webAuthIsAuthenticated(req)) {
-        req->redirect(F("/auth"));
-        return;
-    }
-    if (!webAuthValidateCsrfPost(req)) {
-        req->redirect(F("/settings"));
-        return;
-    }
     uint8_t days = 7;
     if (req->hasParam("reset_days", true)) {
         const AsyncWebParameter* p = req->getParam("reset_days", true);
@@ -110,7 +56,7 @@ static void handleSettingsPost(AsyncWebServerRequest* req) {
         }
     }
     portENTER_CRITICAL(&g_webAdminSettingsPendingMux);
-    g_webAdminPendingResetDays  = days;
+    g_webAdminPendingResetDays   = days;
     g_webAdminPendingAuthEnabled = req->hasParam("auth_enabled", true);
     portEXIT_CRITICAL(&g_webAdminSettingsPendingMux);
     g_webAdminSettingsApplyPending.store(true, std::memory_order_release);
@@ -118,65 +64,63 @@ static void handleSettingsPost(AsyncWebServerRequest* req) {
 }
 
 void adminRoutesRegisterApplication(AsyncWebServer& ws) {
-    ws.on("/", HTTP_GET, [](AsyncWebServerRequest* rq) {
-        if (webAuthRedirectIfUnauthenticated(rq)) {
-            return;
-        }
-        streamDashboard(rq);
-    });
-    ws.on("/update", HTTP_GET, [](AsyncWebServerRequest* rq) {
-        if (configIsApMode()) {
-            rq->redirect(F("/"));
-            return;
-        }
-        if (webAuthRedirectIfUnauthenticated(rq)) {
-            return;
-        }
-        streamUpdatePage(rq);
-    });
-    ws.on("/update-check", HTTP_POST, [](AsyncWebServerRequest* rq) {
-        if (configIsApMode()) {
-            rq->redirect(F("/"));
-            return;
-        }
-        handleUpdateCheckPost(rq);
-    });
-    ws.on("/reboot", HTTP_POST, [](AsyncWebServerRequest* rq) {
-        if (configIsApMode()) {
-            rq->redirect(F("/"));
-            return;
-        }
-        handleRebootPost(rq);
-    });
+    {
+        AsyncCallbackWebHandler& h = ws.on("/", HTTP_GET, [](AsyncWebServerRequest* rq) {
+            streamDashboard(rq);
+        });
+        h.addMiddleware(mwRequireSessionRedirectGet());
+    }
+    {
+        AsyncCallbackWebHandler& h = ws.on("/update", HTTP_GET, [](AsyncWebServerRequest* rq) {
+            streamUpdatePage(rq);
+        });
+        h.addMiddleware(mwRequireStaMode());
+        h.addMiddleware(mwRequireSessionRedirectGet());
+    }
+    {
+        AsyncCallbackWebHandler& h = ws.on("/update-check", HTTP_POST, [](AsyncWebServerRequest* rq) {
+            handleUpdateCheckPost(rq);
+        });
+        h.addMiddleware(mwRequireStaMode());
+        h.addMiddleware(mwPostSessionAndCsrfRedirect("/update"));
+    }
+    {
+        AsyncCallbackWebHandler& h = ws.on("/reboot", HTTP_POST, [](AsyncWebServerRequest* rq) {
+            handleRebootPost(rq);
+        });
+        h.addMiddleware(mwRequireStaMode());
+        h.addMiddleware(mwPostSessionAndCsrfRedirect("/"));
+    }
 
-    ws.on("/chaya-status", HTTP_GET, [](AsyncWebServerRequest* rq) {
-        handleChayaStatusGet(rq);
-    });
-    ws.on("/chaya-send", HTTP_POST, [](AsyncWebServerRequest* rq) {
-        if (configIsApMode()) {
-            rq->redirect(F("/"));
-            return;
-        }
-        handleChayaSendPost(rq);
-    });
+    {
+        AsyncCallbackWebHandler& h = ws.on("/chaya-status", HTTP_GET, [](AsyncWebServerRequest* rq) {
+            handleChayaStatusGet(rq);
+        });
+        h.addMiddleware(mwRequireStaMode());
+        h.addMiddleware(mwRequireSessionRedirectGet());
+    }
+    {
+        AsyncCallbackWebHandler& h = ws.on("/chaya-send", HTTP_POST, [](AsyncWebServerRequest* rq) {
+            handleChayaSendPost(rq);
+        });
+        h.addMiddleware(mwRequireStaMode());
+        h.addMiddleware(mwPostChayaSendGuard());
+    }
 
-    ws.on("/settings", HTTP_GET, [](AsyncWebServerRequest* rq) {
-        if (configIsApMode()) {
-            rq->redirect(F("/"));
-            return;
-        }
-        if (webAuthRedirectIfUnauthenticated(rq)) {
-            return;
-        }
-        streamSettingsPage(rq, rq->hasParam("saved"));
-    });
-    ws.on("/settings", HTTP_POST, [](AsyncWebServerRequest* rq) {
-        if (configIsApMode()) {
-            rq->redirect(F("/"));
-            return;
-        }
-        handleSettingsPost(rq);
-    });
+    {
+        AsyncCallbackWebHandler& h = ws.on("/settings", HTTP_GET, [](AsyncWebServerRequest* rq) {
+            streamSettingsPage(rq, rq->hasParam("saved"));
+        });
+        h.addMiddleware(mwRequireStaMode());
+        h.addMiddleware(mwRequireSessionRedirectGet());
+    }
+    {
+        AsyncCallbackWebHandler& h = ws.on("/settings", HTTP_POST, [](AsyncWebServerRequest* rq) {
+            handleSettingsPost(rq);
+        });
+        h.addMiddleware(mwRequireStaMode());
+        h.addMiddleware(mwPostSessionAndCsrfRedirect("/settings"));
+    }
 
     ws.onNotFound([](AsyncWebServerRequest* rq) {
         rq->redirect(F("/"));

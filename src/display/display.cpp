@@ -1,25 +1,29 @@
 #include "display.h"
 #include "internal.h"
 
+#include "async/event_types.h"
+#include "async/task_handles.h"
 #include "hw/button.h"
 #include "hw/pins.h"
 #include "web/auth.h"
 
+#include "diag/stack_monitor.h"
+
 #include <Arduino.h>
 #include <SPI.h>
-#include <atomic>
+#include <cstdint>
+#include <cstdlib>
 #include <driver/gpio.h>
+#include <esp_log.h>
+#include <freertos/FreeRTOS.h>
+#include <freertos/task.h>
+
+// Only this task uses SPI/EPD; everyone else posts DisplayMsg.
 
 static ChayaEpdPanel display(/*CS=*/ pins::kSpiCs, /*DC=*/ pins::kDisplayDc,
                              /*RST=*/ pins::kDisplayRst, /*BUSY=*/ pins::kDisplayBusy);
 
-static std::atomic<bool> g_heartRedrawPending{false};
-static std::atomic<bool>     g_deferredAuthCodePending{false};
-static std::atomic<uint32_t> g_deferredAuthCodeValue{0};
-static std::atomic<bool>     g_deferredAuthPromptPending{false};
-static std::atomic<bool>     g_deferredSplashPending{false};
-static std::atomic<bool>     g_deferredHeartScreenPending{false};
-static bool                  g_displaySpiSuspendedLowPower = false;
+static bool g_displaySpiSuspendedLowPower = false;
 
 ChayaEpdPanel& displayPanel() {
     return display;
@@ -45,50 +49,63 @@ void displaySuspendSpiLowPower() {
     g_displaySpiSuspendedLowPower = true;
 }
 
-void requestHeartRedraw() {
-    g_heartRedrawPending.store(true, std::memory_order_release);
+static void displayTaskFn(void*) {
+    /* No esp_task_wdt on this task: E-Ink full refresh can block >> default TWDT interval (see displayInit). */
+    static uint32_t s_stackLogCounter = 0;
+    for (;;) {
+        DisplayMsg msg;
+        if (xQueueReceive(g_displayCmdQueue, &msg, portMAX_DELAY) != pdTRUE) {
+            logTaskStackHighWaterPeriodic("DISP", s_stackLogCounter, 600);
+            continue;
+        }
+        switch (msg.cmd) {
+        case DisplayMsg::Cmd::DrawHeart:
+            drawHeartWithNumber();
+            break;
+        case DisplayMsg::Cmd::DrawSplash:
+            drawSplashScreen();
+            break;
+        case DisplayMsg::Cmd::DrawAuthCode:
+            drawAuthCode(msg.payload);
+            buttonSetAuthBlinkActive(true);
+            break;
+        case DisplayMsg::Cmd::DrawAuthPrompt:
+            drawAuthPrompt();
+            webAuthResetConfirmDeadline();
+            buttonSetAuthBlinkActive(true);
+            break;
+        }
+        logTaskStackHighWaterPeriodic("DISP", s_stackLogCounter, 600);
+    }
 }
 
-bool consumeHeartRedraw() {
-    return g_heartRedrawPending.exchange(false, std::memory_order_acq_rel);
+static void displayPostMsg(DisplayMsg::Cmd cmd, uint32_t payload = 0) {
+    DisplayMsg msg{cmd, payload};
+    const bool authUi = (cmd == DisplayMsg::Cmd::DrawAuthPrompt || cmd == DisplayMsg::Cmd::DrawAuthCode);
+    const TickType_t wait = authUi ? pdMS_TO_TICKS(2000) : pdMS_TO_TICKS(100);
+    if (xQueueSend(g_displayCmdQueue, &msg, wait) != pdTRUE) {
+        ESP_LOGW("DISP", "display queue full (cmd=%d)", static_cast<int>(cmd));
+    }
+}
+
+void requestHeartRedraw() {
+    displayPostMsg(DisplayMsg::Cmd::DrawHeart);
 }
 
 void requestDeferredDrawAuthCode(uint32_t code) {
-    g_deferredAuthCodeValue.store(code, std::memory_order_relaxed);
-    g_deferredAuthCodePending.store(true, std::memory_order_release);
+    displayPostMsg(DisplayMsg::Cmd::DrawAuthCode, code);
 }
 
 void requestDeferredDrawAuthPrompt() {
-    g_deferredAuthPromptPending.store(true, std::memory_order_release);
+    displayPostMsg(DisplayMsg::Cmd::DrawAuthPrompt);
 }
 
 void requestDeferredDrawSplashScreen() {
-    g_deferredSplashPending.store(true, std::memory_order_release);
+    displayPostMsg(DisplayMsg::Cmd::DrawSplash);
 }
 
 void requestDeferredDrawHeartScreen() {
-    g_deferredHeartScreenPending.store(true, std::memory_order_release);
-}
-
-void displayProcessDeferredDrawsOnMainTask() {
-    if (g_deferredAuthCodePending.exchange(false, std::memory_order_acq_rel)) {
-        drawAuthCode(g_deferredAuthCodeValue.load(std::memory_order_relaxed));
-        buttonSetAuthBlinkActive(true);
-        return;
-    }
-    if (g_deferredAuthPromptPending.exchange(false, std::memory_order_acq_rel)) {
-        drawAuthPrompt();
-        webAuthResetConfirmDeadline();
-        buttonSetAuthBlinkActive(true);
-        return;
-    }
-    if (g_deferredSplashPending.exchange(false, std::memory_order_acq_rel)) {
-        drawSplashScreen();
-        return;
-    }
-    if (g_deferredHeartScreenPending.exchange(false, std::memory_order_acq_rel)) {
-        drawHeartWithNumber();
-    }
+    displayPostMsg(DisplayMsg::Cmd::DrawHeart);
 }
 
 void displayInit() {
@@ -98,6 +115,14 @@ void displayInit() {
      * Do not register loopTask with esp_task_wdt: full-window 3C e-paper refresh can block >5s inside
      * nextPage(), which would trigger a task WDT abort. Long draws are expected on this device.
      */
-    /* Baud 0: no UART diag from display init; use ESP_LOG only in debug builds. */
     display.init(0, true, 2, false);
+}
+
+void displayStartTask() {
+    const BaseType_t ok =
+        xTaskCreatePinnedToCore(displayTaskFn, "display", 4096, nullptr, 3, nullptr, 1);
+    if (ok != pdPASS) {
+        ESP_LOGE("DISP", "display task create failed");
+        abort();
+    }
 }

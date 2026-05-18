@@ -1,17 +1,17 @@
 #include <Arduino.h>
 
 #include "admin_globals.h"
+#include "admin_json.h"
 #include "admin_routes.h"
 
 #include "config/app_config.h"
 #include "constants.h"
 #include "mqtt/mqtt.h"
 #include "mqtt/config.h"
-#include "wifi/wlan.h"
 
-#include "auth.h"
+#include "web_middleware.h"
+
 #include "pages.h"
-
 #include <ESPAsyncWebServer.h>
 #include <cerrno>
 #include <climits>
@@ -25,32 +25,15 @@
 DEFINE_LOG_TAG("WEB");
 
 static void handleMqttStatusGet(AsyncWebServerRequest* req) {
-    if (configIsApMode()) {
-        req->redirect(F("/"));
-        return;
-    }
-    if (webAuthRedirectIfUnauthenticated(req)) {
-        return;
-    }
-    AsyncResponseStream* resp = req->beginResponseStream("application/json");
-    if (resp == nullptr) {
-        req->send(500);
-        return;
-    }
-    resp->print(mqttIsConnected() ? F("{\"connected\":true}") : F("{\"connected\":false}"));
-    req->send(resp);
+    adminSendJsonWithBuffer<96>(req, [](char* b, size_t n) {
+        const int w =
+            snprintf(b, n, "{\"connected\":%s}", mqttIsConnected() ? "true" : "false");
+        return w > 0 && static_cast<size_t>(w) < n;
+    });
 }
 
 static void handleMqttPost(AsyncWebServerRequest* req) {
-    if (!webAuthIsAuthenticated(req)) {
-        req->redirect(F("/auth"));
-        return;
-    }
-    if (!webAuthValidateCsrfPost(req)) {
-        req->redirect(F("/mqtt"));
-        return;
-    }
-
+    g_webAdminMqttNvsWriteFailed.store(false, std::memory_order_release);
     MqttConfig pending{};
     mqttCfgSnapshot(&pending);
 
@@ -69,7 +52,7 @@ static void handleMqttPost(AsyncWebServerRequest* req) {
             const bool invalid = (errno == ERANGE) || (endPtr == p->value().c_str())
                                    || (*endPtr != '\0');
             if (invalid) {
-                req->redirect(F("/mqtt"));
+                req->redirect(F("/mqtt?e=port"));
                 return;
             }
             pending.port = normalizeMqttPort(static_cast<int>(v));
@@ -108,7 +91,11 @@ static void handleMqttPost(AsyncWebServerRequest* req) {
         || !mqttTopicSyntaxOk(pending.topicPub, sizeof(pending.topicPub))
         || !mqttTopicSyntaxOk(pending.topicSub, sizeof(pending.topicSub))) {
         ESP_LOGW(TAG, "MQTT invalid: empty broker or bad topics");
-        req->redirect(F("/mqtt"));
+        if (!mqttServerSyntaxOk(pending.server, sizeof(pending.server))) {
+            req->redirect(F("/mqtt?e=broker"));
+        } else {
+            req->redirect(F("/mqtt?e=topics"));
+        }
         return;
     }
     mqttCfgStorePending(&pending);
@@ -117,25 +104,25 @@ static void handleMqttPost(AsyncWebServerRequest* req) {
 }
 
 void adminRoutesRegisterMqtt(AsyncWebServer& ws) {
-    ws.on("/mqtt", HTTP_GET, [](AsyncWebServerRequest* rq) {
-        if (configIsApMode()) {
-            rq->redirect(F("/"));
-            return;
-        }
-        if (webAuthRedirectIfUnauthenticated(rq)) {
-            return;
-        }
-        streamMqttHtmlPage(rq, rq->hasParam("saved"));
-    });
-    ws.on("/mqtt", HTTP_POST, [](AsyncWebServerRequest* rq) {
-        if (configIsApMode()) {
-            rq->redirect(F("/"));
-            return;
-        }
-        handleMqttPost(rq);
-    });
-    ws.on("/mqtt-status", HTTP_GET,
-        [](AsyncWebServerRequest* rq) {
+    {
+        AsyncCallbackWebHandler& h = ws.on("/mqtt", HTTP_GET, [](AsyncWebServerRequest* rq) {
+            streamMqttHtmlPage(rq, rq->hasParam("saved"));
+        });
+        h.addMiddleware(mwRequireStaMode());
+        h.addMiddleware(mwRequireSessionRedirectGet());
+    }
+    {
+        AsyncCallbackWebHandler& h = ws.on("/mqtt", HTTP_POST, [](AsyncWebServerRequest* rq) {
+            handleMqttPost(rq);
+        });
+        h.addMiddleware(mwRequireStaMode());
+        h.addMiddleware(mwPostSessionAndCsrfRedirect("/mqtt"));
+    }
+    {
+        AsyncCallbackWebHandler& h = ws.on("/mqtt-status", HTTP_GET, [](AsyncWebServerRequest* rq) {
             handleMqttStatusGet(rq);
         });
+        h.addMiddleware(mwRequireStaMode());
+        h.addMiddleware(mwRequireSessionRedirectGet());
+    }
 }

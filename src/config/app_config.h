@@ -2,17 +2,15 @@
 
 #include <cstdint>
 
-/** Load reset interval (days) from NVS into RAM (call once at boot). */
 void configLoadResetPeriodFromNvs();
 
-/** Display reset interval: 0 = periodic reset off; 1–30 = UTC calendar days (default when unset in NVS: 7). */
+/** Counter baseline reset: 0 = off; 1–30 UTC days (default 7 if NVS missing/invalid). */
 uint8_t configGetResetPeriodDays();
-void configSetResetPeriodDays(uint8_t days);
+bool configSetResetPeriodDays(uint8_t days);
 
-/** Web UI access code (device display); NVS cfg/authEn, default off. */
 bool configGetWebAuthEnabled();
-void configSetWebAuthEnabled(bool enabled);
+bool configSetWebAuthEnabled(bool enabled);
 void configLoadWebAuthFromNvs();
 
-/** After NVS factory clear — RAM mirrors cleared cfg before restart. */
+/** Reset RAM mirrors after factory NVS clear (before reboot). */
 void app_configResetRamAfterFactoryClear();

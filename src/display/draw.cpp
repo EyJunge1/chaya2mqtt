@@ -17,7 +17,7 @@ DEFINE_LOG_TAG("DISP");
 
 namespace {
 
-/** Full-screen centered text; fits by reducing textSize until minSize. */
+// Centered text; shrink textSize down to minSize if needed.
 void drawCenteredTextScreen(const char* text, uint8_t startSize, uint8_t minSize) {
     auto& epd = displayPanel();
     const int dw = epd.width();
@@ -55,7 +55,7 @@ void drawCenteredTextScreen(const char* text, uint8_t startSize, uint8_t minSize
     } while (epd.nextPage());
 }
 
-/** Small arrow (incoming): tip points toward larger y. */
+// Incoming arrow (tip toward +y).
 static void drawArrowDown(int16_t cx, int16_t tipY) {
     auto& epd = displayPanel();
     static constexpr int16_t kHalf = 12;
@@ -67,7 +67,7 @@ static void drawArrowDown(int16_t cx, int16_t tipY) {
                  kStemH, GxEPD_BLACK);
 }
 
-/** Small arrow (outgoing): tip points toward smaller y. */
+// Outgoing arrow (tip toward −y).
 static void drawArrowUp(int16_t cx, int16_t tipY) {
     auto& epd = displayPanel();
     static constexpr int16_t kHalf = 12;
@@ -120,8 +120,10 @@ void drawHeartWithNumber() {
 
     char recvBuf[16];
     char sentBuf[16];
-    formatCappedCounterForDisplay(heartCounter, counterBaseline, recvBuf, sizeof(recvBuf));
-    formatCappedCounterForDisplay(heartSentCounter, sentCountBaseline, sentBuf, sizeof(sentBuf));
+    HeartCounterDrawSnapshot snap{};
+    heartCounterFillDrawSnapshot(&snap);
+    formatCappedCounterForDisplay(snap.heartCounterRaw, snap.counterBaselineRaw, recvBuf, sizeof(recvBuf));
+    formatCappedCounterForDisplay(snap.heartSentCounterRaw, snap.sentCountBaselineRaw, sentBuf, sizeof(sentBuf));
     const size_t recvLen = std::max<size_t>(strlen(recvBuf), size_t{1});
     const size_t sentLen = std::max<size_t>(strlen(sentBuf), size_t{1});
 

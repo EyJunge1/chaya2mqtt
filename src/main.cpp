@@ -2,10 +2,16 @@
 #include <cstdint>
 #include <esp_bt.h>
 #include <esp_log.h>
+#include <esp_ota_ops.h>
+#include <esp_partition.h>
+#include <esp_pm.h>
 #include <esp_system.h>
 #include <esp32-hal-cpu.h>
 
 #include "log_tag.h"
+
+#include "async/app_task.h"
+#include "async/task_handles.h"
 
 #include "config/app_config.h"
 #include "hw/button.h"
@@ -13,6 +19,8 @@
 #include "display/display.h"
 #include "mqtt/mqtt.h"
 #include "mqtt/config.h"
+#include "network/network_task.h"
+#include "ota/ota_task.h"
 #include "hw/pins.h"
 #include "web/admin.h"
 #include "web/auth.h"
@@ -20,7 +28,28 @@
 
 DEFINE_LOG_TAG("MAIN");
 
-/** Same assignments as display/button (GxEPD2 SPI + panel); do not use pins 6–11 (flash). */
+// After OTA: if image is pending verify, mark app valid (cancel rollback).
+static void otaTryMarkFirmwareValidIfPendingVerify() {
+    const esp_partition_t* running = esp_ota_get_running_partition();
+    if (running == nullptr) {
+        return;
+    }
+    esp_ota_img_states_t imgState = ESP_OTA_IMG_UNDEFINED;
+    if (esp_ota_get_state_partition(running, &imgState) != ESP_OK) {
+        return;
+    }
+    if (imgState != ESP_OTA_IMG_PENDING_VERIFY) {
+        return;
+    }
+    const esp_err_t v = esp_ota_mark_app_valid_cancel_rollback();
+    if (v != ESP_OK) {
+        ESP_LOGW(TAG, "esp_ota_mark_app_valid_cancel_rollback: %s", esp_err_to_name(v));
+    } else {
+        ESP_LOGI(TAG, "Firmware marked valid (rollback cancelled)");
+    }
+}
+
+/** Same assignments as display/button (SPI + panel); do not use pins 6–11 (flash). */
 static void pinsInit() {
     pinMode(pins::kDisplayBusy, INPUT);
     pinMode(pins::kDisplayRst, OUTPUT);
@@ -33,9 +62,24 @@ static void pinsInit() {
 }
 
 void setup() {
-    setCpuFrequencyMhz(80);
+    asyncInfraInit();
+    setCpuFrequencyMhz(240);
     btStop();
     esp_bt_controller_mem_release(ESP_BT_MODE_BTDM);
+
+    // DFS: idle min 80 MHz (WiFi). No light sleep (keep web + MQTT responsive).
+    {
+        esp_pm_config_t pm_cfg = {};
+        pm_cfg.max_freq_mhz       = 240;
+        pm_cfg.min_freq_mhz       = 80;
+        pm_cfg.light_sleep_enable = false;
+        const esp_err_t pm_err = esp_pm_configure(&pm_cfg);
+        if (pm_err != ESP_OK && pm_err != ESP_ERR_NOT_SUPPORTED) {
+            ESP_LOGW(TAG, "esp_pm_configure: %s", esp_err_to_name(pm_err));
+        }
+    }
+
+    otaTryMarkFirmwareValidIfPendingVerify();
 
 #if defined(CORE_DEBUG_LEVEL) && CORE_DEBUG_LEVEL > 0
     Serial.begin(115200);
@@ -44,6 +88,7 @@ void setup() {
 
     pinsInit();
     displayInit();
+    displayStartTask();
     ESP_LOGI(TAG, "Display initialized");
 
     buttonInit();
@@ -57,14 +102,21 @@ void setup() {
     mqttSetup();
 
     buttonSetAuthBlinkShortPressHandler(webAuthHandleButtonDuringAuthBlink);
+    buttonStartTask();
+    networkTaskStart();
+    otaTaskStart();
+    appTaskStart();
 
     ESP_LOGI(TAG, "Setup complete");
 
-    if (mqttCfg.server[0] != '\0') {
-        drawHeartWithNumber();
-    } else if (configIsApMode()) {
-        /* STA without MQTT after WiFi setup: E-Ink still shows splash from AP boot — avoid redraw */
-        drawSplashScreen();
+    {
+        MqttConfig cfg{};
+        mqttCfgSnapshot(&cfg);
+        if (cfg.server[0] != '\0') {
+            requestDeferredDrawHeartScreen();
+        } else if (configIsApMode()) {
+            requestDeferredDrawSplashScreen();
+        }
     }
 
     buttonStartupBlink();
@@ -72,42 +124,5 @@ void setup() {
 }
 
 void loop() {
-    const unsigned long now = millis();
-
-    buttonLoop();
-    buttonAdvanceLedSequence();
-    wlanLoop();
-    webAdminLoop();
-    if (!configIsApMode()) {
-        maybePeriodicallyResetCounters();
-        maybeResetDisplayBaselinesWhenCapped();
-    }
-    mqttLoop();
-    maybeSaveHeartCounter();
-    maybeSaveHeartSentCounter();
-
-    /* WiFi-Reconnect: WiFi.onEvent in setupWiFi (see wlanLoop / webAdminLoop). */
-
-    displayProcessDeferredDrawsOnMainTask();
-    if (consumeHeartRedraw()) {
-        drawHeartWithNumber();
-    }
-
-#if defined(CORE_DEBUG_LEVEL) && CORE_DEBUG_LEVEL > 0
-    static unsigned long lastDbg = 0;
-    if (now - lastDbg > 5000) {
-        buttonDebugStatus();
-        lastDbg = now;
-    }
-#endif
-
-    /*
-     * Do not use esp_light_sleep_start(): with STA + MQTT backoff it correlated with rst:7 WDT resets
-     * and AUTH_FAIL cascades on reconnect. USB-powered device — uniform delay is stable enough.
-     */
-    if (configIsApMode()) {
-        delay(10); /* FreeRTOS (WiFi/DNS/HTTP) */
-    } else {
-        delay(50);
-    }
+    vTaskDelete(nullptr);
 }

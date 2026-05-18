@@ -8,7 +8,8 @@ std::atomic<bool> g_webAdminRebootRequested{false};
 std::atomic<bool> g_webAdminWifiReconnectRequested{false};
 std::atomic<bool> g_webAdminMqttApplyPending{false};
 std::atomic<bool> g_webAdminSettingsApplyPending{false};
-std::atomic<bool> g_webAdminChayaSendRequested{false};
+std::atomic<bool> g_webAdminMqttNvsWriteFailed{false};
+std::atomic<bool> g_webAdminSettingsNvsWriteFailed{false};
 
 uint8_t       g_webAdminPendingResetDays     = 7;
 bool          g_webAdminPendingAuthEnabled   = false;

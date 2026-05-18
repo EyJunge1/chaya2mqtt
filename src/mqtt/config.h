@@ -16,16 +16,12 @@ struct MqttConfig {
 extern MqttConfig mqttCfg;
 
 void loadMQTTConfig();
-void saveMQTTConfig();
+bool saveMQTTConfig();
 
-/** Thread-safe snapshot of active broker config (for AsyncWeb / MQTT / other tasks). */
 void mqttCfgSnapshot(MqttConfig* out);
+bool mqttCfgIsBrokerConfigured();
+void mqttCfgTopicPubLockedCopy(char* out, size_t outLen);
 
-/** Store pending MQTT form submitted from web handler (same mutex as mqttCfg). */
 void mqttCfgStorePending(const MqttConfig* pending);
-
-/** Copy pending form to active mqttCfg (call from main loop only when applying). */
 void mqttCfgApplyPendingToActive();
-
-/** True once after NVS/form apply until consumed — used to refresh MQTT loop broker snapshot while connected. */
 bool mqttCfgConsumeDirtySnapshotNeeded();

@@ -1,13 +1,16 @@
 #include "wlan.h"
 
 #include "constants.h"
+#include "ip_format.h"
 #include "heart/counter.h"
+#include "async/task_handles.h"
 #include "config/nvs_utils.h"
 #include "hw/pins.h"
 #include "web/admin.h"
 #include "web/auth.h"
 
 #include <Arduino.h>
+#include <Preferences.h>
 #include <WiFi.h>
 #include <WiFiType.h>
 #include <DNSServer.h>
@@ -25,38 +28,100 @@
 #include <driver/gpio.h>
 #include <esp_log.h>
 #include <esp_wifi.h>
+#include <freertos/FreeRTOS.h>
+#include <freertos/task.h>
 #include <time.h>
 
 #include "log_tag.h"
 
 DEFINE_LOG_TAG("WIFI");
 
-/** SSID NVS pointed at when STA join failed during boot (AP fallback); cleared after successful STA boot. */
-static char g_lastFailedBootSsid[kWifiSsidMaxLen]{};
+void wlanWifiApiLock() {
+    if (g_wifiApiMutex != nullptr) {
+        xSemaphoreTake(g_wifiApiMutex, portMAX_DELAY);
+    }
+}
+
+void wlanWifiApiUnlock() {
+    if (g_wifiApiMutex != nullptr) {
+        xSemaphoreGive(g_wifiApiMutex);
+    }
+}
+
+// SSID that failed STA boot (AP mode); cleared on successful STA.
+static char            g_lastFailedBootSsid[kWifiSsidMaxLen]{};
+static portMUX_TYPE    g_lastFailedBootSsidMux = portMUX_INITIALIZER_UNLOCKED;
 
 static DNSServer    g_dnsServer;
-static bool         g_apMode = false;
+static std::atomic<bool> g_apMode{false};
 
-static unsigned long     s_wifiReconnectNextAllowedMs = 0;
-static uint32_t          s_wifiReconnectFailCount     = 0;
-static std::atomic<bool> s_mdnsRestartNeeded{false};
+static std::atomic<unsigned long> s_wifiReconnectNextAllowedMs{0};
+static std::atomic<uint32_t>      s_wifiReconnectFailCount{0};
+static std::atomic<bool>          s_mdnsRestartNeeded{false};
 
-/** While false, DISCONNECT events do not call WiFi.reconnect() (setup does its own wait). */
-static bool s_wifiSetupComplete = false;
+// After setupWiFi(): auto-reconnect on disconnect.
+static std::atomic<bool> s_wifiSetupComplete{false};
 
-/** Last millis() when ARDUINO_EVENT_WIFI_STA_GOT_IP fired; 0 after disconnect. Used by MQTT stability guard. */
-static unsigned long s_staLastGotIpWallMs = 0;
+// millis() at last GOT_IP; 0 if down (MQTT stability).
+static std::atomic<unsigned long> s_staLastGotIpWallMs{0};
 
 static constexpr unsigned long kStaStableAfterGotIpMs = 3000UL;
 
-/** WiFi scan only from main task: cache for /wifi-scan JSON. */
+// Scan cache for /wifi-scan (filled in wlanLoop).
 static constexpr size_t      kMaxScanCache = 40;
 static WlanScanRow           s_wifiScanCache[kMaxScanCache]{};
+static wifi_ap_record_t      s_wifiScanApWorkRecords[kMaxScanCache]{};
+static WlanScanRow           s_wifiScanRowWork[kMaxScanCache]{};
 static size_t                s_wifiScanCacheCount = 0;
 static std::atomic<bool>     s_wifiScanKick{false};
 static std::atomic<bool>     s_wifiScanInProgress{false};
 static std::atomic<bool>     s_wifiScanHasValidCache{false};
 static portMUX_TYPE          s_wifiScanCacheMux = portMUX_INITIALIZER_UNLOCKED;
+
+// Throttle rapid scan refresh (first kick always runs).
+static std::atomic<unsigned long> s_lastWifiScanKickMs{0};
+static constexpr unsigned long    kWifiScanKickMinIntervalMs = 20000UL;
+
+namespace {
+
+constexpr uint32_t kWifiCredPackedMagic = 0x43575631U;
+
+struct PackedWifiCredentials {
+    uint32_t magic;
+    char     ssid[kWifiSsidMaxLen];
+    char     pass[kWifiPassMaxLen];
+};
+
+static void wifiLoadCredentialsFromNvs(char* ssid, size_t ssidLen, char* pass, size_t passLen) {
+    if (ssid == nullptr || pass == nullptr || ssidLen == 0U || passLen == 0U) {
+        return;
+    }
+    ssid[0] = '\0';
+    pass[0] = '\0';
+    app_nvs::ScopedNvsLock lock;
+    Preferences prefs;
+    if (!prefs.begin("wifi", true)) {
+        return;
+    }
+
+    bool loadedFromPacked = false;
+    if (prefs.getBytesLength("cred_v1") == sizeof(PackedWifiCredentials)) {
+        PackedWifiCredentials pk{};
+        if (prefs.getBytes("cred_v1", &pk, sizeof(pk)) == sizeof(pk) && pk.magic == kWifiCredPackedMagic
+            && pk.ssid[0] != '\0') {
+            strlcpy(ssid, pk.ssid, ssidLen);
+            strlcpy(pass, pk.pass, passLen);
+            loadedFromPacked = true;
+        }
+    }
+    if (!loadedFromPacked) {
+        prefs.getString("ssid", ssid, ssidLen);
+        prefs.getString("pass", pass, passLen);
+    }
+    prefs.end();
+}
+
+} // namespace
 
 static void wifiStationEvent(arduino_event_id_t event);
 
@@ -64,15 +129,24 @@ bool wlanLastStaBootFailureSsidSnapshot(char* outSsid, size_t maxLen) {
     if (outSsid == nullptr || maxLen == 0U) {
         return false;
     }
+    portENTER_CRITICAL(&g_lastFailedBootSsidMux);
     if (g_lastFailedBootSsid[0] == '\0') {
+        portEXIT_CRITICAL(&g_lastFailedBootSsidMux);
         outSsid[0] = '\0';
         return false;
     }
     strlcpy(outSsid, g_lastFailedBootSsid, maxLen);
+    portEXIT_CRITICAL(&g_lastFailedBootSsidMux);
     return true;
 }
 
 void wlanRequestWifiScanRefresh() {
+    const unsigned long now = millis();
+    const unsigned long last = s_lastWifiScanKickMs.load(std::memory_order_relaxed);
+    if (last != 0UL && (now - last) < kWifiScanKickMinIntervalMs) {
+        return;
+    }
+    s_lastWifiScanKickMs.store(now, std::memory_order_relaxed);
     s_wifiScanKick.store(true, std::memory_order_release);
 }
 
@@ -94,7 +168,50 @@ size_t wlanWifiScanCopySnapshot(WlanScanRow* out, size_t maxRows) {
     return n;
 }
 
+void wlanFillStaLinkSnapshot(bool* outConnected, char* ipStr, size_t ipLen, char* ssidBuf,
+                             size_t ssidLen, int* outRssi) {
+    if (outConnected == nullptr || ipStr == nullptr || ssidBuf == nullptr || outRssi == nullptr
+        || ipLen == 0U || ssidLen == 0U) {
+        return;
+    }
+    wlanWifiApiLock();
+    const bool ok = (WiFi.status() == WL_CONNECTED && WiFi.localIP()[0] != 0);
+    *outConnected = ok;
+    if (!ok) {
+        ipStr[0]   = '\0';
+        ssidBuf[0] = '\0';
+        *outRssi   = 0;
+        wlanWifiApiUnlock();
+        return;
+    }
+    formatIpv4ToBuf(WiFi.localIP(), ipStr, ipLen);
+    wifi_ap_record_t ap{};
+    if (esp_wifi_sta_get_ap_info(&ap) == ESP_OK) {
+        strlcpy(ssidBuf, reinterpret_cast<const char*>(ap.ssid), ssidLen);
+    } else {
+        ssidBuf[0] = '\0';
+    }
+    *outRssi = static_cast<int>(WiFi.RSSI());
+    wlanWifiApiUnlock();
+}
+
+bool wlanReadStaLocalIpForCommit(char* outIp, size_t ipLen) {
+    if (outIp == nullptr || ipLen == 0U) {
+        return false;
+    }
+    wlanWifiApiLock();
+    const bool ok = WiFi.status() == WL_CONNECTED && WiFi.localIP()[0] != 0;
+    if (ok) {
+        formatIpv4ToBuf(WiFi.localIP(), outIp, ipLen);
+    } else {
+        outIp[0] = '\0';
+    }
+    wlanWifiApiUnlock();
+    return ok;
+}
+
 static void wifiScanServiceOnMainTask() {
+    wlanWifiApiLock();
     if (s_wifiScanKick.exchange(false, std::memory_order_acq_rel)) {
         WiFi.scanDelete();
         s_wifiScanInProgress.store(true, std::memory_order_release);
@@ -103,175 +220,260 @@ static void wifiScanServiceOnMainTask() {
     }
 
     if (!s_wifiScanInProgress.load(std::memory_order_acquire)) {
+        wlanWifiApiUnlock();
         return;
     }
 
     const int16_t n = WiFi.scanComplete();
     if (n == WIFI_SCAN_RUNNING) {
+        wlanWifiApiUnlock();
         return;
     }
     if (n == WIFI_SCAN_FAILED) {
         WiFi.scanDelete();
         s_wifiScanInProgress.store(false, std::memory_order_release);
         s_wifiScanHasValidCache.store(false, std::memory_order_release);
-        /* Retry on next wlanLoop iteration. */
-        wlanRequestWifiScanRefresh();
+        s_wifiScanKick.store(true, std::memory_order_release);
+        wlanWifiApiUnlock();
         return;
     }
     if (n < 0) {
         s_wifiScanInProgress.store(false, std::memory_order_release);
+        wlanWifiApiUnlock();
         return;
     }
 
     const size_t toStore = std::min(static_cast<size_t>(n), kMaxScanCache);
+    uint16_t apFill = static_cast<uint16_t>(kMaxScanCache);
+    const esp_err_t  gr     = esp_wifi_scan_get_ap_records(&apFill, s_wifiScanApWorkRecords);
+    if (gr != ESP_OK) {
+        ESP_LOGW(TAG, "esp_wifi_scan_get_ap_records failed: %s", esp_err_to_name(gr));
+        WiFi.scanDelete();
+        s_wifiScanInProgress.store(false, std::memory_order_release);
+        s_wifiScanHasValidCache.store(false, std::memory_order_release);
+        s_wifiScanKick.store(true, std::memory_order_release);
+        wlanWifiApiUnlock();
+        return;
+    }
+    const size_t usable = std::min(static_cast<size_t>(apFill), toStore);
+    for (size_t i = 0; i < usable; ++i) {
+        strlcpy(s_wifiScanRowWork[i].ssid,
+                reinterpret_cast<const char*>(s_wifiScanApWorkRecords[i].ssid),
+                sizeof(s_wifiScanRowWork[i].ssid));
+        s_wifiScanRowWork[i].rssi = s_wifiScanApWorkRecords[i].rssi;
+        s_wifiScanRowWork[i].open = (s_wifiScanApWorkRecords[i].authmode == WIFI_AUTH_OPEN);
+    }
     portENTER_CRITICAL(&s_wifiScanCacheMux);
-    s_wifiScanCacheCount = toStore;
-    for (size_t i = 0; i < toStore; ++i) {
-        strlcpy(s_wifiScanCache[i].ssid, WiFi.SSID(static_cast<uint8_t>(i)).c_str(),
-                sizeof(s_wifiScanCache[i].ssid));
-        s_wifiScanCache[i].rssi = WiFi.RSSI(static_cast<uint8_t>(i));
-        s_wifiScanCache[i].open = (WiFi.encryptionType(static_cast<uint8_t>(i)) == WIFI_AUTH_OPEN);
+    s_wifiScanCacheCount = usable;
+    for (size_t i = 0; i < usable; ++i) {
+        s_wifiScanCache[i] = s_wifiScanRowWork[i];
     }
     portEXIT_CRITICAL(&s_wifiScanCacheMux);
     WiFi.scanDelete();
     s_wifiScanInProgress.store(false, std::memory_order_release);
     s_wifiScanHasValidCache.store(true, std::memory_order_release);
+    wlanWifiApiUnlock();
 }
 
 bool configSaveWiFiCredentials(const char* ssid, const char* password) {
     if (ssid == nullptr || ssid[0] == '\0') {
         return false;
     }
-    if (!app_nvs::writeString("wifi", "ssid", ssid)) {
-        ESP_LOGE(TAG, "NVS wifi: credential write failed");
+    PackedWifiCredentials pk{};
+    pk.magic = kWifiCredPackedMagic;
+    strlcpy(pk.ssid, ssid, sizeof(pk.ssid));
+    strlcpy(pk.pass, password != nullptr ? password : "", sizeof(pk.pass));
+
+    app_nvs::ScopedNvsLock lock;
+    Preferences prefs;
+    if (!prefs.begin("wifi", false)) {
+        ESP_LOGE(TAG, "NVS wifi: begin(write) failed");
         return false;
     }
-    if (!app_nvs::writeString("wifi", "pass", password != nullptr ? password : "")) {
-        ESP_LOGE(TAG, "NVS wifi: credential write failed");
+    prefs.remove("ssid");
+    prefs.remove("pass");
+    const size_t w = prefs.putBytes("cred_v1", &pk, sizeof(pk));
+    prefs.end();
+    if (w != sizeof(pk)) {
+        ESP_LOGE(TAG, "NVS wifi: credential blob write failed");
         return false;
     }
     return true;
 }
 
 bool configIsApMode() {
-    return g_apMode;
+    return g_apMode.load(std::memory_order_relaxed);
 }
 
 static void wifiStationEvent(arduino_event_id_t event) {
-    if (g_apMode) {
+    if (g_apMode.load(std::memory_order_relaxed)) {
         return;
     }
     switch (event) {
         case ARDUINO_EVENT_WIFI_STA_DISCONNECTED: {
-            s_staLastGotIpWallMs = 0;
-            if (!s_wifiSetupComplete) {
+            s_staLastGotIpWallMs.store(0UL, std::memory_order_relaxed);
+            if (!s_wifiSetupComplete.load(std::memory_order_acquire)) {
                 break;
             }
             const unsigned long nowMs = millis();
-            if (nowMs < s_wifiReconnectNextAllowedMs) {
+            if (nowMs < s_wifiReconnectNextAllowedMs.load(std::memory_order_relaxed)) {
                 ESP_LOGD(TAG, "WLAN reconnect skipped (backoff)");
                 break;
             }
             ESP_LOGW(TAG, "WLAN disconnected, attempting reconnect...");
+            wlanWifiApiLock();
             if (WiFi.getMode() == WIFI_STA || WiFi.getMode() == WIFI_AP_STA) {
                 WiFi.reconnect();
                 constexpr unsigned long kBaseBackoffMs = 3000UL;
                 constexpr unsigned long kMaxBackoffMs  = 120000UL;
                 const uint32_t          shift =
-                    std::min(s_wifiReconnectFailCount, static_cast<uint32_t>(6));
+                    std::min(s_wifiReconnectFailCount.load(std::memory_order_relaxed),
+                             static_cast<uint32_t>(6));
                 const unsigned long backoff =
                     std::min(kBaseBackoffMs * (1UL << shift), kMaxBackoffMs);
-                s_wifiReconnectFailCount++;
-                s_wifiReconnectNextAllowedMs = nowMs + backoff;
+                s_wifiReconnectFailCount.fetch_add(1, std::memory_order_relaxed);
+                s_wifiReconnectNextAllowedMs.store(nowMs + backoff, std::memory_order_relaxed);
             }
+            wlanWifiApiUnlock();
             break;
         }
-        case ARDUINO_EVENT_WIFI_STA_GOT_IP:
-            s_staLastGotIpWallMs           = millis();
-            s_wifiReconnectFailCount     = 0;
-            s_wifiReconnectNextAllowedMs = 0;
-            ESP_LOGI(TAG, "WLAN STA IP: %s", WiFi.localIP().toString().c_str());
+        case ARDUINO_EVENT_WIFI_STA_GOT_IP: {
+            s_staLastGotIpWallMs.store(millis(), std::memory_order_relaxed);
+            s_wifiReconnectFailCount.store(0U, std::memory_order_relaxed);
+            s_wifiReconnectNextAllowedMs.store(0UL, std::memory_order_relaxed);
+            char ipStr[16];
+            wlanWifiApiLock();
+            formatIpv4ToBuf(WiFi.localIP(), ipStr, sizeof(ipStr));
+            wlanWifiApiUnlock();
+            ESP_LOGI(TAG, "WLAN STA IP: %s", ipStr);
             s_mdnsRestartNeeded.store(true, std::memory_order_release);
             break;
+        }
         default:
             break;
     }
 }
 
+// Boot: try STA from NVS (blocks with event handler until timeout).
+static bool setupWifiTryStaConnect(char* ssid, char* pass) {
+    if (ssid[0] == '\0') {
+        return false;
+    }
+    wlanWifiApiLock();
+    WiFi.setHostname(kDeviceHostname);
+    WiFi.mode(WIFI_STA);
+    WiFi.config(INADDR_NONE, INADDR_NONE, INADDR_NONE, INADDR_NONE);
+    WiFi.persistent(false);
+    WiFi.setAutoReconnect(false);
+    WiFi.setScanMethod(WIFI_ALL_CHANNEL_SCAN);
+    WiFi.setSortMethod(WIFI_CONNECT_AP_BY_SIGNAL);
+    WiFi.begin(ssid, pass);
+    WiFi.onEvent(wifiStationEvent);
+    wlanWifiApiUnlock();
+
+    const unsigned long start = millis();
+    for (;;) {
+        wlanWifiApiLock();
+        const bool connected = (WiFi.status() == WL_CONNECTED && WiFi.localIP()[0] != 0);
+        wlanWifiApiUnlock();
+        if (connected) {
+            return true;
+        }
+        if (millis() - start >= kWifiStaBootConnectTimeoutMs) {
+            return false;
+        }
+        vTaskDelay(pdMS_TO_TICKS(100));
+    }
+}
+
+// STA up: WiFi RF, mDNS, NTP.
+static void setupWifiFinishStaConnected() {
+    portENTER_CRITICAL(&g_lastFailedBootSsidMux);
+    g_lastFailedBootSsid[0] = '\0';
+    portEXIT_CRITICAL(&g_lastFailedBootSsidMux);
+    wlanWifiApiLock();
+    WiFi.setSleep(false);
+    wlanWifiApiUnlock();
+    esp_wifi_set_ps(WIFI_PS_NONE);
+    esp_wifi_set_max_tx_power(kWifiStaMaxTxPowerQuarterDbm);
+
+    configTime(0, 0, "pool.ntp.org", "time.cloudflare.com");
+    if (!MDNS.begin(kDeviceHostname)) {
+        ESP_LOGW(TAG, "mDNS.begin failed");
+    }
+    MDNS.addService("http", "tcp", 80);
+    const esp_err_t inact =
+        esp_wifi_set_inactive_time(WIFI_IF_STA, kWifiStaInactiveTimeSeconds);
+    if (inact != ESP_OK) {
+        ESP_LOGW(TAG, "esp_wifi_set_inactive_time: %s", esp_err_to_name(inact));
+    }
+    {
+        char ipStr[16];
+        wlanWifiApiLock();
+        formatIpv4ToBuf(WiFi.localIP(), ipStr, sizeof(ipStr));
+        wlanWifiApiUnlock();
+        ESP_LOGI(TAG, "WLAN STA ready (%s / %s)", kDeviceHostname, ipStr);
+    }
+}
+
+// SoftAP + DNS hijack when STA missing or failed.
+static void setupWifiStartApFallback(const char* attemptedSsid) {
+    g_apMode.store(true, std::memory_order_relaxed);
+
+    if (attemptedSsid[0] != '\0') {
+        portENTER_CRITICAL(&g_lastFailedBootSsidMux);
+        strlcpy(g_lastFailedBootSsid, attemptedSsid, sizeof(g_lastFailedBootSsid));
+        portEXIT_CRITICAL(&g_lastFailedBootSsidMux);
+    }
+
+    wlanWifiApiLock();
+    WiFi.mode(WIFI_OFF);
+    wlanWifiApiUnlock();
+    delay(100);
+    wlanWifiApiLock();
+    WiFi.softAPConfig(IPAddress(4, 3, 2, 1), IPAddress(4, 3, 2, 1), IPAddress(255, 255, 255, 0));
+    WiFi.setHostname(kDeviceHostname);
+    WiFi.mode(WIFI_AP_STA);
+    WiFi.softAP(kSetupApSsid);
+    wlanWifiApiUnlock();
+    delay(50);
+    wlanWifiApiLock();
+    WiFi.persistent(false);
+    WiFi.setAutoReconnect(false);
+    WiFi.disconnect(false, false);
+    wlanWifiApiUnlock();
+    delay(100);
+    char apIp[16]{};
+    wlanWifiApiLock();
+    formatIpv4ToBuf(WiFi.softAPIP(), apIp, sizeof(apIp));
+    g_dnsServer.setErrorReplyCode(DNSReplyCode::NoError);
+    g_dnsServer.start(53, "*", WiFi.softAPIP());
+    wlanWifiApiUnlock();
+    ESP_LOGI(TAG, "WLAN AP %s IP %s", kSetupApSsid, apIp);
+}
+
 void setupWiFi() {
-    s_wifiSetupComplete = false;
+    s_wifiSetupComplete.store(false, std::memory_order_release);
     webAdminRegisterRoutes();
 
     char ssid[kWifiSsidMaxLen];
     char pass[kWifiPassMaxLen];
     ssid[0] = '\0';
     pass[0] = '\0';
-    static_cast<void>(app_nvs::readString("wifi", "ssid", ssid, sizeof(ssid)));
-    static_cast<void>(app_nvs::readString("wifi", "pass", pass, sizeof(pass)));
-
-    bool staConnected = false;
-
-    if (ssid[0] != '\0') {
-        WiFi.setHostname(kDeviceHostname);
-        WiFi.mode(WIFI_STA);
-        WiFi.config(INADDR_NONE, INADDR_NONE, INADDR_NONE, INADDR_NONE);
-        WiFi.persistent(false);
-        WiFi.setAutoReconnect(false);
-        WiFi.setScanMethod(WIFI_ALL_CHANNEL_SCAN);
-        WiFi.setSortMethod(WIFI_CONNECT_AP_BY_SIGNAL);
-        WiFi.begin(ssid, pass);
-        /* Register early so GOT_IP / DISCONNECT are handled during setup waits. */
-        WiFi.onEvent(wifiStationEvent);
-
-        const unsigned long start = millis();
-        while ((WiFi.status() != WL_CONNECTED || WiFi.localIP()[0] == 0)
-               && millis() - start < 10000) {
-            delay(100);
-        }
-        staConnected = (WiFi.status() == WL_CONNECTED && WiFi.localIP()[0] != 0);
+    wifiLoadCredentialsFromNvs(ssid, sizeof(ssid), pass, sizeof(pass));
+    if (ssid[0] == '\0') {
+        ESP_LOGD(TAG, "WLAN: no SSID in NVS (STA not configured or read failed)");
     }
+
+    const bool staConnected = setupWifiTryStaConnect(ssid, pass);
 
     if (staConnected) {
-        g_lastFailedBootSsid[0] = '\0';
-        /* No modem sleep until MQTT session is up — avoids BEACON_TIMEOUT during TLS/handshake. */
-        WiFi.setSleep(false);
-        esp_wifi_set_ps(WIFI_PS_NONE);
-        esp_wifi_set_max_tx_power(52);
-
-        configTime(0, 0, "pool.ntp.org", "time.cloudflare.com");
-        if (!MDNS.begin(kDeviceHostname)) {
-            ESP_LOGW(TAG, "mDNS.begin failed");
-        }
-        MDNS.addService("http", "tcp", 80);
-        /* Default inactive time (~6 s) triggers BEACON_TIMEOUT during long TLS on the main loop. */
-        (void)esp_wifi_set_inactive_time(WIFI_IF_STA, 30);
-        ESP_LOGI(TAG, "WLAN STA ready (%s / %s)", kDeviceHostname, WiFi.localIP().toString().c_str());
+        setupWifiFinishStaConnected();
+    } else {
+        setupWifiStartApFallback(ssid);
     }
 
-    if (!staConnected) {
-        g_apMode = true;
-
-        if (ssid[0] != '\0') {
-            strlcpy(g_lastFailedBootSsid, ssid, sizeof(g_lastFailedBootSsid));
-        }
-
-        WiFi.mode(WIFI_OFF);
-        delay(100);
-        WiFi.softAPConfig(IPAddress(4, 3, 2, 1), IPAddress(4, 3, 2, 1), IPAddress(255, 255, 255, 0));
-        WiFi.setHostname(kDeviceHostname);
-        WiFi.mode(WIFI_AP_STA);
-        WiFi.softAP(kSetupApSsid);
-        delay(50);
-        WiFi.persistent(false);
-        WiFi.setAutoReconnect(false);
-        WiFi.disconnect(false, false);
-        delay(100);
-        g_dnsServer.setErrorReplyCode(DNSReplyCode::NoError);
-        g_dnsServer.start(53, "*", WiFi.softAPIP());
-        ESP_LOGI(TAG, "WLAN AP %s IP %s", kSetupApSsid, WiFi.softAPIP().toString().c_str());
-    }
-
-    s_wifiSetupComplete = true;
+    s_wifiSetupComplete.store(true, std::memory_order_release);
     webAdminWebServer().begin();
 }
 
@@ -282,16 +484,21 @@ void releaseGpioHoldBeforeRestart() {
 
 void resetAllSettings() {
     ESP_LOGW(TAG, "Factory reset: erasing all settings...");
+    counterSuspendNvsSavesForFactoryReset();
     wlanAbortWifiConnectionTest();
+    portENTER_CRITICAL(&g_lastFailedBootSsidMux);
     g_lastFailedBootSsid[0] = '\0';
+    portEXIT_CRITICAL(&g_lastFailedBootSsidMux);
     webAuthInvalidateSession();
     webAdminWebServer().end();
-    if (!g_apMode) {
+    if (!g_apMode.load(std::memory_order_relaxed)) {
         MDNS.end();
     }
+    wlanWifiApiLock();
     WiFi.softAPdisconnect(true);
     WiFi.disconnect(true, true);
     WiFi.mode(WIFI_MODE_NULL);
+    wlanWifiApiUnlock();
 
     static_cast<void>(app_nvs::clearNamespace("wifi"));
     static_cast<void>(app_nvs::clearNamespace("mqtt"));
@@ -306,10 +513,11 @@ void resetAllSettings() {
 void wlanLoop() {
     wifiScanServiceOnMainTask();
     wifiConnectionTestServiceLoop();
-    if (g_apMode) {
+    if (g_apMode.load(std::memory_order_relaxed)) {
         g_dnsServer.processNextRequest();
     }
-    if (s_mdnsRestartNeeded.exchange(false, std::memory_order_acq_rel) && !g_apMode) {
+    if (s_mdnsRestartNeeded.exchange(false, std::memory_order_acq_rel)
+        && !g_apMode.load(std::memory_order_relaxed)) {
         MDNS.end();
         if (!MDNS.begin(kDeviceHostname)) {
             ESP_LOGW(TAG, "mDNS.begin after GOT_IP failed");
@@ -319,33 +527,43 @@ void wlanLoop() {
 }
 
 bool wlanStaConnectedOk() {
-    return WiFi.status() == WL_CONNECTED && WiFi.localIP()[0] != 0;
+    wlanWifiApiLock();
+    const bool ok = WiFi.status() == WL_CONNECTED && WiFi.localIP()[0] != 0;
+    wlanWifiApiUnlock();
+    return ok;
 }
 
 bool wlanStaStableForMqtt() {
-    if (!wlanStaConnectedOk() || s_staLastGotIpWallMs == 0) {
+    if (!wlanStaConnectedOk()) {
         return false;
     }
-    return (millis() - s_staLastGotIpWallMs) >= kStaStableAfterGotIpMs;
+    const unsigned long t = s_staLastGotIpWallMs.load(std::memory_order_relaxed);
+    if (t == 0UL) {
+        return false;
+    }
+    return (millis() - t) >= kStaStableAfterGotIpMs;
 }
 
 bool wlanNtpSynced() {
-    /* mbedTLS needs plausible wall time for TLS certificate validity checks (same threshold as counter/OTA). */
     return ntpTimeLooksSynced(time(nullptr));
 }
 
 void wlanSetStaPowerSaveMqttActive(bool mqttSessionActive) {
-    if (g_apMode) {
+    if (g_apMode.load(std::memory_order_relaxed)) {
         return;
     }
+    wlanWifiApiLock();
     if (mqttSessionActive) {
-        if (!wlanStaConnectedOk()) {
+        if (WiFi.status() != WL_CONNECTED || WiFi.localIP()[0] == 0) {
+            wlanWifiApiUnlock();
             return;
         }
         WiFi.setSleep(true);
+        wlanWifiApiUnlock();
         esp_wifi_set_ps(WIFI_PS_MIN_MODEM);
     } else {
         WiFi.setSleep(false);
+        wlanWifiApiUnlock();
         esp_wifi_set_ps(WIFI_PS_NONE);
     }
 }

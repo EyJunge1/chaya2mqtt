@@ -5,17 +5,20 @@
 #include "admin_globals.h"
 #include "admin_routes.h"
 
+#include "async/event_types.h"
+#include "async/task_handles.h"
 #include "config/app_config.h"
 #include "heart/counter.h"
 #include "display/display.h"
-#include "mqtt/mqtt.h"
-#include "mqtt/config.h"
-#include "ota/ota.h"
 #include "wifi/wlan.h"
 #include "auth.h"
+#include "web_events.h"
 
 #include <ESPAsyncWebServer.h>
 #include <climits>
+#include <esp_log.h>
+
+// Routes, deferred flags, SSE tick.
 
 AsyncWebServer& webAdminWebServer() {
     static AsyncWebServer server(80);
@@ -39,6 +42,7 @@ void webAdminRegisterRoutes() {
     adminRoutesRegisterWifi(ws);
     adminRoutesRegisterMqtt(ws);
     adminRoutesRegisterApplication(ws);
+    webEventsRegister(ws);
 }
 
 void webAdminScheduleWifiConfiguredReboot() {
@@ -47,6 +51,7 @@ void webAdminScheduleWifiConfiguredReboot() {
 
 void webAdminLoop() {
     webAuthLoop();
+    webEventsTick();
 
     if (g_webAdminSettingsApplyPending.exchange(false, std::memory_order_acq_rel)) {
         uint8_t daysApply;
@@ -55,26 +60,26 @@ void webAdminLoop() {
         daysApply = g_webAdminPendingResetDays;
         authApply = g_webAdminPendingAuthEnabled;
         portEXIT_CRITICAL(&g_webAdminSettingsPendingMux);
-        configSetResetPeriodDays(daysApply);
-        configSetWebAuthEnabled(authApply);
+        bool settingsNvsOk = true;
+        if (!configSetResetPeriodDays(daysApply)) {
+            settingsNvsOk = false;
+        }
+        if (!configSetWebAuthEnabled(authApply)) {
+            settingsNvsOk = false;
+        }
+        if (!settingsNvsOk) {
+            g_webAdminSettingsNvsWriteFailed.store(true, std::memory_order_release);
+        } else {
+            g_webAdminSettingsNvsWriteFailed.store(false, std::memory_order_release);
+        }
     }
 
-    if (g_webAdminMqttApplyPending.exchange(false, std::memory_order_acq_rel)) {
-        mqttCfgApplyPendingToActive();
-        saveMQTTConfig();
-        mqttDisconnect();
-        mqttSetup();
-        mqttPostponeConnect(3000UL);
-        requestHeartRedraw();
-    }
-
-    if (g_webAdminChayaSendRequested.exchange(false, std::memory_order_acq_rel)) {
-        if (mqttPublishChaya()) {
-            if (heartSentCounter < INT_MAX) {
-                ++heartSentCounter;
-            }
-            maybeSaveHeartSentCounter();
-            requestHeartRedraw();
+    if (g_webAdminMqttApplyPending.load(std::memory_order_acquire)) {
+        NetCmd cmd = NetCmd::MqttSettingsChanged;
+        if (xQueueSend(g_netCmdQueue, &cmd, pdMS_TO_TICKS(500)) == pdTRUE) {
+            g_webAdminMqttApplyPending.store(false, std::memory_order_release);
+        } else {
+            ESP_LOGW("ADMIN", "netCmd queue full (MqttSettingsChanged)");
         }
     }
 
@@ -86,6 +91,4 @@ void webAdminLoop() {
         releaseGpioHoldBeforeRestart();
         ESP.restart();
     }
-
-    otaLoop();
 }

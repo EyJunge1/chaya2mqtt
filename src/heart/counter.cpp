@@ -1,5 +1,6 @@
 #include "counter.h"
 
+#include "async/task_handles.h"
 #include "config/app_config.h"
 #include "constants.h"
 #include "display/display.h"
@@ -9,7 +10,12 @@
 #include "log_tag.h"
 
 #include <Arduino.h>
+#include <Preferences.h>
+#include <freertos/FreeRTOS.h>
+#include <freertos/semphr.h>
+#include <freertos/portmacro.h>
 #include <algorithm>
+#include <atomic>
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
@@ -20,42 +26,52 @@ DEFINE_LOG_TAG("CTR");
 
 namespace {
 constexpr const char kNvsNsChaya[] = "chaya";
+static std::atomic<bool> s_chayaNvsWritesSuspended{false};
+static portMUX_TYPE      s_heartDisplayMux = portMUX_INITIALIZER_UNLOCKED;
 } // namespace
 
-int heartCounter     = 0;
-int heartSentCounter = 0;
+std::atomic<int> heartCounter{0};
+std::atomic<int> heartSentCounter{0};
 
-int counterBaseline   = 0;
-int sentCountBaseline = 0;
+std::atomic<int> counterBaseline{0};
+std::atomic<int> sentCountBaseline{0};
 
-static uint32_t s_lastResetCalendarDayUtc = UINT32_MAX;
+static std::atomic<uint32_t> s_lastResetCalendarDayUtc{UINT32_MAX};
 
 namespace {
 
 constexpr unsigned long kHeartCounterSaveMinIntervalMs = 30000UL;
 
-/** NVS-backed int with periodic commit (same namespace "chaya") to reduce flash wear. */
+static bool chayaNvsWritesAllowed() {
+    return !s_chayaNvsWritesSuspended.load(std::memory_order_acquire);
+}
+
+// NVS int with ≥30s coalesce to limit flash wear.
 class DebouncedChayaCounter {
 public:
-    DebouncedChayaCounter(int* value, const char* nvsKey, const char* saveFailMsg)
+    DebouncedChayaCounter(std::atomic<int>* value, const char* nvsKey, const char* saveFailMsg)
         : value_(value)
         , nvsKey_(nvsKey)
         , saveFailMsg_(saveFailMsg)
-        , lastCommitted_(*value)
+        , lastCommitted_(value->load(std::memory_order_relaxed))
         , lastSaveMs_(0) {}
 
     void syncAfterExternalLoad(unsigned long ms) {
-        lastCommitted_ = *value_;
+        lastCommitted_ = value_->load(std::memory_order_relaxed);
         lastSaveMs_    = ms;
     }
 
     void resetCommittedAndTimestamps(unsigned long ms) {
-        lastCommitted_ = *value_;
+        lastCommitted_ = value_->load(std::memory_order_relaxed);
         lastSaveMs_    = ms;
     }
 
     bool save() {
-        if (!app_nvs::writeInt(kNvsNsChaya, nvsKey_, *value_)) {
+        if (!chayaNvsWritesAllowed()) {
+            return false;
+        }
+        const int v = value_->load(std::memory_order_relaxed);
+        if (!app_nvs::writeInt(kNvsNsChaya, nvsKey_, v)) {
             ESP_LOGE(TAG, "%s", saveFailMsg_);
             return false;
         }
@@ -63,29 +79,31 @@ public:
     }
 
     void maybeSave() {
-        if (*value_ == lastCommitted_) {
+        const int v = value_->load(std::memory_order_relaxed);
+        if (v == lastCommitted_) {
             return;
         }
         const unsigned long now = millis();
         if (now - lastSaveMs_ >= kHeartCounterSaveMinIntervalMs) {
             if (save()) {
-                lastCommitted_ = *value_;
+                lastCommitted_ = v;
                 lastSaveMs_    = now;
             }
         }
     }
 
     void flushIfDirty() {
-        if (*value_ != lastCommitted_) {
+        const int v = value_->load(std::memory_order_relaxed);
+        if (v != lastCommitted_) {
             if (save()) {
-                lastCommitted_ = *value_;
+                lastCommitted_ = v;
                 lastSaveMs_    = millis();
             }
         }
     }
 
 private:
-    int*                value_;
+    std::atomic<int>*   value_;
     const char*         nvsKey_;
     const char*         saveFailMsg_;
     int                 lastCommitted_;
@@ -94,6 +112,18 @@ private:
 
 DebouncedChayaCounter s_rxCounter(&heartCounter, "counter", "NVS chaya: write counter failed");
 DebouncedChayaCounter s_txCounter(&heartSentCounter, "sentCount", "NVS chaya: write sentCount failed");
+
+inline void heartDebounceLock() {
+    if (g_heartDebounceMutex != nullptr) {
+        xSemaphoreTake(g_heartDebounceMutex, portMAX_DELAY);
+    }
+}
+
+inline void heartDebounceUnlock() {
+    if (g_heartDebounceMutex != nullptr) {
+        xSemaphoreGive(g_heartDebounceMutex);
+    }
+}
 
 } // namespace
 
@@ -104,32 +134,55 @@ uint32_t calendarDaySinceEpochUtc(time_t utc) {
     return static_cast<uint32_t>(static_cast<uint64_t>(utc) / 86400ULL);
 }
 
-void loadCounterBaseline() {
-    if (!app_nvs::namespaceExists(kNvsNsChaya)) {
-        ESP_LOGI(TAG, "NVS chaya namespace not present yet, baselines = 0");
-        counterBaseline           = 0;
-        sentCountBaseline         = 0;
-        s_lastResetCalendarDayUtc = UINT32_MAX;
+void counterSuspendNvsSavesForFactoryReset() {
+    s_chayaNvsWritesSuspended.store(true, std::memory_order_release);
+}
+
+int heartDisplayRxDelta() {
+    portENTER_CRITICAL(&s_heartDisplayMux);
+    const int c = heartCounter.load(std::memory_order_relaxed);
+    const int b = counterBaseline.load(std::memory_order_relaxed);
+    portEXIT_CRITICAL(&s_heartDisplayMux);
+    return (c > b) ? (c - b) : 0;
+}
+
+int heartDisplayTxDelta() {
+    portENTER_CRITICAL(&s_heartDisplayMux);
+    const int c = heartSentCounter.load(std::memory_order_relaxed);
+    const int b = sentCountBaseline.load(std::memory_order_relaxed);
+    portEXIT_CRITICAL(&s_heartDisplayMux);
+    return (c > b) ? (c - b) : 0;
+}
+
+void heartCounterFillDrawSnapshot(HeartCounterDrawSnapshot* out) {
+    if (out == nullptr) {
         return;
     }
-    counterBaseline = std::max<int32_t>(app_nvs::readInt(kNvsNsChaya, "cntBase", 0), 0);
-    sentCountBaseline
-        = std::max<int32_t>(app_nvs::readInt(kNvsNsChaya, "sntBase", 0), 0);
-    s_lastResetCalendarDayUtc =
-        app_nvs::readUInt(kNvsNsChaya, "rstDay", UINT32_MAX);
+    portENTER_CRITICAL(&s_heartDisplayMux);
+    out->heartCounterRaw         = heartCounter.load(std::memory_order_relaxed);
+    out->counterBaselineRaw      = counterBaseline.load(std::memory_order_relaxed);
+    out->heartSentCounterRaw     = heartSentCounter.load(std::memory_order_relaxed);
+    out->sentCountBaselineRaw = sentCountBaseline.load(std::memory_order_relaxed);
+    portEXIT_CRITICAL(&s_heartDisplayMux);
 }
 
 static bool persistCounterBaselineState() {
-    if (!app_nvs::writeInt(kNvsNsChaya, "cntBase", counterBaseline)) {
-        ESP_LOGE(TAG, "NVS chaya: failed to write baseline");
+    if (!chayaNvsWritesAllowed()) {
         return false;
     }
-    if (!app_nvs::writeInt(kNvsNsChaya, "sntBase", sentCountBaseline)) {
-        ESP_LOGE(TAG, "NVS chaya: failed to write baseline");
+    app_nvs::ScopedNvsLock lock;
+    Preferences            prefs;
+    if (!prefs.begin(kNvsNsChaya, false)) {
+        ESP_LOGE(TAG, "NVS chaya: open for baseline write failed");
         return false;
     }
-    if (!app_nvs::writeUInt(kNvsNsChaya, "rstDay", s_lastResetCalendarDayUtc)) {
-        ESP_LOGE(TAG, "NVS chaya: failed to write baseline");
+    const bool okCnt = prefs.putInt("cntBase", counterBaseline.load(std::memory_order_relaxed)) > 0U;
+    const bool okSnt = prefs.putInt("sntBase", sentCountBaseline.load(std::memory_order_relaxed)) > 0U;
+    const bool okDay = prefs.putUInt("rstDay", s_lastResetCalendarDayUtc.load(std::memory_order_relaxed))
+                       > 0U;
+    prefs.end();
+    if (!okCnt || !okSnt || !okDay) {
+        ESP_LOGE(TAG, "NVS chaya: baseline write failed");
         return false;
     }
     return true;
@@ -145,10 +198,10 @@ void maybePeriodicallyResetCounters() {
     }
     const uint32_t currentDay = calendarDaySinceEpochUtc(utcNow);
 
-    if (s_lastResetCalendarDayUtc == UINT32_MAX) {
-        s_lastResetCalendarDayUtc = currentDay;
+    if (s_lastResetCalendarDayUtc.load(std::memory_order_relaxed) == UINT32_MAX) {
+        s_lastResetCalendarDayUtc.store(currentDay, std::memory_order_relaxed);
         if (!persistCounterBaselineState()) {
-            s_lastResetCalendarDayUtc = UINT32_MAX;
+            s_lastResetCalendarDayUtc.store(UINT32_MAX, std::memory_order_relaxed);
         }
         return;
     }
@@ -158,17 +211,18 @@ void maybePeriodicallyResetCounters() {
         return;
     }
 
+    const uint32_t lastDay = s_lastResetCalendarDayUtc.load(std::memory_order_relaxed);
     const uint32_t daysSinceReset
-        = (currentDay >= s_lastResetCalendarDayUtc) ? (currentDay - s_lastResetCalendarDayUtc) : 0U;
+        = (currentDay >= lastDay) ? (currentDay - lastDay) : 0U;
     const bool      shouldReset = (daysSinceReset >= static_cast<uint32_t>(periodDays));
 
     if (!shouldReset) {
         return;
     }
 
-    counterBaseline           = heartCounter;
-    sentCountBaseline         = heartSentCounter;
-    s_lastResetCalendarDayUtc = currentDay;
+    counterBaseline.store(heartCounter.load(std::memory_order_relaxed), std::memory_order_relaxed);
+    sentCountBaseline.store(heartSentCounter.load(std::memory_order_relaxed), std::memory_order_relaxed);
+    s_lastResetCalendarDayUtc.store(currentDay, std::memory_order_relaxed);
     if (persistCounterBaselineState()) {
         ESP_LOGI(TAG, "Periodic display counter reset (%u days)", static_cast<unsigned>(periodDays));
         requestHeartRedraw();
@@ -180,14 +234,16 @@ void maybeResetDisplayBaselinesWhenCapped() {
         return;
     }
     bool changed = false;
-    const int64_t dRecv = static_cast<int64_t>(heartCounter) - static_cast<int64_t>(counterBaseline);
-    const int64_t dSent = static_cast<int64_t>(heartSentCounter) - static_cast<int64_t>(sentCountBaseline);
+    const int64_t dRecv = static_cast<int64_t>(heartCounter.load(std::memory_order_relaxed))
+                          - static_cast<int64_t>(counterBaseline.load(std::memory_order_relaxed));
+    const int64_t dSent = static_cast<int64_t>(heartSentCounter.load(std::memory_order_relaxed))
+                          - static_cast<int64_t>(sentCountBaseline.load(std::memory_order_relaxed));
     if (dRecv >= kDisplayCounterMax) {
-        counterBaseline = heartCounter;
+        counterBaseline.store(heartCounter.load(std::memory_order_relaxed), std::memory_order_relaxed);
         changed         = true;
     }
     if (dSent >= kDisplayCounterMax) {
-        sentCountBaseline = heartSentCounter;
+        sentCountBaseline.store(heartSentCounter.load(std::memory_order_relaxed), std::memory_order_relaxed);
         changed           = true;
     }
     if (changed && persistCounterBaselineState()) {
@@ -198,62 +254,89 @@ void maybeResetDisplayBaselinesWhenCapped() {
 
 void loadHeartCounter() {
     const unsigned long t = millis();
-    if (!app_nvs::namespaceExists(kNvsNsChaya)) {
+    app_nvs::ScopedNvsLock lock;
+    Preferences            prefs;
+    if (!prefs.begin(kNvsNsChaya, true)) {
         ESP_LOGI(TAG, "NVS chaya namespace not present yet, counters = 0");
-        heartCounter     = 0;
-        heartSentCounter = 0;
+        heartCounter.store(0, std::memory_order_relaxed);
+        heartSentCounter.store(0, std::memory_order_relaxed);
+        counterBaseline.store(0, std::memory_order_relaxed);
+        sentCountBaseline.store(0, std::memory_order_relaxed);
+        s_lastResetCalendarDayUtc.store(UINT32_MAX, std::memory_order_relaxed);
+        heartDebounceLock();
         s_rxCounter.resetCommittedAndTimestamps(t);
         s_txCounter.resetCommittedAndTimestamps(t);
-        loadCounterBaseline();
+        heartDebounceUnlock();
         return;
     }
-    heartCounter     = std::max<int32_t>(app_nvs::readInt(kNvsNsChaya, "counter", 0), 0);
-    heartSentCounter = std::max<int32_t>(app_nvs::readInt(kNvsNsChaya, "sentCount", 0), 0);
+    heartCounter.store(std::max<int32_t>(prefs.getInt("counter", 0), 0), std::memory_order_relaxed);
+    heartSentCounter.store(std::max<int32_t>(prefs.getInt("sentCount", 0), 0),
+                           std::memory_order_relaxed);
+    counterBaseline.store(std::max<int32_t>(prefs.getInt("cntBase", 0), 0), std::memory_order_relaxed);
+    sentCountBaseline.store(std::max<int32_t>(prefs.getInt("sntBase", 0), 0), std::memory_order_relaxed);
+    s_lastResetCalendarDayUtc.store(prefs.getUInt("rstDay", UINT32_MAX), std::memory_order_relaxed);
+    prefs.end();
+
+    heartDebounceLock();
     s_rxCounter.syncAfterExternalLoad(t);
     s_txCounter.syncAfterExternalLoad(t);
-    loadCounterBaseline();
+    heartDebounceUnlock();
 }
 
 bool saveHeartCounter() {
+    heartDebounceLock();
     const bool ok = s_rxCounter.save();
     if (ok) {
         s_rxCounter.syncAfterExternalLoad(millis());
     }
+    heartDebounceUnlock();
     return ok;
 }
 
 bool saveHeartSentCounter() {
+    heartDebounceLock();
     const bool ok = s_txCounter.save();
     if (ok) {
         s_txCounter.syncAfterExternalLoad(millis());
     }
+    heartDebounceUnlock();
     return ok;
 }
 
 void maybeSaveHeartCounter() {
+    heartDebounceLock();
     s_rxCounter.maybeSave();
+    heartDebounceUnlock();
 }
 
 void maybeSaveHeartSentCounter() {
+    heartDebounceLock();
     s_txCounter.maybeSave();
+    heartDebounceUnlock();
 }
 
 void flushHeartCounterIfDirty() {
+    heartDebounceLock();
     s_rxCounter.flushIfDirty();
+    heartDebounceUnlock();
 }
 
 void flushHeartSentCounterIfDirty() {
+    heartDebounceLock();
     s_txCounter.flushIfDirty();
+    heartDebounceUnlock();
 }
 
 void counterResetRamAfterFactoryClear() {
-    heartCounter              = 0;
-    heartSentCounter          = 0;
-    counterBaseline           = 0;
-    sentCountBaseline         = 0;
-    s_lastResetCalendarDayUtc = UINT32_MAX;
+    heartCounter.store(0, std::memory_order_relaxed);
+    heartSentCounter.store(0, std::memory_order_relaxed);
+    counterBaseline.store(0, std::memory_order_relaxed);
+    sentCountBaseline.store(0, std::memory_order_relaxed);
+    s_lastResetCalendarDayUtc.store(UINT32_MAX, std::memory_order_relaxed);
     const unsigned long t = millis();
+    heartDebounceLock();
     s_rxCounter.resetCommittedAndTimestamps(t);
     s_txCounter.resetCommittedAndTimestamps(t);
+    heartDebounceUnlock();
     app_configResetRamAfterFactoryClear();
 }
