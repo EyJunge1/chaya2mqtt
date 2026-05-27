@@ -9,7 +9,7 @@ Alle persistenten Einstellungen werden in der **NVS** (Non-Volatile Storage) des
 | `wifi` | `wifi/wlan.cpp` | WLAN-Credentials |
 | `mqtt` | `mqtt/config.cpp` | Broker-Konfiguration |
 | `cfg` | `config/app_config.cpp`, `ota/ota.cpp` | App-Einstellungen, OTA-Check-Tag |
-| `chaya` | `heart/counter.cpp` | Zähler und Baselines |
+| `chaya` | `heart/counter_nvs.cpp` | Zähler und Baselines |
 
 ## Namespace `wifi`
 
@@ -126,6 +126,20 @@ Ablauf:
 | Web-Auth | POST `/settings` | Pending → App-Task → NVS |
 
 MQTT- und Settings-Änderungen werden **deferred** verarbeitet (nicht im HTTP-Handler), um Blockierung zu vermeiden.
+
+## Konstanten-Header
+
+Modulspezifische Defaults und Limits liegen in `*_config.h` (nicht mehr zentral in `constants.h`):
+
+| Header | Inhalt |
+|--------|--------|
+| `constants.h` | Device-Identity, NTP, Syntax-Validierung |
+| `mqtt/mqtt_config.h` | MQTT-Topics, Port, Keepalive, Outbox |
+| `wifi/wlan_config.h` | SSID/Pass-Limits, STA-Tuning, Scan/Reconnect |
+| `display/display_config.h` | `kDisplayCounterMax` |
+| `hw/button_config.h` | Debounce, Factory-Reset, LED-Timing |
+| `web/auth_config.h` | Challenge-, Session- und Lockout-Zeiten |
+| `async/task_config.h` | Task-Stacks, Queue-Tiefen |
 
 ## Weitere Dokumentation
 

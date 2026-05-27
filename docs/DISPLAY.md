@@ -59,7 +59,7 @@ Anzeige TX = max(0, heartSentCounter − sentCountBaseline), gecappt bei 999
 
 ### Overflow (≥999)
 
-Wenn ein Anzeige-Delta ≥ **999** (`kDisplayCounterMax`) erreicht:
+Wenn ein Anzeige-Delta ≥ **999** (`kDisplayCounterMax` in `display/display_config.h`) erreicht:
 - Anzeige zeigt `"999+"` wenn der Delta-Wert **größer als** 999 ist (bei exakt 999 wird `999` gezeigt; danach kann die App-Baseline nachziehen)
 - `maybeResetDisplayBaselinesWhenCapped()` setzt die Baseline auf den aktuellen Raw-Wert
 - Anzeige springt zurück auf 0

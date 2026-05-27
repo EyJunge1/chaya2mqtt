@@ -35,7 +35,7 @@ Releases werden per Git-Tag (`v*`) ausgelöst (CI: `.github/workflows/build-rele
 
 ## Versionsvergleich
 
-- `APP_VERSION` aus `src/version.h` (CI setzt aus Git-Tag, z. B. `v1.2.3`)
+- `APP_VERSION` aus `config/version.h` (CI setzt aus Git-Tag, z. B. `v1.2.3`)
 - GitHub `tag_name` wird per semver geparst (`major * 10⁶ + minor * 10³ + patch`)
 - Upgrade verfügbar wenn Remote-Version > lokale Version
 - `APP_VERSION == "dev"`: **kein automatischer Check** (nur manuell)

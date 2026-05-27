@@ -167,7 +167,7 @@ CSS und JavaScript liegen als PROGMEM-Header unter `src/web/assets/`:
 | `chaya_js.h` | Dashboard-Zähler + Send + SSE |
 | `pairing_js.h` | Pairing-QR-Code |
 
-HTML wird per Streaming aus `pages.cpp` generiert.
+HTML wird per Streaming aus `pages_common.cpp`, `pages_admin.cpp` und `pages_status.cpp` generiert.
 
 ## WiFi-Verbindungstest (AP-Modus)
 

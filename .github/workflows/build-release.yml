@@ -16,7 +16,7 @@ jobs:
 
       - name: Set APP_VERSION from tag
         run: |
-          cat > src/version.h <<EOF
+          cat > src/config/version.h <<EOF
           #pragma once
           #define APP_VERSION "${{ github.ref_name }}"
           EOF

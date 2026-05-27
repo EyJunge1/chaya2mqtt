@@ -6,7 +6,7 @@
 #include "hw/button.h"
 #include "heart/counter.h"
 #include "hw/pins.h"
-// Nach Auth-UI: Session-Fenster + LED koordinieren (siehe web/auth.cpp — bewusste Kopplung).
+// Nach Auth-UI: Session-Fenster + LED koordinieren (siehe web/auth_challenge.cpp — bewusste Kopplung).
 #include "web/auth.h"
 
 #include "async/task_config.h"

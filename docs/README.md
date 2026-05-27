@@ -106,15 +106,18 @@ chaya2mqtt/
 ├── docs/                     # Diese Dokumentation
 └── src/
     ├── main.cpp              # Bootstrap, Task-Start
+    ├── constants.h           # Geräteweite Identity, NTP, Syntax-Validierung
     ├── async/                # Queues, Mutexe, App-Task
-    ├── config/               # app_config, nvs_utils
+    ├── config/               # app_config, nvs_utils, version.h
     ├── diag/                 # Stack-Monitor, Task-WDT
     ├── display/              # EPD (GxEPD2) + Draw + Display-Task
     ├── heart/                # Zähler, Baselines, NVS
-    ├── hw/                   # Button, Pins
-    ├── mqtt/                 # Config + esp_mqtt_client
+    ├── hw/                   # Button (Input/LED), Pins
+    ├── mqtt/                 # Config + Client/Events/Publish/Reconnect
     ├── network/              # network_task (WLAN + MQTT Loop)
     ├── ota/                  # GitHub-Check, Flash-Install
+    ├── tls/                  # CA-Bundle (MQTT + OTA)
+    ├── util/                 # Zeit-Helfer, Logging, IP-Format
     ├── web/                  # Admin-UI, Auth, SSE, Assets
     └── wifi/                 # WLAN, Captive Portal, Verbindungstest
 ```

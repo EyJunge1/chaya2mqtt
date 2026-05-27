@@ -60,7 +60,13 @@ App-Task (4096 Stack, Prio 4, Core 1), Loop alle 500 ms:
 
 ## `heart/counter` – Zählerlogik
 
-**Dateien:** `heart/counter.h`, `heart/counter.cpp`
+**Dateien:** `heart/counter.h`, `heart/counter_internal.h`, `heart/counter.cpp`, `heart/counter_nvs.cpp`, `heart/counter_sync.cpp`
+
+| Datei | Verantwortung |
+|-------|---------------|
+| `counter.cpp` | Atomics, Display-Deltas, Factory-RAM-Reset |
+| `counter_nvs.cpp` | NVS-Laden/Speichern, debounced Saves (≥30 s) |
+| `counter_sync.cpp` | Periodischer Baseline-Roll, Cap-Reset bei ≥999 |
 
 ### Globale Variablen
 
@@ -111,9 +117,16 @@ Sanitisierung beim NVS-Laden: ungültige Server/Topics/Partner-IDs werden berein
 
 ## `mqtt/mqtt` – MQTT-Client
 
-**Dateien:** `mqtt/mqtt.h`, `mqtt/mqtt.cpp`
+**Dateien:** `mqtt/mqtt.h`, `mqtt/mqtt_internal.h`, `mqtt/mqtt_config.h`, `mqtt/mqtt_timing.h`, `mqtt/mqtt_client.cpp`, `mqtt/mqtt_events.cpp`, `mqtt/mqtt_publish.cpp`, `mqtt/mqtt_reconnect.cpp`
 
-ESP-IDF `esp_mqtt_client` über `mqtts://` mit TLS-Bundle.
+| Datei | Verantwortung |
+|-------|---------------|
+| `mqtt_client.cpp` | Client-Allokation, TLS, Mutex |
+| `mqtt_events.cpp` | Event-Handler, Subscribe, Payload-Parsing |
+| `mqtt_publish.cpp` | Chaya-Publish, Settings-Apply-Block |
+| `mqtt_reconnect.cpp` | `mqttLoop()`, Prechecks, Backoff |
+
+ESP-IDF `esp_mqtt_client` über `mqtts://` mit TLS-Bundle (`tls/`).
 
 | Funktion | Beschreibung |
 |----------|--------------|
@@ -132,7 +145,15 @@ Event-Handler (`MQTT_EVENT_DATA`): Payload parsen → `heartCounterStoreFromRemo
 
 ## `wifi/wlan` – WLAN & Captive Portal
 
-**Dateien:** `wifi/wlan.h`, `wifi/wlan.cpp`
+**Dateien:** `wifi/wlan.h`, `wifi/wlan_config.h`, `wifi/wlan_internal.h`, `wifi/wlan.cpp`, `wifi/wlan_boot.cpp`, `wifi/wlan_events.cpp`, `wifi/wlan_nvs.cpp`, `wifi/wlan_scan.cpp`
+
+| Datei | Verantwortung |
+|-------|---------------|
+| `wlan.cpp` | Globaler State, `wlanLoop()`, Factory Reset, API-Lock |
+| `wlan_boot.cpp` | `setupWiFi()`, STA/AP-Fallback, mDNS/NTP |
+| `wlan_events.cpp` | STA-Events, Reconnect-Backoff |
+| `wlan_nvs.cpp` | NVS-Credentials (packed `cred_v1`) |
+| `wlan_scan.cpp` | Scan-Cache, Refresh |
 
 | Funktion | Beschreibung |
 |----------|--------------|
@@ -169,7 +190,7 @@ Network-Task (7168 Stack, Prio 5, Core 1):
 
 ## `display/` – E-Ink
 
-**Dateien:** `display/display.h`, `display/display.cpp`, `display/draw.cpp`, `display/internal.h`
+**Dateien:** `display/display.h`, `display/display_config.h`, `display/display.cpp`, `display/draw.cpp`, `display/internal.h`
 
 ### Display-Task
 
@@ -202,7 +223,12 @@ Details zur Geometrie: [DISPLAY.md](DISPLAY.md)
 
 ## `hw/button` – Taster & LED
 
-**Dateien:** `hw/button.h`, `hw/button.cpp`, `hw/pins.h`
+**Dateien:** `hw/button.h`, `hw/button_config.h`, `hw/button_internal.h`, `hw/button_input.cpp`, `hw/button_led.cpp`, `hw/pins.h`
+
+| Datei | Verantwortung |
+|-------|---------------|
+| `button_input.cpp` | GPIO/ISR, Debounce, Factory Reset → `NetCmd` |
+| `button_led.cpp` | LED-Sequenz, Auth-Blink, MQTT-Publish nach Blink |
 
 | Konstante | Wert | Bedeutung |
 |-----------|------|-----------|
@@ -236,8 +262,8 @@ Button-Task (4096 Stack, Prio 8, Core 1):
 | `admin_routes_wifi.cpp` | WiFi-Routen |
 | `admin_routes_mqtt.cpp` | MQTT + Pairing-Routen |
 | `admin_routes_app.cpp` | Dashboard, Settings, OTA, Chaya |
-| `auth.h` / `auth.cpp` | Session, CSRF, Challenge-Flow |
-| `pages.h` / `pages.cpp` | HTML-Streaming |
+| `auth.h` / `auth_session.cpp` / `auth_routes.cpp` / `auth_challenge.cpp` | Session, CSRF, Challenge-Flow, HTTP-Routen |
+| `pages.h` / `pages_common.cpp` / `pages_admin.cpp` / `pages_status.cpp` | HTML-Streaming |
 | `web_events.h` / `web_events.cpp` | SSE `/events` |
 | `web_utils.h` / `web_utils.cpp` | Redirects, Security-Headers |
 | `web_middleware.h` | CSRF-Middleware für AP-Routen |
@@ -295,16 +321,29 @@ Thread-safe `Preferences`-Wrapper mit `g_nvsMutex`:
 
 ---
 
+## `tls/` – TLS CA-Bundle
+
+| Datei | Zweck |
+|-------|-------|
+| `tls/tls_bundle.h` | Eingebettete X509-CA-Zertifikate (PROGMEM) |
+| `tls/tls_bundle_setup.h` / `tls_bundle_setup.cpp` | Einmalige CA-Bundle-Initialisierung (Mutex, von MQTT + OTA genutzt) |
+
+---
+
 ## Hilfsmodule
 
 | Datei | Zweck |
 |-------|-------|
-| `constants.h` | Defaults, Limits, Syntax-Validierung |
-| `version.h` | `APP_VERSION` (CI setzt aus Git-Tag) |
-| `log_tag.h` | `DEFINE_LOG_TAG` Makro |
-| `ip_format.h` | IP-Adress-Formatierung |
-| `tls_bundle.h` / `tls_bundle.cpp` | Eingebettetes X509-CA-Bundle |
-| `tls_bundle_setup.h` | Einmalige CA-Bundle-Initialisierung |
+| `constants.h` | Geräteweite Identity, NTP, Syntax-Validierung (cross-module) |
+| `mqtt/mqtt_config.h` | MQTT-Protokoll-Defaults (Topics, Port, Keepalive, Outbox) |
+| `mqtt/mqtt_timing.h` | MQTT-Backoff, Lock-Timeouts |
+| `wifi/wlan_config.h` | Wi-Fi-Limits, Connection-Tuning, Scan/Reconnect-Intervalle |
+| `display/display_config.h` | Display-Limits (`kDisplayCounterMax`) |
+| `hw/button_config.h` | Button/LED-Timing |
+| `web/auth_config.h` | Auth-Timing (Challenge, Session, Lockout) |
+| `config/version.h` | `APP_VERSION` (CI setzt aus Git-Tag) |
+| `util/log_tag.h` | `DEFINE_LOG_TAG` Makro |
+| `util/ip_format.h` | IP-Adress-Formatierung |
 | `util/time_helpers.h` | Wrap-sichere Zeithelfer (`elapsedMs`, `deadlineReached`, `remainingMs`) |
 | `config/nvs_keys.h` | Zentrale NVS-Namespace- und Key-Konstanten |
 | `async/task_config.h` | FreeRTOS Task-Stack-Größen und Queue-Tiefen |

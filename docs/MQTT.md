@@ -9,9 +9,9 @@
 | TLS | Mozilla-CA-Bundle via `esp_crt_bundle_attach` |
 | Client | ESP-IDF `esp_mqtt_client` (kein PubSubClient) |
 | Client-ID | `Chaya2MQTT-<deviceId>` oder `Chaya2MQTT-<random>` |
-| Keep-Alive | 60 s |
+| Keep-Alive | 60 s (`kMqttKeepAliveSeconds` in `mqtt/mqtt_config.h`) |
 | Buffer | 512 Bytes (in/out) |
-| Outbox-Limit | 4096 Bytes |
+| Outbox-Limit | 4096 Bytes (`kMqttOutboxLimitBytes`) |
 | Auto-Reconnect (ESP-IDF) | deaktiviert – Reconnect nur in `mqttLoop()` |
 
 ## Topics
@@ -148,6 +148,8 @@ struct MqttConfig {
     char     partnerDeviceId[7]; // 6 Hex + NUL
 };
 ```
+
+Defaults und Protokoll-Limits: `mqtt/mqtt_config.h`. Backoff/Timing: `mqtt/mqtt_timing.h`.
 
 ## NVS-Speicherung
 

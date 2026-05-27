@@ -35,7 +35,7 @@ flowchart TB
 | Task | Stack | Priorität | Core | Datei | Aufgabe |
 |------|-------|-----------|------|-------|---------|
 | **network** | 7168 | 5 | 1 | `network/network_task.cpp` | `wlanLoop()`, `mqttLoop()`, `NetCmd`-Queue |
-| **button** | 4096 | 8 | 1 | `hw/button.cpp` | Debounce, LED-Sequenz, Factory Reset, MQTT-Senden |
+| **button** | 4096 | 8 | 1 | `hw/button_input.cpp`, `hw/button_led.cpp` | Debounce, LED-Sequenz, Factory Reset, MQTT-Senden |
 | **app** | 4096 | 4 | 1 | `async/app_task.cpp` | `webAdminLoop()`, Counter-Resets, NVS-Saves |
 | **ota** | 8192 | 4 | 1 | `ota/ota_task.cpp` | `otaLoop()` (GitHub + Download) |
 | **display** | 4096 | 3 | 1 | `display/display.cpp` | Exklusiver SPI/EPD-Zugriff |
@@ -88,15 +88,16 @@ Light-Sleep wurde bewusst deaktiviert, damit Web-Admin und MQTT-Reconnects respo
 | Modul | Pfad | Aufgabe |
 |-------|------|---------|
 | **MQTT-Config** | `src/mqtt/config.*` | Broker-Konfiguration (NVS `mqtt`), Snapshot/Pending-API |
-| **MQTT-Client** | `src/mqtt/mqtt.*` | `esp_mqtt_client`, TLS, Publish/Subscribe |
-| **Counter** | `src/heart/counter.*` | Herz-/Sent-Zähler, Baselines, NVS `chaya` |
-| **WLAN** | `src/wifi/wlan.*` | STA/AP, Captive DNS, mDNS, NTP, Reconnect |
+| **MQTT-Client** | `src/mqtt/mqtt_*.cpp` | `esp_mqtt_client`, TLS, Publish/Subscribe, Reconnect |
+| **Counter** | `src/heart/counter*.cpp` | Herz-/Sent-Zähler, Baselines, NVS `chaya` |
+| **WLAN** | `src/wifi/wlan*.cpp` | STA/AP, Captive DNS, mDNS, NTP, Reconnect |
 | **Network-Task** | `src/network/network_task.*` | Orchestriert WLAN + MQTT + NetCmd |
 | **Display** | `src/display/*` | E-Paper, eigener Drawing-Task |
-| **Button** | `src/hw/button.*` | Taster + LED, eigener Task |
+| **Button** | `src/hw/button_*.cpp` | Taster + LED, eigener Task |
 | **Web-Admin** | `src/web/*` | HTTP-Routen, Auth, SSE, HTML |
 | **OTA** | `src/ota/*` | GitHub-Release-Check, Flash-Install |
 | **App-Config** | `src/config/app_config.*` | Reset-Periode, Web-Auth-Flag |
+| **TLS** | `src/tls/*` | Eingebettetes CA-Bundle (MQTT + OTA) |
 | **Diag** | `src/diag/*` | Stack-Monitor, Task-WDT |
 
 Dateiname **`wlan`** statt `wifi` vermeidet Namenskollision mit Arduino `<WiFi.h>`.
