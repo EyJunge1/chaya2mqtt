@@ -109,8 +109,7 @@ chaya2mqtt/
     ├── async/                # Queues, Mutexe, App-Task
     ├── config/               # app_config, nvs_utils
     ├── diag/                 # Stack-Monitor, Task-WDT
-    ├── display/              # EPD + Draw + Display-Task
-    │   └── epd/              # EpdDriver154Z90c (projekteigener Treiber)
+    ├── display/              # EPD (GxEPD2) + Draw + Display-Task
     ├── heart/                # Zähler, Baselines, NVS
     ├── hw/                   # Button, Pins
     ├── mqtt/                 # Config + esp_mqtt_client
@@ -133,11 +132,10 @@ Partition: **Dual OTA** (`huge_app.csv`) – je Slot ca. 1,875 MB.
 
 | Bibliothek | Zweck |
 |------------|--------|
+| **GxEPD2** | E-Paper-Treiber (`GxEPD2_154_Z90c`, 3-Farben-Paging) |
 | **Adafruit GFX / BusIO** | Grafik-Primitives für E-Paper |
 | **ESP-IDF MQTT** (`esp_mqtt_client`) | MQTT über TLS (kein PubSubClient) |
 | **ESPAsyncWebServer** | HTTP-Admin + Captive Portal |
-
-E-Paper-Treiber: **projekteigener** Treiber unter `src/display/epd/` (abgeleitet von GxEPD2, nicht als PIO-Dependency).
 
 ## Dokumentation
 

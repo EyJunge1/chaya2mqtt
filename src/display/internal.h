@@ -1,8 +1,9 @@
 #pragma once
 
-#include <epd_driver.h>
+#include <GxEPD2_3C.h>
+#include <epd3c/GxEPD2_154_Z90c.h>
 
-using ChayaEpdPanel = EpdDriver154Z90c;
+using ChayaEpdPanel = GxEPD2_3C<GxEPD2_154_Z90c, GxEPD2_154_Z90c::HEIGHT>;
 
 ChayaEpdPanel& displayPanel();
 

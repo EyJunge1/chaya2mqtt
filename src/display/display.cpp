@@ -27,8 +27,9 @@ DEFINE_LOG_TAG("DISP");
 
 // Only this task uses SPI/EPD; everyone else posts DisplayMsg.
 
-static ChayaEpdPanel display(/*CS=*/ pins::kSpiCs, /*DC=*/ pins::kDisplayDc,
-                             /*RST=*/ pins::kDisplayRst, /*BUSY=*/ pins::kDisplayBusy);
+static ChayaEpdPanel display(GxEPD2_154_Z90c(/*CS=*/ pins::kSpiCs, /*DC=*/ pins::kDisplayDc,
+                                               /*RST=*/ pins::kDisplayRst,
+                                               /*BUSY=*/ pins::kDisplayBusy));
 
 static bool g_displaySpiSuspendedLowPower = false;
 static std::atomic<bool> s_heartDrawQueued{false};

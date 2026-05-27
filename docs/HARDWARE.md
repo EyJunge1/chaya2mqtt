@@ -27,10 +27,10 @@ Das Board hat den **ESP32 direkt integriert** – kein separates DevKit nötig. 
 | **Farben** | Schwarz, Weiß, **Rot** (3-Farben / BWR) |
 | **Auflösung** | 200 × 200 Pixel |
 | **Aktive Fläche** | 27,60 × 27,60 mm |
-| **Full Refresh** | ca. **8–14 s** (Treiber: `kFullRefreshMs = 14000`) |
+| **Full Refresh** | ca. **8–14 s** |
 | **Partial Refresh** | Nicht unterstützt (3-Farben-Variante) |
 | **Interface** | SPI |
-| **Treiber** | Projekteigener `EpdDriver154Z90c` (abgeleitet von GxEPD2_154_Z90c) |
+| **Treiber** | [GxEPD2](https://github.com/ZinggJM/GxEPD2) (`GxEPD2_154_Z90c` + `GxEPD2_3C`) |
 
 ## Pinbelegung
 
@@ -72,19 +72,20 @@ Der Taster ist ein **beleuchteter Knopf** – die LED wird über GPIO 4 angesteu
 
 ## EPD-Treiber
 
-Der Treiber liegt unter `src/display/epd/` und ist **keine PlatformIO-Dependency**:
+Display-Ansteuerung über die PlatformIO-Library **`ZinggJM/GxEPD2`** (aktuell 1.6.x):
 
-| Datei | Inhalt |
-|-------|--------|
-| `epd_driver.h` / `epd_driver.cpp` | `EpdDriver154Z90c` – SPI-Kommunikation, Refresh, Hibernate |
-| `epd_colors.h` | `GxEPD_BLACK`, `GxEPD_WHITE`, `GxEPD_RED` |
+| Komponente | Inhalt |
+|------------|--------|
+| Panel-Treiber | `GxEPD2_154_Z90c` – SSD1682 / GDEH0154Z90, SPI, Refresh, Hibernate |
+| 3-Farben-Wrapper | `GxEPD2_3C<…>` – Paging über `firstPage()` / `nextPage()` |
+| Projekt-Alias | `ChayaEpdPanel` in `src/display/internal.h` |
 
-Abgeleitet von GxEPD2 (Vendor-Code), aber als **eigenständiger, getrimmter Treiber** eingebunden:
-- Nur Full-Window-Refresh (kein Partial Update)
-- Paging über `firstPage()` / `nextPage()`
+Verhalten in der Firmware:
+- Full-Window-Refresh (kein Partial Update bei 3-Farben-Panel)
 - `hibernate()` setzt Controller in Deep Sleep (Bild bleibt bistabil)
+- Farben: `GxEPD_BLACK`, `GxEPD_WHITE`, `GxEPD_RED` (aus GxEPD2)
 
-Build-Flag: `-Isrc/display/epd` in `platformio.ini`.
+Updates und Panel-Fixes kommen über die Library-Dependency in `platformio.ini`.
 
 ## Verkabelungshinweise
 
@@ -106,14 +107,6 @@ Dual-OTA-Layout (`huge_app.csv`):
 | `ota_1` | 1,875 MB | App-Slot B |
 | `coredump` | 64 KB | Core-Dump |
 | `spiffs` | 128 KB | SPIFFS (optional) |
-
-## Abgleich mit älterer Doku
-
-Frühere Notizen verwendeten teils **GDEW0154Z04** oder **GxEPD2 als PIO-Dependency**. Die aktuelle Firmware nutzt:
-- Panel: **1.54" e-Paper (B)** mit Controller **SSD1682**
-- Treiber: **`EpdDriver154Z90c`** (projekteigen, nicht GxEPD2-Library)
-
-Beim Panel-Austausch Treiber und Pin-Zuordnung prüfen.
 
 ## Weitere Dokumentation
 

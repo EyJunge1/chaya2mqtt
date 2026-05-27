@@ -137,11 +137,11 @@ Zwischen Draws wird SPI deaktiviert:
 
 ## EPD-Treiber
 
-Projekteigener `EpdDriver154Z90c` unter `src/display/epd/`:
-- 200×200, 3-Farben (BWR)
-- Full-Window-Refresh only
-- `kFullRefreshMs = 14000` (Busy-Timeout: 20 s)
-- Abgeleitet von GxEPD2, nicht als PIO-Dependency
+[GxEPD2](https://github.com/ZinggJM/GxEPD2) als PlatformIO-Library (`ZinggJM/GxEPD2`):
+- Panel: `GxEPD2_154_Z90c` (200×200, 3-Farben BWR)
+- Wrapper: `GxEPD2_3C<…>` für Paging (`firstPage()` / `nextPage()`)
+- Alias `ChayaEpdPanel` in `src/display/internal.h`
+- Full-Window-Refresh only (~8–14 s)
 
 Details: [HARDWARE.md](HARDWARE.md)
 

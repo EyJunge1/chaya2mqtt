@@ -188,13 +188,14 @@ Nur dieser Task darf SPI/EPD ansprechen. Befehle über `g_displayCmdQueue`.
 
 Details zur Geometrie: [DISPLAY.md](DISPLAY.md)
 
-### `display/epd/` – EPD-Treiber
+### GxEPD2 (PlatformIO)
 
-**Dateien:** `display/epd/epd_driver.h`, `epd_driver.cpp`, `epd_colors.h`
+**Dependency:** `ZinggJM/GxEPD2` in `platformio.ini`
 
-Projekteigener Treiber `EpdDriver154Z90c` (abgeleitet von GxEPD2):
+**Typ in Firmware:** `ChayaEpdPanel` = `GxEPD2_3C<GxEPD2_154_Z90c, GxEPD2_154_Z90c::HEIGHT>` (`display/internal.h`)
+
 - Panel: SSD1682 / GDEH0154Z90, 200×200, 3-Farben (BWR)
-- Full-Window-Refresh only (~14 s)
+- Full-Window-Refresh only (~8–14 s)
 - Kein Partial Refresh
 
 ---
