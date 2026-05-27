@@ -1,134 +1,154 @@
 # Chaya2MQTT – E-Ink-Herz mit MQTT
 
-Zwei ESP32-Geräte mit einem 3-Farben-E-Paper-Display zeigen jeweils ein **rotes Herz** mit einer **Zahl** (Zähler). Wird auf **Gerät A** der Knopf gedrückt, publiziert es seinen aktuellen Sendezähler als **retained MQTT-Nachricht** auf sein **Sende-Topic**; **Gerät B** empfängt diese auf seinem **Empfangs-Topic**, setzt seinen Zähler auf den empfangenen Wert und aktualisiert das Display. Umgekehrt genauso – jedes Gerät hat getrennte Sende- und Empfangs-Topics, damit sich nur der Counter auf dem **anderen** Gerät ändert. Dank retained Messages holt sich ein Gerät nach einer Offline-Phase automatisch den aktuellen Zählerstand, sobald es wieder verbindet.
+Zwei ESP32-Geräte mit einem **3-Farben-E-Paper-Display** zeigen jeweils ein **rotes Herz** mit **Zählerständen**. Wird auf **Gerät A** der Knopf gedrückt, publiziert es den nächsten Sendezähler als **retained MQTT-Nachricht** auf sein **Sende-Topic**; **Gerät B** empfängt diese auf seinem **Empfangs-Topic**, setzt seinen Zähler auf den empfangenen Wert und aktualisiert das Display. Umgekehrt genauso – jedes Gerät hat getrennte Sende- und Empfangs-Topics, damit sich nur der Counter auf dem **anderen** Gerät ändert.
+
+Dank **retained Messages** holt sich ein Gerät nach einer Offline-Phase automatisch den aktuellen Zählerstand, sobald es wieder verbindet.
 
 ## Funktionen
 
-- **E-Ink-Display**: Rotes Herz mit schwarzer Zahl auf dem Waveshare 1.54inch e-Paper (B), 200x200, 3-Farben (GxEPD2, Treiber `GxEPD2_154_Z90c`)
-- **MQTT-Synchronisation**: Publish beim Knopfdruck (Sendezähler als retained Dezimalstring); Subscribe setzt den Counter auf den empfangenen Wert – verpasste Nachrichten werden beim Reconnect automatisch nachgeholt
-- **TLS**: Verbindung zum Broker über `WiFiClientSecure` mit dem **eingebauten Mozilla-CA-Bundle** des ESP-IDF (Zertifikatsprüfung; Port typisch **8883**)
-- **Web-/Captive-Portal**: WiFi-Zugang über SoftAP **`Chaya2MQTT`** und Browser (`AsyncWebServer`); MQTT und weitere Einstellungen unter **http://chaya2mqtt.local** nach STA-Verbindung
-- **Knopf mit LED**: Kurzer Druck → MQTT senden + LED blinkt; nach erfolgreichem Senden nochmals Blinken
-- **Factory Reset**: Knopf **10 Sekunden** halten → alle NVS-Namespaces (WLAN, MQTT, Zähler, Einstellungen) löschen, Neustart
-- **Energieeffizienz**: CPU **80 MHz**, **WiFi Modem Sleep** plus **`WIFI_PS_MIN_MODEM`** nach STA-Verbindung, **adaptiver Light-Sleep** in der Hauptschleife (kürzer bei aktiver Sende-LED-Sequenz / MQTT-Backoff), E-Paper **`hibernate()`**
+| Bereich | Beschreibung |
+|---------|--------------|
+| **E-Ink-Display** | Rotes Herz mit RX/TX-Zähler (Delta-Anzeige), Waveshare 1.54" e-Paper (B), 200×200, 3-Farben |
+| **MQTT-Sync** | Publish beim Knopfdruck oder per Web-UI; Subscribe setzt Counter auf empfangenen Wert |
+| **TLS** | Verbindung zum Broker über `mqtts://` mit **Mozilla-CA-Bundle** (Port **8883**) |
+| **Web-Admin** | Captive Portal im AP-Modus, danach `http://chaya2mqtt.local` |
+| **Pairing** | Device-ID aus MAC → automatische Topics `chaya/<id>` |
+| **Knopf + LED** | Kurzdruck → MQTT senden; 10 s Halten → Factory Reset |
+| **OTA** | Automatischer GitHub-Release-Check (täglich) + manueller Trigger |
+| **Web-Auth** | Optional: 6-stelliger Code auf E-Ink + physischer Tastendruck |
+
+## Hardware-Ziel
+
+- **Board:** Waveshare e-Paper ESP32 Driver Board (SKU 15823)
+- **Display:** Waveshare 1.54" e-Paper (B), 200×200, schwarz/weiß/rot
+- **Taster + LED:** GPIO 2 (Button), GPIO 4 (LED)
+
+Details: [HARDWARE.md](HARDWARE.md)
 
 ## Voraussetzungen
 
-- [PlatformIO](https://platformio.org/) (CLI oder IDE-Integration)
-- **Waveshare e-Paper ESP32 Driver Board** (SKU 15823) – ESP32 ist auf dem Board integriert
-- **Waveshare 1.54inch e-Paper (B)** – 200x200 px, 3-Farben (schwarz/weiß/rot), ca. 8 s Full Refresh
-- Beleuchteter Taster + Verkabelung (siehe [HARDWARE.md](HARDWARE.md))
-- MQTT-Broker mit TLS und gültigem Server-Zertifikat von einer **öffentlichen CA** (Let's Encrypt, DigiCert, …), die im Mozilla-CA-Store enthalten ist (Bundle ist im ESP-IDF Framework eingebaut)
+- [PlatformIO](https://platformio.org/) (CLI oder IDE)
+- MQTT-Broker mit TLS und gültigem Server-Zertifikat einer **öffentlichen CA** (Let's Encrypt, DigiCert, …)
+- Beleuchteter Taster mit Vorwiderstand für die LED
 
 ## Schnellstart
 
 ```bash
 # Im Projektverzeichnis
-pio run                    # Bauen (Debug: CORE_DEBUG_LEVEL=3)
-pio run -e esp32dev-release   # Optional: Produktion ohne Serial-Debug-Ausgaben
-pio run -t upload          # Flashen
-pio device monitor         # Serieller Monitor (115200 Baud)
+pio run                      # Bauen (Debug: CORE_DEBUG_LEVEL=3)
+pio run -e esp32dev-release    # Produktion ohne Serial-Debug
+pio run -t upload            # Flashen
+pio device monitor             # Serieller Monitor (115200 Baud)
 ```
 
-Falls `pio: command not found`: PlatformIO-Core liegt unter `~/.platformio/penv/bin/pio`. Entweder **`export PATH="$HOME/.platformio/penv/bin:$PATH"`** in die Shell-Konfiguration (z. B. `~/.zshrc`) eintragen, oder im Repo **`make`** / **`make build`** nutzen (ruft dieselbe `pio`-Binary auf).
+Alternativ über das Makefile:
+
+```bash
+make build          # Debug bauen
+make upload-release # Release flashen
+make monitor        # Serial-Monitor
+```
+
+Falls `pio: command not found`: PlatformIO liegt unter `~/.platformio/penv/bin/pio`. Entweder `export PATH="$HOME/.platformio/penv/bin:$PATH"` setzen oder `make` nutzen.
 
 ## Ersteinrichtung (WiFi & MQTT)
 
 1. Gerät mit Strom versorgen bzw. nach Flash neu starten.
-2. Wenn kein gespeichertes WLAN vorhanden ist (oder nach Reset), öffnet der ESP32 den Access Point **`Chaya2MQTT`**.
-3. Mit dem Handy/PC mit diesem AP verbinden – Captive Portal oder Browser öffnen, typisch `4.3.2.1`.
-4. **WLAN** (SSID/Passwort) und folgende **MQTT-Felder** eintragen:
+2. Ohne gespeichertes WLAN öffnet der ESP32 den Access Point **`Chaya2MQTT`**.
+3. Mit Handy/PC verbinden – Captive Portal oder Browser öffnen (typisch `http://4.3.2.1`).
+4. **WLAN** (SSID/Passwort) und **MQTT-Felder** eintragen:
    - **MQTT Server** (Hostname oder IP)
-   - **MQTT Port** (Standard im Code: **8883**)
-   - **MQTT Username** / **MQTT Password** (leer lassen, falls nicht nötig)
-   - **MQTT Sende-Topic** (Default: `chaya/to_b`) – Topic, auf das bei Knopfdruck publiziert wird
-   - **MQTT Empfangs-Topic** (Default: `chaya/to_a`) – Topic, das abonniert wird und bei Nachricht den Counter setzt
-5. Speichern. Nach Verbindung mit dem Heim-WLAN erscheint die lokale IP im Serial Monitor (Debug-Build).
+   - **MQTT Port** (Standard: **8883**)
+   - **MQTT Username / Password** (optional)
+   - **Sende-Topic** (Default: `chaya/to_b`)
+   - **Empfangs-Topic** (Default: `chaya/to_a`)
+5. Im AP-Modus wird die WLAN-Verbindung **getestet**, bevor Credentials gespeichert werden.
+6. Nach erfolgreicher Verbindung: Admin-UI unter **`http://chaya2mqtt.local`**.
 
 ## Zwei Geräte koppeln
 
-Beide flashen mit dem **gleichen Firmware-Stand** (empfohlen). Dieselben **Broker-Zugangsdaten** eintragen (WLAN kann dasselbe oder ein anderes sein – wichtig ist Erreichbarkeit des Brokers).
+Beide Geräte mit dem **gleichen Firmware-Stand** flashen. Broker-Zugangsdaten müssen identisch sein (WLAN kann unterschiedlich sein).
 
-### Empfohlen: Device-ID-Pairing (Web-UI)
+### Empfohlen: Device-ID-Pairing
 
-1. Auf **beiden** Geräten nach WLAN- und MQTT-Einrichtung die Seite **Pairing** öffnen (`http://chaya2mqtt.local/pairing`).
-2. Jedes Gerät zeigt seine **Device-ID** (6 Hex-Zeichen aus der MAC-Adresse) als Text und **QR-Code**.
-3. Auf Gerät A die **Partner-ID** von Gerät B eintragen (oder QR-Code scannen) und speichern – auf Gerät B analog mit der ID von A.
-4. Die MQTT-Topics werden automatisch gesetzt:
+1. Auf beiden Geräten die Seite **Pairing** öffnen (`/pairing`).
+2. Jedes Gerät zeigt seine **Device-ID** (6 Hex-Zeichen aus der MAC) und einen **QR-Code**.
+3. Auf Gerät A die **Partner-ID** von Gerät B eintragen (oder QR scannen) – auf Gerät B analog.
+4. Topics werden automatisch gesetzt:
    - **Sende-Topic:** `chaya/<eigene_id>` (z. B. `chaya/a1b2c3`)
    - **Empfangs-Topic:** `chaya/<partner_id>` (z. B. `chaya/f5e6d7`)
 
 So können **mehrere Paare** denselben Broker nutzen, ohne Topic-Kollisionen.
 
+Details: [MQTT.md](MQTT.md)
+
 ### Manuell (Fortgeschrittene)
 
-Alternativ Topics weiterhin unter **MQTT** manuell kreuzen (löscht gespeicherte Partner-ID):
+Topics unter **MQTT** manuell kreuzen (löscht gespeicherte Partner-ID):
 
 | | Gerät A | Gerät B |
 |---|---------|---------|
 | **Sende-Topic** | `chaya/to_b` | `chaya/to_a` |
 | **Empfangs-Topic** | `chaya/to_a` | `chaya/to_b` |
 
-So gilt: Knopf auf A → publiziert Sendezähler (retained) auf dem Sende-Topic → B empfängt → **Counter auf B wird auf diesen Wert gesetzt** und Herz neu gezeichnet. War B offline, holt es sich den aktuellen Stand beim nächsten Reconnect. Umgekehrt genauso (siehe [ARCHITECTURE.md](ARCHITECTURE.md)).
-
 ## Factory Reset
 
-Knopf **mindestens 10 Sekunden** gedrückt halten → `resetAllSettings()` (**wlan**) löscht die NVS-Namespaces `wifi`, `mqtt`, `cfg` und `chaya`, setzt RAM-Zähler zurück und startet neu. Danach wieder SoftAP **`Chaya2MQTT`** bei fehlenden STA-Credentials.
+Knopf **mindestens 10 Sekunden** gedrückt halten → alle NVS-Namespaces (`wifi`, `mqtt`, `cfg`, `chaya`) werden gelöscht, Neustart. Danach wieder SoftAP **`Chaya2MQTT`**.
 
-## Projektstruktur (Firmware)
+## Projektstruktur
 
 ```
 chaya2mqtt/
-├── README.md              # Kurzer Einstieg, verweist hierher
-├── platformio.ini
-├── docs/
-│   ├── README.md          # Diese Datei
-│   ├── ARCHITECTURE.md    # Architektur & Datenfluss
-│   ├── HARDWARE.md        # Pins & Hardware
-│   └── MODULES.md         # Code-Referenz
+├── README.md                 # Kurzer Einstieg
+├── platformio.ini            # Build-Konfiguration
+├── huge_app.csv              # Dual-OTA-Partitionstabelle
+├── Makefile                  # pio-Wrapper
+├── docs/                     # Diese Dokumentation
 └── src/
-    ├── main.cpp
-    ├── counter.cpp / counter.h     # Zähler & Baselines NVS
-    ├── constants.h
-    ├── version.h
-    ├── tls_bundle.h
-    ├── hw/                           # Hardware
-    │   ├── button.cpp / button.h    # Taster + LED
-    │   ├── display.cpp / display.h  # E-Paper (GxEPD2)
-    │   └── pins.h                   # GPIO-Zuordnung (namespace pins)
-    ├── net/                         # WLAN, MQTT, OTA (Name wlan ≠ Arduino WiFi.h)
-    │   ├── wlan.cpp / wlan.h
-    │   ├── wifi_test.cpp / wifi_test.h
-    │   ├── mqtt.cpp / mqtt.h
-    │   ├── mqtt_config.cpp / mqtt_config.h
-    │   └── ota.cpp / ota.h          # Firmware-Update / GitHub-Check
-    ├── config/
-    │   ├── app_config.cpp / app_config.h
-    │   └── nvs_utils.h
-    └── web/                         # HTTP-Admin-GUI (ESPAsyncWebServer)
-        ├── admin.cpp / admin.h      # Routen, webAdminLoop
-        ├── auth.cpp / auth.h        # Sessions, CSRF
-        ├── pages.cpp / pages.h      # HTML-Streaming
-        ├── web_utils.cpp / web_utils.h
-        └── assets/                  # eingebettetes CSS/JS (PROGMEM Header)
-            ├── styles.h
-            └── wifi_scan_js.h       # u. a.; weitere *_js.h
+    ├── main.cpp              # Bootstrap, Task-Start
+    ├── async/                # Queues, Mutexe, App-Task
+    ├── config/               # app_config, nvs_utils
+    ├── diag/                 # Stack-Monitor, Task-WDT
+    ├── display/              # EPD + Draw + Display-Task
+    │   └── epd/              # EpdDriver154Z90c (projekteigener Treiber)
+    ├── heart/                # Zähler, Baselines, NVS
+    ├── hw/                   # Button, Pins
+    ├── mqtt/                 # Config + esp_mqtt_client
+    ├── network/              # network_task (WLAN + MQTT Loop)
+    ├── ota/                  # GitHub-Check, Flash-Install
+    ├── web/                  # Admin-UI, Auth, SSE, Assets
+    └── wifi/                 # WLAN, Captive Portal, Verbindungstest
 ```
+
+## Build-Umgebungen
+
+| Umgebung | Zweck | Debug-Level | Optimierung |
+|----------|-------|-------------|-------------|
+| `esp32dev` | Entwicklung | `CORE_DEBUG_LEVEL=3` | Standard |
+| `esp32dev-release` | Produktion | `CORE_DEBUG_LEVEL=0` | `-Os`, `-DNDEBUG` |
+
+Partition: **Dual OTA** (`huge_app.csv`) – je Slot ca. 1,875 MB.
 
 ## Abhängigkeiten (PlatformIO)
 
-Definiert in `platformio.ini`:
-
 | Bibliothek | Zweck |
 |------------|--------|
-| **Adafruit GFX / BusIO** | Grafik-Primitives für das E-Paper-Panel |
-| **ESP-IDF MQTT** (`esp_mqtt_client`, über Arduino-ESP32 eingebunden) | MQTT über TLS (**keine** zusätzliche PubSubClient-Library) |
-| **ESPAsyncWebServer** | HTTP-Admin-Oberfläche + Captive-Portal-Modus |
+| **Adafruit GFX / BusIO** | Grafik-Primitives für E-Paper |
+| **ESP-IDF MQTT** (`esp_mqtt_client`) | MQTT über TLS (kein PubSubClient) |
+| **ESPAsyncWebServer** | HTTP-Admin + Captive Portal |
 
-(E-Paper: projekteigener Treiber unter `src/display/epd/`, nicht GxEPD2.)
+E-Paper-Treiber: **projekteigener** Treiber unter `src/display/epd/` (abgeleitet von GxEPD2, nicht als PIO-Dependency).
 
-## Weitere Dokumentation
+## Dokumentation
 
-- [ARCHITECTURE.md](ARCHITECTURE.md) – Module, Ablauf, MQTT
-- [HARDWARE.md](HARDWARE.md) – Pinbelegung und Komponenten
-- [MODULES.md](MODULES.md) – Funktionen, Globals, Implementierungsdetails
+| Datei | Inhalt |
+|-------|--------|
+| [ARCHITECTURE.md](ARCHITECTURE.md) | FreeRTOS-Tasks, Queues, Datenflüsse |
+| [MODULES.md](MODULES.md) | Code-Referenz aller Module |
+| [MQTT.md](MQTT.md) | Protokoll, Topics, TLS, Pairing |
+| [WEB_ADMIN.md](WEB_ADMIN.md) | HTTP-Routen, Auth, SSE |
+| [HARDWARE.md](HARDWARE.md) | Board, Display, Pinbelegung |
+| [OTA.md](OTA.md) | Firmware-Updates über GitHub |
+| [CONFIGURATION.md](CONFIGURATION.md) | NVS-Namespaces, Defaults |
+| [DISPLAY.md](DISPLAY.md) | Display-Task, Herz-Geometrie, Delta-Logik |
+| [SECURITY.md](SECURITY.md) | Threat Model, Empfehlungen |
