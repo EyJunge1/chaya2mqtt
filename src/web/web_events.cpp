@@ -1,6 +1,6 @@
 #include "web_events.h"
 
-#include "auth.h"
+#include "auth/auth.h"
 #include "config/app_config.h"
 #include "constants.h"
 #include "heart/counter.h"

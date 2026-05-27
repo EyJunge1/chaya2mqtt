@@ -1,7 +1,7 @@
 #include <Arduino.h>
 
-#include "admin_globals.h"
-#include "admin_json.h"
+#include "../admin_globals.h"
+#include "../admin_json.h"
 #include "admin_routes.h"
 
 #include "async/event_types.h"
@@ -14,9 +14,9 @@
 #include "wifi/wlan.h"
 
 #include "ota/ota.h"
-#include "pages.h"
-#include "web_middleware.h"
-#include "web_utils.h"
+#include "../pages/pages.h"
+#include "../web_middleware.h"
+#include "../web_utils.h"
 
 #include <ESPAsyncWebServer.h>
 #include <esp_log.h>

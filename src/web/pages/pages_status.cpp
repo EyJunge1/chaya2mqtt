@@ -10,7 +10,7 @@
 #include "wifi/wlan.h"
 #include "wifi/wlan_config.h"
 #include "wifi/test.h"
-#include "web_utils.h"
+#include "../web_utils.h"
 #include "web/assets/wifi_scan_js.h"
 #include "web/assets/wifi_status_js.h"
 #include "web/assets/mqtt_status_js.h"

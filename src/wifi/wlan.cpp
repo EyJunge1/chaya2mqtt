@@ -14,7 +14,7 @@
 #include "ota/ota.h"
 #include "web/admin.h"
 #include "web/admin_globals.h"
-#include "web/auth.h"
+#include "web/auth/auth.h"
 
 #include <Arduino.h>
 #include <DNSServer.h>

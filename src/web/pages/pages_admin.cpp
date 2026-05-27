@@ -10,7 +10,7 @@
 #include "wifi/wlan.h"
 #include "wifi/wlan_config.h"
 #include "web/assets/chaya_js.h"
-#include "web_utils.h"
+#include "../web_utils.h"
 
 void streamAuthPage(AsyncWebServerRequest* req, bool wrongCode, unsigned lockoutRemainSec) {
     AsyncResponseStream* resp = beginResponseStreamOr500(req, "text/html");

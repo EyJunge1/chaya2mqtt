@@ -1,7 +1,7 @@
 #include <Arduino.h>
 
-#include "admin_globals.h"
-#include "admin_json.h"
+#include "../admin_globals.h"
+#include "../admin_json.h"
 #include "admin_routes.h"
 
 #include "config/app_config.h"
@@ -9,10 +9,10 @@
 #include "mqtt/mqtt.h"
 #include "mqtt/config.h"
 
-#include "web_middleware.h"
+#include "../web_middleware.h"
 
-#include "pages.h"
-#include "web_utils.h"
+#include "../pages/pages.h"
+#include "../web_utils.h"
 #include <ESPAsyncWebServer.h>
 #include <cerrno>
 #include <climits>

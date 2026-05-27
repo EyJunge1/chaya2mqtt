@@ -20,7 +20,7 @@
 #include "network/network_task.h"
 #include "ota/ota_task.h"
 #include "web/admin.h"
-#include "web/auth.h"
+#include "web/auth/auth.h"
 #include "wifi/wlan.h"
 #include "config/version.h"
 

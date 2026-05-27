@@ -1,6 +1,6 @@
 #include "web_middleware.h"
 
-#include "auth.h"
+#include "auth/auth.h"
 #include "config/app_config.h"
 #include "util/log_tag.h"
 #include "web_utils.h"

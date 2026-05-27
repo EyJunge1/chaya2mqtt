@@ -4,7 +4,7 @@
 
 #include "web/deferred_reboot.h"
 #include "admin_globals.h"
-#include "admin_routes.h"
+#include "routes/admin_routes.h"
 
 #include "async/app_task.h"
 #include "async/event_types.h"
@@ -14,7 +14,7 @@
 #include "display/display.h"
 #include "ota/ota.h"
 #include "wifi/wlan.h"
-#include "auth.h"
+#include "auth/auth.h"
 #include "web_events.h"
 
 #include <ESPAsyncWebServer.h>

@@ -7,8 +7,8 @@
 
 #include "config/app_config.h"
 #include "hw/button.h"
-#include "pages.h"
-#include "web_utils.h"
+#include "../pages/pages.h"
+#include "../web_utils.h"
 #include "wifi/wlan.h"
 
 #include "util/auth_code_validation.h"

@@ -1,6 +1,6 @@
 #include "web_utils.h"
 
-#include "auth.h"
+#include "auth/auth.h"
 #include "config/app_config.h"
 #include "constants.h"
 #include "wifi/wlan.h"

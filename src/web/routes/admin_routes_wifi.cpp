@@ -1,6 +1,6 @@
 #include <Arduino.h>
 
-#include "admin_globals.h"
+#include "../admin_globals.h"
 #include "admin_routes.h"
 
 #include "config/app_config.h"
@@ -11,10 +11,10 @@
 #include "util/log_tag.h"
 #include "wifi/wlan.h"
 #include "wifi/test.h"
-#include "web_middleware.h"
-#include "web_utils.h"
+#include "../web_middleware.h"
+#include "../web_utils.h"
 
-#include "pages.h"
+#include "../pages/pages.h"
 
 #include <ESPAsyncWebServer.h>
 
