@@ -4,6 +4,9 @@
 #include "admin_json.h"
 #include "admin_routes.h"
 
+#include "async/event_types.h"
+#include "async/task_handles.h"
+
 #include "config/app_config.h"
 #include "constants.h"
 #include "heart/counter.h"
@@ -33,13 +36,30 @@ static void handleChayaStatusGet(AsyncWebServerRequest* req) {
 }
 
 static void handleChayaSendPost(AsyncWebServerRequest* req) {
+    if (g_systemShutdownInProgress.load(std::memory_order_acquire)) {
+        webSendJson(req, 503, "{\"ok\":false}");
+        return;
+    }
     if (!mqttIsConnected()) {
         webSendJson(req, 503, "{\"ok\":false}");
         return;
     }
-    const bool ok = mqttPublishChayaAndApplySentCounters();
-    ESP_LOGI(TAG, "Web UI: chaya-send POST → %s", ok ? "ok" : "failed");
-    webSendJson(req, ok ? 200 : 503, ok ? "{\"ok\":true}" : "{\"ok\":false}");
+    if (mqttPublishBlocked()) {
+        webSendJson(req, 503, "{\"ok\":false}");
+        return;
+    }
+    if (g_netCmdQueue == nullptr) {
+        webSendJson(req, 503, "{\"ok\":false}");
+        return;
+    }
+    const NetCmd cmd = NetCmd::ChayaSendRequested;
+    if (xQueueSend(g_netCmdQueue, &cmd, 0) != pdTRUE) {
+        ESP_LOGW(TAG, "Web UI: chaya-send queue full");
+        webSendJson(req, 503, "{\"ok\":false}");
+        return;
+    }
+    ESP_LOGI(TAG, "Web UI: chaya-send POST queued");
+    webSendJson(req, 202, "{\"ok\":true,\"queued\":true}");
 }
 
 static void handleUpdateCheckPost(AsyncWebServerRequest* req) {
@@ -50,12 +70,20 @@ static void handleUpdateCheckPost(AsyncWebServerRequest* req) {
 }
 
 static void handleRebootPost(AsyncWebServerRequest* req) {
+    if (g_systemShutdownInProgress.load(std::memory_order_acquire)) {
+        webRedirect(req, F("/"));
+        return;
+    }
     ESP_LOGI(TAG, "Web UI: reboot POST");
     g_webAdminRebootRequested.store(true, std::memory_order_release);
     streamSimpleDonePage(req, "Reboot", "Rebooting…");
 }
 
 static void handleSettingsPost(AsyncWebServerRequest* req) {
+    if (g_systemShutdownInProgress.load(std::memory_order_acquire)) {
+        webRedirect(req, F("/"));
+        return;
+    }
     uint8_t days = 7;
     if (req->hasParam("reset_days", true)) {
         const AsyncWebParameter* p = req->getParam("reset_days", true);

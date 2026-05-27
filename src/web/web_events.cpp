@@ -22,7 +22,13 @@
 
 DEFINE_LOG_TAG("SSE");
 
+// Release builds strip ESP_LOG*; keep TAG referenced for -Wunused-variable.
+static void sseLogTagAnchor() {
+    (void)TAG;
+}
+
 // /events SSE hub for dashboard scripts.
+// s_esCacheMux protects last-sent caches; webEventsTick() is the sole writer.
 
 namespace {
 
@@ -124,8 +130,19 @@ void webEventsTick() {
         s_wifiRfSkip = 99U;
     }
 
-    bool chayaDirty =
-        force || !s_haveLastChaya || s_lastRx != rx || s_lastTx != tx || s_lastMqttConn != mqttLineOk;
+    bool chayaDirty = false;
+    {
+        portENTER_CRITICAL(&s_esCacheMux);
+        chayaDirty =
+            force || !s_haveLastChaya || s_lastRx != rx || s_lastTx != tx || s_lastMqttConn != mqttLineOk;
+        if (chayaDirty) {
+            s_haveLastChaya = true;
+            s_lastRx        = rx;
+            s_lastTx        = tx;
+            s_lastMqttConn  = mqttLineOk;
+        }
+        portEXIT_CRITICAL(&s_esCacheMux);
+    }
 
     bool     wifiConn = false;
     char     curSsid[kWifiSsidMaxLen]{};
@@ -166,11 +183,19 @@ void webEventsTick() {
     bool mqttConnNow     = false;
     if (mqttPageRelevant) {
         mqttConnNow = mqttIsConnected();
+        portENTER_CRITICAL(&s_esCacheMux);
         if (!s_haveLastMqttStatus || s_lastMqttPageConn != mqttConnNow) {
             mqttStatusDirty = true;
         }
+        if (mqttStatusDirty) {
+            s_haveLastMqttStatus = true;
+            s_lastMqttPageConn   = mqttConnNow;
+        }
+        portEXIT_CRITICAL(&s_esCacheMux);
     } else {
+        portENTER_CRITICAL(&s_esCacheMux);
         s_haveLastMqttStatus = false;
+        portEXIT_CRITICAL(&s_esCacheMux);
     }
 
     char buf[320];
@@ -180,10 +205,6 @@ void webEventsTick() {
         if (n > 0U && n < sizeof(buf)) {
             s_events.send(buf, "chaya");
         }
-        s_haveLastChaya = true;
-        s_lastRx        = rx;
-        s_lastTx        = tx;
-        s_lastMqttConn  = mqttLineOk;
     }
 
     if (wifiDirty) {
@@ -203,8 +224,6 @@ void webEventsTick() {
         if (plen > 0U && plen < sizeof(buf)) {
             s_events.send(buf, "mqtt");
         }
-        s_haveLastMqttStatus = true;
-        s_lastMqttPageConn   = mqttConnNow;
     }
 
     s_forceBroadcast.store(false, std::memory_order_release);

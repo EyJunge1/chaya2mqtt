@@ -15,6 +15,10 @@ extern std::atomic<int> sentCountBaseline;
 int heartDisplayRxDelta();
 int heartDisplayTxDelta();
 
+/** Update remote counter and apply publish-side TX increment under display mux. */
+void heartCounterStoreFromRemote(int value);
+void heartSentCounterApplyAfterSuccessfulPublish();
+
 struct HeartCounterDrawSnapshot {
     int heartCounterRaw{};
     int counterBaselineRaw{};

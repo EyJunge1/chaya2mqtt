@@ -10,6 +10,7 @@
 #include "config/nvs_utils.h"
 #include "hw/pins.h"
 #include "web/admin.h"
+#include "web/admin_globals.h"
 #include "web/auth.h"
 
 #include <Arduino.h>
@@ -82,7 +83,9 @@ static portMUX_TYPE          s_wifiScanCacheMux = portMUX_INITIALIZER_UNLOCKED;
 
 // Throttle rapid scan refresh (first kick always runs).
 static std::atomic<unsigned long> s_lastWifiScanKickMs{0};
+static std::atomic<unsigned long> s_wifiScanNextAllowedMs{0};
 static constexpr unsigned long    kWifiScanKickMinIntervalMs = 20000UL;
+static constexpr unsigned long    kWifiScanFailBackoffMs     = 5000UL;
 
 namespace {
 
@@ -204,6 +207,27 @@ size_t wlanWifiScanCopySnapshot(WlanScanRow* out, size_t maxRows) {
     return n;
 }
 
+size_t wlanWifiScanCachedCount() {
+    portENTER_CRITICAL(&s_wifiScanCacheMux);
+    const size_t n = s_wifiScanCacheCount;
+    portEXIT_CRITICAL(&s_wifiScanCacheMux);
+    return n;
+}
+
+bool wlanWifiScanCopyRowAt(size_t index, WlanScanRow* out) {
+    if (out == nullptr) {
+        return false;
+    }
+    portENTER_CRITICAL(&s_wifiScanCacheMux);
+    if (index >= s_wifiScanCacheCount) {
+        portEXIT_CRITICAL(&s_wifiScanCacheMux);
+        return false;
+    }
+    *out = s_wifiScanCache[index];
+    portEXIT_CRITICAL(&s_wifiScanCacheMux);
+    return true;
+}
+
 void wlanFillStaLinkSnapshot(bool* outConnected, char* ipStr, size_t ipLen, char* ssidBuf,
                              size_t ssidLen, int* outRssi) {
     if (outConnected == nullptr || ipStr == nullptr || ssidBuf == nullptr || outRssi == nullptr
@@ -249,6 +273,13 @@ bool wlanReadStaLocalIpForCommit(char* outIp, size_t ipLen) {
 static void wifiScanServiceOnMainTask() {
     wlanWifiApiLock();
     if (s_wifiScanKick.exchange(false, std::memory_order_acq_rel)) {
+        const unsigned long nowMs = millis();
+        const unsigned long nextAllowed = s_wifiScanNextAllowedMs.load(std::memory_order_relaxed);
+        if (nextAllowed != 0UL && nowMs < nextAllowed) {
+            s_wifiScanKick.store(true, std::memory_order_release);
+            wlanWifiApiUnlock();
+            return;
+        }
         WiFi.scanDelete();
         s_wifiScanInProgress.store(true, std::memory_order_release);
         s_wifiScanHasValidCache.store(false, std::memory_order_release);
@@ -269,7 +300,7 @@ static void wifiScanServiceOnMainTask() {
         WiFi.scanDelete();
         s_wifiScanInProgress.store(false, std::memory_order_release);
         s_wifiScanHasValidCache.store(false, std::memory_order_release);
-        s_wifiScanKick.store(true, std::memory_order_release);
+        s_wifiScanNextAllowedMs.store(millis() + kWifiScanFailBackoffMs, std::memory_order_relaxed);
         wlanWifiApiUnlock();
         return;
     }
@@ -281,13 +312,15 @@ static void wifiScanServiceOnMainTask() {
 
     // Arduino core already drained esp_wifi_scan_get_ap_records in _scanDone(); use WiFiScan API.
     const size_t usable = std::min(static_cast<size_t>(n), kWlanWifiScanCacheMaxRows);
+    String              ssidScratch;
     for (size_t i = 0; i < usable; ++i) {
-        const uint8_t       idx    = static_cast<uint8_t>(i);
-        const String        ssidStr = WiFi.SSID(idx);
-        s_wifiScanRowWork[i].rssi   = static_cast<int>(WiFi.RSSI(idx));
+        const uint8_t idx = static_cast<uint8_t>(i);
+        ssidScratch       = WiFi.SSID(idx);
+        s_wifiScanRowWork[i].rssi =
+            static_cast<int>(WiFi.RSSI(idx));
         s_wifiScanRowWork[i].open =
             (WiFi.encryptionType(idx) == WIFI_AUTH_OPEN);
-        strlcpy(s_wifiScanRowWork[i].ssid, ssidStr.c_str(),
+        strlcpy(s_wifiScanRowWork[i].ssid, ssidScratch.c_str(),
                 sizeof(s_wifiScanRowWork[i].ssid));
     }
     portENTER_CRITICAL(&s_wifiScanCacheMux);
@@ -345,7 +378,7 @@ static void wifiStationEvent(arduino_event_id_t event) {
             }
             if (g_netCmdQueue != nullptr) {
                 const NetCmd cmd = NetCmd::WifiReconnect;
-                if (xQueueSend(g_netCmdQueue, &cmd, pdMS_TO_TICKS(50)) != pdTRUE) {
+                if (xQueueSend(g_netCmdQueue, &cmd, 0) != pdTRUE) {
                     ESP_LOGW(TAG, "netCmd queue full (WifiReconnect)");
                 }
             }
@@ -500,6 +533,8 @@ void releaseGpioHoldBeforeRestart() {
 
 void resetAllSettings() {
     ESP_LOGW(TAG, "Factory reset: erasing all settings...");
+    g_systemShutdownInProgress.store(true, std::memory_order_release);
+    vTaskDelay(pdMS_TO_TICKS(100));
     counterSuspendNvsSavesForFactoryReset();
     wlanAbortWifiConnectionTest();
     portENTER_CRITICAL(&g_lastFailedBootSsidMux);

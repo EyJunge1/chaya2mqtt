@@ -10,6 +10,7 @@ std::atomic<bool> g_webAdminMqttApplyPending{false};
 std::atomic<bool> g_webAdminSettingsApplyPending{false};
 std::atomic<bool> g_webAdminMqttNvsWriteFailed{false};
 std::atomic<bool> g_webAdminSettingsNvsWriteFailed{false};
+std::atomic<bool> g_systemShutdownInProgress{false};
 
 uint8_t       g_webAdminPendingResetDays     = 7;
 bool          g_webAdminPendingAuthEnabled   = false;

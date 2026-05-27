@@ -14,6 +14,7 @@ extern std::atomic<bool> g_webAdminMqttApplyPending;
 extern std::atomic<bool> g_webAdminSettingsApplyPending;
 extern std::atomic<bool> g_webAdminMqttNvsWriteFailed;
 extern std::atomic<bool> g_webAdminSettingsNvsWriteFailed;
+extern std::atomic<bool> g_systemShutdownInProgress;
 
 extern uint8_t       g_webAdminPendingResetDays;
 extern bool          g_webAdminPendingAuthEnabled;

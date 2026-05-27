@@ -155,6 +155,21 @@ int heartDisplayTxDelta() {
     return (c > b) ? (c - b) : 0;
 }
 
+void heartCounterStoreFromRemote(int value) {
+    portENTER_CRITICAL(&s_heartDisplayMux);
+    heartCounter.store(value, std::memory_order_relaxed);
+    portEXIT_CRITICAL(&s_heartDisplayMux);
+}
+
+void heartSentCounterApplyAfterSuccessfulPublish() {
+    portENTER_CRITICAL(&s_heartDisplayMux);
+    const int cur = heartSentCounter.load(std::memory_order_relaxed);
+    if (cur < INT_MAX) {
+        heartSentCounter.store(cur + 1, std::memory_order_relaxed);
+    }
+    portEXIT_CRITICAL(&s_heartDisplayMux);
+}
+
 void heartCounterFillDrawSnapshot(HeartCounterDrawSnapshot* out) {
     if (out == nullptr) {
         return;

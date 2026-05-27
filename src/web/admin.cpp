@@ -58,7 +58,8 @@ void webAdminLoop() {
     webAuthLoop();
     webEventsTick();
 
-    if (g_webAdminSettingsApplyPending.exchange(false, std::memory_order_acq_rel)) {
+    if (g_webAdminSettingsApplyPending.exchange(false, std::memory_order_acq_rel)
+        && !g_systemShutdownInProgress.load(std::memory_order_acquire)) {
         uint8_t daysApply;
         bool    authApply = false;
         portENTER_CRITICAL(&g_webAdminSettingsPendingMux);
@@ -79,7 +80,8 @@ void webAdminLoop() {
         }
     }
 
-    if (g_webAdminMqttApplyPending.load(std::memory_order_acquire)) {
+    if (g_webAdminMqttApplyPending.load(std::memory_order_acquire)
+        && !g_systemShutdownInProgress.load(std::memory_order_acquire)) {
         NetCmd cmd = NetCmd::MqttSettingsChanged;
         if (xQueueSend(g_netCmdQueue, &cmd, pdMS_TO_TICKS(500)) == pdTRUE) {
             g_webAdminMqttApplyPending.store(false, std::memory_order_release);

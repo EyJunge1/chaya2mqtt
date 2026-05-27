@@ -33,3 +33,9 @@ void mqttCfgTopicPubLockedCopy(char* out, size_t outLen);
 void mqttCfgStorePending(const MqttConfig* pending);
 void mqttCfgApplyPendingToActive();
 bool mqttCfgConsumeDirtySnapshotNeeded();
+
+/** Pending form snapshot (web POST before network task applies). */
+void mqttCfgPendingSnapshot(MqttConfig* out);
+
+/** True when pending differs from active (saved banner still applying). */
+bool mqttCfgHasUnappliedPending();

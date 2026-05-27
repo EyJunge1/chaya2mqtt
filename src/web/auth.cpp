@@ -233,10 +233,17 @@ static void maybeStartAwaitingButtonConfirm(bool resetFailStreakFromGet) {
         || s_challengePending.load(std::memory_order_acquire)) {
         return;
     }
+    bool expectedAwaiting = false;
+    if (!s_awaitingButtonConfirm.compare_exchange_strong(expectedAwaiting, true,
+                                                         std::memory_order_acq_rel)) {
+        return;
+    }
+    if (s_challengePending.load(std::memory_order_acquire)) {
+        s_awaitingButtonConfirm.store(false, std::memory_order_release);
+        return;
+    }
 
-    const unsigned long deadlineMs = millis() + kConfirmWindowMs;
-    s_confirmExpiresMs.store(deadlineMs, std::memory_order_release);
-    s_awaitingButtonConfirm.store(true, std::memory_order_release);
+    s_confirmExpiresMs.store(millis() + kConfirmWindowMs, std::memory_order_release);
 
     if (resetFailStreakFromGet) {
         s_authFailStreak.store(0, std::memory_order_relaxed);
@@ -377,6 +384,8 @@ static unsigned lockoutRemainingSec(unsigned long nowMs) {
         std::min(sec, static_cast<unsigned long>(7200))); // sane upper bound if clock skew etc.
 }
 
+static std::atomic<unsigned long> s_lastLockoutNoticeMs{0};
+
 static void handleAuthPost(AsyncWebServerRequest* req) {
     if (!configGetWebAuthEnabled()) {
         webRedirect(req, F("/"));
@@ -385,13 +394,14 @@ static void handleAuthPost(AsyncWebServerRequest* req) {
 
     const unsigned long nowMs = millis();
     if (nowMs < s_authLockoutUntilMs.load(std::memory_order_acquire)) {
-        static unsigned long s_lastLockoutNoticeMs = 0;
-        const unsigned long  remSec                = lockoutRemainingSec(nowMs);
-        if (s_lastLockoutNoticeMs == 0U || nowMs - s_lastLockoutNoticeMs >= 60000UL) {
+        const unsigned long  remSec = lockoutRemainingSec(nowMs);
+        const unsigned long  lastNotice =
+            s_lastLockoutNoticeMs.load(std::memory_order_relaxed);
+        if (lastNotice == 0U || nowMs - lastNotice >= 60000UL) {
             ESP_LOGW(TAG,
                      "Web auth POST refused: lockout active (~%lu s remaining)",
                      static_cast<unsigned long>(remSec));
-            s_lastLockoutNoticeMs = nowMs;
+            s_lastLockoutNoticeMs.store(nowMs, std::memory_order_relaxed);
         }
         streamAuthPage(req, false, remSec);
         return;
@@ -442,11 +452,11 @@ static void handleAuthPost(AsyncWebServerRequest* req) {
     buttonRequestAuthBlinkOffFromAsync();
     scheduleMainTaskScreenAfterAuthFlow();
 
-    const char* next = "/";
+    char nextPath[256] = "/";
     if (req->hasParam("next", true)) {
         const AsyncWebParameter* np = req->getParam("next", true);
         if (np != nullptr && isSafeNextPath(np->value().c_str())) {
-            next = np->value().c_str();
+            strlcpy(nextPath, np->value().c_str(), sizeof(nextPath));
         }
     }
 
@@ -456,7 +466,7 @@ static void handleAuthPost(AsyncWebServerRequest* req) {
     portEXIT_CRITICAL(&s_authMux);
 
     AsyncWebServerResponse* resp = req->beginResponse(302);
-    resp->addHeader(F("Location"), next);
+    resp->addHeader(F("Location"), nextPath);
     char cookieBuf[160];
     snprintf(cookieBuf, sizeof(cookieBuf), "%s=%s; Path=/; HttpOnly; Max-Age=%lu; SameSite=Lax",
              kCookieName, hexCookie, static_cast<unsigned long>(kSessionCookieMaxAgeSec));

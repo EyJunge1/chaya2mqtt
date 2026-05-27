@@ -1,6 +1,7 @@
 #include "flash.h"
 
 #include "tls_bundle.h"
+#include "tls_bundle_setup.h"
 
 #include <WiFiClientSecure.h>
 #include <HTTPClient.h>
@@ -27,6 +28,7 @@ DEFINE_LOG_TAG("OTA");
 namespace {
 
 constexpr size_t kOtaChunkSize = 4096;
+constexpr unsigned long kShaFetchDeadlineMs = 45000UL;
 std::array<uint8_t, kOtaChunkSize> g_otaFwReadChunk{};
 
 struct MbedtlsSha256Session {
@@ -134,7 +136,9 @@ bool httpFetchSha256Hex(WiFiClientSecure& tls, const char* shaUrl, char* hexOut,
     }
     Stream& stream = https.getStream();
     size_t  len    = 0;
-    while (https.connected() && len + 1 < hexOutLen) {
+    const unsigned long fetchStartMs = millis();
+    while (https.connected() && len + 1 < hexOutLen
+           && (millis() - fetchStartMs) < kShaFetchDeadlineMs) {
         chayaTaskWatchdogReset();
         if (stream.available() <= 0) {
             if (!https.connected()) {
@@ -335,6 +339,11 @@ bool otaFlashVerifiedInstall(const char* binUrl) {
     char shaUrl[kOtaUrlMax];
     if (!otaBinUrlToSha256Url(binUrl, shaUrl, sizeof(shaUrl))) {
         ESP_LOGE(TAG, "Cannot derive .sha256 URL from firmware URL");
+        return false;
+    }
+
+    if (!chayaTlsEnsureCaBundleInstalled()) {
+        ESP_LOGE(TAG, "OTA: CA bundle install failed");
         return false;
     }
 

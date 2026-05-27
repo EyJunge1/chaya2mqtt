@@ -7,6 +7,7 @@
 #include "config.h"
 #include "constants.h"
 #include "tls_bundle.h"
+#include "tls_bundle_setup.h"
 #include "heart/counter.h"
 #include "display/display.h"
 #include "wifi/wlan.h"
@@ -47,6 +48,8 @@ static esp_mqtt_client_handle_t s_client = nullptr;
 static std::atomic<bool>        s_connected{false};
 static std::atomic<bool> s_connectPending{false};
 static std::atomic<bool> s_disconnectIntentional{false};
+static std::atomic<bool> s_mqttPublishBlocked{false};
+static std::atomic<bool> s_mqttKillCoalesce{false};
 
 // Backoff state: touch only under s_mqttBackoffMux or helper fns.
 static unsigned long lastMqttAttemptAt     = 0;
@@ -75,6 +78,30 @@ static inline void mqttClientUnlock() {
 }
 
 static void mqttKillClientImpl();
+
+static char     s_fragAccBuf[16];
+static uint32_t s_fragExpectTotal = 0;
+static unsigned s_fragHave        = 0;
+
+static void mqttResetFragmentState() {
+    s_fragExpectTotal = 0;
+    s_fragHave        = 0;
+}
+
+static void mqttQueueNetCmdNonBlocking(NetCmd cmd) {
+    if (g_netCmdQueue == nullptr) {
+        return;
+    }
+    if (xQueueSend(g_netCmdQueue, &cmd, 0) == pdTRUE) {
+        return;
+    }
+    if (cmd == NetCmd::MqttKillClient) {
+        s_mqttKillCoalesce.store(true, std::memory_order_release);
+        ESP_LOGW(TAG, "netCmd queue full (MqttKillClient) — coalesced");
+        return;
+    }
+    ESP_LOGW(TAG, "netCmd queue full (cmd=%d)", static_cast<int>(cmd));
+}
 
 static void applyDisconnectFailureBackoff(bool wifiSuspectDuringFailure) {
     unsigned long curBackoff = 0;
@@ -120,14 +147,7 @@ static unsigned long mqttConnectPrecheckDeferMs() {
 }
 
 static void mqttQueueKillClientFromEvent() {
-    if (g_netCmdQueue == nullptr) {
-        return;
-    }
-    const NetCmd cmd = NetCmd::MqttKillClient;
-    if (xQueueSend(g_netCmdQueue, &cmd, pdMS_TO_TICKS(250)) != pdTRUE
-        && xQueueSend(g_netCmdQueue, &cmd, pdMS_TO_TICKS(250)) != pdTRUE) {
-        ESP_LOGW(TAG, "netCmd queue full (MqttKillClient)");
-    }
+    mqttQueueNetCmdNonBlocking(NetCmd::MqttKillClient);
 }
 
 static void handleCounterPayload(const char* payload, unsigned int length) {
@@ -155,58 +175,51 @@ static void handleCounterPayload(const char* payload, unsigned int length) {
     }
 
     ESP_LOGI(TAG, "Heart counter from MQTT (remote): %d", newCounter);
-    heartCounter.store(newCounter, std::memory_order_relaxed);
+    heartCounterStoreFromRemote(newCounter);
     requestHeartRedrawNonBlocking();
 }
 
 // Reassemble fragmented counter payload (esp_mqtt may split DATA).
-// IMPORTANT: Handler runs in the MQTT client task; esp_mqtt invokes this sequentially per client, so one
-// static reassembly buffer is safe. Do not use from multiple MQTT clients concurrently without scoping state.
+// IMPORTANT: Handler runs in the MQTT client task; esp_mqtt invokes this sequentially per client.
 static bool feedFragmentedPayload(esp_mqtt_event_handle_t ev) {
-    static char     accBuf[16];
-    static uint32_t expectTotal = 0;
-    static unsigned have        = 0;
-
     if (ev == nullptr || ev->data == nullptr || ev->data_len <= 0) {
         return false;
     }
 
     // New fragment stream: first chunk has topic + total_len.
     if (ev->topic != nullptr && ev->topic_len > 0 && ev->current_data_offset == 0) {
-        have        = 0;
-        expectTotal = static_cast<uint32_t>(ev->total_data_len);
-        const uint32_t kMaxStored = sizeof(accBuf) - 1U;
-        if (expectTotal == 0U || expectTotal > kMaxStored) {
-            ESP_LOGD(TAG, "Ignoring MQTT fragment (unexpected total_len=%" PRIu32 ")", expectTotal);
-            expectTotal = 0;
-            have        = 0;
+        s_fragHave        = 0;
+        s_fragExpectTotal = static_cast<uint32_t>(ev->total_data_len);
+        const uint32_t kMaxStored = sizeof(s_fragAccBuf) - 1U;
+        if (s_fragExpectTotal == 0U || s_fragExpectTotal > kMaxStored) {
+            ESP_LOGD(TAG, "Ignoring MQTT fragment (unexpected total_len=%" PRIu32 ")",
+                     s_fragExpectTotal);
+            mqttResetFragmentState();
             return false;
         }
-        ESP_LOGV(TAG, "MQTT fragment: new stream total_len=%" PRIu32, expectTotal);
+        ESP_LOGV(TAG, "MQTT fragment: new stream total_len=%" PRIu32, s_fragExpectTotal);
     }
 
-    if (expectTotal == 0U) {
+    if (s_fragExpectTotal == 0U) {
         return false;
     }
 
     const unsigned add = static_cast<unsigned>(ev->data_len);
-    if (have + add > sizeof(accBuf) - 1U) {
-        have        = 0;
-        expectTotal = 0;
+    if (s_fragHave + add > sizeof(s_fragAccBuf) - 1U) {
+        mqttResetFragmentState();
         return false;
     }
-    memcpy(accBuf + have, ev->data, add);
-    have += add;
+    memcpy(s_fragAccBuf + s_fragHave, ev->data, add);
+    s_fragHave += add;
 
-    if (have < expectTotal) {
-        ESP_LOGV(TAG, "MQTT fragment: partial %u/%" PRIu32 " bytes", have, expectTotal);
+    if (s_fragHave < s_fragExpectTotal) {
+        ESP_LOGV(TAG, "MQTT fragment: partial %u/%" PRIu32 " bytes", s_fragHave, s_fragExpectTotal);
         return false;
     }
 
-    ESP_LOGV(TAG, "MQTT fragment: complete %" PRIu32 " bytes", expectTotal);
-    handleCounterPayload(accBuf, expectTotal);
-    have        = 0;
-    expectTotal = 0;
+    ESP_LOGV(TAG, "MQTT fragment: complete %" PRIu32 " bytes", s_fragExpectTotal);
+    handleCounterPayload(s_fragAccBuf, s_fragExpectTotal);
+    mqttResetFragmentState();
     return true;
 }
 
@@ -270,16 +283,19 @@ static void mqttEventHandler(void* /*handler_args*/, esp_event_base_t /*base*/, 
             feedFragmentedPayload(ev);
         } else {
             ESP_LOGD(TAG, "Ignoring MQTT payload (wrong topic)");
+            mqttResetFragmentState();
         }
         break;
 
     case MQTT_EVENT_DISCONNECTED: {
         s_connected.store(false, std::memory_order_release);
         s_connectPending.store(false, std::memory_order_release);
+        mqttResetFragmentState();
         // Voluntary mqttKillClient(): skip failure backoff.
         const bool intentional = s_disconnectIntentional.load(std::memory_order_acquire);
         if (intentional) {
             ESP_LOGI(TAG, "MQTT disconnected (intentional teardown)");
+            s_disconnectIntentional.store(false, std::memory_order_release);
         } else {
             const esp_mqtt_error_codes_t* eh = ev->error_handle;
             if (eh != nullptr) {
@@ -313,9 +329,18 @@ static void mqttEventHandler(void* /*handler_args*/, esp_event_base_t /*base*/, 
 }
 
 static esp_err_t installCaBundleLocked() {
-    const size_t bundleLen =
-        static_cast<size_t>(x509_crt_bundle_end - x509_crt_bundle_start);
-    return esp_crt_bundle_set(x509_crt_bundle_start, bundleLen);
+    return chayaTlsEnsureCaBundleInstalled() ? ESP_OK : ESP_FAIL;
+}
+
+static void mqttFillStableClientId() {
+    char deviceId[kDeviceIdBufLen]{};
+    buildDeviceId(deviceId, sizeof(deviceId));
+    if (deviceIdSyntaxOk(deviceId)) {
+        static_cast<void>(snprintf(s_clientIdBuf, sizeof(s_clientIdBuf), "Chaya2MQTT-%s", deviceId));
+    } else {
+        static_cast<void>(snprintf(s_clientIdBuf, sizeof(s_clientIdBuf), "Chaya2MQTT-%04lX",
+                                   static_cast<unsigned long>(esp_random() & 0xffffU)));
+    }
 }
 
 static bool mqttEnsureClientAllocated() {
@@ -328,8 +353,7 @@ static bool mqttEnsureClientAllocated() {
     MqttConfig cfg{};
     mqttCfgSnapshot(&cfg);
 
-    snprintf(s_clientIdBuf, sizeof(s_clientIdBuf), "Chaya2MQTT-%04lX",
-             static_cast<unsigned long>(esp_random() & 0xffffU));
+    mqttFillStableClientId();
 
     snprintf(s_lwtTopicBuf, sizeof(s_lwtTopicBuf), "%s/lwt", cfg.topicPub);
 
@@ -430,6 +454,7 @@ static void mqttKillClientImpl() {
 
     esp_mqtt_client_handle_t cli = s_client;
     s_client = nullptr;
+    mqttResetFragmentState();
     portENTER_CRITICAL(&s_mqttSubTopicMux);
     s_mqttSubTopicLen      = 0;
     s_mqttSubTopicCache[0] = '\0';
@@ -447,7 +472,7 @@ static void mqttKillClientImpl() {
 
     s_connected.store(false, std::memory_order_release);
     s_connectPending.store(false, std::memory_order_release);
-    s_disconnectIntentional.store(false, std::memory_order_release);
+    // s_disconnectIntentional cleared in MQTT_EVENT_DISCONNECTED when intentional.
 }
 
 static void mqttKillClient() {
@@ -457,6 +482,10 @@ static void mqttKillClient() {
 }
 
 static bool mqttPublishChayaLocked() {
+    if (s_mqttPublishBlocked.load(std::memory_order_acquire)) {
+        ESP_LOGW(TAG, "Publish skipped: broker settings changing");
+        return false;
+    }
     if (!s_connected.load(std::memory_order_acquire)) {
         ESP_LOGW(TAG, "Publish skipped: not connected");
         return false;
@@ -509,14 +538,23 @@ bool mqttPublishChayaAndApplySentCounters() {
         xSemaphoreGive(g_chayaPublishMutex);
         return false;
     }
-    const int cur = heartSentCounter.load(std::memory_order_relaxed);
-    if (cur < INT_MAX) {
-        heartSentCounter.store(cur + 1, std::memory_order_relaxed);
-    }
+    heartSentCounterApplyAfterSuccessfulPublish();
     maybeSaveHeartSentCounter();
     requestHeartRedraw();
     xSemaphoreGive(g_chayaPublishMutex);
     return true;
+}
+
+bool mqttPublishBlocked() {
+    return s_mqttPublishBlocked.load(std::memory_order_acquire);
+}
+
+void mqttBeginSettingsApply() {
+    s_mqttPublishBlocked.store(true, std::memory_order_release);
+}
+
+void mqttEndSettingsApply() {
+    s_mqttPublishBlocked.store(false, std::memory_order_release);
 }
 
 void mqttDisconnect() {
@@ -616,6 +654,10 @@ static void mqttLoopTryReconnect(MqttConfig& loopCfg, unsigned long now) {
 }
 
 void mqttLoop() {
+    if (s_mqttKillCoalesce.exchange(false, std::memory_order_acq_rel)) {
+        mqttKillClient();
+    }
+
     static MqttConfig s_loopCfg{};
     const bool connectedEarly = mqttIsConnected();
     // Refresh cfg snapshot when disconnected or web applied new broker.

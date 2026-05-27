@@ -1,5 +1,6 @@
 #include "github.h"
 
+#include "tls_bundle_setup.h"
 #include "version.h"
 #include "wifi/wlan.h"
 
@@ -13,7 +14,6 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
-#include <memory>
 #include <Arduino.h>
 #include <esp_log.h>
 
@@ -31,6 +31,8 @@ constexpr const char kGithubLatestFirmwareBinUrl[] =
     "https://github.com/EyJunge1/chaya2mqtt/releases/latest/download/firmware.bin";
 
 constexpr size_t kGithubJsonBuf = 8192;
+
+char s_githubJsonBuf[kGithubJsonBuf];
 
 uint32_t semverPackFromTag(const char* tag) {
     if (tag == nullptr || tag[0] == '\0') {
@@ -101,6 +103,11 @@ GithubCheckResult otaGithubEvaluateLatestRelease(char* firmwareUrlBuf,
         return GithubCheckResult::ApiError;
     }
 
+    if (!chayaTlsEnsureCaBundleInstalled()) {
+        ESP_LOGE(TAG, "GitHub API: CA bundle install failed");
+        return GithubCheckResult::ApiError;
+    }
+
     WiFiClientSecure tls;
     tls.setCACertBundle(x509_crt_bundle_start,
                         static_cast<size_t>(x509_crt_bundle_end - x509_crt_bundle_start));
@@ -124,21 +131,17 @@ GithubCheckResult otaGithubEvaluateLatestRelease(char* firmwareUrlBuf,
         return GithubCheckResult::ApiError;
     }
 
-    std::unique_ptr<char[]> jsonHeap(new (std::nothrow) char[kGithubJsonBuf]);
-    if (!jsonHeap) {
-        ESP_LOGE(TAG, "GitHub API: failed to allocate JSON buffer");
-        https.end();
-        return GithubCheckResult::ApiError;
-    }
-    char* const jsonBuf = jsonHeap.get();
-
-    auto&               stream          = https.getStream();
+    auto&               stream        = https.getStream();
     char                remoteTag[64]{};
-    size_t              len             = 0;
-    const unsigned long streamStartMs   = millis();
+    size_t              len           = 0;
+    bool                tagParsed     = false;
+    const unsigned long streamStartMs = millis();
 
     while (https.connected() && len + 1 < kGithubJsonBuf && (millis() - streamStartMs) < 45000UL) {
         chayaTaskWatchdogReset();
+        if (tagParsed) {
+            break;
+        }
         if (stream.available() <= 0) {
             if (!https.connected()) {
                 break;
@@ -146,23 +149,28 @@ GithubCheckResult otaGithubEvaluateLatestRelease(char* firmwareUrlBuf,
             delay(10);
             continue;
         }
-        const int toRead = std::min(static_cast<int>(kGithubJsonBuf - 1 - len), stream.available());
+        const int toRead =
+            std::min(static_cast<int>(kGithubJsonBuf - 1 - len), stream.available());
         if (toRead <= 0) {
             break;
         }
-        const int n = stream.readBytes(jsonBuf + len, toRead);
+        const int n = stream.readBytes(s_githubJsonBuf + len, toRead);
         if (n <= 0) {
             break;
         }
         len += static_cast<size_t>(n);
+        tagParsed = githubExtractTagFromJsonBuffer(s_githubJsonBuf, len, remoteTag, sizeof(remoteTag));
     }
 
     https.end();
 
-    const bool parseOk =
-        (len > 0) && githubExtractTagFromJsonBuffer(jsonBuf, len, remoteTag, sizeof(remoteTag));
+    if (!tagParsed) {
+        tagParsed =
+            (len > 0)
+            && githubExtractTagFromJsonBuffer(s_githubJsonBuf, len, remoteTag, sizeof(remoteTag));
+    }
 
-    if (!parseOk) {
+    if (!tagParsed) {
         ESP_LOGE(TAG, "GitHub: failed to parse tag_name");
         return GithubCheckResult::ApiError;
     }

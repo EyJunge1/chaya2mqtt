@@ -257,23 +257,25 @@ void handleWifiScanJson(AsyncWebServerRequest* req) {
         return;
     }
 
-    WlanScanRow rows[kWlanWifiScanCacheMaxRows];
-    const size_t n = wlanWifiScanCopySnapshot(rows, sizeof(rows) / sizeof(rows[0]));
-
     AsyncResponseStream* resp = beginResponseStreamOr500(req, "application/json");
     if (resp == nullptr) {
         return;
     }
+    const size_t n = wlanWifiScanCachedCount();
     resp->print('[');
     for (size_t i = 0; i < n; ++i) {
-        if (i > 0) {
+        WlanScanRow row{};
+        if (!wlanWifiScanCopyRowAt(i, &row)) {
+            break;
+        }
+        if (i > 0U) {
             resp->print(',');
         }
         resp->print(F("{\"ssid\":"));
-        appendJsonEscapedCStr(*resp, rows[i].ssid);
+        appendJsonEscapedCStr(*resp, row.ssid);
         resp->print(F(",\"rssi\":"));
-        resp->print(rows[i].rssi);
-        resp->print(rows[i].open ? F(",\"open\":true}") : F(",\"open\":false}"));
+        resp->print(row.rssi);
+        resp->print(row.open ? F(",\"open\":true}") : F(",\"open\":false}"));
     }
     resp->print(']');
     req->send(resp);
@@ -302,7 +304,11 @@ void streamUpdatePage(AsyncWebServerRequest* req) {
 
 void streamMqttHtmlPage(AsyncWebServerRequest* req, bool showSavedBanner) {
     MqttConfig cfg{};
-    mqttCfgSnapshot(&cfg);
+    if (showSavedBanner && mqttCfgHasUnappliedPending()) {
+        mqttCfgPendingSnapshot(&cfg);
+    } else {
+        mqttCfgSnapshot(&cfg);
+    }
     char portBuf[8];
     snprintf(portBuf, sizeof(portBuf), "%u", static_cast<unsigned>(cfg.port));
 
@@ -366,7 +372,11 @@ void streamMqttHtmlPage(AsyncWebServerRequest* req, bool showSavedBanner) {
 
 void streamPairingPage(AsyncWebServerRequest* req, bool showSavedBanner, bool invalidPartner) {
     MqttConfig cfg{};
-    mqttCfgSnapshot(&cfg);
+    if (showSavedBanner && mqttCfgHasUnappliedPending()) {
+        mqttCfgPendingSnapshot(&cfg);
+    } else {
+        mqttCfgSnapshot(&cfg);
+    }
 
     char ownId[kDeviceIdBufLen];
     buildDeviceId(ownId, sizeof(ownId));

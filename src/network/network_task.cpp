@@ -31,6 +31,8 @@ DEFINE_LOG_TAG("NET");
 static void handleNetCommand(NetCmd cmd) {
     switch (cmd) {
     case NetCmd::MqttSettingsChanged:
+        mqttBeginSettingsApply();
+        mqttDisconnect();
         mqttCfgApplyPendingToActive();
         if (!saveMQTTConfig()) {
             ESP_LOGW(TAG, "MQTT settings: NVS save failed — reloading from flash");
@@ -39,14 +41,10 @@ static void handleNetCommand(NetCmd cmd) {
         } else {
             g_webAdminMqttNvsWriteFailed.store(false, std::memory_order_release);
         }
-        mqttDisconnect();
         mqttSetup();
         mqttPostponeConnect(3000UL);
+        mqttEndSettingsApply();
         requestHeartRedraw();
-        break;
-    case NetCmd::MqttReconnect:
-        mqttDisconnect();
-        mqttSetup();
         break;
     case NetCmd::MqttKillClient:
         mqttDisconnect();
@@ -54,8 +52,8 @@ static void handleNetCommand(NetCmd cmd) {
     case NetCmd::WifiReconnect:
         wlanHandleStaReconnectNetCmd();
         break;
-    case NetCmd::OtaCheckRequested:
-        otaQueueGithubCheck();
+    case NetCmd::ChayaSendRequested:
+        (void)mqttPublishChayaAndApplySentCounters();
         break;
     }
 }

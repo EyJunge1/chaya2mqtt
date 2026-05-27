@@ -13,6 +13,7 @@
 
 #include <Arduino.h>
 #include <SPI.h>
+#include <atomic>
 #include <cstdint>
 #include <cstdlib>
 #include <driver/gpio.h>
@@ -28,6 +29,20 @@ static ChayaEpdPanel display(/*CS=*/ pins::kSpiCs, /*DC=*/ pins::kDisplayDc,
                              /*RST=*/ pins::kDisplayRst, /*BUSY=*/ pins::kDisplayBusy);
 
 static bool g_displaySpiSuspendedLowPower = false;
+static std::atomic<bool> s_heartDrawQueued{false};
+
+static bool displayPostHeartRedraw(TickType_t waitTicks) {
+    if (s_heartDrawQueued.exchange(true, std::memory_order_acq_rel)) {
+        return true;
+    }
+    DisplayMsg msg{DisplayMsg::Cmd::DrawHeart, 0};
+    if (xQueueSend(g_displayCmdQueue, &msg, waitTicks) != pdTRUE) {
+        s_heartDrawQueued.store(false, std::memory_order_release);
+        ESP_LOGW(TAG, "display queue full (cmd=%d)", static_cast<int>(DisplayMsg::Cmd::DrawHeart));
+        return false;
+    }
+    return true;
+}
 
 ChayaEpdPanel& displayPanel() {
     return display;
@@ -76,6 +91,7 @@ static void displayTaskFn(void*) {
         switch (msg.cmd) {
         case DisplayMsg::Cmd::DrawHeart:
             drawHeartWithNumber();
+            s_heartDrawQueued.store(false, std::memory_order_release);
             break;
         case DisplayMsg::Cmd::DrawSplash:
             drawSplashScreen();
@@ -102,11 +118,11 @@ static void displayPostMsg(DisplayMsg::Cmd cmd, uint32_t payload, TickType_t wai
 }
 
 void requestHeartRedraw() {
-    displayPostMsg(DisplayMsg::Cmd::DrawHeart, 0, pdMS_TO_TICKS(100));
+    (void)displayPostHeartRedraw(pdMS_TO_TICKS(100));
 }
 
 void requestHeartRedrawNonBlocking() {
-    displayPostMsg(DisplayMsg::Cmd::DrawHeart, 0, 0);
+    (void)displayPostHeartRedraw(0);
 }
 
 void requestDeferredDrawAuthCode(uint32_t code) {

@@ -179,6 +179,32 @@ void mqttCfgApplyPendingToActive() {
     mqttCfgMarkDirty();
 }
 
+void mqttCfgPendingSnapshot(MqttConfig* out) {
+    if (out == nullptr) {
+        return;
+    }
+    mqttCfgLock();
+    *out = s_mqttPendingCfg;
+    mqttCfgUnlock();
+}
+
+bool mqttCfgHasUnappliedPending() {
+    mqttCfgLock();
+    const bool differs = memcmp(&mqttCfg, &s_mqttPendingCfg, sizeof(MqttConfig)) != 0;
+    mqttCfgUnlock();
+    return differs;
+}
+
+namespace {
+
+bool mqttCfgPutStringOrEmpty(Preferences& prefs, const char* key, const char* value) {
+    const char* v = (value != nullptr) ? value : "";
+    const size_t w = prefs.putString(key, v);
+    return w > 0U || v[0] == '\0';
+}
+
+} // namespace
+
 void loadMQTTConfig() {
     MqttConfig loaded{};
 
@@ -196,6 +222,7 @@ void loadMQTTConfig() {
             mqttCfgSanitizeAfterNvsLoad(loaded);
             mqttCfgLock();
             mqttCfg = loaded;
+            s_mqttPendingCfg = loaded;
             mqttCfgUnlock();
             mqttCfgMarkDirty();
             return;
@@ -209,6 +236,7 @@ void loadMQTTConfig() {
             mqttCfgSanitizeAfterNvsLoad(loaded);
             mqttCfgLock();
             mqttCfg = loaded;
+            s_mqttPendingCfg = loaded;
             mqttCfgUnlock();
             mqttCfgMarkDirty();
             return;
@@ -233,6 +261,7 @@ void loadMQTTConfig() {
     mqttCfgSanitizeAfterNvsLoad(loaded);
     mqttCfgLock();
     mqttCfg = loaded;
+    s_mqttPendingCfg = loaded;
     mqttCfgUnlock();
     mqttCfgMarkDirty();
 }
@@ -248,7 +277,7 @@ bool saveMQTTConfig() {
         ESP_LOGE(TAG, "NVS mqtt: begin failed");
         return false;
     }
-    bool ok = prefs.putString("server", snap.server) > 0U;
+    bool ok = mqttCfgPutStringOrEmpty(prefs, "server", snap.server);
     if (!ok) {
         prefs.end();
         return false;
@@ -258,27 +287,27 @@ bool saveMQTTConfig() {
         prefs.end();
         return false;
     }
-    ok = prefs.putString("user", snap.username) > 0U;
+    ok = mqttCfgPutStringOrEmpty(prefs, "user", snap.username);
     if (!ok) {
         prefs.end();
         return false;
     }
-    ok = prefs.putString("pass", snap.password) > 0U;
+    ok = mqttCfgPutStringOrEmpty(prefs, "pass", snap.password);
     if (!ok) {
         prefs.end();
         return false;
     }
-    ok = prefs.putString("topic_pub", snap.topicPub) > 0U;
+    ok = mqttCfgPutStringOrEmpty(prefs, "topic_pub", snap.topicPub);
     if (!ok) {
         prefs.end();
         return false;
     }
-    ok = prefs.putString("topic_sub", snap.topicSub) > 0U;
+    ok = mqttCfgPutStringOrEmpty(prefs, "topic_sub", snap.topicSub);
     if (!ok) {
         prefs.end();
         return false;
     }
-    ok = prefs.putString("partner_id", snap.partnerDeviceId) > 0U;
+    ok = mqttCfgPutStringOrEmpty(prefs, "partner_id", snap.partnerDeviceId);
     prefs.end();
     if (!ok) {
         ESP_LOGE(TAG, "NVS mqtt: persist failed");

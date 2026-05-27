@@ -5,10 +5,9 @@
 /** Network-task command queue. */
 enum class NetCmd : uint8_t {
     MqttSettingsChanged,
-    MqttReconnect,
     MqttKillClient,
     WifiReconnect,
-    OtaCheckRequested,
+    ChayaSendRequested,
 };
 
 /** Message to dedicated display task (single SPI user). */

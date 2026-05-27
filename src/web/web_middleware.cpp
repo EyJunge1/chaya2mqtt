@@ -7,6 +7,7 @@
 #include "wifi/wlan.h"
 
 #include <Arduino.h>
+#include <atomic>
 #include <esp_log.h>
 
 DEFINE_LOG_TAG("WEB");
@@ -14,12 +15,16 @@ DEFINE_LOG_TAG("WEB");
 namespace {
 constexpr unsigned long kMwAuthRejectLogMinIntervalMs = 10000UL;
 
-bool mwShouldLogThrottle(unsigned long nowMs, unsigned long* lastLoggedMs) {
-    if (*lastLoggedMs == 0U || nowMs - *lastLoggedMs >= kMwAuthRejectLogMinIntervalMs) {
-        *lastLoggedMs = nowMs;
-        return true;
+std::atomic<unsigned long> s_lastChaya401Ms{0};
+std::atomic<unsigned long> s_lastChaya403Ms{0};
+
+bool mwShouldLogThrottle(unsigned long nowMs, std::atomic<unsigned long>& lastLoggedMs) {
+    const unsigned long prev = lastLoggedMs.load(std::memory_order_relaxed);
+    if (prev != 0U && nowMs - prev < kMwAuthRejectLogMinIntervalMs) {
+        return false;
     }
-    return false;
+    lastLoggedMs.store(nowMs, std::memory_order_relaxed);
+    return true;
 }
 } // namespace
 
@@ -68,18 +73,16 @@ ArMiddlewareCallback mwPostSessionAndCsrfRedirect(const char* csrfRedirectPath) 
 
 ArMiddlewareCallback mwPostChayaSendGuard() {
     return [](AsyncWebServerRequest* req, ArMiddlewareNext next) {
-        static unsigned long s_last401Ms = 0;
-        static unsigned long s_last403Ms = 0;
-        const unsigned long  nowMs      = millis();
+        const unsigned long nowMs = millis();
         if (!webAuthIsAuthenticated(req)) {
-            if (mwShouldLogThrottle(nowMs, &s_last401Ms)) {
+            if (mwShouldLogThrottle(nowMs, s_lastChaya401Ms)) {
                 ESP_LOGW(TAG, "/chaya JSON POST denied: no session (401)");
             }
             webSendJson(req, 401, "{\"ok\":false}");
             return;
         }
         if (!webAuthValidateCsrfPost(req)) {
-            if (mwShouldLogThrottle(nowMs, &s_last403Ms)) {
+            if (mwShouldLogThrottle(nowMs, s_lastChaya403Ms)) {
                 ESP_LOGW(TAG, "/chaya JSON POST denied: CSRF mismatch (403)");
             }
             webSendJson(req, 403, "{\"ok\":false}");

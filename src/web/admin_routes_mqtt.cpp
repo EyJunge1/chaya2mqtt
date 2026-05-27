@@ -54,6 +54,10 @@ static bool partnerIdInputValid(const char* partnerId) {
 }
 
 static void handlePairingPost(AsyncWebServerRequest* req) {
+    if (g_systemShutdownInProgress.load(std::memory_order_acquire)) {
+        webRedirect(req, F("/"));
+        return;
+    }
     g_webAdminMqttNvsWriteFailed.store(false, std::memory_order_release);
     MqttConfig pending{};
     mqttCfgSnapshot(&pending);
@@ -86,6 +90,10 @@ static void handlePairingPost(AsyncWebServerRequest* req) {
 }
 
 static void handleMqttPost(AsyncWebServerRequest* req) {
+    if (g_systemShutdownInProgress.load(std::memory_order_acquire)) {
+        webRedirect(req, F("/"));
+        return;
+    }
     g_webAdminMqttNvsWriteFailed.store(false, std::memory_order_release);
     MqttConfig pending{};
     mqttCfgSnapshot(&pending);
