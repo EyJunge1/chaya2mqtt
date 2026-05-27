@@ -33,6 +33,58 @@ static void handleMqttStatusGet(AsyncWebServerRequest* req) {
     });
 }
 
+static void normalizePartnerIdInput(char* id, size_t idLen) {
+    if (id == nullptr || idLen == 0U) {
+        return;
+    }
+    for (size_t i = 0; i < idLen && id[i] != '\0'; ++i) {
+        if (id[i] >= 'A' && id[i] <= 'F') {
+            id[i] = static_cast<char>(id[i] - 'A' + 'a');
+        }
+    }
+}
+
+static bool partnerIdInputValid(const char* partnerId) {
+    if (!deviceIdSyntaxOk(partnerId)) {
+        return false;
+    }
+    char ownId[kDeviceIdBufLen];
+    buildDeviceId(ownId, sizeof(ownId));
+    return strcmp(partnerId, ownId) != 0;
+}
+
+static void handlePairingPost(AsyncWebServerRequest* req) {
+    g_webAdminMqttNvsWriteFailed.store(false, std::memory_order_release);
+    MqttConfig pending{};
+    mqttCfgSnapshot(&pending);
+
+    if (!req->hasParam("partner_id", true)) {
+        webRedirect(req, F("/pairing?e=partner"));
+        return;
+    }
+    const AsyncWebParameter* p = req->getParam("partner_id", true);
+    if (p == nullptr) {
+        webRedirect(req, F("/pairing?e=partner"));
+        return;
+    }
+    strlcpy(pending.partnerDeviceId, p->value().c_str(), sizeof(pending.partnerDeviceId));
+    normalizePartnerIdInput(pending.partnerDeviceId, sizeof(pending.partnerDeviceId));
+    if (!partnerIdInputValid(pending.partnerDeviceId)) {
+        webRedirect(req, F("/pairing?e=partner"));
+        return;
+    }
+    mqttCfgApplyPairingTopics(&pending);
+    if (!mqttTopicSyntaxOk(pending.topicPub, sizeof(pending.topicPub))
+        || !mqttTopicSyntaxOk(pending.topicSub, sizeof(pending.topicSub))
+        || strcmp(pending.topicPub, pending.topicSub) == 0) {
+        webRedirect(req, F("/pairing?e=partner"));
+        return;
+    }
+    mqttCfgStorePending(&pending);
+    g_webAdminMqttApplyPending.store(true, std::memory_order_release);
+    webRedirect(req, F("/pairing?saved=1"));
+}
+
 static void handleMqttPost(AsyncWebServerRequest* req) {
     g_webAdminMqttNvsWriteFailed.store(false, std::memory_order_release);
     MqttConfig pending{};
@@ -88,6 +140,7 @@ static void handleMqttPost(AsyncWebServerRequest* req) {
         strlcpy(pending.topicPub, kMqttDefaultTopicPub, sizeof(pending.topicPub));
         strlcpy(pending.topicSub, kMqttDefaultTopicSub, sizeof(pending.topicSub));
     }
+    pending.partnerDeviceId[0] = '\0';
     if (!mqttServerSyntaxOk(pending.server, sizeof(pending.server))
         || !mqttTopicSyntaxOk(pending.topicPub, sizeof(pending.topicPub))
         || !mqttTopicSyntaxOk(pending.topicSub, sizeof(pending.topicSub))) {
@@ -125,5 +178,19 @@ void adminRoutesRegisterMqtt(AsyncWebServer& ws) {
         });
         h.addMiddleware(mwRequireStaMode());
         h.addMiddleware(mwRequireSessionRedirectGet());
+    }
+    {
+        AsyncCallbackWebHandler& h = ws.on("/pairing", HTTP_GET, [](AsyncWebServerRequest* rq) {
+            streamPairingPage(rq, rq->hasParam("saved"), rq->hasParam("e"));
+        });
+        h.addMiddleware(mwRequireStaMode());
+        h.addMiddleware(mwRequireSessionRedirectGet());
+    }
+    {
+        AsyncCallbackWebHandler& h = ws.on("/pairing", HTTP_POST, [](AsyncWebServerRequest* rq) {
+            handlePairingPost(rq);
+        });
+        h.addMiddleware(mwRequireStaMode());
+        h.addMiddleware(mwPostSessionAndCsrfRedirect("/pairing"));
     }
 }

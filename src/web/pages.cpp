@@ -20,6 +20,7 @@
 #include "web/assets/wifi_connect_test_js.h"
 #include "web/assets/common_js.h"
 #include "web/assets/chaya_js.h"
+#include "web/assets/pairing_js.h"
 
 static void printCommonCss(Print& out) {
     out.print(reinterpret_cast<const __FlashStringHelper*>(WEB_COMMON_CSS));
@@ -147,6 +148,7 @@ void streamDashboard(AsyncWebServerRequest* req) {
     } else {
         resp->print(F("<a class='card' href='/wifi'>Wi-Fi</a>"
                       "<a class='card' href='/mqtt'>MQTT</a>"
+                      "<a class='card' href='/pairing'>Pairing</a>"
                       "<a class='card' href='/settings'>Settings</a>"
                       "<a class='card' href='/update'>OTA Update</a>"));
         if (configGetWebAuthEnabled()) {
@@ -356,6 +358,65 @@ void streamMqttHtmlPage(AsyncWebServerRequest* req, bool showSavedBanner) {
     if (cfg.server[0] != '\0') {
         response->print(F("<script>"));
         response->print(reinterpret_cast<const __FlashStringHelper*>(MQTT_STATUS_JS));
+        response->print(F("</script>"));
+    }
+    response->print(F("</body></html>"));
+    req->send(response);
+}
+
+void streamPairingPage(AsyncWebServerRequest* req, bool showSavedBanner, bool invalidPartner) {
+    MqttConfig cfg{};
+    mqttCfgSnapshot(&cfg);
+
+    char ownId[kDeviceIdBufLen];
+    buildDeviceId(ownId, sizeof(ownId));
+
+    AsyncResponseStream* response = beginResponseStreamOr500(req, "text/html");
+    if (response == nullptr) {
+        return;
+    }
+    streamPageHeader(*response, "Pairing");
+    response->print(F("<h1>Device Pairing</h1>"
+                      "<p class='hint'>Scan the QR code on the partner device or enter its "
+                      "6-character device ID below. MQTT topics are generated automatically.</p>"));
+    if (showSavedBanner) {
+        response->print(F("<script>showToast('Gespeichert. MQTT verbindet neu.')</script>"));
+    }
+    if (invalidPartner) {
+        response->print(
+            F("<p class='hint' style='color:#b00'>Invalid partner ID. Use 6 lowercase hex "
+              "characters (0-9, a-f) and not your own device ID.</p>"));
+    }
+    response->print(F("<div class='pairing-panel'><h2>This device</h2><div id='qrcode'></div>"
+                      "<p class='device-id-label'>Device ID</p>"
+                      "<p class='device-id-value' id='device-id'>"));
+    if (deviceIdSyntaxOk(ownId)) {
+        appendHtmlEscaped(*response, ownId);
+    } else {
+        response->print(F("&mdash;"));
+    }
+    response->print(F("</p></div>"
+                      "<form method='post' action='/pairing'>"
+                      "<input type='hidden' name='csrf_token' value='"));
+    appendCurrentWebCsrfTokenEscaped(*response);
+    response->print(F("'/><label for='partner_id'>Partner device ID</label>"
+                      "<input id='partner_id' name='partner_id' maxlength='6' "
+                      "autocapitalize='off' autocorrect='off' spellcheck='false' "
+                      "inputmode='text' pattern='[0-9a-fA-F]{6}' "
+                      "placeholder='a1b2c3' value='"));
+    appendHtmlEscaped(*response, cfg.partnerDeviceId);
+    response->print(F("'/><button type='submit'>Save pairing</button></form>"));
+    if (cfg.partnerDeviceId[0] != '\0') {
+        response->print(F("<div class='pairing-topics hint'><p>Publish: <code>"));
+        appendHtmlEscaped(*response, cfg.topicPub);
+        response->print(F("</code></p><p>Subscribe: <code>"));
+        appendHtmlEscaped(*response, cfg.topicSub);
+        response->print(F("</code></p></div>"));
+    }
+    response->print(F("<a class='btn-back' href='/'>Back</a>"));
+    if (deviceIdSyntaxOk(ownId)) {
+        response->print(F("<script>"));
+        response->print(reinterpret_cast<const __FlashStringHelper*>(PAIRING_JS));
         response->print(F("</script>"));
     }
     response->print(F("</body></html>"));

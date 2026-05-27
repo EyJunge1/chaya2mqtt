@@ -177,6 +177,54 @@ button:not(.card):active {
     line-height: 1.4;
 }
 
+.pairing-panel {
+    margin-top: 16px;
+    padding: 16px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    text-align: center;
+}
+
+.pairing-panel h2 {
+    margin: 0 0 12px;
+    font-size: 1.1rem;
+    color: var(--text-bright);
+}
+
+#qrcode {
+    display: inline-block;
+    padding: 12px;
+    background: #fff;
+    border-radius: 8px;
+}
+
+.device-id-label {
+    margin: 12px 0 0;
+    font-size: 0.95rem;
+    color: var(--text);
+}
+
+.device-id-value {
+    margin: 4px 0 0;
+    font-size: 1.6rem;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    color: var(--text-bright);
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+.pairing-topics {
+    margin-top: 12px;
+    text-align: left;
+    font-size: 0.9rem;
+}
+
+.pairing-topics code {
+    color: var(--accent);
+    word-break: break-all;
+}
+
 ul {
     padding-left: 18px;
 }

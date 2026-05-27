@@ -12,4 +12,5 @@ void streamWifiTestingPage(AsyncWebServerRequest* req);
 void handleWifiScanJson(AsyncWebServerRequest* req);
 void streamUpdatePage(AsyncWebServerRequest* req);
 void streamMqttHtmlPage(AsyncWebServerRequest* req, bool showSavedBanner);
+void streamPairingPage(AsyncWebServerRequest* req, bool showSavedBanner, bool invalidPartner);
 void streamSettingsPage(AsyncWebServerRequest* req, bool showSavedBanner);

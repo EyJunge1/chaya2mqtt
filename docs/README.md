@@ -47,14 +47,29 @@ Falls `pio: command not found`: PlatformIO-Core liegt unter `~/.platformio/penv/
 
 ## Zwei Geräte koppeln
 
-Beide flashen mit dem **gleichen Firmware-Stand** (empfohlen). Dieselben **Broker-Zugangsdaten** eintragen (WLAN kann dasselbe oder ein anderes sein – wichtig ist Erreichbarkeit des Brokers). Die **Topics müssen gekreuzt** konfiguriert werden:
+Beide flashen mit dem **gleichen Firmware-Stand** (empfohlen). Dieselben **Broker-Zugangsdaten** eintragen (WLAN kann dasselbe oder ein anderes sein – wichtig ist Erreichbarkeit des Brokers).
+
+### Empfohlen: Device-ID-Pairing (Web-UI)
+
+1. Auf **beiden** Geräten nach WLAN- und MQTT-Einrichtung die Seite **Pairing** öffnen (`http://chaya2mqtt.local/pairing`).
+2. Jedes Gerät zeigt seine **Device-ID** (6 Hex-Zeichen aus der MAC-Adresse) als Text und **QR-Code**.
+3. Auf Gerät A die **Partner-ID** von Gerät B eintragen (oder QR-Code scannen) und speichern – auf Gerät B analog mit der ID von A.
+4. Die MQTT-Topics werden automatisch gesetzt:
+   - **Sende-Topic:** `chaya/<eigene_id>` (z. B. `chaya/a1b2c3`)
+   - **Empfangs-Topic:** `chaya/<partner_id>` (z. B. `chaya/f5e6d7`)
+
+So können **mehrere Paare** denselben Broker nutzen, ohne Topic-Kollisionen.
+
+### Manuell (Fortgeschrittene)
+
+Alternativ Topics weiterhin unter **MQTT** manuell kreuzen (löscht gespeicherte Partner-ID):
 
 | | Gerät A | Gerät B |
 |---|---------|---------|
 | **Sende-Topic** | `chaya/to_b` | `chaya/to_a` |
 | **Empfangs-Topic** | `chaya/to_a` | `chaya/to_b` |
 
-So gilt: Knopf auf A → publiziert Sendezähler (retained) auf `chaya/to_b` → B empfängt → **Counter auf B wird auf diesen Wert gesetzt** und Herz neu gezeichnet. War B offline, holt es sich den aktuellen Stand beim nächsten Reconnect. Umgekehrt genauso (siehe [ARCHITECTURE.md](ARCHITECTURE.md)).
+So gilt: Knopf auf A → publiziert Sendezähler (retained) auf dem Sende-Topic → B empfängt → **Counter auf B wird auf diesen Wert gesetzt** und Herz neu gezeichnet. War B offline, holt es sich den aktuellen Stand beim nächsten Reconnect. Umgekehrt genauso (siehe [ARCHITECTURE.md](ARCHITECTURE.md)).
 
 ## Factory Reset
 

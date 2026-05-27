@@ -11,7 +11,14 @@ struct MqttConfig {
     char     password[64] = "";
     char     topicPub[128] = "chaya/to_b";
     char     topicSub[128] = "chaya/to_a";
+    char     partnerDeviceId[kDeviceIdBufLen] = "";
 };
+
+/** Build this device's 6-char lowercase hex ID from the ESP32 MAC (last 3 bytes). */
+void buildDeviceId(char* out, size_t outLen);
+
+/** When partnerDeviceId is set, overwrite topicPub/topicSub from own + partner IDs. */
+void mqttCfgApplyPairingTopics(MqttConfig* cfg);
 
 /** Active broker config lives in mqtt/config.cpp — use mqttCfgSnapshot / mqttCfgStorePending /
  *  mqttCfgApplyPendingToActive / mqttCfgTopicPubLockedCopy only (FreeRTOS mutex, not ISR-safe).

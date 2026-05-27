@@ -9,12 +9,16 @@
 #include <Preferences.h>
 #include <atomic>
 #include <cstring>
+
+#include <esp_mac.h>
 #include <esp_log.h>
 
 #include <freertos/FreeRTOS.h>
 #include <freertos/semphr.h>
 
 DEFINE_LOG_TAG("MQTTCFG");
+
+void buildDeviceId(char* out, size_t outLen);
 
 // mqttCfg + optional web pending form; s_mqttCfgDirty forces mqttLoop snapshot refresh.
 
@@ -48,6 +52,28 @@ inline void mqttCfgUnlock() {
 
 constexpr const char kNvMqtt[] = "mqtt";
 
+void mqttCfgSanitizePartnerId(MqttConfig& cfg) {
+    if (cfg.partnerDeviceId[0] == '\0') {
+        return;
+    }
+    for (char* p = cfg.partnerDeviceId; *p != '\0'; ++p) {
+        if (*p >= 'A' && *p <= 'F') {
+            *p = static_cast<char>(*p - 'A' + 'a');
+        }
+    }
+    if (!deviceIdSyntaxOk(cfg.partnerDeviceId)) {
+        ESP_LOGW(TAG, "Invalid partner device ID in NVS — cleared");
+        cfg.partnerDeviceId[0] = '\0';
+        return;
+    }
+    char ownId[kDeviceIdBufLen];
+    buildDeviceId(ownId, sizeof(ownId));
+    if (strcmp(cfg.partnerDeviceId, ownId) == 0) {
+        ESP_LOGW(TAG, "Partner device ID equals own ID — cleared");
+        cfg.partnerDeviceId[0] = '\0';
+    }
+}
+
 void mqttCfgSanitizeAfterNvsLoad(MqttConfig& cfg) {
     if (cfg.server[0] != '\0' && !mqttServerSyntaxOk(cfg.server, sizeof(cfg.server))) {
         ESP_LOGW(TAG, "Invalid MQTT server in NVS — cleared");
@@ -66,9 +92,43 @@ void mqttCfgSanitizeAfterNvsLoad(MqttConfig& cfg) {
         strlcpy(cfg.topicPub, kMqttDefaultTopicPub, sizeof(cfg.topicPub));
         strlcpy(cfg.topicSub, kMqttDefaultTopicSub, sizeof(cfg.topicSub));
     }
+    mqttCfgSanitizePartnerId(cfg);
+    mqttCfgApplyPairingTopics(&cfg);
     cfg.port = normalizeMqttPort(static_cast<int>(cfg.port));
 }
 } // namespace
+
+void buildDeviceId(char* out, size_t outLen) {
+    if (out == nullptr || outLen < kDeviceIdBufLen) {
+        if (out != nullptr && outLen > 0U) {
+            out[0] = '\0';
+        }
+        return;
+    }
+    uint8_t mac[6] = {};
+    if (esp_read_mac(mac, ESP_MAC_WIFI_STA) != ESP_OK) {
+        out[0] = '\0';
+        return;
+    }
+    static_cast<void>(snprintf(out, outLen, "%02x%02x%02x", mac[3], mac[4], mac[5]));
+}
+
+void mqttCfgApplyPairingTopics(MqttConfig* cfg) {
+    if (cfg == nullptr || cfg->partnerDeviceId[0] == '\0') {
+        return;
+    }
+    if (!deviceIdSyntaxOk(cfg->partnerDeviceId)) {
+        return;
+    }
+    char ownId[kDeviceIdBufLen];
+    buildDeviceId(ownId, sizeof(ownId));
+    if (!deviceIdSyntaxOk(ownId)) {
+        return;
+    }
+    static_cast<void>(snprintf(cfg->topicPub, sizeof(cfg->topicPub), "%s%s", kMqttPairTopicPrefix, ownId));
+    static_cast<void>(snprintf(cfg->topicSub, sizeof(cfg->topicSub), "%s%s", kMqttPairTopicPrefix,
+                               cfg->partnerDeviceId));
+}
 
 static void mqttCfgMarkDirty() {
     s_mqttCfgDirty.store(true, std::memory_order_release);
@@ -166,6 +226,7 @@ void loadMQTTConfig() {
         if (tsLen == 0U || loaded.topicSub[0] == '\0') {
             strlcpy(loaded.topicSub, kMqttDefaultTopicSub, sizeof(loaded.topicSub));
         }
+        prefs.getString("partner_id", loaded.partnerDeviceId, sizeof(loaded.partnerDeviceId));
         prefs.end();
     }
 
@@ -213,6 +274,11 @@ bool saveMQTTConfig() {
         return false;
     }
     ok = prefs.putString("topic_sub", snap.topicSub) > 0U;
+    if (!ok) {
+        prefs.end();
+        return false;
+    }
+    ok = prefs.putString("partner_id", snap.partnerDeviceId) > 0U;
     prefs.end();
     if (!ok) {
         ESP_LOGE(TAG, "NVS mqtt: persist failed");

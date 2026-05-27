@@ -10,6 +10,13 @@ constexpr uint32_t kNtpMinValidUtcEpoch = 1700000000U;
 constexpr const char kMqttDefaultTopicPub[] = "chaya/to_b";
 constexpr const char kMqttDefaultTopicSub[] = "chaya/to_a";
 
+/** Device pairing: 6 lowercase hex chars derived from MAC (last 3 bytes). */
+constexpr size_t kDeviceIdHexLen = 6U;
+constexpr size_t kDeviceIdBufLen = 7U;
+
+/** Prefix for auto-generated MQTT pair topics: chaya/<device_id>. */
+constexpr const char kMqttPairTopicPrefix[] = "chaya/";
+
 constexpr uint16_t kMqttDefaultTlsPort = 8883;
 
 constexpr uint32_t kMqttClientTaskStackBytes = 10240U;
@@ -67,6 +74,24 @@ inline bool mqttTopicSyntaxOk(const char* topic, size_t maxLen) {
  * MQTT broker host field (hostname or IP literal): fits in buffer with NUL, no control chars/spaces/wildcards.
  * Not the same rules as MQTT topics (still rejects '#' / '+').
  */
+/** Six lowercase hex digits (a-f0-9), e.g. a1b2c3. */
+inline bool deviceIdSyntaxOk(const char* id) {
+    if (id == nullptr) {
+        return false;
+    }
+    for (size_t i = 0; i < kDeviceIdHexLen; ++i) {
+        const unsigned char c = static_cast<unsigned char>(id[i]);
+        if (c == '\0') {
+            return false;
+        }
+        const bool hex = (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f');
+        if (!hex) {
+            return false;
+        }
+    }
+    return id[kDeviceIdHexLen] == '\0';
+}
+
 inline bool mqttServerSyntaxOk(const char* host, size_t maxLen) {
     if (host == nullptr || host[0] == '\0' || maxLen == 0U) {
         return false;
