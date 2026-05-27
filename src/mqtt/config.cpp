@@ -1,10 +1,9 @@
 #include "config.h"
 
-#include "constants.h"
 #include "config/nvs_keys.h"
 #include "config/nvs_utils.h"
 
-#include "log_tag.h"
+#include "util/log_tag.h"
 
 #include <Arduino.h>
 #include <Preferences.h>

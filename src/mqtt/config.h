@@ -3,6 +3,7 @@
 #include <cstdint>
 
 #include "constants.h"
+#include "mqtt_config.h"
 
 struct MqttConfig {
     char     server[128] = "";

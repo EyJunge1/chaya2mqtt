@@ -1,8 +1,17 @@
 #pragma once
 
+#include <cstddef>
 #include <cstdint>
 
-/** STA stability / scan timing (module-local; device limits remain in constants.h). */
+/** Wi-Fi SSID/password buffers (IEEE max + NUL). */
+constexpr size_t kWifiSsidMaxLen = 33U;
+constexpr size_t kWifiPassMaxLen = 65U;
+
+constexpr unsigned long kWifiStaBootConnectTimeoutMs = 5000UL;
+constexpr uint8_t       kWifiStaMaxTxPowerQuarterDbm = 52U;
+constexpr uint16_t      kWifiStaInactiveTimeSeconds  = 30U;
+
+/** STA stability / scan timing (module-local). */
 constexpr unsigned long kStaStableAfterGotIpMs   = 3000UL;
 constexpr unsigned long kWifiScanKickMinIntervalMs = 20000UL;
 constexpr unsigned long kWifiScanFailBackoffMs     = 5000UL;

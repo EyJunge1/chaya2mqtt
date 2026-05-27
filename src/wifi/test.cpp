@@ -1,8 +1,9 @@
 #include "test.h"
 
-#include "ip_format.h"
+#include "util/ip_format.h"
 
 #include "async/task_handles.h"
+#include "constants.h"
 #include "web/deferred_reboot.h"
 #include "wlan.h"
 
@@ -12,7 +13,7 @@
 #include <cstring>
 #include <esp_log.h>
 
-#include "log_tag.h"
+#include "util/log_tag.h"
 
 DEFINE_LOG_TAG("WIFI_TST");
 

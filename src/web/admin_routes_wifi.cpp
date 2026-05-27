@@ -5,9 +5,10 @@
 
 #include "config/app_config.h"
 #include "constants.h"
+#include "wifi/wlan_config.h"
 #include "web/deferred_reboot.h"
-#include "ip_format.h"
-#include "log_tag.h"
+#include "util/ip_format.h"
+#include "util/log_tag.h"
 #include "wifi/wlan.h"
 #include "wifi/test.h"
 #include "web_middleware.h"

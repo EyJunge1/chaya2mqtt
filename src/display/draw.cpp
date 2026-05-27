@@ -1,7 +1,7 @@
 #include "display.h"
 #include "internal.h"
 
-#include "constants.h"
+#include "display_config.h"
 #include "heart/counter.h"
 
 #include <Arduino.h>
@@ -11,7 +11,7 @@
 #include <cstring>
 #include <esp_log.h>
 
-#include "log_tag.h"
+#include "util/log_tag.h"
 
 DEFINE_LOG_TAG("DISP");
 

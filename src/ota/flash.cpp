@@ -1,7 +1,7 @@
 #include "flash.h"
 
-#include "tls_bundle.h"
-#include "tls_bundle_setup.h"
+#include "tls/tls_bundle.h"
+#include "tls/tls_bundle_setup.h"
 
 #include <WiFiClientSecure.h>
 #include <HTTPClient.h>
@@ -21,7 +21,7 @@
 #include <esp_partition.h>
 #include <mbedtls/sha256.h>
 
-#include "log_tag.h"
+#include "util/log_tag.h"
 
 DEFINE_LOG_TAG("OTA");
 

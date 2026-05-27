@@ -11,7 +11,7 @@
 
 #include "async/task_config.h"
 #include "diag/stack_monitor.h"
-#include "log_tag.h"
+#include "util/log_tag.h"
 
 #include <Arduino.h>
 #include <SPI.h>

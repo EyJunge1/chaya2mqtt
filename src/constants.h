@@ -7,44 +7,17 @@
 /** Minimum plausible Unix time (UTC) after NTP sync — rejects unset RTC (~1970). */
 constexpr uint32_t kNtpMinValidUtcEpoch = 1700000000U;
 
-constexpr const char kMqttDefaultTopicPub[] = "chaya/to_b";
-constexpr const char kMqttDefaultTopicSub[] = "chaya/to_a";
-
 /** Device pairing: 6 lowercase hex chars derived from MAC (last 3 bytes). */
 constexpr size_t kDeviceIdHexLen = 6U;
 constexpr size_t kDeviceIdBufLen = 7U;
-
-/** Prefix for auto-generated MQTT pair topics: chaya/<device_id>. */
-constexpr const char kMqttPairTopicPrefix[] = "chaya/";
-
-constexpr uint16_t kMqttDefaultTlsPort = 8883;
-
-constexpr int kMqttKeepAliveSeconds = 60;
-constexpr int kMqttOutboxLimitBytes = 4096;
-
-/** Wi-Fi SSID/password buffers (IEEE max + NUL). */
-constexpr size_t kWifiSsidMaxLen = 33U;
-constexpr size_t kWifiPassMaxLen = 65U;
 
 /** Station / mDNS hostname (no dots). */
 constexpr const char kDeviceHostname[] = "chaya2mqtt";
 /** Captive-portal AP SSID during setup. */
 constexpr const char kSetupApSsid[] = "Chaya2MQTT";
 
-constexpr unsigned long kWifiStaBootConnectTimeoutMs = 5000UL;
-constexpr uint8_t       kWifiStaMaxTxPowerQuarterDbm = 52U;
-constexpr uint16_t      kWifiStaInactiveTimeSeconds  = 30U;
-
 /** User-facing origin for HTML links (includes trailing slash for href bases). */
 constexpr const char kDeviceHttpOrigin[] = "http://chaya2mqtt.local/";
-
-/** Display delta shown before rolling baseline ("999+" overflow UI uses same cap). */
-constexpr int kDisplayCounterMax = 999;
-
-/** Clamp MQTT port from integer form (e.g. HTML/API); invalid uses TLS default. */
-inline constexpr uint16_t normalizeMqttPort(int p) {
-    return (p > 0 && p <= 65535) ? static_cast<uint16_t>(p) : kMqttDefaultTlsPort;
-}
 
 inline bool ntpTimeLooksSynced(time_t utcNow) {
     return utcNow > static_cast<time_t>(kNtpMinValidUtcEpoch);

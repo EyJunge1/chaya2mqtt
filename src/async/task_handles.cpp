@@ -1,13 +1,13 @@
 #include "task_handles.h"
 #include "async/task_config.h"
 #include "event_types.h"
-#include "tls_bundle_setup.h"
+#include "tls/tls_bundle_setup.h"
 
 #include <cstdlib>
 
 #include <esp_log.h>
 
-#include "log_tag.h"
+#include "util/log_tag.h"
 
 DEFINE_LOG_TAG("ASYNC");
 

@@ -3,7 +3,7 @@
 #include <cstddef>
 #include <cstdint>
 
-#include "constants.h"
+#include "wlan_config.h"
 
 void setupWiFi();
 void resetAllSettings();

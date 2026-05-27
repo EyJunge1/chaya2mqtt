@@ -2,8 +2,9 @@
 
 #include "async/task_config.h"
 #include "constants.h"
-#include "tls_bundle.h"
-#include "tls_bundle_setup.h"
+#include "mqtt_config.h"
+#include "tls/tls_bundle.h"
+#include "tls/tls_bundle_setup.h"
 
 #include <cstdio>
 #include <cstring>
@@ -17,7 +18,7 @@
 
 #include "async/task_handles.h"
 #include "diag/task_watchdog.h"
-#include "log_tag.h"
+#include "util/log_tag.h"
 
 DEFINE_LOG_TAG("MQTT");
 

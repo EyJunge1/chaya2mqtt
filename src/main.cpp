@@ -6,7 +6,7 @@
 #include <esp_system.h>
 #include <esp32-hal-cpu.h>
 
-#include "log_tag.h"
+#include "util/log_tag.h"
 
 #include "async/app_task.h"
 #include "async/task_handles.h"
@@ -22,7 +22,7 @@
 #include "web/admin.h"
 #include "web/auth.h"
 #include "wifi/wlan.h"
-#include "version.h"
+#include "config/version.h"
 
 DEFINE_LOG_TAG("MAIN");
 

@@ -4,7 +4,7 @@
 #include "wlan_internal.h"
 
 #include "constants.h"
-#include "ip_format.h"
+#include "util/ip_format.h"
 #include "mqtt/config.h"
 #include "web/admin.h"
 
@@ -17,7 +17,7 @@
 #include <esp_wifi.h>
 #include <time.h>
 
-#include "log_tag.h"
+#include "util/log_tag.h"
 
 DEFINE_LOG_TAG("WIFI");
 

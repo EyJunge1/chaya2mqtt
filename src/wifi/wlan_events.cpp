@@ -4,7 +4,7 @@
 #include "async/event_types.h"
 #include "async/task_handles.h"
 #include "constants.h"
-#include "ip_format.h"
+#include "util/ip_format.h"
 
 #include <Arduino.h>
 #include <WiFi.h>
@@ -13,7 +13,7 @@
 #include <freertos/FreeRTOS.h>
 #include <freertos/queue.h>
 
-#include "log_tag.h"
+#include "util/log_tag.h"
 
 DEFINE_LOG_TAG("WIFI");
 

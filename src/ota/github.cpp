@@ -1,10 +1,10 @@
 #include "github.h"
 
-#include "tls_bundle_setup.h"
-#include "version.h"
+#include "tls/tls_bundle_setup.h"
+#include "config/version.h"
 #include "wifi/wlan.h"
 
-#include "tls_bundle.h"
+#include "tls/tls_bundle.h"
 
 #include <HTTPClient.h>
 #include <WiFi.h>
@@ -18,7 +18,7 @@
 #include <esp_log.h>
 
 #include "diag/task_watchdog.h"
-#include "log_tag.h"
+#include "util/log_tag.h"
 
 DEFINE_LOG_TAG("OTA");
 

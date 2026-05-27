@@ -7,7 +7,7 @@
 #include <Arduino.h>
 #include <esp_log.h>
 
-#include "log_tag.h"
+#include "util/log_tag.h"
 
 DEFINE_LOG_TAG("CFG");
 

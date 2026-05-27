@@ -9,7 +9,7 @@
 #include "config/nvs_utils.h"
 #include "constants.h"
 #include "heart/counter.h"
-#include "version.h"
+#include "config/version.h"
 #include "wifi/wlan.h"
 
 #include <Arduino.h>
@@ -20,7 +20,7 @@
 #include <esp_ota_ops.h>
 #include <esp_partition.h>
 
-#include "log_tag.h"
+#include "util/log_tag.h"
 
 DEFINE_LOG_TAG("OTA");
 

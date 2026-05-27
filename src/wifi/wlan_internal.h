@@ -1,7 +1,7 @@
 #pragma once
 
-#include "constants.h"
 #include "wlan.h"
+#include "wlan_config.h"
 
 #include <Arduino.h>
 #include <WiFi.h>

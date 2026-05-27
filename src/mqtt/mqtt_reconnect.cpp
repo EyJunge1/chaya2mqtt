@@ -11,7 +11,7 @@
 #include <freertos/FreeRTOS.h>
 #include <mqtt_client.h>
 
-#include "log_tag.h"
+#include "util/log_tag.h"
 
 DEFINE_LOG_TAG("MQTT");
 

@@ -2,7 +2,7 @@
 
 #include "auth.h"
 #include "config/app_config.h"
-#include "log_tag.h"
+#include "util/log_tag.h"
 #include "web_utils.h"
 #include "wifi/wlan.h"
 

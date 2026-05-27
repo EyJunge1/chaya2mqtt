@@ -1,6 +1,6 @@
-#include "tls_bundle_setup.h"
+#include "tls/tls_bundle_setup.h"
 
-#include "tls_bundle.h"
+#include "tls/tls_bundle.h"
 
 #include <freertos/FreeRTOS.h>
 #include <freertos/semphr.h>

@@ -10,7 +10,7 @@
 #include "constants.h"
 #include "heart/counter.h"
 #include "hw/pins.h"
-#include "ip_format.h"
+#include "util/ip_format.h"
 #include "ota/ota.h"
 #include "web/admin.h"
 #include "web/admin_globals.h"
@@ -29,7 +29,7 @@
 #include <time.h>
 
 #include "diag/task_watchdog.h"
-#include "log_tag.h"
+#include "util/log_tag.h"
 
 DEFINE_LOG_TAG("WIFI");
 
