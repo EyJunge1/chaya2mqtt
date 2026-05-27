@@ -26,4 +26,9 @@ void appendCurrentWebCsrfTokenEscaped(Print& out);
 
 void appendJsonEscapedCStr(Print& out, const char* str);
 
+bool webRequestHostAllowed(AsyncWebServerRequest* req);
+
+/** When Origin is present, host must match the same allowlist as Host. Missing Origin is allowed. */
+bool webRequestOriginAllowed(AsyncWebServerRequest* req);
+
 bool appendJsonStringQuotedEscaped(const char* str, char* buf, size_t bufLen, size_t* inOutPos);

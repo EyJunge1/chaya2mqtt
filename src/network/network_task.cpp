@@ -1,6 +1,7 @@
 #include "network_task.h"
 
 #include "async/event_types.h"
+#include "async/task_config.h"
 #include "async/task_handles.h"
 #include "web/admin_globals.h"
 
@@ -30,10 +31,22 @@ DEFINE_LOG_TAG("NET");
 
 static void handleNetCommand(NetCmd cmd) {
     switch (cmd) {
-    case NetCmd::MqttSettingsChanged:
+    case NetCmd::MqttSettingsChanged: {
         mqttBeginSettingsApply();
+        if (!mqttCfgHasUnappliedPending()) {
+            mqttEndSettingsApply();
+            break;
+        }
         mqttDisconnect();
+        chayaTaskWatchdogReset();
         mqttCfgApplyPendingToActive();
+        if (mqttCfgMatchesNvs()) {
+            mqttSetup();
+            mqttPostponeConnect(3000UL);
+            mqttEndSettingsApply();
+            chayaTaskWatchdogReset();
+            break;
+        }
         if (!saveMQTTConfig()) {
             ESP_LOGW(TAG, "MQTT settings: NVS save failed — reloading from flash");
             loadMQTTConfig();
@@ -41,11 +54,14 @@ static void handleNetCommand(NetCmd cmd) {
         } else {
             g_webAdminMqttNvsWriteFailed.store(false, std::memory_order_release);
         }
+        chayaTaskWatchdogReset();
         mqttSetup();
         mqttPostponeConnect(3000UL);
         mqttEndSettingsApply();
+        chayaTaskWatchdogReset();
         requestHeartRedraw();
         break;
+    }
     case NetCmd::MqttKillClient:
         mqttDisconnect();
         break;
@@ -54,6 +70,9 @@ static void handleNetCommand(NetCmd cmd) {
         break;
     case NetCmd::ChayaSendRequested:
         (void)mqttPublishChayaAndApplySentCounters();
+        break;
+    case NetCmd::FactoryResetRequested:
+        resetAllSettings();
         break;
     }
 }
@@ -80,8 +99,8 @@ static void networkTaskFn(void*) {
 }
 
 void networkTaskStart() {
-    const BaseType_t ok =
-        xTaskCreatePinnedToCore(networkTaskFn, "network", 7168, nullptr, 5, nullptr, 1);
+    const BaseType_t ok = xTaskCreatePinnedToCore(networkTaskFn, "network",
+                                                  kNetworkTaskStackBytes, nullptr, 5, nullptr, 1);
     if (ok != pdPASS) {
         ESP_LOGE(TAG, "network task create failed");
         abort();

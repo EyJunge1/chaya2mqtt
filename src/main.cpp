@@ -2,8 +2,6 @@
 #include <cstdint>
 #include <esp_bt.h>
 #include <esp_log.h>
-#include <esp_ota_ops.h>
-#include <esp_partition.h>
 #include <esp_pm.h>
 #include <esp_system.h>
 #include <esp32-hal-cpu.h>
@@ -28,27 +26,6 @@
 
 DEFINE_LOG_TAG("MAIN");
 
-// After OTA: if image is pending verify, mark app valid (cancel rollback).
-static void otaTryMarkFirmwareValidIfPendingVerify() {
-    const esp_partition_t* running = esp_ota_get_running_partition();
-    if (running == nullptr) {
-        return;
-    }
-    esp_ota_img_states_t imgState = ESP_OTA_IMG_UNDEFINED;
-    if (esp_ota_get_state_partition(running, &imgState) != ESP_OK) {
-        return;
-    }
-    if (imgState != ESP_OTA_IMG_PENDING_VERIFY) {
-        return;
-    }
-    const esp_err_t v = esp_ota_mark_app_valid_cancel_rollback();
-    if (v != ESP_OK) {
-        ESP_LOGW(TAG, "esp_ota_mark_app_valid_cancel_rollback: %s", esp_err_to_name(v));
-    } else {
-        ESP_LOGI(TAG, "Firmware marked valid (rollback cancelled)");
-    }
-}
-
 void setup() {
     asyncInfraInit();
     setCpuFrequencyMhz(240);
@@ -67,7 +44,12 @@ void setup() {
         }
     }
 
-    otaTryMarkFirmwareValidIfPendingVerify();
+    displayInit();
+    displayStartTask();
+    ESP_LOGI(TAG, "Display initialized");
+    requestDeferredDrawSplashScreen();
+
+    buttonInit();
 
 #if defined(CORE_DEBUG_LEVEL) && CORE_DEBUG_LEVEL > 0
     Serial.begin(115200);
@@ -76,12 +58,6 @@ void setup() {
     ESP_LOGI(TAG, "Firmware %s | heap free=%zu min_free=%zu", APP_VERSION,
              static_cast<size_t>(esp_get_free_heap_size()),
              static_cast<size_t>(esp_get_minimum_free_heap_size()));
-
-    displayInit();
-    displayStartTask();
-    ESP_LOGI(TAG, "Display initialized");
-
-    buttonInit();
 
     loadMQTTConfig();
     loadHeartCounter();

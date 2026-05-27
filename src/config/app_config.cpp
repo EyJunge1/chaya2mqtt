@@ -1,6 +1,7 @@
 #include "app_config.h"
 
 #include "nvs_utils.h"
+#include "nvs_keys.h"
 
 #include <atomic>
 #include <Arduino.h>
@@ -12,15 +13,11 @@ DEFINE_LOG_TAG("CFG");
 
 // NVS namespace "cfg" — cached: display reset period, web auth enable.
 
-static constexpr const char kNvNamespaceCfg[] = "cfg";
-static constexpr const char kNvRstPeriod[]    = "rstPeriod";
-static constexpr const char kNvAuthEn[]       = "authEn";
-
 static std::atomic<uint8_t> s_resetPeriodDaysCached{7};
 static std::atomic<bool>    s_webAuthEnabledCached{false};
 
 void configLoadWebAuthFromNvs() {
-    s_webAuthEnabledCached.store((app_nvs::readUChar(kNvNamespaceCfg, kNvAuthEn, 0) != 0),
+    s_webAuthEnabledCached.store((app_nvs::readUChar(kNvsNsCfg, kNvsKeyCfgAuthEn, 0) != 0),
                                  std::memory_order_relaxed);
 }
 
@@ -29,7 +26,10 @@ bool configGetWebAuthEnabled() {
 }
 
 bool configSetWebAuthEnabled(bool enabled) {
-    if (!app_nvs::writeUChar(kNvNamespaceCfg, kNvAuthEn, enabled ? 1 : 0)) {
+    if (configGetWebAuthEnabled() == enabled) {
+        return true;
+    }
+    if (!app_nvs::writeUChar(kNvsNsCfg, kNvsKeyCfgAuthEn, enabled ? 1 : 0)) {
         ESP_LOGE(TAG, "NVS cfg: failed to persist authEn");
         return false;
     }
@@ -38,7 +38,7 @@ bool configSetWebAuthEnabled(bool enabled) {
 }
 
 void configLoadResetPeriodFromNvs() {
-    const uint8_t raw = app_nvs::readUChar(kNvNamespaceCfg, kNvRstPeriod, 7);
+    const uint8_t raw = app_nvs::readUChar(kNvsNsCfg, kNvsKeyCfgRstPeriod, 7);
     if (raw == 0U) {
         s_resetPeriodDaysCached.store(0, std::memory_order_relaxed);
         return;
@@ -58,7 +58,10 @@ bool configSetResetPeriodDays(uint8_t days) {
     if (days > 30U) {
         days = 30U;
     }
-    if (!app_nvs::writeUChar(kNvNamespaceCfg, kNvRstPeriod, days)) {
+    if (configGetResetPeriodDays() == days) {
+        return true;
+    }
+    if (!app_nvs::writeUChar(kNvsNsCfg, kNvsKeyCfgRstPeriod, days)) {
         ESP_LOGE(TAG, "NVS cfg: failed to persist rstPeriod");
         return false;
     }

@@ -20,9 +20,11 @@ Firmware für **Chaya2MQTT**: ESP32 mit E-Ink-Display und MQTT – zwei gekoppel
 ## Schnellstart
 
 ```bash
-pio run -t upload    # Bauen + Flashen
-pio device monitor     # Serial-Monitor (115200 Baud)
+pio run -e esp32dev-release -t upload   # Release-Build (empfohlen für Feldgeräte)
+pio device monitor                       # Serial-Monitor (115200 Baud)
 ```
+
+Für Entwicklung mit Debug-Logs: `pio run -e esp32dev -t upload`
 
 Oder: `make upload` / `make monitor`
 

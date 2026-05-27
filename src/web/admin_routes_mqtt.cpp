@@ -84,8 +84,14 @@ static void handlePairingPost(AsyncWebServerRequest* req) {
         webRedirect(req, F("/pairing?e=partner"));
         return;
     }
+    MqttConfig active{};
+    mqttCfgSnapshot(&active);
+    if (mqttCfgEquals(&pending, &active)) {
+        webRedirect(req, F("/pairing?saved=1"));
+        return;
+    }
     mqttCfgStorePending(&pending);
-    g_webAdminMqttApplyPending.store(true, std::memory_order_release);
+    g_webAdminMqttApplyVersion.fetch_add(1U, std::memory_order_acq_rel);
     webRedirect(req, F("/pairing?saved=1"));
 }
 
@@ -160,8 +166,14 @@ static void handleMqttPost(AsyncWebServerRequest* req) {
         }
         return;
     }
+    MqttConfig active{};
+    mqttCfgSnapshot(&active);
+    if (mqttCfgEquals(&pending, &active)) {
+        webRedirect(req, F("/mqtt?saved=1"));
+        return;
+    }
     mqttCfgStorePending(&pending);
-    g_webAdminMqttApplyPending.store(true, std::memory_order_release);
+    g_webAdminMqttApplyVersion.fetch_add(1U, std::memory_order_acq_rel);
     webRedirect(req, F("/mqtt?saved=1"));
 }
 

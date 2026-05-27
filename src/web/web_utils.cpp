@@ -1,6 +1,9 @@
 #include "web_utils.h"
 
 #include "auth.h"
+#include "config/app_config.h"
+#include "constants.h"
+#include "wifi/wlan.h"
 
 #include <ESPAsyncWebServer.h>
 #include <cstdio>
@@ -41,7 +44,65 @@ void webRedirect(AsyncWebServerRequest* req, const char* location) {
     req->send(resp);
 }
 
+#include <esp_heap_caps.h>
+#include <cstring>
+
+static bool webHostStringAllowed(const String& host) {
+    if (host.length() == 0U) {
+        return true;
+    }
+    String h = host;
+    h.toLowerCase();
+    if (h == kDeviceHostname || h.startsWith(String(kDeviceHostname) + ".local")
+        || h.startsWith(String(kDeviceHostname) + ".local:")) {
+        return true;
+    }
+    if (configIsApMode()) {
+        if (h == "4.3.2.1" || h.startsWith("4.3.2.1:")) {
+            return true;
+        }
+    }
+    char ip[16]{};
+    if (wlanStaConnectedOk() && wlanReadStaLocalIpForCommit(ip, sizeof(ip)) && ip[0] != '\0') {
+        if (h == ip || h.startsWith(String(ip) + ":")) {
+            return true;
+        }
+    }
+    return false;
+}
+
+bool webRequestHostAllowed(AsyncWebServerRequest* req) {
+    if (req == nullptr) {
+        return false;
+    }
+    return webHostStringAllowed(req->host());
+}
+
+bool webRequestOriginAllowed(AsyncWebServerRequest* req) {
+    if (req == nullptr) {
+        return false;
+    }
+    if (!req->hasHeader("Origin")) {
+        return true;
+    }
+    const String origin = req->header("Origin");
+    const int    schemeEnd = origin.indexOf("://");
+    if (schemeEnd < 0) {
+        return false;
+    }
+    String rest = origin.substring(schemeEnd + 3);
+    const int slash = rest.indexOf('/');
+    const String originHost = (slash >= 0) ? rest.substring(0, slash) : rest;
+    return webHostStringAllowed(originHost);
+}
+
 AsyncResponseStream* beginResponseStreamOr500(AsyncWebServerRequest* req, const char* mime) {
+    if (esp_get_free_heap_size() < 8192U) {
+        AsyncWebServerResponse* err = req->beginResponse(503, "text/plain", "Low heap");
+        webAddSecurityHeaders(err);
+        req->send(err);
+        return nullptr;
+    }
     AsyncResponseStream* resp = req->beginResponseStream(mime);
     if (resp == nullptr) {
         AsyncWebServerResponse* err = req->beginResponse(500);
@@ -67,8 +128,8 @@ void webSendEmpty(AsyncWebServerRequest* req, int code) {
 }
 
 void appendCurrentWebCsrfTokenEscaped(Print& out) {
-    char b[24];
-    snprintf(b, sizeof(b), "%lu", static_cast<unsigned long>(webAuthGetCsrfToken()));
+    char b[33];
+    webAuthGetCsrfTokenHex(b, sizeof(b));
     appendHtmlEscaped(out, b);
 }
 

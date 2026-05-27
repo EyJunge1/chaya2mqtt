@@ -2,8 +2,11 @@
 
 #include "mqtt/config.h"
 #include "pins.h"
+#include "async/event_types.h"
+#include "async/task_handles.h"
 #include "display/display.h"
 #include "mqtt/mqtt.h"
+#include "ota/ota.h"
 #include "wifi/wlan.h"
 
 #include "diag/stack_monitor.h"
@@ -272,12 +275,24 @@ static void advanceLedSequence() {
 }
 
 static void triggerFactoryReset() {
+    if (otaBlocksDestructiveAction()) {
+        ESP_LOGW(TAG, "Factory reset ignored: OTA in progress");
+        return;
+    }
     for (int i = 0; i < kFactoryResetLedBlinkCycles; i++) {
         ledOutput((i % 2) == 0 ? HIGH : LOW);
         vTaskDelay(pdMS_TO_TICKS(kFactoryResetLedBlinkPeriodMs));
+        chayaTaskWatchdogReset();
     }
     ledOutput(LOW);
-    resetAllSettings();
+    if (g_netCmdQueue != nullptr) {
+        const NetCmd cmd = NetCmd::FactoryResetRequested;
+        if (xQueueSend(g_netCmdQueue, &cmd, pdMS_TO_TICKS(500)) != pdTRUE) {
+            ESP_LOGW(TAG, "Factory reset queue full — retry on next hold");
+        }
+    } else {
+        ESP_LOGE(TAG, "Factory reset queue unavailable");
+    }
 }
 
 static void buttonPollAndProcess() {
@@ -336,7 +351,8 @@ static void buttonTaskFn(void*) {
     chayaTaskWatchdogSubscribe(TAG);
     static uint32_t s_stackLogCounter = 0;
     for (;;) {
-        ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(10));
+        const unsigned long waitMs = ledSendSequenceActive() ? 10UL : 50UL;
+        ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(waitMs));
         consumeButtonCommands();
         buttonPollAndProcess();
         advanceLedSequence();

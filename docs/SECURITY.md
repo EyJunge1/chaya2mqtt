@@ -49,6 +49,7 @@ Wenn aktiviert (`cfg/authEn`):
 | Code-Gültigkeit | 5 Minuten |
 | Lockout | 1 Stunde nach 3 Fehlversuchen |
 | Session | 24 Stunden |
+| Parallele Sessions | **Eine** globale Session pro Gerät (neuer Login invalidiert ältere Cookies) |
 
 **Stärke:** Remote-Angreifer ohne physischen Gerätezugriff kann sich nicht authentifizieren (Tastendruck nötig).
 
@@ -58,7 +59,8 @@ Wenn aktiviert (`cfg/authEn`):
 
 Im AP-Modus: `/`, `/wifi*`, `/favicon.ico`
 
-Im STA-Modus (Auth aktiv): `/wifi*`, `/auth`, `/logout`
+Im STA-Modus (Auth aktiv): `/wifi`, `/wifi-connect*`, `/auth`, `/logout`
+(`/wifi-scan` und `/wifi-status` erfordern im STA-Modus eine aktive Session)
 
 ## MQTT
 

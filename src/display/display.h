@@ -29,5 +29,7 @@ void drawAuthPrompt();
  */
 void requestDeferredDrawAuthCode(uint32_t code);
 void requestDeferredDrawAuthPrompt();
+/** @return false when display queue rejected the prompt. */
+bool requestDeferredDrawAuthPromptChecked();
 void requestDeferredDrawSplashScreen();
 void requestDeferredDrawHeartScreen();

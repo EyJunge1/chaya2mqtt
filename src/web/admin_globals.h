@@ -10,7 +10,7 @@ class AsyncWebServerRequest;
 
 extern std::atomic<bool> g_webAdminRebootRequested;
 extern std::atomic<bool> g_webAdminWifiReconnectRequested;
-extern std::atomic<bool> g_webAdminMqttApplyPending;
+extern std::atomic<uint32_t> g_webAdminMqttApplyVersion;
 extern std::atomic<bool> g_webAdminSettingsApplyPending;
 extern std::atomic<bool> g_webAdminMqttNvsWriteFailed;
 extern std::atomic<bool> g_webAdminSettingsNvsWriteFailed;

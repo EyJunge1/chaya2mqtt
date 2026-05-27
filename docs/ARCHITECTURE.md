@@ -37,7 +37,7 @@ flowchart TB
 | **network** | 7168 | 5 | 1 | `network/network_task.cpp` | `wlanLoop()`, `mqttLoop()`, `NetCmd`-Queue |
 | **button** | 4096 | 8 | 1 | `hw/button.cpp` | Debounce, LED-Sequenz, Factory Reset, MQTT-Senden |
 | **app** | 4096 | 4 | 1 | `async/app_task.cpp` | `webAdminLoop()`, Counter-Resets, NVS-Saves |
-| **ota** | 7168 | 4 | 1 | `ota/ota_task.cpp` | `otaLoop()` (GitHub + Download) |
+| **ota** | 8192 | 4 | 1 | `ota/ota_task.cpp` | `otaLoop()` (GitHub + Download) |
 | **display** | 4096 | 3 | 1 | `display/display.cpp` | Exklusiver SPI/EPD-Zugriff |
 
 **Task-Watchdog:** Network, App, OTA und Button sind beim ESP Task-WDT angemeldet. Der **Display-Task ist absichtlich ausgenommen**, da ein E-Ink-Full-Refresh bis zu ~14 s dauern kann.
@@ -132,15 +132,15 @@ sequenceDiagram
 
 1. **Async-Infra:** Queues und Mutexe anlegen
 2. **CPU:** 240 MHz, BT aus, DFS (80–240 MHz, kein Light-Sleep)
-3. **OTA-Verify:** Pending-Verify-Image als gültig markieren
-4. **Serial:** 115200 nur im Debug-Build (`CORE_DEBUG_LEVEL > 0`)
-5. **Display:** Hardware-Init + Display-Task starten
-6. **Button:** GPIO initialisieren
-7. **NVS laden:** MQTT-Config, Zähler, Reset-Periode, Web-Auth
-8. **WiFi:** STA mit gespeicherten Credentials oder SoftAP `Chaya2MQTT` + Captive DNS
-9. **MQTT:** Client konfigurieren (noch nicht verbinden)
-10. **Tasks starten:** Button, Network, OTA, App
-11. **Erste Zeichnung:** Herz (wenn Broker konfiguriert) oder Splash (AP-Modus)
+3. **Serial:** 115200 nur im Debug-Build (`CORE_DEBUG_LEVEL > 0`)
+4. **Display:** Hardware-Init + Display-Task starten
+5. **Button:** GPIO initialisieren
+6. **NVS laden:** MQTT-Config, Zähler, Reset-Periode, Web-Auth
+7. **WiFi:** STA mit gespeicherten Credentials oder SoftAP `Chaya2MQTT` + Captive DNS
+8. **MQTT:** Client konfigurieren (noch nicht verbinden)
+9. **Tasks starten:** Button, Network, OTA, App
+10. **Erste Zeichnung:** Herz (wenn Broker konfiguriert) oder Splash (AP-Modus)
+11. **OTA-Verify (deferred):** `otaTryMarkValidAfterHealthCheck()` im App-Task nach Health-Checks (kein sofortiges Markieren in `setup()`)
 
 ## NetCmd – Netzwerk-Befehlsqueue
 
@@ -151,7 +151,8 @@ Die `NetCmd`-Enum (`async/event_types.h`) serialisiert netzwerkrelevante Aktione
 | `MqttSettingsChanged` | Web POST `/mqtt` oder `/pairing` | Client kill, Pending→Active, NVS save, `mqttSetup`, Connect +3 s verzögert |
 | `MqttKillClient` | Intern | `mqttDisconnect()` |
 | `WifiReconnect` | `WiFi.onEvent` (Disconnect) | STA-Reconnect mit Backoff |
-| `ChayaSendRequested` | Button-Kurzdruck oder Web POST `/chaya-send` | `mqttPublishChayaAndApplySentCounters()` |
+| `ChayaSendRequested` | Web POST `/chaya-send` (Button nutzt direkt `mqttPublishChayaAndApplySentCounters()`) | `mqttPublishChayaAndApplySentCounters()` |
+| `FactoryResetRequested` | Button 10 s halten | Network-Task ruft `resetAllSettings()` (WDT-sicher außerhalb Button-Task) |
 
 ## DisplayMsg – Display-Befehlsqueue
 
@@ -168,17 +169,20 @@ Nur der **Display-Task** darf SPI/EPD direkt ansprechen. Alle anderen Tasks nutz
 
 ```mermaid
 sequenceDiagram
-    participant B as Button/Web
+    participant B as Button
+    participant W as Web
     participant N as network_task
     participant M as mqtt
     participant C as counter
     participant D as display_task
 
-    B->>N: NetCmd ChayaSendRequested
-    N->>M: mqttPublishChayaAndApplySentCounters
+    B->>M: mqttPublishChayaAndApplySentCounters()
     M->>M: publish retained auf topic_pub
     M->>C: heartSentCounter++
     M->>D: requestHeartRedraw
+
+    W->>N: NetCmd ChayaSendRequested
+    N->>M: mqttPublishChayaAndApplySentCounters()
 
     Note over M: Partner-Gerät empfängt
     M->>C: heartCounterStoreFromRemote(payload)
@@ -190,7 +194,7 @@ sequenceDiagram
 
 HTTP-Handler blockieren nicht für langsame Operationen. Stattdessen:
 
-1. **Atomics/Flags** setzen (`g_webAdminMqttApplyPending`, `g_webAdminRebootRequested`, …)
+1. **Atomics/Flags** setzen (`g_webAdminMqttApplyVersion.fetch_add(1)`, `g_webAdminRebootRequested`, …)
 2. **App-Task** (`webAdminLoop()`) verarbeitet Flags alle 500 ms
 3. Netzwerk-Aktionen werden als `NetCmd` in die Queue gestellt
 

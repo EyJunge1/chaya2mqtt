@@ -11,8 +11,7 @@
 **Setup-Reihenfolge:**
 1. `asyncInfraInit()` – Queues + Mutexe
 2. CPU 240 MHz, BT aus, DFS (kein Light-Sleep)
-3. OTA Pending-Verify markieren
-4. `displayInit()` + `displayStartTask()`
+3. `displayInit()` + `displayStartTask()`
 5. `buttonInit()`
 6. NVS laden: MQTT, Zähler, Reset-Periode, Web-Auth
 7. `setupWiFi()` – STA oder AP
@@ -32,6 +31,7 @@
 ```cpp
 enum class NetCmd : uint8_t {
     MqttSettingsChanged, MqttKillClient, WifiReconnect, ChayaSendRequested,
+    FactoryResetRequested,
 };
 
 struct DisplayMsg {
@@ -213,7 +213,7 @@ Projekteigener Treiber `EpdDriver154Z90c` (abgeleitet von GxEPD2):
 Button-Task (4096 Stack, Prio 8, Core 1):
 - Debounce (~20 ms)
 - Kurzdruck → MQTT-Sende-LED-Sequenz (2× Blink → Publish → 2× Blink)
-- 10 s Halten → `resetAllSettings()`
+- 10 s Halten → `NetCmd::FactoryResetRequested` in Network-Task (`resetAllSettings()` WDT-sicher dort)
 - Web-Auth: langsamer Blink, Kurzdruck bestätigt Prompt
 
 | Funktion | Beschreibung |
@@ -289,7 +289,7 @@ Thread-safe `Preferences`-Wrapper mit `g_nvsMutex`:
 
 | Datei | Zweck |
 |-------|-------|
-| `task_watchdog.h` | `chayaTaskWatchdogSubscribe()` / `Reset()` |
+| `task_watchdog.h` | `chayaTaskWatchdogSubscribe()` / `Unsubscribe()` / `Reset()` |
 | `stack_monitor.h` | Periodisches Stack-High-Water-Logging |
 
 ---
@@ -304,6 +304,9 @@ Thread-safe `Preferences`-Wrapper mit `g_nvsMutex`:
 | `ip_format.h` | IP-Adress-Formatierung |
 | `tls_bundle.h` / `tls_bundle.cpp` | Eingebettetes X509-CA-Bundle |
 | `tls_bundle_setup.h` | Einmalige CA-Bundle-Initialisierung |
+| `util/time_helpers.h` | Wrap-sichere Zeithelfer (`elapsedMs`, `deadlineReached`, `remainingMs`) |
+| `config/nvs_keys.h` | Zentrale NVS-Namespace- und Key-Konstanten |
+| `async/task_config.h` | FreeRTOS Task-Stack-Größen und Queue-Tiefen |
 
 ---
 

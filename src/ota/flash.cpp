@@ -125,10 +125,11 @@ bool httpFetchSha256Hex(WiFiClientSecure& tls, const char* shaUrl, char* hexOut,
         ESP_LOGE(TAG, "SHA URL: HTTPS begin failed");
         return false;
     }
-    https.setConnectTimeout(20000);
-    https.setTimeout(45000);
+    https.setConnectTimeout(15000);
+    https.setTimeout(30000);
     https.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
     const int code = https.GET();
+    chayaTaskWatchdogReset();
     if (code != HTTP_CODE_OK) {
         ESP_LOGE(TAG, "SHA256 download HTTP %d", code);
         https.end();
@@ -165,11 +166,12 @@ bool httpStreamFirmwareToOtaVerified(WiFiClientSecure& tls, const char* binUrl,
         ESP_LOGE(TAG, "Firmware URL: HTTPS begin failed");
         return false;
     }
-    https.setConnectTimeout(20000);
-    https.setTimeout(60000);
+    https.setConnectTimeout(15000);
+    https.setTimeout(30000);
     https.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
 
     const int httpCode = https.GET();
+    chayaTaskWatchdogReset();
     if (httpCode != HTTP_CODE_OK) {
         ESP_LOGE(TAG, "Firmware download HTTP %d", httpCode);
         https.end();
@@ -350,7 +352,7 @@ bool otaFlashVerifiedInstall(const char* binUrl) {
     WiFiClientSecure tls;
     tls.setCACertBundle(x509_crt_bundle_start,
                         static_cast<size_t>(x509_crt_bundle_end - x509_crt_bundle_start));
-    tls.setTimeout(60000);
+    tls.setTimeout(30000);
 
     char hexBuf[96];
     hexBuf[0] = '\0';

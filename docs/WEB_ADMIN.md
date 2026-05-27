@@ -19,7 +19,7 @@ Hostname: `chaya2mqtt` (Konstante `kDeviceHostname`).
 |-------|---------|------------|--------------|
 | `/` | GET | Session | Dashboard mit RX/TX-Zähler, MQTT/WiFi-Status |
 | `/chaya-status` | GET | Session | JSON: `{rx, tx, connected}` |
-| `/chaya-send` | GET | Session | MQTT-Senden (queued als `NetCmd::ChayaSendRequested`) |
+| `/chaya-send` | POST | Session + CSRF | MQTT-Senden (queued als `NetCmd::ChayaSendRequested`) |
 | `/settings` | GET | Session | Reset-Periode, Web-Auth an/aus |
 | `/settings` | POST | Session + CSRF | Einstellungen speichern (deferred) |
 | `/update` | GET | Session | OTA-Update-Seite |
@@ -30,9 +30,9 @@ Hostname: `chaya2mqtt` (Konstante `kDeviceHostname`).
 
 | Route | Methode | Auth | Beschreibung |
 |-------|---------|------|--------------|
-| `/wifi` | GET | Offen (AP) / Session (STA) | WLAN-Formular |
-| `/wifi-scan` | GET | Offen / Session | JSON: Scan-Ergebnisse (max. 40 APs) |
-| `/wifi-status` | GET | Offen / Session | JSON: Link-Status |
+| `/wifi` | GET | Offen (AP) / Offen (STA) | WLAN-Formular |
+| `/wifi-scan` | GET | Offen (AP) / Session (STA) | JSON: Scan-Ergebnisse (max. 40 APs) |
+| `/wifi-status` | GET | Offen (AP) / Session (STA) | JSON: Link-Status |
 | `/wifi-connect` | POST | Offen / Session + CSRF | Credentials speichern / AP-Test starten |
 | `/wifi-testing` | GET | AP | Test-Fortschritts-Seite |
 | `/wifi-connect-status` | GET | AP | JSON: Test-State |
@@ -74,6 +74,8 @@ Endpoint `/events` liefert Live-Updates für das Dashboard:
 | `mqtt` | `{connected}` | MQTT-Verbindungsstatus |
 
 Clients verbinden sich per `EventSource('/events')`. Der App-Task tickt `webEventsTick()` alle 500 ms und sendet nur bei Änderungen.
+
+**Limit:** Maximal **6** gleichzeitige SSE-Clients (`kMaxSseClients` in `web_events.cpp`); weitere Verbindungen werden abgewiesen.
 
 WiFi-RSSI wird alle 4 Ticks neu gelesen (Performance-Optimierung).
 
@@ -117,7 +119,8 @@ sequenceDiagram
 
 - **Physischer Tastendruck** erforderlich, bevor der Code generiert wird (Schutz vor Remote-Auth ohne Gerätezugriff)
 - **CSRF-Token** in allen POST-Formularen
-- Session-Cookie mit `HttpOnly`, `SameSite=Strict`
+- Session-Cookie mit `HttpOnly`, `SameSite=Lax` (serverseitige TTL 24 h)
+- Pro Gerät gilt **eine** aktive Web-Session (paralleler Login invalidiert die vorherige)
 - Lockout nach wiederholten Fehlversuchen
 
 ### Öffentliche Pfade (ohne Session)
@@ -126,7 +129,8 @@ sequenceDiagram
 - `/`, `/wifi`, `/wifi-scan`, `/wifi-status`, `/wifi-connect*`, `/favicon.ico`
 
 **Im STA-Modus (Auth aktiv):**
-- `/wifi`, `/wifi-scan`, `/wifi-status`, `/wifi-connect*`, `/auth`, `/logout`
+- `/wifi`, `/wifi-connect*`, `/auth`, `/logout`, `/`, `/favicon.ico`
+- `/wifi-scan` und `/wifi-status` erfordern Session (Host-Check + CSRF auf POSTs)
 
 ## CSRF-Schutz
 
@@ -134,11 +138,13 @@ Jedes POST-Formular enthält ein `csrf_token`-Feld. Der Token wird bei `webAuthI
 
 ## Deferred Work Pattern
 
-HTTP-Handler führen keine blockierenden Operationen aus:
+Deferred Work gilt für MQTT-/Settings-Apply und Reboot. **Ausnahme:** WiFi-Credential-Schreibzugriffe in `handleWifiConnect*` können im Request-Pfad NVS schreiben.
+
+Die meisten HTTP-Handler delegieren langsame Arbeit; blockierende Pfade sind oben ausgenommen:
 
 | Aktion | Mechanismus | Verarbeitung |
 |--------|-------------|--------------|
-| MQTT speichern | `g_webAdminMqttApplyPending` | App-Task → `NetCmd::MqttSettingsChanged` |
+| MQTT speichern | `g_webAdminMqttApplyVersion` (Versions-Counter) | App-Task → `NetCmd::MqttSettingsChanged` |
 | Settings speichern | `g_webAdminSettingsApplyPending` | App-Task → NVS write |
 | Reboot | `g_webAdminRebootRequested` | App-Task → `ESP.restart()` |
 | WiFi-Reconnect | `g_webAdminWifiReconnectRequested` | App-Task → Reboot |

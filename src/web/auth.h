@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstddef>
 #include <cstdint>
 
 class AsyncWebServer;
@@ -23,6 +24,9 @@ bool webAuthValidateCsrfPost(AsyncWebServerRequest* req);
 /** Session valid (or protection off / AP mode). */
 bool webAuthIsAuthenticated(AsyncWebServerRequest* req);
 
+void webAuthGetCsrfTokenHex(char* outHex33, size_t outLen);
+
+/** Legacy decimal helper (prefer webAuthGetCsrfTokenHex). */
 uint32_t webAuthGetCsrfToken();
 
 /** Short button press while auth LED blink is active: confirm reveal or no-op during code phase. */

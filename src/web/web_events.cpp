@@ -34,6 +34,8 @@ namespace {
 
 AsyncEventSource s_events("/events");
 
+constexpr size_t kMaxSseClients = 6U;
+
 std::atomic<bool> s_forceBroadcast{false};
 std::atomic<bool> s_loggedFirstSseClient{false};
 
@@ -97,6 +99,9 @@ static size_t buildMqttStatusPayload(bool connected, char* buf, size_t bufLen) {
 
 void webEventsRegister(AsyncWebServer& ws) {
     s_events.authorizeConnect([](AsyncWebServerRequest* req) {
+        if (s_events.count() >= kMaxSseClients) {
+            return false;
+        }
         if (configIsApMode()) {
             return true;
         }

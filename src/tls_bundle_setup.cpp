@@ -2,20 +2,34 @@
 
 #include "tls_bundle.h"
 
-#include <atomic>
+#include <freertos/FreeRTOS.h>
+#include <freertos/semphr.h>
+
 #include <esp_crt_bundle.h>
 
-static std::atomic<bool> s_caBundleInstalled{false};
+static SemaphoreHandle_t s_caBundleMutex = nullptr;
+static bool              s_caBundleInstalled = false;
 
 bool chayaTlsEnsureCaBundleInstalled() {
-    if (s_caBundleInstalled.load(std::memory_order_acquire)) {
+    if (s_caBundleMutex == nullptr) {
+        s_caBundleMutex = xSemaphoreCreateMutex();
+        if (s_caBundleMutex == nullptr) {
+            return false;
+        }
+    }
+    if (xSemaphoreTake(s_caBundleMutex, portMAX_DELAY) != pdTRUE) {
+        return false;
+    }
+    if (s_caBundleInstalled) {
+        xSemaphoreGive(s_caBundleMutex);
         return true;
     }
     const size_t bundleLen =
         static_cast<size_t>(x509_crt_bundle_end - x509_crt_bundle_start);
-    if (esp_crt_bundle_set(x509_crt_bundle_start, bundleLen) != ESP_OK) {
-        return false;
+    const bool ok = esp_crt_bundle_set(x509_crt_bundle_start, bundleLen) == ESP_OK;
+    if (ok) {
+        s_caBundleInstalled = true;
     }
-    s_caBundleInstalled.store(true, std::memory_order_release);
-    return true;
+    xSemaphoreGive(s_caBundleMutex);
+    return ok;
 }

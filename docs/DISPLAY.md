@@ -59,7 +59,7 @@ Anzeige TX = max(0, heartSentCounter − sentCountBaseline), gecappt bei 999
 ### Overflow (≥999)
 
 Wenn ein Anzeige-Delta ≥ **999** (`kDisplayCounterMax`) erreicht:
-- Anzeige zeigt `"999+"`
+- Anzeige zeigt `"999+"` wenn der Delta-Wert **größer als** 999 ist (bei exakt 999 wird `999` gezeigt; danach kann die App-Baseline nachziehen)
 - `maybeResetDisplayBaselinesWhenCapped()` setzt die Baseline auf den aktuellen Raw-Wert
 - Anzeige springt zurück auf 0
 
@@ -91,7 +91,7 @@ Aufbau:
 | ≤3 Ziffern | 4 |
 | ≥4 Ziffern | 3 |
 
-Zentrierung über `getTextBounds()` nach dynamischem `setTextSize`. Bei ≥999 wird `"999+"` angezeigt.
+Zentrierung über `getTextBounds()` nach dynamischem `setTextSize`. Bei Delta **> 999** wird `"999+"` angezeigt.
 
 Footer-Position: Y=167, RX links (Margin 4 + Arrow-Lane 26), TX rechts (symmetrisch).
 

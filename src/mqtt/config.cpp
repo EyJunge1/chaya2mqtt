@@ -50,7 +50,7 @@ inline void mqttCfgUnlock() {
     }
 }
 
-constexpr const char kNvMqtt[] = "mqtt";
+#include "config/nvs_keys.h"
 
 void mqttCfgSanitizePartnerId(MqttConfig& cfg) {
     if (cfg.partnerDeviceId[0] == '\0') {
@@ -147,6 +147,26 @@ void mqttCfgSnapshot(MqttConfig* out) {
     mqttCfgUnlock();
 }
 
+bool mqttCfgSnapshotTimed(MqttConfig* out, uint32_t timeoutMs) {
+    if (out == nullptr) {
+        return false;
+    }
+    mqttCfgMutexEnsureCreated();
+    if (xSemaphoreTake(s_mqttCfgMutex, pdMS_TO_TICKS(timeoutMs)) != pdTRUE) {
+        return false;
+    }
+    *out = mqttCfg;
+    xSemaphoreGive(s_mqttCfgMutex);
+    return true;
+}
+
+bool mqttCfgEquals(const MqttConfig* a, const MqttConfig* b) {
+    if (a == nullptr || b == nullptr) {
+        return false;
+    }
+    return memcmp(a, b, sizeof(MqttConfig)) == 0;
+}
+
 bool mqttCfgIsBrokerConfigured() {
     mqttCfgLock();
     const bool ok = mqttCfg.server[0] != '\0';
@@ -195,6 +215,30 @@ bool mqttCfgHasUnappliedPending() {
     return differs;
 }
 
+bool mqttCfgMatchesNvs() {
+    MqttConfig active{};
+    mqttCfgSnapshot(&active);
+
+    app_nvs::ScopedNvsLock lock;
+    Preferences prefs;
+    if (!prefs.begin(kNvsNsMqtt, true)) {
+        return active.server[0] == '\0';
+    }
+
+    MqttConfig stored{};
+    prefs.getString("server", stored.server, sizeof(stored.server));
+    stored.port = static_cast<uint16_t>(prefs.getInt("port", static_cast<int>(kMqttDefaultTlsPort)));
+    prefs.getString("user", stored.username, sizeof(stored.username));
+    prefs.getString("pass", stored.password, sizeof(stored.password));
+    prefs.getString("topic_pub", stored.topicPub, sizeof(stored.topicPub));
+    prefs.getString("topic_sub", stored.topicSub, sizeof(stored.topicSub));
+    prefs.getString("partner_id", stored.partnerDeviceId, sizeof(stored.partnerDeviceId));
+    prefs.end();
+
+    mqttCfgSanitizeAfterNvsLoad(stored);
+    return memcmp(&active, &stored, sizeof(MqttConfig)) == 0;
+}
+
 namespace {
 
 bool mqttCfgPutStringOrEmpty(Preferences& prefs, const char* key, const char* value) {
@@ -211,7 +255,7 @@ void loadMQTTConfig() {
     {
         app_nvs::ScopedNvsLock lock;
         Preferences prefs;
-        if (!prefs.begin(kNvMqtt, true)) {
+        if (!prefs.begin(kNvsNsMqtt, true)) {
             ESP_LOGI(TAG, "NVS mqtt namespace not present, using MQTT defaults");
             strlcpy(loaded.topicPub, kMqttDefaultTopicPub, sizeof(loaded.topicPub));
             strlcpy(loaded.topicSub, kMqttDefaultTopicSub, sizeof(loaded.topicSub));
@@ -273,7 +317,7 @@ bool saveMQTTConfig() {
 
     app_nvs::ScopedNvsLock lock;
     Preferences prefs;
-    if (!prefs.begin(kNvMqtt, false)) {
+    if (!prefs.begin(kNvsNsMqtt, false)) {
         ESP_LOGE(TAG, "NVS mqtt: begin failed");
         return false;
     }

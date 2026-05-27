@@ -80,10 +80,10 @@ Bei Hash-Mismatch: Download abbrechen, **kein Reboot**.
 
 | Parameter | Wert |
 |-----------|------|
-| Stack | 7168 Bytes |
+| Stack | 8192 Bytes |
 | Priorität | 4 |
 | Core | 1 |
-| WDT | angemeldet |
+| WDT | angemeldet (temporär abgemeldet während `otaLoop()`) |
 
 Vor Reboot nach erfolgreichem Flash:
 - `flushHeartCounterIfDirty()` / `flushHeartSentCounterIfDirty()`
@@ -92,9 +92,9 @@ Vor Reboot nach erfolgreichem Flash:
 
 ## Boot nach OTA
 
-In `main.cpp` → `setup()`:
-- `otaTryMarkFirmwareValidIfPendingVerify()` markiert das Image als gültig
-- Bricht Rollback ab, wenn das neue Image erfolgreich startet
+Im **App-Task** (`appTaskFn`), nach den initialen Health-Check-Schleifen:
+- `otaTryMarkValidAfterHealthCheck()` markiert das Image als gültig
+- Bricht Rollback ab, sobald Netzwerk und MQTT stabil laufen (verzögerter Health-Check statt direktem Markieren in `setup()`)
 
 ## CI/CD Pipeline
 

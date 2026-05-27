@@ -26,7 +26,25 @@ bool mwShouldLogThrottle(unsigned long nowMs, std::atomic<unsigned long>& lastLo
     lastLoggedMs.store(nowMs, std::memory_order_relaxed);
     return true;
 }
+
+bool mwRejectIfHostOrOriginBad(AsyncWebServerRequest* req) {
+    if (!webRequestHostAllowed(req) || !webRequestOriginAllowed(req)) {
+        webSendEmpty(req, 403);
+        return true;
+    }
+    return false;
+}
 } // namespace
+
+ArMiddlewareCallback mwRequireAllowedHost() {
+    return [](AsyncWebServerRequest* req, ArMiddlewareNext next) {
+        if (!webRequestHostAllowed(req)) {
+            webSendEmpty(req, 403);
+            return;
+        }
+        next();
+    };
+}
 
 ArMiddlewareCallback mwRequireStaMode() {
     return [](AsyncWebServerRequest* req, ArMiddlewareNext next) {
@@ -50,6 +68,10 @@ ArMiddlewareCallback mwRequireApMode() {
 
 ArMiddlewareCallback mwRequireSessionRedirectGet() {
     return [](AsyncWebServerRequest* req, ArMiddlewareNext next) {
+        if (!webRequestHostAllowed(req)) {
+            webSendEmpty(req, 403);
+            return;
+        }
         if (webAuthRedirectIfUnauthenticated(req)) {
             return;
         }
@@ -59,6 +81,9 @@ ArMiddlewareCallback mwRequireSessionRedirectGet() {
 
 ArMiddlewareCallback mwPostSessionAndCsrfRedirect(const char* csrfRedirectPath) {
     return [csrfRedirectPath](AsyncWebServerRequest* req, ArMiddlewareNext next) {
+        if (mwRejectIfHostOrOriginBad(req)) {
+            return;
+        }
         if (!webAuthIsAuthenticated(req)) {
             webRedirect(req, F("/auth"));
             return;
@@ -74,6 +99,9 @@ ArMiddlewareCallback mwPostSessionAndCsrfRedirect(const char* csrfRedirectPath) 
 ArMiddlewareCallback mwPostChayaSendGuard() {
     return [](AsyncWebServerRequest* req, ArMiddlewareNext next) {
         const unsigned long nowMs = millis();
+        if (mwRejectIfHostOrOriginBad(req)) {
+            return;
+        }
         if (!webAuthIsAuthenticated(req)) {
             if (mwShouldLogThrottle(nowMs, s_lastChaya401Ms)) {
                 ESP_LOGW(TAG, "/chaya JSON POST denied: no session (401)");
@@ -94,6 +122,9 @@ ArMiddlewareCallback mwPostChayaSendGuard() {
 
 ArMiddlewareCallback mwApPostCsrfRedirect(const char* redirectOnMismatch) {
     return [redirectOnMismatch](AsyncWebServerRequest* req, ArMiddlewareNext next) {
+        if (mwRejectIfHostOrOriginBad(req)) {
+            return;
+        }
         if (!webAuthValidateCsrfPost(req)) {
             webRedirect(req, redirectOnMismatch);
             return;
@@ -104,6 +135,9 @@ ArMiddlewareCallback mwApPostCsrfRedirect(const char* redirectOnMismatch) {
 
 ArMiddlewareCallback mwWifiConnectPostGuard() {
     return [](AsyncWebServerRequest* req, ArMiddlewareNext next) {
+        if (mwRejectIfHostOrOriginBad(req)) {
+            return;
+        }
         if (configIsApMode()) {
             if (!webAuthValidateCsrfPost(req)) {
                 webRedirect(req, F("/wifi"));
@@ -130,6 +164,10 @@ ArMiddlewareCallback mwWifiConnectPostGuard() {
 
 ArMiddlewareCallback mwWifiInfoOrApOpenGet() {
     return [](AsyncWebServerRequest* req, ArMiddlewareNext next) {
+        if (!webRequestHostAllowed(req)) {
+            webSendEmpty(req, 403);
+            return;
+        }
         if (configIsApMode()) {
             next();
             return;

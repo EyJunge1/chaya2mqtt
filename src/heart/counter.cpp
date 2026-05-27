@@ -5,6 +5,8 @@
 #include "constants.h"
 #include "display/display.h"
 #include "config/nvs_utils.h"
+#include "config/nvs_keys.h"
+#include "util/time_helpers.h"
 #include "wifi/wlan.h"
 
 #include "log_tag.h"
@@ -26,7 +28,6 @@
 DEFINE_LOG_TAG("CTR");
 
 namespace {
-constexpr const char kNvsNsChaya[] = "chaya";
 static std::atomic<bool> s_chayaNvsWritesSuspended{false};
 static portMUX_TYPE      s_heartDisplayMux = portMUX_INITIALIZER_UNLOCKED;
 } // namespace
@@ -235,7 +236,13 @@ void maybePeriodicallyResetCounters() {
         return;
     }
 
-    const uint32_t lastDay = s_lastResetCalendarDayUtc.load(std::memory_order_relaxed);
+    const uint32_t lastDayRaw = s_lastResetCalendarDayUtc.load(std::memory_order_relaxed);
+    uint32_t       lastDay    = lastDayRaw;
+    if (lastDay != UINT32_MAX && lastDay > currentDay + 1U) {
+        ESP_LOGW(TAG, "rstDay ahead of today — clamping anchor to today (%" PRIu32 ")", currentDay);
+        lastDay = currentDay;
+        s_lastResetCalendarDayUtc.store(lastDay, std::memory_order_relaxed);
+    }
     const uint32_t daysSinceReset
         = (currentDay >= lastDay) ? (currentDay - lastDay) : 0U;
     const bool      shouldReset = (daysSinceReset >= static_cast<uint32_t>(periodDays));
@@ -317,7 +324,16 @@ void loadHeartCounter() {
                            std::memory_order_relaxed);
     counterBaseline.store(std::max<int32_t>(prefs.getInt("cntBase", 0), 0), std::memory_order_relaxed);
     sentCountBaseline.store(std::max<int32_t>(prefs.getInt("sntBase", 0), 0), std::memory_order_relaxed);
-    s_lastResetCalendarDayUtc.store(prefs.getUInt("rstDay", UINT32_MAX), std::memory_order_relaxed);
+    uint32_t rstDay = prefs.getUInt("rstDay", UINT32_MAX);
+    const time_t utcNow = time(nullptr);
+    if (ntpTimeLooksSynced(utcNow)) {
+        const uint32_t today = calendarDaySinceEpochUtc(utcNow);
+        if (rstDay != UINT32_MAX && rstDay > today + 1U) {
+            ESP_LOGW(TAG, "rstDay in future — clamping to today (%" PRIu32 ")", today);
+            rstDay = today;
+        }
+    }
+    s_lastResetCalendarDayUtc.store(rstDay, std::memory_order_relaxed);
     prefs.end();
 
     ESP_LOGD(TAG,

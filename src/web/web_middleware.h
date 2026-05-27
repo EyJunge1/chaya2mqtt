@@ -2,6 +2,8 @@
 
 #include <ESPAsyncWebServer.h>
 
+ArMiddlewareCallback mwRequireAllowedHost();
+
 ArMiddlewareCallback mwRequireStaMode();
 ArMiddlewareCallback mwRequireApMode();
 

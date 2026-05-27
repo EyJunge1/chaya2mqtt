@@ -8,6 +8,12 @@
 void setupWiFi();
 void resetAllSettings();
 
+/** True after setupWiFi() finished (STA or AP path). */
+bool wlanIsSetupComplete();
+
+/** True after boot STA connect attempt finished (connected or AP fallback). */
+bool wlanIsBootWifiSettled();
+
 void releaseGpioHoldBeforeRestart();
 
 bool configSaveWiFiCredentials(const char* ssid, const char* password);
@@ -53,6 +59,9 @@ bool wlanLastStaBootFailureSsidSnapshot(char* outSsid, size_t maxLen);
 
 void wlanWifiApiLock();
 void wlanWifiApiUnlock();
+
+/** Try WiFi API mutex with timeout; false if unavailable. */
+bool wlanWifiApiLockTimed(uint32_t timeoutMs);
 
 bool wlanReadStaLocalIpForCommit(char* outIp, size_t ipLen);
 

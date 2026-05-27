@@ -39,3 +39,12 @@ void mqttCfgPendingSnapshot(MqttConfig* out);
 
 /** True when pending differs from active (saved banner still applying). */
 bool mqttCfgHasUnappliedPending();
+
+/** True when active in-RAM config matches persisted NVS (no write needed). */
+bool mqttCfgMatchesNvs();
+
+/** True when two config snapshots are identical. */
+bool mqttCfgEquals(const MqttConfig* a, const MqttConfig* b);
+
+/** Snapshot with bounded wait; false if cfg mutex unavailable. */
+bool mqttCfgSnapshotTimed(MqttConfig* out, uint32_t timeoutMs);

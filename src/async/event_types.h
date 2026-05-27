@@ -8,6 +8,7 @@ enum class NetCmd : uint8_t {
     MqttKillClient,
     WifiReconnect,
     ChayaSendRequested,
+    FactoryResetRequested,
 };
 
 /** Message to dedicated display task (single SPI user). */

@@ -4,6 +4,7 @@
 #include "async/event_types.h"
 #include "async/task_handles.h"
 #include "hw/button.h"
+#include "heart/counter.h"
 #include "hw/pins.h"
 // Nach Auth-UI: Session-Fenster + LED koordinieren (siehe web/auth.cpp — bewusste Kopplung).
 #include "web/auth.h"
@@ -14,6 +15,7 @@
 #include <Arduino.h>
 #include <SPI.h>
 #include <atomic>
+#include <climits>
 #include <cstdint>
 #include <cstdlib>
 #include <driver/gpio.h>
@@ -30,8 +32,22 @@ static ChayaEpdPanel display(/*CS=*/ pins::kSpiCs, /*DC=*/ pins::kDisplayDc,
 
 static bool g_displaySpiSuspendedLowPower = false;
 static std::atomic<bool> s_heartDrawQueued{false};
+static int               s_lastDrawnRx = INT32_MIN;
+static int               s_lastDrawnTx = INT32_MIN;
+static std::atomic<unsigned long> s_lastHeartRedrawEnqueueMs{0};
+static constexpr unsigned long    kHeartRedrawMinIntervalMs = 30000UL;
 
-static bool displayPostHeartRedraw(TickType_t waitTicks) {
+static bool displayPostHeartRedraw(TickType_t waitTicks, bool bypassMinInterval = false) {
+    const int rx = heartCounter.load(std::memory_order_relaxed);
+    const int tx = heartSentCounter.load(std::memory_order_relaxed);
+    if (rx == s_lastDrawnRx && tx == s_lastDrawnTx) {
+        return true;
+    }
+    const unsigned long nowMs = millis();
+    const unsigned long lastMs = s_lastHeartRedrawEnqueueMs.load(std::memory_order_relaxed);
+    if (!bypassMinInterval && lastMs != 0UL && (nowMs - lastMs) < kHeartRedrawMinIntervalMs) {
+        return false;
+    }
     if (s_heartDrawQueued.exchange(true, std::memory_order_acq_rel)) {
         return true;
     }
@@ -41,6 +57,7 @@ static bool displayPostHeartRedraw(TickType_t waitTicks) {
         ESP_LOGW(TAG, "display queue full (cmd=%d)", static_cast<int>(DisplayMsg::Cmd::DrawHeart));
         return false;
     }
+    s_lastHeartRedrawEnqueueMs.store(nowMs, std::memory_order_relaxed);
     return true;
 }
 
@@ -91,7 +108,13 @@ static void displayTaskFn(void*) {
         switch (msg.cmd) {
         case DisplayMsg::Cmd::DrawHeart:
             drawHeartWithNumber();
+            s_lastDrawnRx = heartCounter.load(std::memory_order_relaxed);
+            s_lastDrawnTx = heartSentCounter.load(std::memory_order_relaxed);
             s_heartDrawQueued.store(false, std::memory_order_release);
+            if (heartCounter.load(std::memory_order_relaxed) != s_lastDrawnRx
+                || heartSentCounter.load(std::memory_order_relaxed) != s_lastDrawnTx) {
+                (void)displayPostHeartRedraw(0, true);
+            }
             break;
         case DisplayMsg::Cmd::DrawSplash:
             drawSplashScreen();
@@ -110,11 +133,13 @@ static void displayTaskFn(void*) {
     }
 }
 
-static void displayPostMsg(DisplayMsg::Cmd cmd, uint32_t payload, TickType_t waitTicks) {
+static bool displayPostMsg(DisplayMsg::Cmd cmd, uint32_t payload, TickType_t waitTicks) {
     DisplayMsg msg{cmd, payload};
     if (xQueueSend(g_displayCmdQueue, &msg, waitTicks) != pdTRUE) {
         ESP_LOGW(TAG, "display queue full (cmd=%d)", static_cast<int>(cmd));
+        return false;
     }
+    return true;
 }
 
 void requestHeartRedraw() {
@@ -130,7 +155,11 @@ void requestDeferredDrawAuthCode(uint32_t code) {
 }
 
 void requestDeferredDrawAuthPrompt() {
-    displayPostMsg(DisplayMsg::Cmd::DrawAuthPrompt, 0, pdMS_TO_TICKS(2000));
+    (void)displayPostMsg(DisplayMsg::Cmd::DrawAuthPrompt, 0, pdMS_TO_TICKS(2000));
+}
+
+bool requestDeferredDrawAuthPromptChecked() {
+    return displayPostMsg(DisplayMsg::Cmd::DrawAuthPrompt, 0, pdMS_TO_TICKS(2000));
 }
 
 void requestDeferredDrawSplashScreen() {

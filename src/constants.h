@@ -32,7 +32,7 @@ constexpr const char kDeviceHostname[] = "chaya2mqtt";
 /** Captive-portal AP SSID during setup. */
 constexpr const char kSetupApSsid[] = "Chaya2MQTT";
 
-constexpr unsigned long kWifiStaBootConnectTimeoutMs = 10000UL;
+constexpr unsigned long kWifiStaBootConnectTimeoutMs = 5000UL;
 constexpr uint8_t       kWifiStaMaxTxPowerQuarterDbm = 52U;
 constexpr uint16_t      kWifiStaInactiveTimeSeconds  = 30U;
 
@@ -63,7 +63,7 @@ inline bool mqttTopicSyntaxOk(const char* topic, size_t maxLen) {
             return false;
         }
         const unsigned char c = static_cast<unsigned char>(*p);
-        if (c == ' ' || c == '#' || c == '+') {
+        if (c < 0x20U || c > 0x7EU || c == ' ' || c == '#' || c == '+') {
             return false;
         }
     }

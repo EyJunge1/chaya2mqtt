@@ -24,3 +24,17 @@ inline void chayaTaskWatchdogSubscribe(const char* logTag) {
 inline void chayaTaskWatchdogReset() {
     static_cast<void>(esp_task_wdt_reset());
 }
+
+inline void chayaTaskWatchdogUnsubscribe(const char* logTag) {
+    const TaskHandle_t h = xTaskGetCurrentTaskHandle();
+    if (h == nullptr) {
+        return;
+    }
+    const esp_err_t err = esp_task_wdt_delete(h);
+    if (err == ESP_ERR_INVALID_STATE) {
+        return;
+    }
+    if (err != ESP_OK) {
+        ESP_LOGW(logTag, "esp_task_wdt_delete: %s", esp_err_to_name(err));
+    }
+}

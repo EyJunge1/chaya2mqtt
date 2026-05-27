@@ -6,11 +6,13 @@
 #include "admin_globals.h"
 #include "admin_routes.h"
 
+#include "async/app_task.h"
 #include "async/event_types.h"
 #include "async/task_handles.h"
 #include "config/app_config.h"
 #include "heart/counter.h"
 #include "display/display.h"
+#include "ota/ota.h"
 #include "wifi/wlan.h"
 #include "auth.h"
 #include "web_events.h"
@@ -32,6 +34,7 @@ AsyncWebServer& webAdminWebServer() {
 
 namespace {
 bool g_webAdminRoutesRegistered = false;
+uint32_t s_webAdminMqttApplyQueuedVersion = 0;
 } // namespace
 
 void webAdminRegisterRoutes() {
@@ -80,18 +83,25 @@ void webAdminLoop() {
         }
     }
 
-    if (g_webAdminMqttApplyPending.load(std::memory_order_acquire)
+    if (g_webAdminMqttApplyVersion.load(std::memory_order_acquire) > s_webAdminMqttApplyQueuedVersion
         && !g_systemShutdownInProgress.load(std::memory_order_acquire)) {
         NetCmd cmd = NetCmd::MqttSettingsChanged;
         if (xQueueSend(g_netCmdQueue, &cmd, pdMS_TO_TICKS(500)) == pdTRUE) {
-            g_webAdminMqttApplyPending.store(false, std::memory_order_release);
+            s_webAdminMqttApplyQueuedVersion =
+                g_webAdminMqttApplyVersion.load(std::memory_order_acquire);
         } else {
             ESP_LOGW(TAG, "netCmd queue full (MqttSettingsChanged)");
+            appTaskNotify();
         }
     }
 
     if (g_webAdminRebootRequested.exchange(false, std::memory_order_acq_rel)
         || g_webAdminWifiReconnectRequested.exchange(false, std::memory_order_acq_rel)) {
+        if (otaBlocksDestructiveAction()) {
+            ESP_LOGW(TAG, "Reboot/reconnect deferred: OTA in progress");
+            g_webAdminRebootRequested.store(true, std::memory_order_release);
+            return;
+        }
         flushHeartCounterIfDirty();
         flushHeartSentCounterIfDirty();
         delay(200);

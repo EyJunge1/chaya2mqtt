@@ -9,6 +9,9 @@
 #include "web_utils.h"
 #include "wifi/wlan.h"
 
+#include "util/time_helpers.h"
+#include "util/auth_code_validation.h"
+
 #include <Arduino.h>
 #include <ESPAsyncWebServer.h>
 #include <algorithm>
@@ -32,21 +35,22 @@ static constexpr const char    kCookieName[]     = "chaya_sid";
 /** Protects CSRF + session (Async web task vs main webAuthLoop / button reads). */
 static portMUX_TYPE s_authMux = portMUX_INITIALIZER_UNLOCKED;
 
-static uint32_t s_csrfToken = 0;
+static uint8_t s_csrfTokenRaw[16]{};
 
 static bool    s_sessionActive = false;
 static uint8_t s_sessionRaw[16]{};
+static unsigned long s_sessionCreatedMs = 0;
 
 /** Challenge fields — visible across tasks without holding s_authMux. */
 static std::atomic<uint32_t>        s_challengeCode{0};
-static std::atomic<unsigned long>   s_challengeExpiresMs{0};
+static std::atomic<unsigned long>   s_challengeStartedMs{0};
 static std::atomic<bool>            s_challengePending{false};
 
 static std::atomic<bool>           s_awaitingButtonConfirm{false};
-static std::atomic<unsigned long> s_confirmExpiresMs{0};
+static std::atomic<unsigned long> s_confirmStartedMs{0};
 
 static std::atomic<unsigned>       s_authFailStreak{0};
-static std::atomic<unsigned long>  s_authLockoutUntilMs{0};
+static std::atomic<unsigned long>  s_authLockoutStartMs{0};
 
 static bool isPublicPath(const String& uri) {
     if (configIsApMode()) {
@@ -56,11 +60,53 @@ static bool isPublicPath(const String& uri) {
         }
         return uri == "/" || uri == "/favicon.ico";
     }
-    if (uri == "/wifi" || uri.startsWith("/wifi-scan") || uri == "/wifi-status"
-        || uri.startsWith("/wifi-connect") || uri.startsWith("/auth") || uri == "/logout") {
+    if (uri.startsWith("/wifi-connect") || uri == "/wifi") {
         return true;
     }
-    return false;
+    if (uri.startsWith("/auth") || uri == "/logout") {
+        return true;
+    }
+    return uri == "/" || uri == "/favicon.ico";
+}
+
+static bool secretsEqual16(const uint8_t* a, const uint8_t* b) {
+    if (a == nullptr || b == nullptr) {
+        return false;
+    }
+    uint8_t diff = 0;
+    for (size_t i = 0; i < 16; ++i) {
+        diff |= static_cast<uint8_t>(a[i] ^ b[i]);
+    }
+    return diff == 0U;
+}
+
+static void rotateCsrfTokenLocked() {
+    esp_fill_random(s_csrfTokenRaw, sizeof(s_csrfTokenRaw));
+}
+
+static bool tryConsumeAuthChallenge(uint32_t entered, unsigned long nowMs) {
+    if (!s_challengePending.load(std::memory_order_acquire)) {
+        return false;
+    }
+    if (deadlineReached(s_challengeStartedMs.load(std::memory_order_acquire), kChallengeTtlMs,
+                        nowMs)) {
+        return false;
+    }
+    if (entered != s_challengeCode.load(std::memory_order_relaxed)) {
+        return false;
+    }
+    bool expectedPending = true;
+    if (!s_challengePending.compare_exchange_strong(expectedPending, false,
+                                                    std::memory_order_acq_rel)) {
+        return false;
+    }
+    s_challengeCode.store(0, std::memory_order_relaxed);
+    s_challengeStartedMs.store(0, std::memory_order_relaxed);
+    return true;
+}
+
+static bool authCodeSyntaxOk(const char* codeStr) {
+    return webAuthCodeSyntaxOk(codeStr);
 }
 
 static void hexEncode16(const uint8_t* in, char* outHex65) {
@@ -86,6 +132,21 @@ static bool hexDecode32Strict(const char* hex, uint8_t out16[16]) {
         out16[i] = static_cast<uint8_t>(v);
     }
     return true;
+}
+
+static bool csrfTokenMatches(const char* submitted) {
+    if (submitted == nullptr) {
+        return false;
+    }
+    portENTER_CRITICAL(&s_authMux);
+    uint8_t expectedCopy[16];
+    memcpy(expectedCopy, s_csrfTokenRaw, sizeof(expectedCopy));
+    portEXIT_CRITICAL(&s_authMux);
+    if (strlen(submitted) != 32U) {
+        return false;
+    }
+    uint8_t got[16];
+    return hexDecode32Strict(submitted, got) && secretsEqual16(got, expectedCopy);
 }
 
 static bool parseCookieSession(AsyncWebServerRequest* req, uint8_t outRaw[16]) {
@@ -116,6 +177,7 @@ static bool sessionMatchesRequest(AsyncWebServerRequest* req) {
     portENTER_CRITICAL(&s_authMux);
     const bool active = s_sessionActive;
     uint8_t    sessionCopy[16];
+    const unsigned long createdMs = s_sessionCreatedMs;
     if (active) {
         memcpy(sessionCopy, s_sessionRaw, 16);
     }
@@ -124,11 +186,16 @@ static bool sessionMatchesRequest(AsyncWebServerRequest* req) {
     if (!active) {
         return false;
     }
+    const unsigned long nowMs = millis();
+    if (deadlineReached(createdMs, kSessionCookieMaxAgeSec * 1000UL, nowMs)) {
+        webAuthInvalidateSession();
+        return false;
+    }
     uint8_t cookieRaw[16];
     if (!parseCookieSession(req, cookieRaw)) {
         return false;
     }
-    return memcmp(cookieRaw, sessionCopy, 16) == 0;
+    return secretsEqual16(cookieRaw, sessionCopy);
 }
 
 bool webAuthIsAuthenticated(AsyncWebServerRequest* req) {
@@ -196,18 +263,18 @@ static void scheduleMainTaskScreenAfterAuthFlow() {
 
 static void challengeClearAtomic() {
     s_challengePending.store(false, std::memory_order_release);
-    s_challengeExpiresMs.store(0, std::memory_order_relaxed);
+    s_challengeStartedMs.store(0, std::memory_order_relaxed);
     s_challengeCode.store(0, std::memory_order_relaxed);
 }
 
 static void awaitingClearAtomic() {
     s_awaitingButtonConfirm.store(false, std::memory_order_release);
-    s_confirmExpiresMs.store(0, std::memory_order_relaxed);
+    s_confirmStartedMs.store(0, std::memory_order_relaxed);
 }
 
-static void challengeBeginAtomic(uint32_t code, unsigned long expiresMs) {
+static void challengeBeginAtomic(uint32_t code, unsigned long startedMs) {
     s_challengeCode.store(code, std::memory_order_relaxed);
-    s_challengeExpiresMs.store(expiresMs, std::memory_order_release);
+    s_challengeStartedMs.store(startedMs, std::memory_order_release);
     s_challengePending.store(true, std::memory_order_release);
 }
 
@@ -243,29 +310,37 @@ static void maybeStartAwaitingButtonConfirm(bool resetFailStreakFromGet) {
         return;
     }
 
-    s_confirmExpiresMs.store(millis() + kConfirmWindowMs, std::memory_order_release);
+    s_confirmStartedMs.store(millis(), std::memory_order_release);
 
     if (resetFailStreakFromGet) {
         s_authFailStreak.store(0, std::memory_order_relaxed);
     }
-    requestDeferredDrawAuthPrompt();
+    if (!requestDeferredDrawAuthPromptChecked()) {
+        s_awaitingButtonConfirm.store(false, std::memory_order_release);
+        ESP_LOGW(TAG, "Auth prompt enqueue failed (display queue full)");
+    }
     /* Auth LED blink is started after drawAuthPrompt() completes — see display.cpp */
 }
 
 void webAuthInit() {
     portENTER_CRITICAL(&s_authMux);
-    s_csrfToken = esp_random();
-    if (s_csrfToken == 0) {
-        s_csrfToken = 0xa5a5a5a5U;
+    rotateCsrfTokenLocked();
+    portEXIT_CRITICAL(&s_authMux);
+}
+
+void webAuthGetCsrfTokenHex(char* outHex33, size_t outLen) {
+    if (outHex33 == nullptr || outLen < 33U) {
+        return;
     }
+    portENTER_CRITICAL(&s_authMux);
+    hexEncode16(s_csrfTokenRaw, outHex33);
     portEXIT_CRITICAL(&s_authMux);
 }
 
 uint32_t webAuthGetCsrfToken() {
-    portENTER_CRITICAL(&s_authMux);
-    const uint32_t t = s_csrfToken;
-    portEXIT_CRITICAL(&s_authMux);
-    return t;
+    char hex[33];
+    webAuthGetCsrfTokenHex(hex, sizeof(hex));
+    return static_cast<uint32_t>(strtoul(hex, nullptr, 16));
 }
 
 bool webAuthValidateCsrfPost(AsyncWebServerRequest* req) {
@@ -276,10 +351,7 @@ bool webAuthValidateCsrfPost(AsyncWebServerRequest* req) {
     if (p == nullptr) {
         return false;
     }
-    const uint32_t tok = webAuthGetCsrfToken();
-    char           tmp[24];
-    snprintf(tmp, sizeof(tmp), "%lu", static_cast<unsigned long>(tok));
-    return strcmp(p->value().c_str(), tmp) == 0;
+    return csrfTokenMatches(p->value().c_str());
 }
 
 void webAuthHandleButtonDuringAuthBlink() {
@@ -291,15 +363,15 @@ void webAuthHandleButtonDuringAuthBlink() {
     }
 
     const unsigned long nowMs = millis();
-    if (nowMs >= s_confirmExpiresMs.load(std::memory_order_acquire)) {
+    if (deadlineReached(s_confirmStartedMs.load(std::memory_order_acquire), kConfirmWindowMs,
+                        nowMs)) {
         return;
     }
 
     awaitingClearAtomic();
 
     const uint32_t      code      = esp_random() % 1000000U;
-    const unsigned long expiresMs = millis() + kChallengeTtlMs;
-    challengeBeginAtomic(code, expiresMs);
+    challengeBeginAtomic(code, nowMs);
     requestDeferredDrawAuthCode(code);
     buttonSetAuthBlinkActive(false); /* Immediate feedback: drawing code (E-Ink blocks loop). */
 }
@@ -308,7 +380,7 @@ void webAuthResetConfirmDeadline() {
     if (!s_awaitingButtonConfirm.load(std::memory_order_acquire)) {
         return;
     }
-    s_confirmExpiresMs.store(millis() + kConfirmWindowMs, std::memory_order_release);
+    s_confirmStartedMs.store(millis(), std::memory_order_release);
 }
 
 void webAuthLoop() {
@@ -316,14 +388,16 @@ void webAuthLoop() {
 
     if (s_awaitingButtonConfirm.load(std::memory_order_acquire)
         && buttonIsAuthBlinkActive()) {
-        if (nowMs >= s_confirmExpiresMs.load(std::memory_order_acquire)) {
+        if (deadlineReached(s_confirmStartedMs.load(std::memory_order_acquire), kConfirmWindowMs,
+                            nowMs)) {
             authConfirmWindowExpired();
             return;
         }
     }
 
     if (s_challengePending.load(std::memory_order_acquire)) {
-        if (nowMs >= s_challengeExpiresMs.load(std::memory_order_acquire)) {
+        if (deadlineReached(s_challengeStartedMs.load(std::memory_order_acquire), kChallengeTtlMs,
+                            nowMs)) {
             authChallengeExpired();
         }
     }
@@ -374,12 +448,12 @@ static void handleAuthGet(AsyncWebServerRequest* req) {
 
 /** Remaining seconds until lockout ends (rounded up); 0 if not locked out. */
 static unsigned lockoutRemainingSec(unsigned long nowMs) {
-    const unsigned long until = s_authLockoutUntilMs.load(std::memory_order_acquire);
-    if (until == 0U || nowMs >= until) {
+    const unsigned long start = s_authLockoutStartMs.load(std::memory_order_acquire);
+    if (start == 0UL || deadlineReached(start, kAuthLockoutMs, nowMs)) {
         return 0U;
     }
-    const unsigned long diff = until - nowMs;
-    const unsigned long sec  = (diff + 999UL) / 1000UL;
+    const uint32_t remMs = remainingMs(start, kAuthLockoutMs, nowMs);
+    const unsigned long sec = (static_cast<unsigned long>(remMs) + 999UL) / 1000UL;
     return static_cast<unsigned>(
         std::min(sec, static_cast<unsigned long>(7200))); // sane upper bound if clock skew etc.
 }
@@ -393,7 +467,8 @@ static void handleAuthPost(AsyncWebServerRequest* req) {
     }
 
     const unsigned long nowMs = millis();
-    if (nowMs < s_authLockoutUntilMs.load(std::memory_order_acquire)) {
+    const unsigned long lockoutStart = s_authLockoutStartMs.load(std::memory_order_acquire);
+    if (lockoutStart != 0UL && !deadlineReached(lockoutStart, kAuthLockoutMs, nowMs)) {
         const unsigned long  remSec = lockoutRemainingSec(nowMs);
         const unsigned long  lastNotice =
             s_lastLockoutNoticeMs.load(std::memory_order_relaxed);
@@ -418,20 +493,19 @@ static void handleAuthPost(AsyncWebServerRequest* req) {
 
     const AsyncWebParameter* p       = req->getParam("code", true);
     const String&            codeStr = (p != nullptr) ? p->value() : String();
-    const uint32_t           entered = static_cast<uint32_t>(strtoul(codeStr.c_str(), nullptr, 10));
+    if (!authCodeSyntaxOk(codeStr.c_str())) {
+        webRedirect(req, F("/auth?bad=1"));
+        return;
+    }
+    const uint32_t entered = static_cast<uint32_t>(strtoul(codeStr.c_str(), nullptr, 10));
 
-    const bool     pending   = s_challengePending.load(std::memory_order_acquire);
-    const bool     timeOk    = nowMs < s_challengeExpiresMs.load(std::memory_order_acquire);
-    const uint32_t expected  = s_challengeCode.load(std::memory_order_relaxed);
-    const bool     ok        = pending && timeOk && (entered == expected);
-
-    if (!ok) {
+    if (!tryConsumeAuthChallenge(entered, nowMs)) {
         const unsigned fails =
             s_authFailStreak.fetch_add(1, std::memory_order_acq_rel) + 1U;
         ESP_LOGD(TAG, "Web auth POST: invalid challenge code (%u/%u failures)", fails,
                  static_cast<unsigned>(kAuthFailsForLock));
         if (fails >= kAuthFailsForLock) {
-            s_authLockoutUntilMs.store(nowMs + kAuthLockoutMs, std::memory_order_release);
+            s_authLockoutStartMs.store(nowMs, std::memory_order_release);
             s_authFailStreak.store(0, std::memory_order_release);
             ESP_LOGW(TAG, "Web auth lockout activated after repeated failures (~%lu h)",
                      static_cast<unsigned long>(kAuthLockoutMs / 3600000UL));
@@ -444,7 +518,9 @@ static void handleAuthPost(AsyncWebServerRequest* req) {
 
     portENTER_CRITICAL(&s_authMux);
     esp_fill_random(s_sessionRaw, sizeof(s_sessionRaw));
-    s_sessionActive = true;
+    s_sessionActive     = true;
+    s_sessionCreatedMs  = nowMs;
+    rotateCsrfTokenLocked();
     portEXIT_CRITICAL(&s_authMux);
 
     awaitingClearAtomic();
@@ -512,7 +588,8 @@ static void handleLogoutPost(AsyncWebServerRequest* req) {
 
 void webAuthInvalidateSession() {
     portENTER_CRITICAL(&s_authMux);
-    s_sessionActive = false;
+    s_sessionActive    = false;
+    s_sessionCreatedMs = 0;
     memset(s_sessionRaw, 0, sizeof(s_sessionRaw));
     portEXIT_CRITICAL(&s_authMux);
 }

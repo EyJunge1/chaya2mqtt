@@ -111,7 +111,7 @@ GithubCheckResult otaGithubEvaluateLatestRelease(char* firmwareUrlBuf,
     WiFiClientSecure tls;
     tls.setCACertBundle(x509_crt_bundle_start,
                         static_cast<size_t>(x509_crt_bundle_end - x509_crt_bundle_start));
-    tls.setTimeout(45000);
+    tls.setTimeout(30000);
 
     HTTPClient https;
     if (!https.begin(tls, kGithubLatestReleaseApiUrl)) {
@@ -119,12 +119,13 @@ GithubCheckResult otaGithubEvaluateLatestRelease(char* firmwareUrlBuf,
         return GithubCheckResult::ApiError;
     }
 
-    https.setConnectTimeout(20000);
-    https.setTimeout(45000);
+    https.setConnectTimeout(15000);
+    https.setTimeout(30000);
     https.addHeader(F("User-Agent"), F("Chaya2MQTT-esp32"));
     https.addHeader(F("Accept"), F("application/vnd.github+json"));
 
     const int httpCode = https.GET();
+    chayaTaskWatchdogReset();
     if (httpCode != HTTP_CODE_OK) {
         ESP_LOGE(TAG, "GitHub API: HTTP error %d", httpCode);
         https.end();
@@ -136,8 +137,10 @@ GithubCheckResult otaGithubEvaluateLatestRelease(char* firmwareUrlBuf,
     size_t              len           = 0;
     bool                tagParsed     = false;
     const unsigned long streamStartMs = millis();
+    constexpr unsigned long kGithubStreamDeadlineMs = 30000UL;
 
-    while (https.connected() && len + 1 < kGithubJsonBuf && (millis() - streamStartMs) < 45000UL) {
+    while (https.connected() && len + 1 < kGithubJsonBuf
+           && (millis() - streamStartMs) < kGithubStreamDeadlineMs) {
         chayaTaskWatchdogReset();
         if (tagParsed) {
             break;

@@ -45,6 +45,7 @@ static constexpr unsigned long kMqttNtpRetryMs                   = 2000UL;
 
 // Teardown/restart client from mqttLoop / network task (not from MQTT callback).
 static esp_mqtt_client_handle_t s_client = nullptr;
+static std::atomic<uint32_t>    s_clientGeneration{0};
 static std::atomic<bool>        s_connected{false};
 static std::atomic<bool> s_connectPending{false};
 static std::atomic<bool> s_disconnectIntentional{false};
@@ -64,6 +65,19 @@ static char s_lwtTopicBuf[sizeof(MqttConfig::topicPub) + 16U]{};
 static char     s_mqttSubTopicCache[sizeof(MqttConfig::topicSub)]{};
 static size_t   s_mqttSubTopicLen = 0;
 static portMUX_TYPE s_mqttSubTopicMux = portMUX_INITIALIZER_UNLOCKED;
+
+static constexpr TickType_t kMqttClientLockTimeoutTicks = pdMS_TO_TICKS(2000);
+static constexpr TickType_t kChayaPublishLockTimeoutTicks = pdMS_TO_TICKS(2000);
+static constexpr unsigned long kMqttBrokerRedrawMinIntervalMs = 30000UL;
+
+static std::atomic<unsigned long> s_lastBrokerRedrawMs{0};
+
+static inline bool mqttClientLockTimed() {
+    if (g_mqttClientMutex == nullptr) {
+        return true;
+    }
+    return xSemaphoreTake(g_mqttClientMutex, kMqttClientLockTimeoutTicks) == pdTRUE;
+}
 
 static inline void mqttClientLock() {
     if (g_mqttClientMutex != nullptr) {
@@ -156,6 +170,13 @@ static void handleCounterPayload(const char* payload, unsigned int length) {
         return;
     }
 
+    for (unsigned i = 0; i < length; ++i) {
+        if (payload[i] < '0' || payload[i] > '9') {
+            ESP_LOGD(TAG, "Counter payload must be decimal digits only");
+            return;
+        }
+    }
+
     char buf[12];
     memcpy(buf, payload, length);
     buf[length] = '\0';
@@ -176,6 +197,13 @@ static void handleCounterPayload(const char* payload, unsigned int length) {
 
     ESP_LOGI(TAG, "Heart counter from MQTT (remote): %d", newCounter);
     heartCounterStoreFromRemote(newCounter);
+
+    const unsigned long nowMs = millis();
+    const unsigned long lastMs = s_lastBrokerRedrawMs.load(std::memory_order_relaxed);
+    if (lastMs != 0UL && (nowMs - lastMs) < kMqttBrokerRedrawMinIntervalMs) {
+        return;
+    }
+    s_lastBrokerRedrawMs.store(nowMs, std::memory_order_relaxed);
     requestHeartRedrawNonBlocking();
 }
 
@@ -235,19 +263,54 @@ static bool topicMatchesSubscribe(const esp_mqtt_event_handle_t ev) {
     return match;
 }
 
+static bool mqttEventClientStillLive(esp_mqtt_client_handle_t cli, uint32_t* outGeneration) {
+    if (cli == nullptr) {
+        return false;
+    }
+    if (!mqttClientLockTimed()) {
+        return false;
+    }
+    const bool live = (s_client != nullptr && cli == s_client);
+    if (live && outGeneration != nullptr) {
+        *outGeneration = s_clientGeneration.load(std::memory_order_acquire);
+    }
+    mqttClientUnlock();
+    return live;
+}
+
+static bool mqttEventGenerationStillValid(uint32_t generation) {
+    if (!mqttClientLockTimed()) {
+        return false;
+    }
+    const bool valid = (s_client != nullptr
+                        && s_clientGeneration.load(std::memory_order_acquire) == generation);
+    mqttClientUnlock();
+    return valid;
+}
+
 static void mqttEventHandler(void* /*handler_args*/, esp_event_base_t /*base*/, int32_t event_id,
                              void* event_data) {
     const esp_mqtt_event_handle_t ev = static_cast<esp_mqtt_event_handle_t>(event_data);
     if (ev == nullptr) {
         return;
     }
+    uint32_t handlerGeneration = 0;
+    if (!mqttEventClientStillLive(ev->client, &handlerGeneration)) {
+        return;
+    }
 
     switch (static_cast<esp_mqtt_event_id_t>(event_id)) {
     case MQTT_EVENT_CONNECTED: {
+        if (!mqttEventGenerationStillValid(handlerGeneration)) {
+            break;
+        }
         s_connectPending.store(false, std::memory_order_release);
 
         MqttConfig cfg{};
-        mqttCfgSnapshot(&cfg);
+        if (!mqttCfgSnapshotTimed(&cfg, 2000U)) {
+            ESP_LOGW(TAG, "MQTT connected: cfg snapshot timeout — skipping subscribe setup");
+            break;
+        }
         char lwtPublishTopic[sizeof(s_lwtTopicBuf)];
         static_cast<void>(snprintf(lwtPublishTopic, sizeof(lwtPublishTopic), "%s/lwt", cfg.topicPub));
 
@@ -279,6 +342,10 @@ static void mqttEventHandler(void* /*handler_args*/, esp_event_base_t /*base*/, 
         break;
     }
     case MQTT_EVENT_DATA:
+        if (!mqttEventGenerationStillValid(handlerGeneration)) {
+            mqttResetFragmentState();
+            break;
+        }
         if (topicMatchesSubscribe(ev)) {
             feedFragmentedPayload(ev);
         } else {
@@ -288,6 +355,9 @@ static void mqttEventHandler(void* /*handler_args*/, esp_event_base_t /*base*/, 
         break;
 
     case MQTT_EVENT_DISCONNECTED: {
+        if (!mqttEventGenerationStillValid(handlerGeneration)) {
+            break;
+        }
         s_connected.store(false, std::memory_order_release);
         s_connectPending.store(false, std::memory_order_release);
         mqttResetFragmentState();
@@ -454,6 +524,7 @@ static void mqttKillClientImpl() {
 
     esp_mqtt_client_handle_t cli = s_client;
     s_client = nullptr;
+    s_clientGeneration.fetch_add(1U, std::memory_order_acq_rel);
     mqttResetFragmentState();
     portENTER_CRITICAL(&s_mqttSubTopicMux);
     s_mqttSubTopicLen      = 0;
@@ -476,7 +547,11 @@ static void mqttKillClientImpl() {
 }
 
 static void mqttKillClient() {
-    mqttClientLock();
+    if (!mqttClientLockTimed()) {
+        ESP_LOGW(TAG, "mqttKillClient: mutex timeout");
+        s_mqttKillCoalesce.store(true, std::memory_order_release);
+        return;
+    }
     mqttKillClientImpl();
     mqttClientUnlock();
 }
@@ -501,28 +576,35 @@ static bool mqttPublishChayaLocked() {
     }
     static_cast<void>(snprintf(buf, sizeof(buf), "%ld", nextVal));
 
-    mqttClientLock();
+    if (!mqttClientLockTimed()) {
+        ESP_LOGW(TAG, "Publish skipped: mqtt client mutex timeout");
+        return false;
+    }
     esp_mqtt_client_handle_t cli = s_client;
     if (cli == nullptr) {
         mqttClientUnlock();
         return false;
     }
 
-    // QoS 0, retained; success if msg_id >= 0.
+    // QoS 0 enqueue while connected; not broker delivery confirmation.
     const int pid = esp_mqtt_client_publish(cli, topicPub, buf, static_cast<int>(strlen(buf)), /*qos=*/0,
                                             /*retain=*/1);
+    const bool published = pid >= 0;
     mqttClientUnlock();
-    if (pid >= 0) {
+    if (published) {
         ESP_LOGD(TAG, "Published chaya → %s payload=%s (msg_id=%d)", topicPub, buf, pid);
     }
-    return pid >= 0;
+    return published && s_connected.load(std::memory_order_acquire);
 }
 
 bool mqttPublishChaya() {
     if (g_chayaPublishMutex == nullptr) {
         return false;
     }
-    xSemaphoreTake(g_chayaPublishMutex, portMAX_DELAY);
+    if (xSemaphoreTake(g_chayaPublishMutex, kChayaPublishLockTimeoutTicks) != pdTRUE) {
+        ESP_LOGW(TAG, "Publish skipped: chaya mutex timeout");
+        return false;
+    }
     const bool ok = mqttPublishChayaLocked();
     xSemaphoreGive(g_chayaPublishMutex);
     return ok;
@@ -532,7 +614,10 @@ bool mqttPublishChayaAndApplySentCounters() {
     if (g_chayaPublishMutex == nullptr) {
         return false;
     }
-    xSemaphoreTake(g_chayaPublishMutex, portMAX_DELAY);
+    if (xSemaphoreTake(g_chayaPublishMutex, kChayaPublishLockTimeoutTicks) != pdTRUE) {
+        ESP_LOGW(TAG, "Publish skipped: chaya mutex timeout");
+        return false;
+    }
     const bool ok = mqttPublishChayaLocked();
     if (!ok) {
         xSemaphoreGive(g_chayaPublishMutex);
@@ -666,6 +751,9 @@ void mqttLoop() {
     }
 
     if (s_loopCfg.server[0] == '\0') {
+        if (wlanStaConnectedOk()) {
+            wlanSetStaPowerSaveMqttActive(true);
+        }
         mqttClientLock();
         const bool hasClient = s_client != nullptr;
         mqttClientUnlock();

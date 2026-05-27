@@ -175,7 +175,7 @@ sequenceDiagram
     participant M as mqtt
 
     W->>W: mqttCfgStorePending
-    W->>W: g_webAdminMqttApplyPending = true
+    W->>W: g_webAdminMqttApplyVersion.fetch_add(1)
     A->>A: webAdminLoop erkennt Flag
     A->>N: NetCmd MqttSettingsChanged
     N->>M: mqttBeginSettingsApply
