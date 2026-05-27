@@ -12,13 +12,15 @@ void webAddSecurityHeaders(AsyncWebServerResponse* resp) {
     }
     resp->addHeader(F("X-Frame-Options"), F("DENY"));
     resp->addHeader(F("X-Content-Type-Options"), F("nosniff"));
+    resp->addHeader(F("X-XSS-Protection"), F("0"));
     resp->addHeader(F("Referrer-Policy"), F("no-referrer"));
     resp->addHeader(F("Cache-Control"), F("no-store"));
     resp->addHeader(F("Permissions-Policy"), F("camera=(), microphone=(), geolocation=()"));
     resp->addHeader(F("Content-Security-Policy"),
                     F("default-src 'self'; script-src 'unsafe-inline' 'self'; "
                       "style-src 'unsafe-inline' 'self'; connect-src 'self'; "
-                      "img-src 'none'; base-uri 'none'; frame-ancestors 'none'"));
+                      "img-src 'none'; object-src 'none'; base-uri 'none'; "
+                      "form-action 'self'; frame-ancestors 'none'"));
 }
 
 void webRedirect(AsyncWebServerRequest* req, const __FlashStringHelper* location) {

@@ -34,7 +34,7 @@ WiFi-Passwörter, MQTT-Zugangsdaten und Konfiguration werden in der **NVS** (Non
 | Aspekt | Status |
 |--------|--------|
 | Transport | **HTTP (Port 80)** – keine TLS-Verschlüsselung |
-| Session | Cookie `chaya_sid` (HttpOnly, SameSite=Strict) |
+| Session | Cookie `chaya_sid` (HttpOnly, SameSite=Lax) |
 | CSRF | Token in allen POST-Formularen |
 | Risiko | Session-Hijacking / Credential-Sniffing im lokalen Netz möglich |
 
