@@ -19,9 +19,8 @@ constexpr const char kMqttPairTopicPrefix[] = "chaya/";
 
 constexpr uint16_t kMqttDefaultTlsPort = 8883;
 
-constexpr uint32_t kMqttClientTaskStackBytes = 10240U;
-constexpr int      kMqttKeepAliveSeconds   = 60;
-constexpr int      kMqttOutboxLimitBytes   = 4096;
+constexpr int kMqttKeepAliveSeconds = 60;
+constexpr int kMqttOutboxLimitBytes = 4096;
 
 /** Wi-Fi SSID/password buffers (IEEE max + NUL). */
 constexpr size_t kWifiSsidMaxLen = 33U;
