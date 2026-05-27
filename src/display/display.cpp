@@ -9,6 +9,7 @@
 // Nach Auth-UI: Session-Fenster + LED koordinieren (siehe web/auth.cpp — bewusste Kopplung).
 #include "web/auth.h"
 
+#include "async/task_config.h"
 #include "diag/stack_monitor.h"
 #include "log_tag.h"
 
@@ -33,15 +34,16 @@ static ChayaEpdPanel display(GxEPD2_154_Z90c(/*CS=*/ pins::kSpiCs, /*DC=*/ pins:
 
 static bool g_displaySpiSuspendedLowPower = false;
 static std::atomic<bool> s_heartDrawQueued{false};
-static int               s_lastDrawnRx = INT32_MIN;
-static int               s_lastDrawnTx = INT32_MIN;
+static std::atomic<int> s_lastDrawnRx{INT32_MIN};
+static std::atomic<int> s_lastDrawnTx{INT32_MIN};
 static std::atomic<unsigned long> s_lastHeartRedrawEnqueueMs{0};
 static constexpr unsigned long    kHeartRedrawMinIntervalMs = 30000UL;
 
 static bool displayPostHeartRedraw(TickType_t waitTicks, bool bypassMinInterval = false) {
     const int rx = heartCounter.load(std::memory_order_relaxed);
     const int tx = heartSentCounter.load(std::memory_order_relaxed);
-    if (rx == s_lastDrawnRx && tx == s_lastDrawnTx) {
+    if (rx == s_lastDrawnRx.load(std::memory_order_relaxed)
+        && tx == s_lastDrawnTx.load(std::memory_order_relaxed)) {
         return true;
     }
     const unsigned long nowMs = millis();
@@ -107,16 +109,19 @@ static void displayTaskFn(void*) {
             continue;
         }
         switch (msg.cmd) {
-        case DisplayMsg::Cmd::DrawHeart:
+        case DisplayMsg::Cmd::DrawHeart: {
             drawHeartWithNumber();
-            s_lastDrawnRx = heartCounter.load(std::memory_order_relaxed);
-            s_lastDrawnTx = heartSentCounter.load(std::memory_order_relaxed);
+            const int drawnRx = heartCounter.load(std::memory_order_relaxed);
+            const int drawnTx = heartSentCounter.load(std::memory_order_relaxed);
+            s_lastDrawnRx.store(drawnRx, std::memory_order_relaxed);
+            s_lastDrawnTx.store(drawnTx, std::memory_order_relaxed);
             s_heartDrawQueued.store(false, std::memory_order_release);
-            if (heartCounter.load(std::memory_order_relaxed) != s_lastDrawnRx
-                || heartSentCounter.load(std::memory_order_relaxed) != s_lastDrawnTx) {
+            if (heartCounter.load(std::memory_order_relaxed) != drawnRx
+                || heartSentCounter.load(std::memory_order_relaxed) != drawnTx) {
                 (void)displayPostHeartRedraw(0, true);
             }
             break;
+        }
         case DisplayMsg::Cmd::DrawSplash:
             drawSplashScreen();
             break;
@@ -152,15 +157,15 @@ void requestHeartRedrawNonBlocking() {
 }
 
 void requestDeferredDrawAuthCode(uint32_t code) {
-    displayPostMsg(DisplayMsg::Cmd::DrawAuthCode, code, pdMS_TO_TICKS(2000));
+    displayPostMsg(DisplayMsg::Cmd::DrawAuthCode, code, pdMS_TO_TICKS(500));
 }
 
 void requestDeferredDrawAuthPrompt() {
-    (void)displayPostMsg(DisplayMsg::Cmd::DrawAuthPrompt, 0, pdMS_TO_TICKS(2000));
+    (void)displayPostMsg(DisplayMsg::Cmd::DrawAuthPrompt, 0, pdMS_TO_TICKS(500));
 }
 
 bool requestDeferredDrawAuthPromptChecked() {
-    return displayPostMsg(DisplayMsg::Cmd::DrawAuthPrompt, 0, pdMS_TO_TICKS(2000));
+    return displayPostMsg(DisplayMsg::Cmd::DrawAuthPrompt, 0, pdMS_TO_TICKS(500));
 }
 
 void requestDeferredDrawSplashScreen() {
@@ -181,7 +186,7 @@ void displayInit() {
      * nextPage(), which would trigger a task WDT abort. Long draws are expected on this device.
      */
     static constexpr uint32_t  kEpdSerialDiagOff    = 0;
-    static constexpr bool      kEpdInitialFull      = true;
+    static constexpr bool      kEpdInitialFull      = false;
     static constexpr uint16_t  kEpdResetDurationMs = 2;
     static constexpr bool      kEpdPulldownRst       = false;
     display.init(kEpdSerialDiagOff, kEpdInitialFull, kEpdResetDurationMs, kEpdPulldownRst);
@@ -189,7 +194,7 @@ void displayInit() {
 
 void displayStartTask() {
     const BaseType_t ok =
-        xTaskCreatePinnedToCore(displayTaskFn, "display", 4096, nullptr, 3, nullptr, 1);
+        xTaskCreatePinnedToCore(displayTaskFn, "display", kDisplayTaskStackBytes, nullptr, 3, nullptr, 1);
     if (ok != pdPASS) {
         ESP_LOGE(TAG, "display task create failed");
         abort();

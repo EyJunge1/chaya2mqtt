@@ -112,13 +112,45 @@ private:
     unsigned long       lastSaveMs_;
 };
 
-DebouncedChayaCounter s_rxCounter(&heartCounter, "counter", "NVS chaya: write counter failed");
-DebouncedChayaCounter s_txCounter(&heartSentCounter, "sentCount", "NVS chaya: write sentCount failed");
+DebouncedChayaCounter s_rxCounter(&heartCounter, kNvsKeyChayaCounter, "NVS chaya: write counter failed");
+DebouncedChayaCounter s_txCounter(&heartSentCounter, kNvsKeyChayaSentCount,
+                                  "NVS chaya: write sentCount failed");
+
+struct ChayaBaselineBlob {
+    int32_t  cntBase;
+    int32_t  sntBase;
+    uint32_t rstDay;
+};
+
+static_assert(sizeof(ChayaBaselineBlob) == 12, "ChayaBaselineBlob layout");
+
+static void loadBaselineFromNvs(Preferences& prefs, int32_t* cntBase, int32_t* sntBase,
+                                uint32_t* rstDay) {
+    ChayaBaselineBlob blob{};
+    const size_t blobLen = prefs.getBytesLength(kNvsKeyChayaBaselineBlob);
+    if (blobLen == sizeof(blob)
+        && prefs.getBytes(kNvsKeyChayaBaselineBlob, &blob, sizeof(blob)) == sizeof(blob)) {
+        *cntBase = blob.cntBase;
+        *sntBase = blob.sntBase;
+        *rstDay  = blob.rstDay;
+        return;
+    }
+    *cntBase = prefs.getInt(kNvsKeyChayaCntBase, 0);
+    *sntBase = prefs.getInt(kNvsKeyChayaSntBase, 0);
+    *rstDay  = prefs.getUInt(kNvsKeyChayaRstDay, UINT32_MAX);
+}
 
 inline void heartDebounceLock() {
     if (g_heartDebounceMutex != nullptr) {
         xSemaphoreTake(g_heartDebounceMutex, portMAX_DELAY);
     }
+}
+
+inline bool heartDebounceLockTimed(uint32_t timeoutMs) {
+    if (g_heartDebounceMutex == nullptr) {
+        return true;
+    }
+    return xSemaphoreTake(g_heartDebounceMutex, pdMS_TO_TICKS(timeoutMs)) == pdTRUE;
 }
 
 inline void heartDebounceUnlock() {
@@ -128,13 +160,6 @@ inline void heartDebounceUnlock() {
 }
 
 } // namespace
-
-uint32_t calendarDaySinceEpochUtc(time_t utc) {
-    if (utc < 0) {
-        utc = 0;
-    }
-    return static_cast<uint32_t>(static_cast<uint64_t>(utc) / 86400ULL);
-}
 
 void counterSuspendNvsSavesForFactoryReset() {
     s_chayaNvsWritesSuspended.store(true, std::memory_order_release);
@@ -202,12 +227,12 @@ static bool persistCounterBaselineState() {
         ESP_LOGE(TAG, "NVS chaya: open for baseline write failed");
         return false;
     }
-    const bool okCnt = prefs.putInt("cntBase", snapCntBase) > 0U;
-    const bool okSnt = prefs.putInt("sntBase", snapSntBase) > 0U;
-    const bool okDay = prefs.putUInt("rstDay", snapRstDay) > 0U;
+    const ChayaBaselineBlob blob{snapCntBase, snapSntBase, snapRstDay};
+    const bool okBlob =
+        prefs.putBytes(kNvsKeyChayaBaselineBlob, &blob, sizeof(blob)) == sizeof(blob);
     prefs.end();
-    if (!okCnt || !okSnt || !okDay) {
-        ESP_LOGE(TAG, "NVS chaya: baseline write failed");
+    if (!okBlob) {
+        ESP_LOGE(TAG, "NVS chaya: baseline blob write failed");
         return false;
     }
     return true;
@@ -304,45 +329,47 @@ void maybeResetDisplayBaselinesWhenCapped() {
 
 void loadHeartCounter() {
     const unsigned long t = millis();
-    app_nvs::ScopedNvsLock lock;
-    Preferences            prefs;
-    if (!prefs.begin(kNvsNsChaya, true)) {
-        ESP_LOGI(TAG, "NVS chaya namespace not present yet, counters = 0");
-        heartCounter.store(0, std::memory_order_relaxed);
-        heartSentCounter.store(0, std::memory_order_relaxed);
-        counterBaseline.store(0, std::memory_order_relaxed);
-        sentCountBaseline.store(0, std::memory_order_relaxed);
-        s_lastResetCalendarDayUtc.store(UINT32_MAX, std::memory_order_relaxed);
-        heartDebounceLock();
-        s_rxCounter.resetCommittedAndTimestamps(t);
-        s_txCounter.resetCommittedAndTimestamps(t);
-        heartDebounceUnlock();
-        return;
-    }
-    heartCounter.store(std::max<int32_t>(prefs.getInt("counter", 0), 0), std::memory_order_relaxed);
-    heartSentCounter.store(std::max<int32_t>(prefs.getInt("sentCount", 0), 0),
-                           std::memory_order_relaxed);
-    counterBaseline.store(std::max<int32_t>(prefs.getInt("cntBase", 0), 0), std::memory_order_relaxed);
-    sentCountBaseline.store(std::max<int32_t>(prefs.getInt("sntBase", 0), 0), std::memory_order_relaxed);
-    uint32_t rstDay = prefs.getUInt("rstDay", UINT32_MAX);
-    const time_t utcNow = time(nullptr);
-    if (ntpTimeLooksSynced(utcNow)) {
-        const uint32_t today = calendarDaySinceEpochUtc(utcNow);
-        if (rstDay != UINT32_MAX && rstDay > today + 1U) {
-            ESP_LOGW(TAG, "rstDay in future — clamping to today (%" PRIu32 ")", today);
-            rstDay = today;
+    int32_t             loadedCounter = 0;
+    int32_t             loadedSent    = 0;
+    int32_t             loadedCntBase = 0;
+    int32_t             loadedSntBase = 0;
+    uint32_t            loadedRstDay  = UINT32_MAX;
+    bool                nvsPresent    = false;
+
+    {
+        app_nvs::ScopedNvsLock lock;
+        Preferences            prefs;
+        if (prefs.begin(kNvsNsChaya, true)) {
+            nvsPresent = true;
+            loadedCounter =
+                std::max<int32_t>(prefs.getInt(kNvsKeyChayaCounter, 0), 0);
+            loadedSent = std::max<int32_t>(prefs.getInt(kNvsKeyChayaSentCount, 0), 0);
+            loadBaselineFromNvs(prefs, &loadedCntBase, &loadedSntBase, &loadedRstDay);
+            prefs.end();
         }
     }
-    s_lastResetCalendarDayUtc.store(rstDay, std::memory_order_relaxed);
-    prefs.end();
 
-    ESP_LOGD(TAG,
-             "Counters loaded from NVS: counter=%d sent=%d cntBase=%d sntBase=%d rstDay=%" PRIu32,
-             heartCounter.load(std::memory_order_relaxed),
-             heartSentCounter.load(std::memory_order_relaxed),
-             counterBaseline.load(std::memory_order_relaxed),
-             sentCountBaseline.load(std::memory_order_relaxed),
-             s_lastResetCalendarDayUtc.load(std::memory_order_relaxed));
+    if (!nvsPresent) {
+        ESP_LOGI(TAG, "NVS chaya namespace not present yet, counters = 0");
+    } else {
+        const time_t utcNow = time(nullptr);
+        if (ntpTimeLooksSynced(utcNow)) {
+            const uint32_t today = calendarDaySinceEpochUtc(utcNow);
+            if (loadedRstDay != UINT32_MAX && loadedRstDay > today + 1U) {
+                ESP_LOGW(TAG, "rstDay in future — clamping to today (%" PRIu32 ")", today);
+                loadedRstDay = today;
+            }
+        }
+        ESP_LOGD(TAG,
+                 "Counters loaded from NVS: counter=%d sent=%d cntBase=%d sntBase=%d rstDay=%" PRIu32,
+                 loadedCounter, loadedSent, loadedCntBase, loadedSntBase, loadedRstDay);
+    }
+
+    heartCounter.store(loadedCounter, std::memory_order_relaxed);
+    heartSentCounter.store(loadedSent, std::memory_order_relaxed);
+    counterBaseline.store(std::max<int32_t>(loadedCntBase, 0), std::memory_order_relaxed);
+    sentCountBaseline.store(std::max<int32_t>(loadedSntBase, 0), std::memory_order_relaxed);
+    s_lastResetCalendarDayUtc.store(loadedRstDay, std::memory_order_relaxed);
 
     heartDebounceLock();
     s_rxCounter.syncAfterExternalLoad(t);
@@ -371,13 +398,17 @@ bool saveHeartSentCounter() {
 }
 
 void maybeSaveHeartCounter() {
-    heartDebounceLock();
+    if (!heartDebounceLockTimed(1000U)) {
+        return;
+    }
     s_rxCounter.maybeSave();
     heartDebounceUnlock();
 }
 
 void maybeSaveHeartSentCounter() {
-    heartDebounceLock();
+    if (!heartDebounceLockTimed(1000U)) {
+        return;
+    }
     s_txCounter.maybeSave();
     heartDebounceUnlock();
 }
@@ -395,11 +426,13 @@ void flushHeartSentCounterIfDirty() {
 }
 
 void counterResetRamAfterFactoryClear() {
+    portENTER_CRITICAL(&s_heartDisplayMux);
     heartCounter.store(0, std::memory_order_relaxed);
     heartSentCounter.store(0, std::memory_order_relaxed);
     counterBaseline.store(0, std::memory_order_relaxed);
     sentCountBaseline.store(0, std::memory_order_relaxed);
     s_lastResetCalendarDayUtc.store(UINT32_MAX, std::memory_order_relaxed);
+    portEXIT_CRITICAL(&s_heartDisplayMux);
     const unsigned long t = millis();
     heartDebounceLock();
     s_rxCounter.resetCommittedAndTimestamps(t);

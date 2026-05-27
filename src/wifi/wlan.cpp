@@ -22,6 +22,7 @@
 #include <WiFi.h>
 #include <WiFiType.h>
 #include <DNSServer.h>
+#include <esp_wifi.h>
 #include <ESPAsyncWebServer.h>
 #include <ESPmDNS.h>
 
@@ -102,6 +103,9 @@ static std::atomic<unsigned long> s_lastWifiScanKickMs{0};
 static std::atomic<unsigned long> s_wifiScanNextAllowedMs{0};
 static constexpr unsigned long    kWifiScanKickMinIntervalMs = 20000UL;
 static constexpr unsigned long    kWifiScanFailBackoffMs     = 5000UL;
+
+static void setupWifiFinishStaConnected();
+static void setupWifiStartApFallback(const char* attemptedSsid);
 
 namespace {
 
@@ -253,13 +257,15 @@ bool wlanWifiScanCopyRowAt(size_t index, WlanScanRow* out) {
     return true;
 }
 
-void wlanFillStaLinkSnapshot(bool* outConnected, char* ipStr, size_t ipLen, char* ssidBuf,
+bool wlanFillStaLinkSnapshot(bool* outConnected, char* ipStr, size_t ipLen, char* ssidBuf,
                              size_t ssidLen, int* outRssi) {
     if (outConnected == nullptr || ipStr == nullptr || ssidBuf == nullptr || outRssi == nullptr
         || ipLen == 0U || ssidLen == 0U) {
-        return;
+        return false;
     }
-    wlanWifiApiLock();
+    if (!wlanWifiApiLockTimed(500U)) {
+        return false;
+    }
     const bool ok = (WiFi.status() == WL_CONNECTED && WiFi.localIP()[0] != 0);
     *outConnected = ok;
     if (!ok) {
@@ -267,7 +273,7 @@ void wlanFillStaLinkSnapshot(bool* outConnected, char* ipStr, size_t ipLen, char
         ssidBuf[0] = '\0';
         *outRssi   = 0;
         wlanWifiApiUnlock();
-        return;
+        return true;
     }
     formatIpv4ToBuf(WiFi.localIP(), ipStr, ipLen);
     wifi_ap_record_t ap{};
@@ -278,6 +284,7 @@ void wlanFillStaLinkSnapshot(bool* outConnected, char* ipStr, size_t ipLen, char
     }
     *outRssi = static_cast<int>(WiFi.RSSI());
     wlanWifiApiUnlock();
+    return true;
 }
 
 bool wlanReadStaLocalIpForCommit(char* outIp, size_t ipLen) {
@@ -335,20 +342,34 @@ static void wifiScanServiceOnMainTask() {
         return;
     }
 
-    // Arduino core already drained esp_wifi_scan_get_ap_records in _scanDone(); use WiFiScan API.
+    // Arduino core already drained esp_wifi_scan_get_ap_records in _scanDone(); prefer direct API.
     const size_t usable = std::min(static_cast<size_t>(n), kWlanWifiScanCacheMaxRows);
-    for (size_t i = 0; i < usable; ++i) {
-        const uint8_t idx = static_cast<uint8_t>(i);
-        s_wifiScanRowWork[i].rssi =
-            static_cast<int>(WiFi.RSSI(idx));
-        s_wifiScanRowWork[i].open =
-            (WiFi.encryptionType(idx) == WIFI_AUTH_OPEN);
-        const String ssidStr = WiFi.SSID(idx);
-        strlcpy(s_wifiScanRowWork[i].ssid, ssidStr.c_str(), sizeof(s_wifiScanRowWork[i].ssid));
+    size_t       rowCount = usable;
+    uint16_t     apCount  = static_cast<uint16_t>(usable);
+    wifi_ap_record_t records[kWlanWifiScanCacheMaxRows]{};
+    const esp_err_t recErr = esp_wifi_scan_get_ap_records(&apCount, records);
+    if (recErr == ESP_OK && apCount > 0U) {
+        rowCount = std::min(static_cast<size_t>(apCount), usable);
+        for (size_t i = 0; i < rowCount; ++i) {
+            s_wifiScanRowWork[i].rssi = records[i].rssi;
+            s_wifiScanRowWork[i].open = (records[i].authmode == WIFI_AUTH_OPEN);
+            strlcpy(s_wifiScanRowWork[i].ssid, reinterpret_cast<const char*>(records[i].ssid),
+                    sizeof(s_wifiScanRowWork[i].ssid));
+        }
+    } else {
+        for (size_t i = 0; i < usable; ++i) {
+            const uint8_t idx = static_cast<uint8_t>(i);
+            s_wifiScanRowWork[i].rssi =
+                static_cast<int>(WiFi.RSSI(idx));
+            s_wifiScanRowWork[i].open =
+                (WiFi.encryptionType(idx) == WIFI_AUTH_OPEN);
+            const String ssidStr = WiFi.SSID(idx);
+            strlcpy(s_wifiScanRowWork[i].ssid, ssidStr.c_str(), sizeof(s_wifiScanRowWork[i].ssid));
+        }
     }
     portENTER_CRITICAL(&s_wifiScanCacheMux);
-    s_wifiScanCacheCount = usable;
-    for (size_t i = 0; i < usable; ++i) {
+    s_wifiScanCacheCount = rowCount;
+    for (size_t i = 0; i < rowCount; ++i) {
         s_wifiScanCache[i] = s_wifiScanRowWork[i];
     }
     portEXIT_CRITICAL(&s_wifiScanCacheMux);
@@ -370,13 +391,13 @@ bool configSaveWiFiCredentials(const char* ssid, const char* password) {
 
     app_nvs::ScopedNvsLock lock;
     Preferences prefs;
-    if (!prefs.begin("wifi", false)) {
+    if (!prefs.begin(kNvsNsWifi, false)) {
         ESP_LOGE(TAG, "NVS wifi: begin(write) failed");
         return false;
     }
-    prefs.remove("ssid");
-    prefs.remove("pass");
-    const size_t w = prefs.putBytes("cred_v1", &pk, sizeof(pk));
+    prefs.remove(kNvsKeyWifiSsid);
+    prefs.remove(kNvsKeyWifiPass);
+    const size_t w = prefs.putBytes(kNvsKeyWifiCredV1, &pk, sizeof(pk));
     prefs.end();
     if (w != sizeof(pk)) {
         ESP_LOGE(TAG, "NVS wifi: credential blob write failed");
@@ -483,9 +504,9 @@ static void setupWifiFinishStaConnected() {
     g_lastFailedBootSsid[0] = '\0';
     portEXIT_CRITICAL(&g_lastFailedBootSsidMux);
     wlanWifiApiLock();
-    WiFi.setSleep(false);
+    WiFi.setSleep(true);
     wlanWifiApiUnlock();
-    esp_wifi_set_ps(WIFI_PS_NONE);
+    esp_wifi_set_ps(WIFI_PS_MIN_MODEM);
     esp_wifi_set_max_tx_power(kWifiStaMaxTxPowerQuarterDbm);
 
     configTime(0, 0, "pool.ntp.org", "time.cloudflare.com");
@@ -639,7 +660,13 @@ void wlanLoop() {
     wifiScanServiceOnMainTask();
     wifiConnectionTestServiceLoop();
     if (g_apMode.load(std::memory_order_relaxed)) {
-        g_dnsServer.processNextRequest();
+        static unsigned long s_lastApDnsPollMs = 0UL;
+        const unsigned long  nowMs             = millis();
+        const int            apClients         = WiFi.softAPgetStationNum();
+        if (apClients > 0 || s_lastApDnsPollMs == 0UL || (nowMs - s_lastApDnsPollMs) >= 5000UL) {
+            g_dnsServer.processNextRequest();
+            s_lastApDnsPollMs = nowMs;
+        }
     }
     if (s_mdnsRestartNeeded.exchange(false, std::memory_order_acq_rel)
         && !g_apMode.load(std::memory_order_relaxed)) {
@@ -686,8 +713,8 @@ void wlanSetStaPowerSaveMqttActive(bool mqttSessionActive) {
         WiFi.setSleep(true);
         esp_wifi_set_ps(WIFI_PS_MIN_MODEM);
     } else {
-        WiFi.setSleep(false);
-        esp_wifi_set_ps(WIFI_PS_NONE);
+        WiFi.setSleep(true);
+        esp_wifi_set_ps(WIFI_PS_MIN_MODEM);
     }
     wlanWifiApiUnlock();
 }

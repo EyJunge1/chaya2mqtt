@@ -9,6 +9,7 @@
 #include "ota/ota.h"
 #include "wifi/wlan.h"
 
+#include "async/task_config.h"
 #include "diag/stack_monitor.h"
 #include "diag/task_watchdog.h"
 
@@ -56,9 +57,6 @@ static struct {
     int            debouncedLevel         = LOW;
 } btn;
 
-#if defined(CORE_DEBUG_LEVEL) && CORE_DEBUG_LEVEL > 0
-static unsigned debugCounter = 0;
-#endif
 
 enum class LedTxPhase : uint8_t {
     Idle,
@@ -325,9 +323,7 @@ static void buttonPollAndProcess() {
                         s_authBlinkShortPressHandler();
                     }
                 } else if (!ledSendSequenceActive() && !configIsApMode()) {
-                    MqttConfig btnMqttCfg{};
-                    mqttCfgSnapshot(&btnMqttCfg);
-                    if (btnMqttCfg.server[0] != '\0') {
+                    if (mqttCfgIsBrokerConfigured()) {
                         startMqttSendLedSequence();
                     }
                 }
@@ -378,7 +374,7 @@ void buttonInit() {
 void buttonStartTask() {
     TaskHandle_t th = nullptr;
     const BaseType_t ok =
-        xTaskCreatePinnedToCore(buttonTaskFn, "button", 4096, nullptr, 8, &th, 1);
+        xTaskCreatePinnedToCore(buttonTaskFn, "button", kButtonTaskStackBytes, nullptr, 8, &th, 1);
     if (ok != pdPASS || th == nullptr) {
         ESP_LOGE(TAG, "button task create failed");
         abort();
@@ -406,11 +402,3 @@ void buttonStartupBlink() {
 void buttonEnableLedGpioHoldForLightSleep() {
     ledHoldWhenIdle();
 }
-
-#if defined(CORE_DEBUG_LEVEL) && CORE_DEBUG_LEVEL > 0
-void buttonDebugStatus() {
-    debugCounter++;
-    ESP_LOGD(TAG, "Status #%u: Button=%d, LED=%d",
-             debugCounter, digitalRead(kButtonGpio), digitalRead(kButtonLedPin));
-}
-#endif

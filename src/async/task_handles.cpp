@@ -1,6 +1,7 @@
 #include "task_handles.h"
 #include "async/task_config.h"
 #include "event_types.h"
+#include "tls_bundle_setup.h"
 
 #include <cstdlib>
 
@@ -21,8 +22,9 @@ SemaphoreHandle_t  g_wifiApiMutex    = nullptr;
 
 void asyncInfraInit() {
     // Queues + mutexes shared across tasks; abort if allocation fails.
+    chayaTlsInfraInit();
     g_netCmdQueue     = xQueueCreate(kNetCmdQueueDepth, sizeof(NetCmd));
-    g_displayCmdQueue = xQueueCreate(32, sizeof(DisplayMsg));
+    g_displayCmdQueue = xQueueCreate(kDisplayCmdQueueDepth, sizeof(DisplayMsg));
     g_mqttClientMutex   = xSemaphoreCreateMutex();
     g_chayaPublishMutex   = xSemaphoreCreateMutex();
     g_heartDebounceMutex  = xSemaphoreCreateMutex();

@@ -337,12 +337,6 @@ void webAuthGetCsrfTokenHex(char* outHex33, size_t outLen) {
     portEXIT_CRITICAL(&s_authMux);
 }
 
-uint32_t webAuthGetCsrfToken() {
-    char hex[33];
-    webAuthGetCsrfTokenHex(hex, sizeof(hex));
-    return static_cast<uint32_t>(strtoul(hex, nullptr, 16));
-}
-
 bool webAuthValidateCsrfPost(AsyncWebServerRequest* req) {
     if (!req->hasParam("csrf_token", true)) {
         return false;
@@ -370,7 +364,7 @@ void webAuthHandleButtonDuringAuthBlink() {
 
     awaitingClearAtomic();
 
-    const uint32_t      code      = esp_random() % 1000000U;
+    const uint32_t      code      = (esp_random() % 999999U) + 1U;
     challengeBeginAtomic(code, nowMs);
     requestDeferredDrawAuthCode(code);
     buttonSetAuthBlinkActive(false); /* Immediate feedback: drawing code (E-Ink blocks loop). */
@@ -385,6 +379,19 @@ void webAuthResetConfirmDeadline() {
 
 void webAuthLoop() {
     const unsigned long nowMs = millis();
+
+    static uint32_t s_sessionEvictCounter = 0U;
+    if (++s_sessionEvictCounter >= 120U) {
+        s_sessionEvictCounter = 0U;
+        portENTER_CRITICAL(&s_authMux);
+        if (s_sessionActive
+            && deadlineReached(s_sessionCreatedMs, kSessionCookieMaxAgeSec * 1000UL, nowMs)) {
+            s_sessionActive    = false;
+            s_sessionCreatedMs = 0;
+            memset(s_sessionRaw, 0, sizeof(s_sessionRaw));
+        }
+        portEXIT_CRITICAL(&s_authMux);
+    }
 
     if (s_awaitingButtonConfirm.load(std::memory_order_acquire)
         && buttonIsAuthBlinkActive()) {
@@ -442,7 +449,7 @@ static void handleAuthGet(AsyncWebServerRequest* req) {
     if (req->hasParam("bad", false)) {
         wrong = true;
     }
-    maybeStartAwaitingButtonConfirm(/*resetFailStreak=*/true);
+    maybeStartAwaitingButtonConfirm(/*resetFailStreak=*/false);
     streamAuthPage(req, wrong);
 }
 
@@ -544,7 +551,7 @@ static void handleAuthPost(AsyncWebServerRequest* req) {
     AsyncWebServerResponse* resp = req->beginResponse(302);
     resp->addHeader(F("Location"), nextPath);
     char cookieBuf[160];
-    snprintf(cookieBuf, sizeof(cookieBuf), "%s=%s; Path=/; HttpOnly; Max-Age=%lu; SameSite=Lax",
+    snprintf(cookieBuf, sizeof(cookieBuf), "%s=%s; Path=/; HttpOnly; Max-Age=%lu; SameSite=Strict",
              kCookieName, hexCookie, static_cast<unsigned long>(kSessionCookieMaxAgeSec));
     resp->addHeader(F("Set-Cookie"), cookieBuf);
     ESP_LOGI(TAG, "Web auth session established (login)");
@@ -581,7 +588,7 @@ static void handleLogoutPost(AsyncWebServerRequest* req) {
     resp->addHeader(F("Location"), String("/auth"));
     resp->addHeader(
         F("Set-Cookie"),
-        F("chaya_sid=; Path=/; HttpOnly; Max-Age=0; SameSite=Lax"));
+        F("chaya_sid=; Path=/; HttpOnly; Max-Age=0; SameSite=Strict"));
     webAddSecurityHeaders(resp);
     req->send(resp);
 }

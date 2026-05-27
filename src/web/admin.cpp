@@ -95,13 +95,17 @@ void webAdminLoop() {
         }
     }
 
-    if (g_webAdminRebootRequested.exchange(false, std::memory_order_acq_rel)
-        || g_webAdminWifiReconnectRequested.exchange(false, std::memory_order_acq_rel)) {
+    const bool rebootReq =
+        g_webAdminRebootRequested.load(std::memory_order_acquire);
+    const bool wifiReconnectReq =
+        g_webAdminWifiReconnectRequested.load(std::memory_order_acquire);
+    if (rebootReq || wifiReconnectReq) {
         if (otaBlocksDestructiveAction()) {
             ESP_LOGW(TAG, "Reboot/reconnect deferred: OTA in progress");
-            g_webAdminRebootRequested.store(true, std::memory_order_release);
             return;
         }
+        g_webAdminRebootRequested.store(false, std::memory_order_release);
+        g_webAdminWifiReconnectRequested.store(false, std::memory_order_release);
         flushHeartCounterIfDirty();
         flushHeartSentCounterIfDirty();
         delay(200);

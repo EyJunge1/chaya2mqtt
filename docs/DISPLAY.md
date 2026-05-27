@@ -10,6 +10,7 @@ Das E-Ink-Display zeigt ein **rotes Herz** mit **RX- und TX-Zählerständen** (D
 | Priorität | 3 |
 | Core | 1 |
 | WDT | **Nicht angemeldet** (Full Refresh kann >5 s dauern) |
+| Boot-Init | `displayInit()` mit `initial_full_refresh=false` — erster Full Refresh erfolgt beim ersten Draw-Command |
 
 ### Befehle (`DisplayMsg`)
 

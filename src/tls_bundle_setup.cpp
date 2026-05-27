@@ -10,12 +10,19 @@
 static SemaphoreHandle_t s_caBundleMutex = nullptr;
 static bool              s_caBundleInstalled = false;
 
+void chayaTlsInfraInit() {
+    if (s_caBundleMutex != nullptr) {
+        return;
+    }
+    s_caBundleMutex = xSemaphoreCreateMutex();
+    if (s_caBundleMutex == nullptr) {
+        abort();
+    }
+}
+
 bool chayaTlsEnsureCaBundleInstalled() {
     if (s_caBundleMutex == nullptr) {
-        s_caBundleMutex = xSemaphoreCreateMutex();
-        if (s_caBundleMutex == nullptr) {
-            return false;
-        }
+        chayaTlsInfraInit();
     }
     if (xSemaphoreTake(s_caBundleMutex, portMAX_DELAY) != pdTRUE) {
         return false;

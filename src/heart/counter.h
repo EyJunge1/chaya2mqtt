@@ -4,6 +4,8 @@
 #include <cstdint>
 #include <ctime>
 
+#include "util/time_helpers.h"
+
 /** Last MQTT sub value (NVS chaya). */
 extern std::atomic<int> heartCounter;
 /** Successful TX count; next publish sends this + 1 (NVS chaya). */
@@ -26,9 +28,6 @@ struct HeartCounterDrawSnapshot {
     int sentCountBaselineRaw{};
 };
 void heartCounterFillDrawSnapshot(HeartCounterDrawSnapshot* out);
-
-/** UTC day index: floor(utc / 86400). */
-uint32_t calendarDaySinceEpochUtc(time_t utc);
 
 void loadHeartCounter();
 void counterSuspendNvsSavesForFactoryReset();

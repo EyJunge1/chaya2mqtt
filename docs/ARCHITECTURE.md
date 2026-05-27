@@ -75,6 +75,7 @@ Light-Sleep wurde bewusst deaktiviert, damit Web-Admin und MQTT-Reconnects respo
 | `g_nvsMutex` | Thread-safe `Preferences`-Wrapper |
 | `g_wifiTestMutex` | WiFi-Verbindungstest (Web vs. Network) |
 | `g_wifiApiMutex` | Arduino `WiFi` / `esp_wifi` API-Zugriff |
+| `s_mqttCfgMutex` | MQTT-Konfiguration (lazy-init in `mqtt/config.cpp`) |
 
 **Lock-Reihenfolge** (niemals umkehren, dokumentiert in `mqtt/mqtt.h`):
 
@@ -130,11 +131,11 @@ sequenceDiagram
     M->>D: requestDeferredDraw*
 ```
 
-1. **Async-Infra:** Queues und Mutexe anlegen
-2. **CPU:** 240 MHz, BT aus, DFS (80–240 MHz, kein Light-Sleep)
-3. **Serial:** 115200 nur im Debug-Build (`CORE_DEBUG_LEVEL > 0`)
-4. **Display:** Hardware-Init + Display-Task starten
-5. **Button:** GPIO initialisieren
+1. **Async-Infra:** Queues und Mutexe anlegen (inkl. TLS-CA-Bundle-Mutex)
+2. **CPU:** 240 MHz, BT aus, DFS (80–240 MHz, kein Light-Sleep; `CONFIG_PM_ENABLE`)
+3. **Display:** Hardware-Init (`initial_full_refresh=false`) + Display-Task starten
+4. **Button:** GPIO initialisieren
+5. **Serial:** 115200 nur im Debug-Build (`CORE_DEBUG_LEVEL > 0`)
 6. **NVS laden:** MQTT-Config, Zähler, Reset-Periode, Web-Auth
 7. **WiFi:** STA mit gespeicherten Credentials oder SoftAP `Chaya2MQTT` + Captive DNS
 8. **MQTT:** Client konfigurieren (noch nicht verbinden)

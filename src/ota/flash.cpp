@@ -318,7 +318,8 @@ bool httpStreamFirmwareToOtaVerified(WiFiClientSecure& tls, const char* binUrl,
     err = esp_ota_end(*otaSess.addr());
     if (err != ESP_OK) {
         ESP_LOGE(TAG, "esp_ota_end: %s", esp_err_to_name(err));
-        abandonOtaSilent();
+        // esp_ota_end invalidates the handle on failure — do not esp_ota_abort again.
+        otaSess.disarmCommitted();
         return false;
     }
 

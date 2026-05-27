@@ -10,4 +10,5 @@ constexpr uint32_t kOtaTaskStackBytes     = 8192U;
 constexpr uint32_t kDisplayTaskStackBytes = 4096U;
 
 /** g_netCmdQueue depth. */
-constexpr uint8_t kNetCmdQueueDepth = 32U;
+constexpr uint8_t kNetCmdQueueDepth    = 32U;
+constexpr uint8_t kDisplayCmdQueueDepth = 32U;

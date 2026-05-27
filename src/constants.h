@@ -103,7 +103,25 @@ inline bool mqttServerSyntaxOk(const char* host, size_t maxLen) {
             return false;
         }
         const unsigned char c = static_cast<unsigned char>(*p);
-        if (c < 0x20U || c == ' ' || c == '#' || c == '+') {
+        if (c < 0x20U || c > 0x7EU || c == ' ' || c == '#' || c == '+') {
+            return false;
+        }
+    }
+    return true;
+}
+
+inline bool wifiSsidSyntaxOk(const char* ssid, size_t maxLen) {
+    if (ssid == nullptr || ssid[0] == '\0' || maxLen == 0U) {
+        return false;
+    }
+    size_t len = 0;
+    for (const char* p = ssid; *p != '\0'; ++p) {
+        ++len;
+        if (len >= maxLen) {
+            return false;
+        }
+        const unsigned char c = static_cast<unsigned char>(*p);
+        if (c < 0x20U || c > 0x7EU) {
             return false;
         }
     }

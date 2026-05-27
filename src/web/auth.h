@@ -26,9 +26,6 @@ bool webAuthIsAuthenticated(AsyncWebServerRequest* req);
 
 void webAuthGetCsrfTokenHex(char* outHex33, size_t outLen);
 
-/** Legacy decimal helper (prefer webAuthGetCsrfTokenHex). */
-uint32_t webAuthGetCsrfToken();
-
 /** Short button press while auth LED blink is active: confirm reveal or no-op during code phase. */
 void webAuthHandleButtonDuringAuthBlink();
 

@@ -60,7 +60,10 @@ static void handlePairingPost(AsyncWebServerRequest* req) {
     }
     g_webAdminMqttNvsWriteFailed.store(false, std::memory_order_release);
     MqttConfig pending{};
-    mqttCfgSnapshot(&pending);
+    if (!mqttCfgSnapshotTimed(&pending, 2000U)) {
+        req->send(503, "text/plain", "MQTT config busy");
+        return;
+    }
 
     if (!req->hasParam("partner_id", true)) {
         webRedirect(req, F("/pairing?e=partner"));
@@ -85,7 +88,10 @@ static void handlePairingPost(AsyncWebServerRequest* req) {
         return;
     }
     MqttConfig active{};
-    mqttCfgSnapshot(&active);
+    if (!mqttCfgSnapshotTimed(&active, 2000U)) {
+        req->send(503, "text/plain", "MQTT config busy");
+        return;
+    }
     if (mqttCfgEquals(&pending, &active)) {
         webRedirect(req, F("/pairing?saved=1"));
         return;
@@ -102,7 +108,10 @@ static void handleMqttPost(AsyncWebServerRequest* req) {
     }
     g_webAdminMqttNvsWriteFailed.store(false, std::memory_order_release);
     MqttConfig pending{};
-    mqttCfgSnapshot(&pending);
+    if (!mqttCfgSnapshotTimed(&pending, 2000U)) {
+        req->send(503, "text/plain", "MQTT config busy");
+        return;
+    }
 
     if (req->hasParam("mqtt_server", true)) {
         const AsyncWebParameter* p = req->getParam("mqtt_server", true);
@@ -167,7 +176,10 @@ static void handleMqttPost(AsyncWebServerRequest* req) {
         return;
     }
     MqttConfig active{};
-    mqttCfgSnapshot(&active);
+    if (!mqttCfgSnapshotTimed(&active, 2000U)) {
+        req->send(503, "text/plain", "MQTT config busy");
+        return;
+    }
     if (mqttCfgEquals(&pending, &active)) {
         webRedirect(req, F("/mqtt?saved=1"));
         return;

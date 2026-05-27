@@ -2,6 +2,7 @@
 
 #include "github.h"
 #include "flash.h"
+#include "ota_task.h"
 
 #include "config/app_config.h"
 #include "config/nvs_keys.h"
@@ -162,6 +163,7 @@ bool otaBlocksDestructiveAction() {
 
 void otaQueueGithubCheck() {
     g_otaCheckRequested.store(true, std::memory_order_release);
+    otaTaskWake();
 }
 
 void otaLoop() {

@@ -34,7 +34,7 @@ WiFi-Passwörter, MQTT-Zugangsdaten und Konfiguration werden in der **NVS** (Non
 | Aspekt | Status |
 |--------|--------|
 | Transport | **HTTP (Port 80)** – keine TLS-Verschlüsselung |
-| Session | Cookie `chaya_sid` (HttpOnly, SameSite=Lax) |
+| Session | Cookie `chaya_sid` (HttpOnly, SameSite=Strict) |
 | CSRF | Token in allen POST-Formularen |
 | Risiko | Session-Hijacking / Credential-Sniffing im lokalen Netz möglich |
 
@@ -59,8 +59,17 @@ Wenn aktiviert (`cfg/authEn`):
 
 Im AP-Modus: `/`, `/wifi*`, `/favicon.ico`
 
-Im STA-Modus (Auth aktiv): `/wifi`, `/wifi-connect*`, `/auth`, `/logout`
+Im STA-Modus (Auth aktiv): `/`, `/wifi`, `/wifi-connect*`, `/auth`, `/logout`, `/favicon.ico`
 (`/wifi-scan` und `/wifi-status` erfordern im STA-Modus eine aktive Session)
+
+### SSE (`/events`)
+
+| Aspekt | Status |
+|--------|--------|
+| Transport | Gleicher HTTP-Origin wie Admin-UI |
+| Auth | AP: offen; STA ohne Web-Auth: offen; STA mit Web-Auth: Session-Cookie wie HTML-Routen |
+| Host-Check | `webRequestHostAllowed()` in `authorizeConnect` (DNS-Rebinding-Schutz) |
+| Limit | Max. 6 gleichzeitige Clients |
 
 ## MQTT
 

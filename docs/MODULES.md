@@ -254,7 +254,7 @@ Details: [WEB_ADMIN.md](WEB_ADMIN.md)
 | Datei | Zweck |
 |-------|-------|
 | `ota.h` / `ota.cpp` | Auto-Check-Logik, Download-Queue |
-| `ota_task.cpp` | OTA-Task (7168 Stack, Prio 4) |
+| `ota_task.cpp` | OTA-Task (8192 Stack, Prio 4) |
 | `github.h` / `github.cpp` | GitHub Releases API, semver-Vergleich |
 | `flash.h` / `flash.cpp` | TLS-Download, SHA256, Flash-Install |
 

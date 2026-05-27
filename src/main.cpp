@@ -47,7 +47,6 @@ void setup() {
     displayInit();
     displayStartTask();
     ESP_LOGI(TAG, "Display initialized");
-    requestDeferredDrawSplashScreen();
 
     buttonInit();
 

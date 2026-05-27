@@ -8,6 +8,7 @@
 #include <ESPAsyncWebServer.h>
 #include <cstdio>
 #include <cstring>
+#include <cctype>
 
 void webAddSecurityHeaders(AsyncWebServerResponse* resp) {
     if (resp == nullptr) {
@@ -45,26 +46,61 @@ void webRedirect(AsyncWebServerRequest* req, const char* location) {
 }
 
 #include <esp_heap_caps.h>
-#include <cstring>
 
-static bool webHostStringAllowed(const String& host) {
-    if (host.length() == 0U) {
+static bool hostEqualsIgnoreCase(const char* host, const char* ref) {
+    if (host == nullptr || ref == nullptr) {
+        return false;
+    }
+    while (*host != '\0' && *ref != '\0') {
+        if (std::tolower(static_cast<unsigned char>(*host))
+            != std::tolower(static_cast<unsigned char>(*ref))) {
+            return false;
+        }
+        ++host;
+        ++ref;
+    }
+    return *host == '\0' && *ref == '\0';
+}
+
+static bool hostPrefixIgnoreCaseThenPortOrEnd(const char* host, const char* prefix) {
+    if (host == nullptr || prefix == nullptr) {
+        return false;
+    }
+    while (*prefix != '\0') {
+        if (std::tolower(static_cast<unsigned char>(*host))
+            != std::tolower(static_cast<unsigned char>(*prefix))) {
+            return false;
+        }
+        ++host;
+        ++prefix;
+    }
+    return *host == '\0' || *host == ':';
+}
+
+static bool webHostCStringAllowed(const char* host) {
+    if (host == nullptr || host[0] == '\0') {
         return true;
     }
-    String h = host;
-    h.toLowerCase();
-    if (h == kDeviceHostname || h.startsWith(String(kDeviceHostname) + ".local")
-        || h.startsWith(String(kDeviceHostname) + ".local:")) {
+    if (hostEqualsIgnoreCase(host, kDeviceHostname)) {
+        return true;
+    }
+    char localPrefix[48];
+    static_cast<void>(snprintf(localPrefix, sizeof(localPrefix), "%s.local", kDeviceHostname));
+    if (hostPrefixIgnoreCaseThenPortOrEnd(host, localPrefix)) {
         return true;
     }
     if (configIsApMode()) {
-        if (h == "4.3.2.1" || h.startsWith("4.3.2.1:")) {
+        if (hostEqualsIgnoreCase(host, "4.3.2.1") || hostPrefixIgnoreCaseThenPortOrEnd(host, "4.3.2.1")) {
             return true;
         }
     }
     char ip[16]{};
     if (wlanStaConnectedOk() && wlanReadStaLocalIpForCommit(ip, sizeof(ip)) && ip[0] != '\0') {
-        if (h == ip || h.startsWith(String(ip) + ":")) {
+        if (hostEqualsIgnoreCase(host, ip)) {
+            return true;
+        }
+        const size_t ipLen = std::strlen(ip);
+        if (std::strncmp(host, ip, ipLen) == 0 && host[ipLen] == ':') {
             return true;
         }
     }
@@ -75,7 +111,7 @@ bool webRequestHostAllowed(AsyncWebServerRequest* req) {
     if (req == nullptr) {
         return false;
     }
-    return webHostStringAllowed(req->host());
+    return webHostCStringAllowed(req->host().c_str());
 }
 
 bool webRequestOriginAllowed(AsyncWebServerRequest* req) {
@@ -85,15 +121,22 @@ bool webRequestOriginAllowed(AsyncWebServerRequest* req) {
     if (!req->hasHeader("Origin")) {
         return true;
     }
-    const String origin = req->header("Origin");
-    const int    schemeEnd = origin.indexOf("://");
-    if (schemeEnd < 0) {
+    const char* origin = req->header("Origin").c_str();
+    const char* schemeEnd = std::strstr(origin, "://");
+    if (schemeEnd == nullptr) {
         return false;
     }
-    String rest = origin.substring(schemeEnd + 3);
-    const int slash = rest.indexOf('/');
-    const String originHost = (slash >= 0) ? rest.substring(0, slash) : rest;
-    return webHostStringAllowed(originHost);
+    const char* hostStart = schemeEnd + 3;
+    const char* pathStart = std::strchr(hostStart, '/');
+    const size_t hostLen =
+        (pathStart != nullptr) ? static_cast<size_t>(pathStart - hostStart) : std::strlen(hostStart);
+    char originHost[128];
+    if (hostLen >= sizeof(originHost)) {
+        return false;
+    }
+    std::memcpy(originHost, hostStart, hostLen);
+    originHost[hostLen] = '\0';
+    return webHostCStringAllowed(originHost);
 }
 
 AsyncResponseStream* beginResponseStreamOr500(AsyncWebServerRequest* req, const char* mime) {

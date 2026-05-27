@@ -52,7 +52,7 @@ size_t wlanWifiScanCachedCount();
 
 bool wlanWifiScanCopyRowAt(size_t index, WlanScanRow* out);
 
-void wlanFillStaLinkSnapshot(bool* outConnected, char* ipStr, size_t ipLen, char* ssidBuf,
+bool wlanFillStaLinkSnapshot(bool* outConnected, char* ipStr, size_t ipLen, char* ssidBuf,
                              size_t ssidLen, int* outRssi);
 
 bool wlanLastStaBootFailureSsidSnapshot(char* outSsid, size_t maxLen);

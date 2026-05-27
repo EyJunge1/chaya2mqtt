@@ -33,6 +33,11 @@ static void handleWifiConnectPost(AsyncWebServerRequest* req) {
         webRedirect(req, F("/wifi"));
         return;
     }
+    if (!wifiSsidSyntaxOk(ssid, sizeof(ssid))) {
+        ESP_LOGW(TAG, "Wi-Fi connect POST rejected: invalid SSID characters");
+        webRedirect(req, F("/wifi"));
+        return;
+    }
     (void)adminParseBodyParam(req, "password", password, sizeof(password));
     if (configIsApMode()) {
         if (!wlanStartWifiConnectionTest(ssid, password)) {

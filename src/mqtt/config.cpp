@@ -1,6 +1,7 @@
 #include "config.h"
 
 #include "constants.h"
+#include "config/nvs_keys.h"
 #include "config/nvs_utils.h"
 
 #include "log_tag.h"
@@ -50,8 +51,6 @@ inline void mqttCfgUnlock() {
     }
 }
 
-#include "config/nvs_keys.h"
-
 void mqttCfgSanitizePartnerId(MqttConfig& cfg) {
     if (cfg.partnerDeviceId[0] == '\0') {
         return;
@@ -96,6 +95,7 @@ void mqttCfgSanitizeAfterNvsLoad(MqttConfig& cfg) {
     mqttCfgApplyPairingTopics(&cfg);
     cfg.port = normalizeMqttPort(static_cast<int>(cfg.port));
 }
+
 } // namespace
 
 void buildDeviceId(char* out, size_t outLen) {
@@ -226,13 +226,14 @@ bool mqttCfgMatchesNvs() {
     }
 
     MqttConfig stored{};
-    prefs.getString("server", stored.server, sizeof(stored.server));
-    stored.port = static_cast<uint16_t>(prefs.getInt("port", static_cast<int>(kMqttDefaultTlsPort)));
-    prefs.getString("user", stored.username, sizeof(stored.username));
-    prefs.getString("pass", stored.password, sizeof(stored.password));
-    prefs.getString("topic_pub", stored.topicPub, sizeof(stored.topicPub));
-    prefs.getString("topic_sub", stored.topicSub, sizeof(stored.topicSub));
-    prefs.getString("partner_id", stored.partnerDeviceId, sizeof(stored.partnerDeviceId));
+    prefs.getString(kNvsKeyMqttServer, stored.server, sizeof(stored.server));
+    stored.port =
+        static_cast<uint16_t>(prefs.getInt(kNvsKeyMqttPort, static_cast<int>(kMqttDefaultTlsPort)));
+    prefs.getString(kNvsKeyMqttUser, stored.username, sizeof(stored.username));
+    prefs.getString(kNvsKeyMqttPass, stored.password, sizeof(stored.password));
+    prefs.getString(kNvsKeyMqttTopicPub, stored.topicPub, sizeof(stored.topicPub));
+    prefs.getString(kNvsKeyMqttTopicSub, stored.topicSub, sizeof(stored.topicSub));
+    prefs.getString(kNvsKeyMqttPartnerId, stored.partnerDeviceId, sizeof(stored.partnerDeviceId));
     prefs.end();
 
     mqttCfgSanitizeAfterNvsLoad(stored);
@@ -271,7 +272,7 @@ void loadMQTTConfig() {
             mqttCfgMarkDirty();
             return;
         }
-        if (!prefs.isKey("server")) {
+        if (!prefs.isKey(kNvsKeyMqttServer)) {
             ESP_LOGI(TAG, "MQTT not configured yet in NVS, using defaults");
             strlcpy(loaded.topicPub, kMqttDefaultTopicPub, sizeof(loaded.topicPub));
             strlcpy(loaded.topicSub, kMqttDefaultTopicSub, sizeof(loaded.topicSub));
@@ -286,19 +287,22 @@ void loadMQTTConfig() {
             return;
         }
 
-        prefs.getString("server", loaded.server, sizeof(loaded.server));
-        loaded.port = normalizeMqttPort(prefs.getInt("port", static_cast<int>(kMqttDefaultTlsPort)));
-        prefs.getString("user", loaded.username, sizeof(loaded.username));
-        prefs.getString("pass", loaded.password, sizeof(loaded.password));
-        const size_t tpLen = prefs.getString("topic_pub", loaded.topicPub, sizeof(loaded.topicPub));
+        prefs.getString(kNvsKeyMqttServer, loaded.server, sizeof(loaded.server));
+        loaded.port =
+            normalizeMqttPort(prefs.getInt(kNvsKeyMqttPort, static_cast<int>(kMqttDefaultTlsPort)));
+        prefs.getString(kNvsKeyMqttUser, loaded.username, sizeof(loaded.username));
+        prefs.getString(kNvsKeyMqttPass, loaded.password, sizeof(loaded.password));
+        const size_t tpLen =
+            prefs.getString(kNvsKeyMqttTopicPub, loaded.topicPub, sizeof(loaded.topicPub));
         if (tpLen == 0U || loaded.topicPub[0] == '\0') {
             strlcpy(loaded.topicPub, kMqttDefaultTopicPub, sizeof(loaded.topicPub));
         }
-        const size_t tsLen = prefs.getString("topic_sub", loaded.topicSub, sizeof(loaded.topicSub));
+        const size_t tsLen =
+            prefs.getString(kNvsKeyMqttTopicSub, loaded.topicSub, sizeof(loaded.topicSub));
         if (tsLen == 0U || loaded.topicSub[0] == '\0') {
             strlcpy(loaded.topicSub, kMqttDefaultTopicSub, sizeof(loaded.topicSub));
         }
-        prefs.getString("partner_id", loaded.partnerDeviceId, sizeof(loaded.partnerDeviceId));
+        prefs.getString(kNvsKeyMqttPartnerId, loaded.partnerDeviceId, sizeof(loaded.partnerDeviceId));
         prefs.end();
     }
 
@@ -321,37 +325,37 @@ bool saveMQTTConfig() {
         ESP_LOGE(TAG, "NVS mqtt: begin failed");
         return false;
     }
-    bool ok = mqttCfgPutStringOrEmpty(prefs, "server", snap.server);
+    bool ok = mqttCfgPutStringOrEmpty(prefs, kNvsKeyMqttServer, snap.server);
     if (!ok) {
         prefs.end();
         return false;
     }
-    ok = (prefs.putInt("port", static_cast<int>(snap.port)) > 0);
+    ok = (prefs.putInt(kNvsKeyMqttPort, static_cast<int>(snap.port)) > 0);
     if (!ok) {
         prefs.end();
         return false;
     }
-    ok = mqttCfgPutStringOrEmpty(prefs, "user", snap.username);
+    ok = mqttCfgPutStringOrEmpty(prefs, kNvsKeyMqttUser, snap.username);
     if (!ok) {
         prefs.end();
         return false;
     }
-    ok = mqttCfgPutStringOrEmpty(prefs, "pass", snap.password);
+    ok = mqttCfgPutStringOrEmpty(prefs, kNvsKeyMqttPass, snap.password);
     if (!ok) {
         prefs.end();
         return false;
     }
-    ok = mqttCfgPutStringOrEmpty(prefs, "topic_pub", snap.topicPub);
+    ok = mqttCfgPutStringOrEmpty(prefs, kNvsKeyMqttTopicPub, snap.topicPub);
     if (!ok) {
         prefs.end();
         return false;
     }
-    ok = mqttCfgPutStringOrEmpty(prefs, "topic_sub", snap.topicSub);
+    ok = mqttCfgPutStringOrEmpty(prefs, kNvsKeyMqttTopicSub, snap.topicSub);
     if (!ok) {
         prefs.end();
         return false;
     }
-    ok = mqttCfgPutStringOrEmpty(prefs, "partner_id", snap.partnerDeviceId);
+    ok = mqttCfgPutStringOrEmpty(prefs, kNvsKeyMqttPartnerId, snap.partnerDeviceId);
     prefs.end();
     if (!ok) {
         ESP_LOGE(TAG, "NVS mqtt: persist failed");

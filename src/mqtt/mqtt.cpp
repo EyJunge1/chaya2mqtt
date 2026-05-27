@@ -33,6 +33,8 @@
 
 #include "log_tag.h"
 
+#include "diag/task_watchdog.h"
+
 DEFINE_LOG_TAG("MQTT");
 
 // Backoff tuning (no broker / WiFi down / TLS vs NTP).
@@ -333,7 +335,7 @@ static void mqttEventHandler(void* /*handler_args*/, esp_event_base_t /*base*/, 
 
         constexpr const char kOnline[] = "online";
         constexpr int        kOnlineLen  = sizeof(kOnline) - 1;
-        if (esp_mqtt_client_publish(ev->client, lwtPublishTopic, kOnline, kOnlineLen, 0, 1)
+        if (esp_mqtt_client_publish(ev->client, lwtPublishTopic, kOnline, kOnlineLen, 1, 1)
             < 0) {
             ESP_LOGW(TAG, "MQTT publish retained online failed");
         }
@@ -346,7 +348,10 @@ static void mqttEventHandler(void* /*handler_args*/, esp_event_base_t /*base*/, 
             mqttResetFragmentState();
             break;
         }
-        if (topicMatchesSubscribe(ev)) {
+        if ((ev->topic == nullptr || ev->topic_len <= 0) && s_fragExpectTotal > 0U) {
+            // Continuation chunk of an in-progress fragmented message (no topic field).
+            feedFragmentedPayload(ev);
+        } else if (topicMatchesSubscribe(ev)) {
             feedFragmentedPayload(ev);
         } else {
             ESP_LOGD(TAG, "Ignoring MQTT payload (wrong topic)");
@@ -525,25 +530,26 @@ static void mqttKillClientImpl() {
     esp_mqtt_client_handle_t cli = s_client;
     s_client = nullptr;
     s_clientGeneration.fetch_add(1U, std::memory_order_acq_rel);
-    mqttResetFragmentState();
     portENTER_CRITICAL(&s_mqttSubTopicMux);
     s_mqttSubTopicLen      = 0;
     s_mqttSubTopicCache[0] = '\0';
     portEXIT_CRITICAL(&s_mqttSubTopicMux);
 
+    chayaTaskWatchdogReset();
     const esp_err_t st = esp_mqtt_client_stop(cli);
     if (st != ESP_OK && st != ESP_ERR_INVALID_STATE) {
         ESP_LOGW(TAG, "esp_mqtt_client_stop: %s", esp_err_to_name(st));
     }
+    mqttResetFragmentState();
 
     const esp_err_t de = esp_mqtt_client_destroy(cli);
     if (de != ESP_OK) {
         ESP_LOGW(TAG, "esp_mqtt_client_destroy: %s", esp_err_to_name(de));
     }
 
+    s_disconnectIntentional.store(false, std::memory_order_release);
     s_connected.store(false, std::memory_order_release);
     s_connectPending.store(false, std::memory_order_release);
-    // s_disconnectIntentional cleared in MQTT_EVENT_DISCONNECTED when intentional.
 }
 
 static void mqttKillClient() {
@@ -754,7 +760,9 @@ void mqttLoop() {
         if (wlanStaConnectedOk()) {
             wlanSetStaPowerSaveMqttActive(true);
         }
-        mqttClientLock();
+        if (!mqttClientLockTimed()) {
+            return;
+        }
         const bool hasClient = s_client != nullptr;
         mqttClientUnlock();
         if (hasClient || s_connectPending.load(std::memory_order_acquire)) {
