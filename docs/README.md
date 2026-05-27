@@ -118,7 +118,7 @@ chaya2mqtt/
     ├── ota/                  # GitHub-Check, Flash-Install
     ├── tls/                  # CA-Bundle (MQTT + OTA)
     ├── util/                 # Zeit-Helfer, Logging, IP-Format
-    ├── web/                  # Admin-UI, Auth, SSE, Assets
+    ├── web/                  # Admin-UI (auth/, routes/, pages/, assets/)
     └── wifi/                 # WLAN, Captive Portal, Verbindungstest
 ```
 

@@ -138,7 +138,7 @@ Modulspezifische Defaults und Limits liegen in `*_config.h` (nicht mehr zentral 
 | `wifi/wlan_config.h` | SSID/Pass-Limits, STA-Tuning, Scan/Reconnect |
 | `display/display_config.h` | `kDisplayCounterMax` |
 | `hw/button_config.h` | Debounce, Factory-Reset, LED-Timing |
-| `web/auth_config.h` | Challenge-, Session- und Lockout-Zeiten |
+| `web/auth/auth_config.h` | Challenge-, Session- und Lockout-Zeiten |
 | `async/task_config.h` | Task-Stacks, Queue-Tiefen |
 
 ## Weitere Dokumentation

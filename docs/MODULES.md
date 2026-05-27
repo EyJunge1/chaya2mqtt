@@ -259,16 +259,17 @@ Button-Task (4096 Stack, Prio 8, Core 1):
 | Datei | Zweck |
 |-------|-------|
 | `admin.h` / `admin.cpp` | Server-Singleton, Route-Registrierung, `webAdminLoop()` |
-| `admin_routes_wifi.cpp` | WiFi-Routen |
-| `admin_routes_mqtt.cpp` | MQTT + Pairing-Routen |
-| `admin_routes_app.cpp` | Dashboard, Settings, OTA, Chaya |
-| `auth.h` / `auth_session.cpp` / `auth_routes.cpp` / `auth_challenge.cpp` | Session, CSRF, Challenge-Flow, HTTP-Routen |
-| `pages.h` / `pages_common.cpp` / `pages_admin.cpp` / `pages_status.cpp` | HTML-Streaming |
-| `web_events.h` / `web_events.cpp` | SSE `/events` |
-| `web_utils.h` / `web_utils.cpp` | Redirects, Security-Headers |
-| `web_middleware.h` | CSRF-Middleware für AP-Routen |
 | `admin_globals.h` / `admin_globals.cpp` | Shared Atomics/Flags |
-| `deferred_reboot.h` | Reboot nach WiFi-Save |
+| `admin_json.h` | JSON-Helper für kleine Antworten |
+| `deferred_reboot.h` / `deferred_reboot.cpp` | Reboot nach WiFi-Save |
+| `web_utils.h` / `web_utils.cpp` | Redirects, Security-Headers |
+| `web_middleware.h` / `web_middleware.cpp` | CSRF-Middleware für AP-Routen |
+| `web_events.h` / `web_events.cpp` | SSE `/events` |
+| `routes/admin_routes_wifi.cpp` | WiFi-Routen |
+| `routes/admin_routes_mqtt.cpp` | MQTT + Pairing-Routen |
+| `routes/admin_routes_app.cpp` | Dashboard, Settings, OTA, Chaya |
+| `auth/auth.h` / `auth/auth_session.cpp` / `auth/auth_routes.cpp` / `auth/auth_challenge.cpp` | Session, CSRF, Challenge-Flow, HTTP-Routen |
+| `pages/pages.h` / `pages/pages_common.cpp` / `pages/pages_admin.cpp` / `pages/pages_status.cpp` | HTML-Streaming |
 | `assets/*.h` | Eingebettetes CSS/JS (PROGMEM) |
 
 Details: [WEB_ADMIN.md](WEB_ADMIN.md)
@@ -340,7 +341,7 @@ Thread-safe `Preferences`-Wrapper mit `g_nvsMutex`:
 | `wifi/wlan_config.h` | Wi-Fi-Limits, Connection-Tuning, Scan/Reconnect-Intervalle |
 | `display/display_config.h` | Display-Limits (`kDisplayCounterMax`) |
 | `hw/button_config.h` | Button/LED-Timing |
-| `web/auth_config.h` | Auth-Timing (Challenge, Session, Lockout) |
+| `web/auth/auth_config.h` | Auth-Timing (Challenge, Session, Lockout) |
 | `config/version.h` | `APP_VERSION` (CI setzt aus Git-Tag) |
 | `util/log_tag.h` | `DEFINE_LOG_TAG` Makro |
 | `util/ip_format.h` | IP-Adress-Formatierung |
