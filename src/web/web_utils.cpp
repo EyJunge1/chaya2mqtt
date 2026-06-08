@@ -90,9 +90,8 @@ static bool webHostCStringAllowed(const char* host) {
         return true;
     }
     if (configIsApMode()) {
-        if (hostEqualsIgnoreCase(host, "4.3.2.1") || hostPrefixIgnoreCaseThenPortOrEnd(host, "4.3.2.1")) {
-            return true;
-        }
+        // Captive portal: wildcard DNS resolves foreign probe hosts (e.g. captive.apple.com) to us.
+        return true;
     }
     char ip[16]{};
     if (wlanStaConnectedOk() && wlanReadStaLocalIpForCommit(ip, sizeof(ip)) && ip[0] != '\0') {

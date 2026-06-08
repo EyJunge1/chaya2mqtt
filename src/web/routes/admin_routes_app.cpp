@@ -159,5 +159,11 @@ void adminRoutesRegisterApplication(AsyncWebServer& ws) {
         h.addMiddleware(mwPostSessionAndCsrfRedirect("/settings"));
     }
 
-    ws.onNotFound([](AsyncWebServerRequest* rq) { webRedirect(rq, F("/")); });
+    ws.onNotFound([](AsyncWebServerRequest* rq) {
+        if (configIsApMode()) {
+            webRedirect(rq, F("/wifi"));
+            return;
+        }
+        webRedirect(rq, F("/"));
+    });
 }
