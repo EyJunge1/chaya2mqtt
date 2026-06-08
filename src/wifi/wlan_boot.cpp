@@ -4,8 +4,8 @@
 #include "wlan_internal.h"
 
 #include "constants.h"
+#include "display/display.h"
 #include "util/ip_format.h"
-#include "mqtt/config.h"
 #include "web/admin.h"
 
 #include <Arduino.h>
@@ -83,15 +83,7 @@ void setupWifiStartApFallback(const char* attemptedSsid) {
     WiFi.softAPConfig(IPAddress(4, 3, 2, 1), IPAddress(4, 3, 2, 1), IPAddress(255, 255, 255, 0));
     WiFi.setHostname(kDeviceHostname);
     WiFi.mode(WIFI_AP_STA);
-    char apPass[kWifiPassMaxLen]{};
-    char deviceId[kDeviceIdBufLen]{};
-    buildDeviceId(deviceId, sizeof(deviceId));
-    if (deviceIdSyntaxOk(deviceId)) {
-        static_cast<void>(snprintf(apPass, sizeof(apPass), "setup%s", deviceId));
-    } else {
-        strlcpy(apPass, "setupchaya", sizeof(apPass));
-    }
-    WiFi.softAP(kSetupApSsid, apPass);
+    WiFi.softAP(kSetupApSsid);
     wlanWifiApiUnlock();
     delay(50);
     wlanWifiApiLock();
@@ -106,7 +98,8 @@ void setupWifiStartApFallback(const char* attemptedSsid) {
     g_dnsServer.setErrorReplyCode(DNSReplyCode::NoError);
     g_dnsServer.start(53, "*", WiFi.softAPIP());
     wlanWifiApiUnlock();
-    ESP_LOGI(TAG, "WLAN AP %s IP %s (PSK setup+<device-id>)", kSetupApSsid, apIp);
+    ESP_LOGI(TAG, "WLAN AP %s IP %s (open setup AP)", kSetupApSsid, apIp);
+    requestDeferredDrawSplashScreen();
 }
 
 void wlanBootConnectServiceLoop() {

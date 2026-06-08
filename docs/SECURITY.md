@@ -55,6 +55,8 @@ Wenn aktiviert (`cfg/authEn`):
 
 **Schwäche:** Im AP-Modus (Ersteinrichtung) ist Auth deaktiviert – jeder im AP-Bereich kann konfigurieren.
 
+Der Setup-Access-Point **`Chaya2MQTT`** ist bewusst **offen (ohne WPA/PSK)**, damit die Ersteinrichtung ohne vorab bekanntes Passwort möglich ist. Er sollte nur im Einrichtungs- bzw. WLAN-Fallbackmodus genutzt werden.
+
 ### Öffentliche Routen (ohne Auth)
 
 Im AP-Modus: `/`, `/wifi*`, `/favicon.ico`

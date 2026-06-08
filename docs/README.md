@@ -54,7 +54,7 @@ Falls `pio: command not found`: PlatformIO liegt unter `~/.platformio/penv/bin/p
 ## Ersteinrichtung (WiFi & MQTT)
 
 1. Gerät mit Strom versorgen bzw. nach Flash neu starten.
-2. Ohne gespeichertes WLAN öffnet der ESP32 den Access Point **`Chaya2MQTT`**.
+2. Ohne gespeichertes WLAN öffnet der ESP32 den offenen Access Point **`Chaya2MQTT`** (ohne Passwort).
 3. Mit Handy/PC verbinden – Captive Portal oder Browser öffnen (typisch `http://4.3.2.1`).
 4. **WLAN** (SSID/Passwort) und **MQTT-Felder** eintragen:
    - **MQTT Server** (Hostname oder IP)
