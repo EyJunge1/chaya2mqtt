@@ -24,11 +24,11 @@ except ImportError as e:  # pragma: no cover
     print("Fehlt Abhaengigkeit: pip install -r setup/requirements.txt", file=sys.stderr)
     raise e
 
-# ----- Konfiguration (anpassen) -----
-MQTT_HOST = "***REMOVED***"  # z. B. "mqtt.example.com"
-MQTT_PORT = 8883
-MQTT_USER = "***REMOVED***"
-MQTT_PASS = "***REMOVED***"
+# ----- Konfiguration (via ENV oder CLI; keine Secrets im Repo) -----
+MQTT_HOST = os.environ.get("MQTT_HOST", "")  # z. B. "xxxx.s1.eu.hivemq.cloud"
+MQTT_PORT = int(os.environ.get("MQTT_PORT", "8883"))
+MQTT_USER = os.environ.get("MQTT_USER", "")
+MQTT_PASS = os.environ.get("MQTT_PASS", "")
 
 # Gegenueber ESP-Defaults: ESP publiziert chaya/to_b, subscribed chaya/to_a
 MQTT_TOPIC_PUB = "chaya/to_a"
@@ -47,12 +47,12 @@ def _conn_ok(reason_code: Any) -> bool:
 def _build_arg_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
         description="Simuliert die MQTT-Gegenseite zum ESP32 (TLS). "
-        "Konfiguration siehe Konstanten MQTT_* oben im Script; CLI ueberschreibt."
+        "Defaults: ENV MQTT_HOST/MQTT_PORT/MQTT_USER/MQTT_PASS; CLI ueberschreibt."
     )
-    p.add_argument("--host", help="MQTT-Broker (Default: MQTT_HOST im Script)")
+    p.add_argument("--host", help="MQTT-Broker (Default: ENV MQTT_HOST)")
     p.add_argument("--port", type=int, help=f"MQTT-Port (Default: {MQTT_PORT})")
-    p.add_argument("--user", help="MQTT-Benutzer (Default: MQTT_USER)")
-    p.add_argument("--pass", dest="password", help="MQTT-Passwort (Default: MQTT_PASS)")
+    p.add_argument("--user", help="MQTT-Benutzer (Default: ENV MQTT_USER)")
+    p.add_argument("--pass", dest="password", help="MQTT-Passwort (Default: ENV MQTT_PASS)")
     p.add_argument("--topic-pub", dest="topic_pub", help="Sende-Topic (Default: MQTT_TOPIC_PUB)")
     p.add_argument("--topic-sub", dest="topic_sub", help="Empfangs-Topic (Default: MQTT_TOPIC_SUB)")
     return p
@@ -101,7 +101,7 @@ def main() -> None:
     lwt_topic = f"{topic_sub}/lwt"
 
     if not host:
-        parser.error("MQTT_HOST ist leer — oben im Script setzen oder --host angeben.")
+        parser.error("MQTT_HOST ist leer — ENV MQTT_HOST setzen oder --host angeben.")
 
     state = SimulatorState()
 
