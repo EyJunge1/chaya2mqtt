@@ -3,7 +3,7 @@ import type { ShowToast } from '../components/Toast'
 import { api } from '../api/client'
 import { Panel } from '../components/Card'
 import { PrimaryButton } from '../components/Form'
-import { useI18n } from '../i18n'
+import { useI18n } from '../i18n/useI18n'
 
 export function UpdatePage({ onToast }: { onToast: ShowToast }) {
   const { t } = useI18n()

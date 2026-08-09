@@ -6,8 +6,8 @@ import { ConfirmDialog } from '../components/ConfirmDialog'
 import { Panel } from '../components/Card'
 import { DangerButton, Field, PrimaryButton, SelectInput, TextInput } from '../components/Form'
 import { ErrorBlock, LoadingBlock } from '../components/StateBlock'
-import { useI18n } from '../i18n'
-import { setTheme } from '../theme'
+import { useI18n } from '../i18n/useI18n'
+import { setTheme } from '../theme/store'
 
 export function SettingsPage({
   onToast,
@@ -103,17 +103,13 @@ export function SettingsPage({
               min={0}
               max={30}
               value={settings.resetDays}
-              onChange={(e) =>
-                setSettings({ ...settings, resetDays: Number(e.target.value) })
-              }
+              onChange={(e) => setSettings({ ...settings, resetDays: Number(e.target.value) })}
             />
           </Field>
           <Field label={t('settings.language')}>
             <SelectInput
               value={settings.lang}
-              onChange={(e) =>
-                setSettings({ ...settings, lang: e.target.value as UiLang })
-              }
+              onChange={(e) => setSettings({ ...settings, lang: e.target.value as UiLang })}
             >
               <option value="en">{t('settings.lang-en')}</option>
               <option value="de">{t('settings.lang-de')}</option>
@@ -122,9 +118,7 @@ export function SettingsPage({
           <Field label={t('settings.theme')}>
             <SelectInput
               value={settings.theme}
-              onChange={(e) =>
-                setSettings({ ...settings, theme: e.target.value as UiTheme })
-              }
+              onChange={(e) => setSettings({ ...settings, theme: e.target.value as UiTheme })}
             >
               <option value="light">{t('settings.theme-light')}</option>
               <option value="dark">{t('settings.theme-dark')}</option>

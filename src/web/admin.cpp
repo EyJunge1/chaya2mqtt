@@ -48,9 +48,6 @@ void webAdminRegisterRoutes() {
     AsyncWebServer& ws = webAdminWebServer();
 
     adminRoutesRegisterApi(ws);
-    adminRoutesRegisterWifi(ws);
-    adminRoutesRegisterMqtt(ws);
-    adminRoutesRegisterApplication(ws);
     webEventsRegister(ws);
     adminRoutesRegisterSpa(ws); // SPA + onNotFound last
 }

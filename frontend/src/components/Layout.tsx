@@ -2,7 +2,7 @@ import { ArrowLeft, Heart } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import type { DeviceMode } from '../api/types'
-import { useI18n } from '../i18n'
+import { useI18n } from '../i18n/useI18n'
 import type { TranslationKey } from '../i18n/translations'
 import { StatusBadge } from './StatusBadge'
 
@@ -34,7 +34,7 @@ export function Layout({
   const showStatus = pathname === '/' && mode === 'sta'
 
   return (
-    <div className="mx-auto min-h-screen w-full max-w-[560px] px-4 pt-[max(1.25rem,env(safe-area-inset-top))] pb-[max(1.25rem,env(safe-area-inset-bottom))]">
+    <div className="mx-auto min-h-screen w-full max-w-140 px-4 pt-[max(1.25rem,env(safe-area-inset-top))] pb-[max(1.25rem,env(safe-area-inset-bottom))]">
       <header className="mb-5">
         <div className={`flex items-center gap-3 ${showStatus ? 'mb-3' : ''}`}>
           {showBack ? (

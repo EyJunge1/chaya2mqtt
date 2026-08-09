@@ -1,5 +1,10 @@
 import { LoaderCircle } from 'lucide-react'
-import type { ButtonHTMLAttributes, InputHTMLAttributes, ReactNode, SelectHTMLAttributes } from 'react'
+import type {
+  ButtonHTMLAttributes,
+  InputHTMLAttributes,
+  ReactNode,
+  SelectHTMLAttributes,
+} from 'react'
 import { InfoTip } from './InfoTip'
 
 const focusRing =
@@ -47,13 +52,7 @@ type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
   loading?: boolean
 }
 
-function ButtonContent({
-  loading,
-  children,
-}: {
-  loading?: boolean
-  children: ReactNode
-}) {
+function ButtonContent({ loading, children }: { loading?: boolean; children: ReactNode }) {
   return (
     <span className="inline-flex items-center justify-center gap-2">
       {loading ? <LoaderCircle size={18} className="animate-spin" aria-hidden /> : null}
@@ -62,13 +61,7 @@ function ButtonContent({
   )
 }
 
-export function PrimaryButton({
-  children,
-  loading,
-  disabled,
-  className,
-  ...props
-}: ButtonProps) {
+export function PrimaryButton({ children, loading, disabled, className, ...props }: ButtonProps) {
   return (
     <button
       {...props}
@@ -81,13 +74,7 @@ export function PrimaryButton({
   )
 }
 
-export function SecondaryButton({
-  children,
-  loading,
-  disabled,
-  className,
-  ...props
-}: ButtonProps) {
+export function SecondaryButton({ children, loading, disabled, className, ...props }: ButtonProps) {
   return (
     <button
       {...props}
@@ -100,13 +87,7 @@ export function SecondaryButton({
   )
 }
 
-export function GhostButton({
-  children,
-  loading,
-  disabled,
-  className,
-  ...props
-}: ButtonProps) {
+export function GhostButton({ children, loading, disabled, className, ...props }: ButtonProps) {
   return (
     <button
       {...props}
@@ -119,32 +100,7 @@ export function GhostButton({
   )
 }
 
-export function IconButton({
-  children,
-  loading,
-  disabled,
-  className,
-  ...props
-}: ButtonProps) {
-  return (
-    <button
-      {...props}
-      disabled={disabled || loading}
-      aria-busy={loading || undefined}
-      className={`inline-flex size-11 items-center justify-center rounded-lg border border-border bg-surface text-text-bright transition enabled:hover:bg-surface-hover disabled:opacity-50 ${focusRing} ${className ?? ''}`}
-    >
-      {loading ? <LoaderCircle size={18} className="animate-spin" aria-hidden /> : children}
-    </button>
-  )
-}
-
-export function DangerButton({
-  children,
-  loading,
-  disabled,
-  className,
-  ...props
-}: ButtonProps) {
+export function DangerButton({ children, loading, disabled, className, ...props }: ButtonProps) {
   return (
     <button
       {...props}

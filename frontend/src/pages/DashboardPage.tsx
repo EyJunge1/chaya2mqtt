@@ -6,7 +6,7 @@ import type { ChayaStatus, DeviceInfo, WifiStatus } from '../api/types'
 import { NavCard, Panel } from '../components/Card'
 import { PrimaryButton } from '../components/Form'
 import { WifiSetup } from '../components/WifiSetup'
-import { useI18n } from '../i18n'
+import { useI18n } from '../i18n/useI18n'
 
 export function DashboardPage({
   device,

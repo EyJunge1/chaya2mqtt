@@ -13,10 +13,6 @@ import type {
 
 let csrfToken = ''
 
-export function getCsrfToken(): string {
-  return csrfToken
-}
-
 export function setCsrfToken(token: string): void {
   csrfToken = token
 }
@@ -51,7 +47,10 @@ async function apiGet<T>(path: string): Promise<T> {
   return parseJson<T>(res)
 }
 
-async function apiPost(path: string, fields: Record<string, string | number | boolean | undefined> = {}): Promise<ApiResult> {
+async function apiPost(
+  path: string,
+  fields: Record<string, string | number | boolean | undefined> = {},
+): Promise<ApiResult> {
   const res = await fetch(path, {
     method: 'POST',
     credentials: 'same-origin',
@@ -85,8 +84,7 @@ export const api = {
     if (!res.ok) throw new Error(`wifi scan failed (${res.status})`)
     return parseJson<WifiScanAp[]>(res)
   },
-  connectWifi: (ssid: string, password: string) =>
-    apiPost('/api/wifi/connect', { ssid, password }),
+  connectWifi: (ssid: string, password: string) => apiPost('/api/wifi/connect', { ssid, password }),
   getWifiConnectStatus: () => apiGet<WifiConnectStatus>('/api/wifi/connect-status'),
   commitWifiConnect: () => apiPost('/api/wifi/connect-commit'),
   abortWifiConnect: () => apiPost('/api/wifi/connect-abort'),
@@ -103,11 +101,8 @@ export const api = {
   getPairing: () => apiGet<PairingInfo>('/api/pairing'),
   savePartner: (partner_id: string) => apiPost('/api/pairing', { partner_id }),
   getSettings: () => apiGet<SettingsInfo>('/api/settings'),
-  saveSettings: (fields: {
-    reset_days: number
-    lang: string
-    theme: string
-  }) => apiPost('/api/settings', fields),
+  saveSettings: (fields: { reset_days: number; lang: string; theme: string }) =>
+    apiPost('/api/settings', fields),
   reboot: () => apiPost('/api/reboot'),
   checkUpdate: () => apiPost('/api/update/check'),
 }

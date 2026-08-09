@@ -3,10 +3,7 @@ import type { ReactNode } from 'react'
 
 export type AlertVariant = 'info' | 'warning' | 'error'
 
-const styles: Record<
-  AlertVariant,
-  { wrap: string; icon: string; Icon: typeof Info }
-> = {
+const styles: Record<AlertVariant, { wrap: string; icon: string; Icon: typeof Info }> = {
   info: {
     wrap: 'border-border bg-surface',
     icon: 'text-muted',

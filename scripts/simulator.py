@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
 MQTT-Gegenseite fuer das chaya2mqtt ESP32 E-Ink-Projekt.
 
@@ -20,9 +19,9 @@ from typing import Any
 
 try:
     import paho.mqtt.client as mqtt
-except ImportError as e:  # pragma: no cover
-    print("Fehlt Abhaengigkeit: pip install -r setup/requirements.txt", file=sys.stderr)
-    raise e
+except ImportError:  # pragma: no cover
+    print("Fehlt Abhaengigkeit: pip install paho-mqtt", file=sys.stderr)
+    raise
 
 # ----- Konfiguration (via ENV oder CLI; keine Secrets im Repo) -----
 MQTT_HOST = os.environ.get("MQTT_HOST", "")  # z. B. "xxxx.s1.eu.hivemq.cloud"
@@ -175,10 +174,7 @@ def main() -> None:
             return False
         n = state.next_sent_value()
         payload = str(n).encode("utf-8")
-        ok = (
-            client.publish(topic_pub, payload, qos=1, retain=True).rc
-            == mqtt.MQTT_ERR_SUCCESS
-        )
+        ok = client.publish(topic_pub, payload, qos=1, retain=True).rc == mqtt.MQTT_ERR_SUCCESS
         if ok:
             print(f"-> Zaehler {n} (retained) auf {topic_pub}", flush=True)
         else:
@@ -236,8 +232,8 @@ def main() -> None:
     client.loop_stop()
     try:
         client.disconnect()
-    except Exception:
-        pass
+    except OSError as exc:
+        print(f"[Warn] disconnect: {exc}", file=sys.stderr, flush=True)
     print("\n[Auf Wiedersehen]", flush=True)
 
 

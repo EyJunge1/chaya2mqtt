@@ -3,7 +3,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { api } from '../api/client'
 import type { DeviceInfo, WifiScanAp, WifiStatus } from '../api/types'
-import { useI18n } from '../i18n'
+import { useI18n } from '../i18n/useI18n'
 import { Panel } from './Card'
 import { Field, GhostButton, PrimaryButton, TextInput } from './Form'
 import { StatusBadge } from './StatusBadge'
@@ -110,9 +110,7 @@ export function WifiSetup({
       >
         <div className="space-y-2">
           {aps.length === 0 ? (
-            <p className="text-sm text-muted">
-              {scanning ? t('wifi.searching') : t('wifi.none')}
-            </p>
+            <p className="text-sm text-muted">{scanning ? t('wifi.searching') : t('wifi.none')}</p>
           ) : (
             aps.map((ap) => (
               <button

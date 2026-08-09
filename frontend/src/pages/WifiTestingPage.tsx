@@ -7,7 +7,7 @@ import type { WifiConnectStatus } from '../api/types'
 import { Alert } from '../components/Alert'
 import { Panel } from '../components/Card'
 import { DangerButton, PrimaryButton } from '../components/Form'
-import { useI18n } from '../i18n'
+import { useI18n } from '../i18n/useI18n'
 
 export function WifiTestingPage({ onToast }: { onToast: ShowToast }) {
   const { t } = useI18n()
@@ -78,8 +78,7 @@ export function WifiTestingPage({ onToast }: { onToast: ShowToast }) {
         hint={status.state !== 'ok' ? t('wifi-test.commit-hint') : undefined}
       >
         <p className="mb-2 text-sm text-muted">
-          {t('wifi-test.ssid')}{' '}
-          <span className="text-text-bright">{status.ssid || '…'}</span>
+          {t('wifi-test.ssid')} <span className="text-text-bright">{status.ssid || '…'}</span>
         </p>
         <p className="inline-flex items-center gap-2 text-sm text-text-bright">
           {status.state === 'testing' ? (
@@ -88,9 +87,7 @@ export function WifiTestingPage({ onToast }: { onToast: ShowToast }) {
           {statusText}
         </p>
       </Panel>
-      {status.state === 'fail' ? (
-        <Alert variant="error">{t('wifi-test.fail')}</Alert>
-      ) : null}
+      {status.state === 'fail' ? <Alert variant="error">{t('wifi-test.fail')}</Alert> : null}
       <div className="space-y-3">
         <PrimaryButton
           loading={busy}

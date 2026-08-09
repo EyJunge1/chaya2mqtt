@@ -6,15 +6,9 @@ import { Panel } from '../components/Card'
 import { Field, PrimaryButton, TextInput } from '../components/Form'
 import { ErrorBlock, LoadingBlock } from '../components/StateBlock'
 import { StatusBadge } from '../components/StatusBadge'
-import { useI18n } from '../i18n'
+import { useI18n } from '../i18n/useI18n'
 
-export function MqttPage({
-  mqtt,
-  onToast,
-}: {
-  mqtt: MqttStatus
-  onToast: ShowToast
-}) {
+export function MqttPage({ mqtt, onToast }: { mqtt: MqttStatus; onToast: ShowToast }) {
   const { t } = useI18n()
   const [cfg, setCfg] = useState<MqttConfigView | null>(null)
   const [password, setPassword] = useState('')
@@ -110,10 +104,7 @@ export function MqttPage({
               maxLength={63}
             />
           </Field>
-          <Field
-            label={t('mqtt.pass')}
-            hint={cfg.hasPassword ? t('mqtt.pass-hint') : undefined}
-          >
+          <Field label={t('mqtt.pass')} hint={cfg.hasPassword ? t('mqtt.pass-hint') : undefined}>
             <TextInput
               type="password"
               value={password}

@@ -6,7 +6,7 @@ import type { PairingInfo } from '../api/types'
 import { Panel } from '../components/Card'
 import { Field, PrimaryButton, TextInput } from '../components/Form'
 import { ErrorBlock, LoadingBlock } from '../components/StateBlock'
-import { useI18n } from '../i18n'
+import { useI18n } from '../i18n/useI18n'
 
 export function PairingPage({ onToast }: { onToast: ShowToast }) {
   const { t } = useI18n()
@@ -73,7 +73,9 @@ export function PairingPage({ onToast }: { onToast: ShowToast }) {
           <div className="rounded-xl bg-white p-3">
             <QRCodeSVG value={info.deviceId} size={160} level="M" />
           </div>
-          <code className="text-lg font-bold tracking-widest text-text-bright">{info.deviceId}</code>
+          <code className="text-lg font-bold tracking-widest text-text-bright">
+            {info.deviceId}
+          </code>
         </div>
       </Panel>
       <Panel title={t('pairing.partner')}>

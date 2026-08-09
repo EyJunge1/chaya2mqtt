@@ -1,4 +1,5 @@
 CompileFlags:
+  CompilationDatabase: .
   Remove:
     # Xtensa-spezifische Flags, die macOS-Clang nicht kennt
     - -mlongcalls
@@ -25,3 +26,6 @@ CompileFlags:
 
 Diagnostics:
   UnusedIncludes: None
+
+Index:
+  Background: Build

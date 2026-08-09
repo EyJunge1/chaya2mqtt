@@ -7,7 +7,7 @@ import { Layout } from './components/Layout'
 import { MockToolbar } from './components/MockToolbar'
 import { ErrorBlock, LoadingBlock } from './components/StateBlock'
 import { Toast, type ShowToast, type ToastMessage, type ToastVariant } from './components/Toast'
-import { useI18n } from './i18n'
+import { useI18n } from './i18n/useI18n'
 import type { Lang } from './i18n/translations'
 import { DashboardPage } from './pages/DashboardPage'
 import { MqttPage } from './pages/MqttPage'
@@ -16,7 +16,7 @@ import { SettingsPage } from './pages/SettingsPage'
 import { UpdatePage } from './pages/UpdatePage'
 import { WifiPage } from './pages/WifiPage'
 import { WifiTestingPage } from './pages/WifiTestingPage'
-import { setTheme, type Theme } from './theme'
+import { setTheme, type Theme } from './theme/store'
 
 export default function App() {
   const { t, setLanguage } = useI18n()
@@ -83,7 +83,7 @@ export default function App() {
 
   if (bootError) {
     return (
-      <div className="mx-auto max-w-[560px] px-4 py-10">
+      <div className="mx-auto max-w-140 px-4 py-10">
         <h1 className="mb-4 text-center text-xl font-bold text-text-bright">{t('app.title')}</h1>
         <ErrorBlock
           title={t('app.boot-error-title')}
@@ -97,7 +97,7 @@ export default function App() {
 
   if (booting || !device) {
     return (
-      <div className="mx-auto max-w-[560px] px-4 py-10">
+      <div className="mx-auto max-w-140 px-4 py-10">
         <LoadingBlock label={t('app.connecting')} />
       </div>
     )

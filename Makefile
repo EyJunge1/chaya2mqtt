@@ -17,7 +17,7 @@ help:
 	@echo "  make upload-clean   # erase + upload ($(ENV))"
 	@echo "  make monitor        # Serial-Monitor (115200, Decoder laut platformio.ini)"
 	@echo "  make clean          # Build-Artefakte für $(ENV) löschen"
-	@echo "  make compiledb      # compile_commands.json neu erzeugen (clangd/IDE)"
+	@echo "  make compiledb      # compile_commands.json neu erzeugen (clangd, $(ENV_REL))"
 	@echo "  make frontend       # nur React-UI bauen + PROGMEM einbetten"
 	@echo "  make frontend-test  # Frontend Unit-Tests"
 	@echo ""
@@ -58,7 +58,7 @@ upload-erase: erase upload
 upload-clean: clean upload
 
 compiledb:
-	"$(PIO)" run -e $(ENV) -t compiledb
+	"$(PIO)" run -e $(ENV_REL) -t compiledb
 
 monitor:
 	"$(PIO)" run -e $(ENV) -t monitor

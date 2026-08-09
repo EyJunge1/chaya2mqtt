@@ -33,9 +33,7 @@ export function MockToolbar({
 
   const visiblePages =
     mode === 'ap'
-      ? pages
-          .filter((page) => page.path === '/')
-          .map((page) => ({ ...page, label: 'Setup' }))
+      ? pages.filter((page) => page.path === '/').map((page) => ({ ...page, label: 'Setup' }))
       : pages
 
   async function setScenario(scenario: (typeof scenarios)[number]) {

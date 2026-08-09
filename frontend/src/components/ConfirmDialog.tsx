@@ -53,7 +53,7 @@ export function ConfirmDialog({
           type="button"
           loading={confirming}
           onClick={onConfirm}
-          className="sm:w-auto sm:min-w-[8rem] sm:px-5"
+          className="sm:w-auto sm:min-w-32 sm:px-5"
         >
           {confirmLabel}
         </DangerButton>
@@ -61,7 +61,7 @@ export function ConfirmDialog({
           type="button"
           disabled={confirming}
           onClick={onCancel}
-          className="sm:w-auto sm:min-w-[8rem] sm:px-5"
+          className="sm:w-auto sm:min-w-32 sm:px-5"
         >
           {cancelLabel}
         </SecondaryButton>

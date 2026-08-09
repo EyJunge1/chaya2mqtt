@@ -1,6 +1,6 @@
 import { useEffect } from 'react'
 import { CircleAlert, CircleCheck, Info, OctagonX, X } from 'lucide-react'
-import { useI18n } from '../i18n'
+import { useI18n } from '../i18n/useI18n'
 
 export type ToastVariant = 'success' | 'error' | 'warning' | 'info'
 
@@ -41,13 +41,7 @@ const styles: Record<
   },
 }
 
-export function Toast({
-  message,
-  onClose,
-}: {
-  message: ToastMessage
-  onClose: () => void
-}) {
+export function Toast({ message, onClose }: { message: ToastMessage; onClose: () => void }) {
   useEffect(() => {
     if (!message) return
     const t = window.setTimeout(onClose, 3200)
@@ -66,7 +60,7 @@ export function Toast({
     <div
       role={assertive ? 'alert' : 'status'}
       aria-live={assertive ? 'assertive' : 'polite'}
-      className="fixed right-4 bottom-[max(1rem,env(safe-area-inset-bottom))] left-4 z-50 overflow-hidden rounded-xl border border-border bg-surface/95 shadow-[0_12px_40px_rgba(0,0,0,0.45)] backdrop-blur-sm animate-[toast-in_180ms_ease-out] sm:left-auto sm:w-[22rem]"
+      className="fixed right-4 bottom-[max(1rem,env(safe-area-inset-bottom))] left-4 z-50 overflow-hidden rounded-xl border border-border bg-surface/95 shadow-[0_12px_40px_rgba(0,0,0,0.45)] backdrop-blur-sm animate-[toast-in_180ms_ease-out] sm:left-auto sm:w-88"
     >
       <div className="flex items-center gap-3 px-3.5 py-3">
         <span

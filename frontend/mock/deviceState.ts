@@ -120,11 +120,6 @@ export function resetState(scenario?: MockScenario): MockState {
   return state
 }
 
-export function rotateCsrf(): string {
-  state.csrf = newToken()
-  return state.csrf
-}
-
 export function subscribe(fn: (event: string, data: unknown) => void): () => void {
   listeners.add(fn)
   return () => listeners.delete(fn)

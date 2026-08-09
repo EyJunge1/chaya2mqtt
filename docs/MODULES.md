@@ -263,7 +263,6 @@ Button-Task (4096 Stack, Prio 8, Core 1):
 | `web_events.h` / `web_events.cpp` | SSE `/events` |
 | `routes/admin_routes_api.cpp` | JSON-API `/api/*` für die React-SPA |
 | `routes/admin_routes_spa.cpp` | SPA `index.html` + `/assets/app.{js,css}` (gzip/PROGMEM) |
-| `routes/admin_routes_wifi.cpp` / `mqtt` / `app` | Legacy-Stubs (Logik in API/SPA) |
 | `assets/spa_*.h` | Generierte gzip-SPA-Assets (PROGMEM) |
 
 Details: [WEB_ADMIN.md](WEB_ADMIN.md)

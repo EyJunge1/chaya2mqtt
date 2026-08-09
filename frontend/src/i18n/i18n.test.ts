@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { setLanguage, t } from './index'
+import { setLanguage, t } from './store'
 import { translations } from './translations'
 
 describe('i18n', () => {
