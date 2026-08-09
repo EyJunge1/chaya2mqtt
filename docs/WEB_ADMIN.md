@@ -79,7 +79,7 @@ Max. **6** SSE-Clients. Tick alle 500 ms im App-Task.
 ## Build-Integration
 
 1. `frontend/` → `npm run build` → `frontend/dist/`
-2. `tools/embed_web_assets.py` → `src/web/assets/spa_{html,js,css}.h`
+2. `scripts/embed_web_assets.py` → `src/web/assets/spa_{html,js,css}.h`
 3. PlatformIO `pre:scripts/pio_pre_frontend.py` führt das vor jedem Firmware-Build aus
 4. Soft-Limit: komprimierte SPA ≤ 350 KiB; OTA-Slot 1,875 MB
 

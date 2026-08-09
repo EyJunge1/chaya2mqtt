@@ -30,13 +30,13 @@ help:
 
 check:
 	cd frontend && npm ci && npm run lint && npm test && npm run build
-	python3 tools/embed_web_assets.py
+	python3 scripts/embed_web_assets.py
 	"$(PIO)" test -e native
 	"$(PIO)" run -e $(ENV_REL)
 
 frontend:
 	cd frontend && npm ci && npm run build
-	python3 tools/embed_web_assets.py
+	python3 scripts/embed_web_assets.py
 
 frontend-test:
 	cd frontend && npm test

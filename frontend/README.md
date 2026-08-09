@@ -21,7 +21,7 @@ npm run build
 `npm run build` erzeugt `dist/`. Anschließend im Repo-Root:
 
 ```bash
-python3 tools/embed_web_assets.py
+python3 scripts/embed_web_assets.py
 ```
 
 Das schreibt gzip-PROGMEM-Header nach `src/web/assets/spa_*.h` (auch automatisch via PlatformIO-Pre-Script).

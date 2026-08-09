@@ -6,7 +6,7 @@ from pathlib import Path
 
 root = Path(env["PROJECT_DIR"])  # type: ignore  # noqa: F821
 frontend = root / "frontend"
-embed = root / "tools" / "embed_web_assets.py"
+embed = root / "scripts" / "embed_web_assets.py"
 
 node_modules = frontend / "node_modules"
 if not node_modules.is_dir():

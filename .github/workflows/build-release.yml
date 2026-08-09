@@ -73,7 +73,7 @@ jobs:
           npm ci
           npm run build
           cd ..
-          python3 tools/embed_web_assets.py
+          python3 scripts/embed_web_assets.py
 
       - name: Build release firmware
         run: pio run -e esp32dev-release
