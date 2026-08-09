@@ -2,6 +2,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <cstring>
 #include <ctime>
 
 /** Minimum plausible Unix time (UTC) after NTP sync — rejects unset RTC (~1970). */
@@ -46,6 +47,16 @@ inline bool mqttTopicSyntaxOk(const char* topic, size_t maxLen) {
  * MQTT broker host field (hostname or IP literal): fits in buffer with NUL, no control chars/spaces/wildcards.
  * Not the same rules as MQTT topics (still rejects '#' / '+').
  */
+/** UI language preference: "de" or "en". */
+inline bool uiLangSyntaxOk(const char* lang) {
+    return lang != nullptr && (strcmp(lang, "de") == 0 || strcmp(lang, "en") == 0);
+}
+
+/** UI theme preference: "dark" or "light". */
+inline bool uiThemeSyntaxOk(const char* theme) {
+    return theme != nullptr && (strcmp(theme, "dark") == 0 || strcmp(theme, "light") == 0);
+}
+
 /** Six lowercase hex digits (a-f0-9), e.g. a1b2c3. */
 inline bool deviceIdSyntaxOk(const char* id) {
     if (id == nullptr) {

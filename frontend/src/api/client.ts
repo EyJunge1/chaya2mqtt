@@ -103,7 +103,11 @@ export const api = {
   getPairing: () => apiGet<PairingInfo>('/api/pairing'),
   savePartner: (partner_id: string) => apiPost('/api/pairing', { partner_id }),
   getSettings: () => apiGet<SettingsInfo>('/api/settings'),
-  saveSettings: (reset_days: number) => apiPost('/api/settings', { reset_days }),
+  saveSettings: (fields: {
+    reset_days: number
+    lang: string
+    theme: string
+  }) => apiPost('/api/settings', fields),
   reboot: () => apiPost('/api/reboot'),
   checkUpdate: () => apiPost('/api/update/check'),
 }

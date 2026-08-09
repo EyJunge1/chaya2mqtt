@@ -533,9 +533,11 @@ void handleApiPairingPost(AsyncWebServerRequest* req) {
 }
 
 void handleApiSettingsGet(AsyncWebServerRequest* req) {
-    char body[64];
-    const int n = snprintf(body, sizeof(body), "{\"resetDays\":%u}",
-                           static_cast<unsigned>(configGetResetPeriodDays()));
+    char body[96];
+    const int n = snprintf(body, sizeof(body),
+                           "{\"resetDays\":%u,\"lang\":\"%s\",\"theme\":\"%s\"}",
+                           static_cast<unsigned>(configGetResetPeriodDays()), configGetUiLang(),
+                           configGetUiTheme());
     if (n < 0 || static_cast<size_t>(n) >= sizeof(body)) {
         webSendEmpty(req, 500);
         return;
@@ -548,16 +550,48 @@ void handleApiSettingsPost(AsyncWebServerRequest* req) {
         sendErr(req, 503, "shutdown");
         return;
     }
-    uint8_t days = 7;
+    uint8_t days = configGetResetPeriodDays();
+    char lang[3];
+    char theme[6];
+    strlcpy(lang, configGetUiLang(), sizeof(lang));
+    strlcpy(theme, configGetUiTheme(), sizeof(theme));
+
     if (req->hasParam("reset_days", true)) {
         const AsyncWebParameter* p = req->getParam("reset_days", true);
         if (p != nullptr) {
             const int v = p->value().toInt();
-            days = (v >= 0 && v <= 30) ? static_cast<uint8_t>(v) : 7;
+            days = (v >= 0 && v <= 30) ? static_cast<uint8_t>(v) : days;
         }
     }
+    if (req->hasParam("lang", true)) {
+        const AsyncWebParameter* p = req->getParam("lang", true);
+        if (p != nullptr) {
+            const String v = p->value();
+            if (uiLangSyntaxOk(v.c_str())) {
+                strlcpy(lang, v.c_str(), sizeof(lang));
+            } else {
+                sendErr(req, 400, "lang");
+                return;
+            }
+        }
+    }
+    if (req->hasParam("theme", true)) {
+        const AsyncWebParameter* p = req->getParam("theme", true);
+        if (p != nullptr) {
+            const String v = p->value();
+            if (uiThemeSyntaxOk(v.c_str())) {
+                strlcpy(theme, v.c_str(), sizeof(theme));
+            } else {
+                sendErr(req, 400, "theme");
+                return;
+            }
+        }
+    }
+
     portENTER_CRITICAL(&g_webAdminSettingsPendingMux);
     g_webAdminPendingResetDays = days;
+    strlcpy(g_webAdminPendingUiLang, lang, sizeof(g_webAdminPendingUiLang));
+    strlcpy(g_webAdminPendingUiTheme, theme, sizeof(g_webAdminPendingUiTheme));
     portEXIT_CRITICAL(&g_webAdminSettingsPendingMux);
     g_webAdminSettingsApplyPending.store(true, std::memory_order_release);
     sendOk(req, 200, "\"message\":\"saved\"");

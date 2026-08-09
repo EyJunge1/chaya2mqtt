@@ -28,6 +28,8 @@ export interface MockState {
     partnerId: string
   }
   resetDays: number
+  lang: 'de' | 'en'
+  theme: 'dark' | 'light'
   wifiConnect: {
     state: 'idle' | 'testing' | 'ok' | 'fail'
     ssid: string
@@ -68,6 +70,8 @@ export function createInitialState(scenario: MockScenario = 'sta-connected'): Mo
       partnerId: 'f5e6d7',
     },
     resetDays: 7,
+    lang: 'en',
+    theme: 'light',
     wifiConnect: { state: 'idle', ssid: '', password: '', startedAt: 0 },
     scanReadyAt: 0,
   }

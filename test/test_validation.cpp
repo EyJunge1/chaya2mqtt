@@ -33,6 +33,17 @@ void test_wifi_ssid_syntax() {
     TEST_ASSERT_FALSE(wifiSsidSyntaxOk("bad\x01", 33));
 }
 
+void test_ui_pref_syntax() {
+    TEST_ASSERT_TRUE(uiLangSyntaxOk("de"));
+    TEST_ASSERT_TRUE(uiLangSyntaxOk("en"));
+    TEST_ASSERT_FALSE(uiLangSyntaxOk("fr"));
+    TEST_ASSERT_FALSE(uiLangSyntaxOk(nullptr));
+    TEST_ASSERT_TRUE(uiThemeSyntaxOk("dark"));
+    TEST_ASSERT_TRUE(uiThemeSyntaxOk("light"));
+    TEST_ASSERT_FALSE(uiThemeSyntaxOk("system"));
+    TEST_ASSERT_FALSE(uiThemeSyntaxOk(nullptr));
+}
+
 void test_deadline_helpers() {
     TEST_ASSERT_FALSE(deadlineReached(1000U, 500U, 1200U));
     TEST_ASSERT_TRUE(deadlineReached(1000U, 500U, 1500U));
@@ -47,6 +58,7 @@ int main(int, char**) {
     RUN_TEST(test_mqtt_server_syntax);
     RUN_TEST(test_device_id_syntax);
     RUN_TEST(test_wifi_ssid_syntax);
+    RUN_TEST(test_ui_pref_syntax);
     RUN_TEST(test_deadline_helpers);
     return UNITY_END();
 }

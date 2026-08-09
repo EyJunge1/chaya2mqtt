@@ -1,11 +1,16 @@
+import { LoaderCircle } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import type { ShowToast } from '../components/Toast'
 import { api } from '../api/client'
 import type { WifiConnectStatus } from '../api/types'
+import { Alert } from '../components/Alert'
 import { Panel } from '../components/Card'
 import { DangerButton, PrimaryButton } from '../components/Form'
+import { useI18n } from '../i18n'
 
-export function WifiTestingPage({ onToast }: { onToast: (msg: string) => void }) {
+export function WifiTestingPage({ onToast }: { onToast: ShowToast }) {
+  const { t } = useI18n()
   const navigate = useNavigate()
   const [status, setStatus] = useState<WifiConnectStatus>({ state: 'testing', ssid: '' })
   const [busy, setBusy] = useState(false)
@@ -33,13 +38,13 @@ export function WifiTestingPage({ onToast }: { onToast: (msg: string) => void })
     try {
       const res = await api.commitWifiConnect()
       if (!res.ok) {
-        onToast('Übernehmen fehlgeschlagen')
+        onToast(t('toast.wifi-commit-failed'), 'error')
         return
       }
-      onToast('WLAN gespeichert — Neustart')
+      onToast(t('toast.wifi-committed'), 'success')
       navigate('/')
     } catch {
-      onToast('Übernehmen fehlgeschlagen')
+      onToast(t('toast.wifi-commit-failed'), 'error')
     } finally {
       setBusy(false)
     }
@@ -51,31 +56,51 @@ export function WifiTestingPage({ onToast }: { onToast: (msg: string) => void })
       await api.abortWifiConnect()
       navigate('/wifi')
     } catch {
-      onToast('Abbruch fehlgeschlagen')
+      onToast(t('toast.wifi-abort-failed'), 'error')
     } finally {
       setBusy(false)
     }
   }
 
+  const statusText =
+    status.state === 'testing'
+      ? t('wifi-test.testing')
+      : status.state === 'ok'
+        ? t('wifi-test.ok')
+        : status.state === 'fail'
+          ? t('wifi-test.fail')
+          : t('wifi-test.idle')
+
   return (
     <div className="space-y-4">
-      <Panel title="Verbindungstest">
+      <Panel
+        title={t('wifi-test.title')}
+        hint={status.state !== 'ok' ? t('wifi-test.commit-hint') : undefined}
+      >
         <p className="mb-2 text-sm text-muted">
-          SSID: <span className="text-text-bright">{status.ssid || '…'}</span>
+          {t('wifi-test.ssid')}{' '}
+          <span className="text-text-bright">{status.ssid || '…'}</span>
         </p>
-        <p className="text-sm text-text-bright">
-          {status.state === 'testing' && 'Teste Verbindung…'}
-          {status.state === 'ok' && 'Verbindung erfolgreich'}
-          {status.state === 'fail' && 'Verbindung fehlgeschlagen'}
-          {status.state === 'idle' && 'Kein aktiver Test'}
+        <p className="inline-flex items-center gap-2 text-sm text-text-bright">
+          {status.state === 'testing' ? (
+            <LoaderCircle size={16} className="animate-spin text-accent" aria-hidden />
+          ) : null}
+          {statusText}
         </p>
       </Panel>
+      {status.state === 'fail' ? (
+        <Alert variant="error">{t('wifi-test.fail')}</Alert>
+      ) : null}
       <div className="space-y-3">
-        <PrimaryButton disabled={busy || status.state !== 'ok'} onClick={() => void commit()}>
-          Speichern & neu starten
+        <PrimaryButton
+          loading={busy}
+          disabled={status.state !== 'ok'}
+          onClick={() => void commit()}
+        >
+          {t('wifi-test.commit')}
         </PrimaryButton>
-        <DangerButton disabled={busy} onClick={() => void abort()}>
-          Abbrechen
+        <DangerButton loading={busy} onClick={() => void abort()}>
+          {t('wifi-test.abort')}
         </DangerButton>
       </div>
     </div>

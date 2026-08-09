@@ -17,6 +17,8 @@ extern std::atomic<bool> g_webAdminSettingsNvsWriteFailed;
 extern std::atomic<bool> g_systemShutdownInProgress;
 
 extern uint8_t      g_webAdminPendingResetDays;
+extern char         g_webAdminPendingUiLang[3];
+extern char         g_webAdminPendingUiTheme[6];
 extern portMUX_TYPE g_webAdminSettingsPendingMux;
 
 bool adminParseBodyParam(AsyncWebServerRequest* req, const char* name, char* out,

@@ -19,6 +19,7 @@
 
 #include <ESPAsyncWebServer.h>
 #include <climits>
+#include <cstring>
 #include <esp_log.h>
 
 #include "util/log_tag.h"
@@ -64,14 +65,16 @@ void webAdminLoop() {
     if (g_webAdminSettingsApplyPending.exchange(false, std::memory_order_acq_rel)
         && !g_systemShutdownInProgress.load(std::memory_order_acquire)) {
         uint8_t daysApply;
+        char langApply[3];
+        char themeApply[6];
         portENTER_CRITICAL(&g_webAdminSettingsPendingMux);
         daysApply = g_webAdminPendingResetDays;
+        strlcpy(langApply, g_webAdminPendingUiLang, sizeof(langApply));
+        strlcpy(themeApply, g_webAdminPendingUiTheme, sizeof(themeApply));
         portEXIT_CRITICAL(&g_webAdminSettingsPendingMux);
-        if (!configSetResetPeriodDays(daysApply)) {
-            g_webAdminSettingsNvsWriteFailed.store(true, std::memory_order_release);
-        } else {
-            g_webAdminSettingsNvsWriteFailed.store(false, std::memory_order_release);
-        }
+        const bool ok = configSetResetPeriodDays(daysApply) && configSetUiLang(langApply)
+                        && configSetUiTheme(themeApply);
+        g_webAdminSettingsNvsWriteFailed.store(!ok, std::memory_order_release);
     }
 
     if (g_webAdminMqttApplyVersion.load(std::memory_order_acquire) > s_webAdminMqttApplyQueuedVersion

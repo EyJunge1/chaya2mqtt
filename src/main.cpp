@@ -60,6 +60,7 @@ void setup() {
     loadMQTTConfig();
     loadHeartCounter();
     configLoadResetPeriodFromNvs();
+    configLoadUiPrefsFromNvs();
     setupWiFi();
 
     mqttSetup();

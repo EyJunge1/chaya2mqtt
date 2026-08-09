@@ -1,28 +1,42 @@
 import { RotateCcw, X } from 'lucide-react'
 import { useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
+import type { DeviceMode } from '../api/types'
 
 const scenarios = [
-  { id: 'sta-connected', label: 'STA verbunden', path: '/' },
-  { id: 'ap-setup', label: 'AP Setup', path: '/wifi' },
-  { id: 'offline', label: 'Offline', path: '/' },
+  { id: 'sta-connected', label: 'STA online', path: '/' },
+  { id: 'offline', label: 'STA offline', path: '/' },
+  { id: 'ap-setup', label: 'AP Setup', path: '/' },
 ] as const
 
 const pages = [
   { path: '/', label: 'Dashboard' },
-  { path: '/wifi', label: 'WLAN' },
+  { path: '/wifi', label: 'Wi-Fi' },
   { path: '/mqtt', label: 'MQTT' },
   { path: '/pairing', label: 'Pairing' },
-  { path: '/settings', label: 'Einstellungen' },
+  { path: '/settings', label: 'Settings' },
   { path: '/update', label: 'Update' },
 ] as const
 
-export function MockToolbar({ onChanged }: { onChanged: () => Promise<void> }) {
+export function MockToolbar({
+  onChanged,
+  mode = 'sta',
+}: {
+  onChanged: () => Promise<void>
+  mode?: DeviceMode
+}) {
   const [open, setOpen] = useState(true)
   const [busy, setBusy] = useState(false)
   const navigate = useNavigate()
   const location = useLocation()
   if (!import.meta.env.DEV) return null
+
+  const visiblePages =
+    mode === 'ap'
+      ? pages
+          .filter((page) => page.path === '/')
+          .map((page) => ({ ...page, label: 'Setup' }))
+      : pages
 
   async function setScenario(scenario: (typeof scenarios)[number]) {
     setBusy(true)
@@ -57,13 +71,13 @@ export function MockToolbar({ onChanged }: { onChanged: () => Promise<void> }) {
         onClick={() => setOpen((v) => !v)}
       >
         <span>Simulator</span>
-        {open ? <X size={14} /> : <span>Öffnen</span>}
+        {open ? <X size={14} /> : <span>Open</span>}
       </button>
       {open ? (
         <div className="mt-2 space-y-3 border-t border-border pt-2">
           <section>
             <p className="mb-1 px-2 text-[10px] font-semibold uppercase tracking-wider text-muted">
-              Gerätezustand
+              Device state
             </p>
             <div className="space-y-1">
               {scenarios.map((scenario) => (
@@ -82,10 +96,10 @@ export function MockToolbar({ onChanged }: { onChanged: () => Promise<void> }) {
 
           <section>
             <p className="mb-1 px-2 text-[10px] font-semibold uppercase tracking-wider text-muted">
-              Seite öffnen
+              Open page
             </p>
             <div className="grid grid-cols-2 gap-1">
-              {pages.map((page) => (
+              {visiblePages.map((page) => (
                 <button
                   key={page.path}
                   type="button"
@@ -110,7 +124,7 @@ export function MockToolbar({ onChanged }: { onChanged: () => Promise<void> }) {
             onClick={() => void reset()}
           >
             <RotateCcw size={12} />
-            Simulator zurücksetzen
+            Reset simulator
           </button>
         </div>
       ) : null}

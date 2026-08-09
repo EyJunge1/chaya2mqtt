@@ -1,24 +1,36 @@
 import { QRCodeSVG } from 'qrcode.react'
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
+import type { ShowToast } from '../components/Toast'
 import { api } from '../api/client'
 import type { PairingInfo } from '../api/types'
 import { Panel } from '../components/Card'
 import { Field, PrimaryButton, TextInput } from '../components/Form'
+import { ErrorBlock, LoadingBlock } from '../components/StateBlock'
+import { useI18n } from '../i18n'
 
-export function PairingPage({ onToast }: { onToast: (msg: string) => void }) {
+export function PairingPage({ onToast }: { onToast: ShowToast }) {
+  const { t } = useI18n()
   const [info, setInfo] = useState<PairingInfo | null>(null)
   const [partner, setPartner] = useState('')
   const [busy, setBusy] = useState(false)
+  const [loadError, setLoadError] = useState(false)
+
+  const load = useCallback(async () => {
+    setLoadError(false)
+    setInfo(null)
+    try {
+      const p = await api.getPairing()
+      setInfo(p)
+      setPartner(p.partnerId)
+    } catch {
+      setLoadError(true)
+      onToast(t('toast.pairing-load-failed'), 'error')
+    }
+  }, [onToast, t])
 
   useEffect(() => {
-    void api
-      .getPairing()
-      .then((p) => {
-        setInfo(p)
-        setPartner(p.partnerId)
-      })
-      .catch(() => onToast('Pairing laden fehlgeschlagen'))
-  }, [onToast])
+    void load()
+  }, [load])
 
   async function save(e: React.FormEvent) {
     e.preventDefault()
@@ -26,26 +38,37 @@ export function PairingPage({ onToast }: { onToast: (msg: string) => void }) {
     try {
       const res = await api.savePartner(partner.trim().toLowerCase())
       if (!res.ok) {
-        onToast('Partner-ID ungültig')
+        onToast(t('toast.partner-invalid'), 'error')
         return
       }
-      onToast('Partner gespeichert')
+      onToast(t('toast.partner-saved'), 'success')
       const next = await api.getPairing()
       setInfo(next)
     } catch {
-      onToast('Speichern fehlgeschlagen')
+      onToast(t('toast.save-failed'), 'error')
     } finally {
       setBusy(false)
     }
   }
 
+  if (loadError) {
+    return (
+      <ErrorBlock
+        title={t('pairing.load-error-title')}
+        message={t('pairing.load-error')}
+        retryLabel={t('common.retry')}
+        onRetry={() => void load()}
+      />
+    )
+  }
+
   if (!info) {
-    return <p className="text-sm text-muted">Lade Pairing…</p>
+    return <LoadingBlock label={t('pairing.loading')} />
   }
 
   return (
     <div className="space-y-4">
-      <Panel title="Diese Device-ID">
+      <Panel title={t('pairing.device-id')}>
         <div className="flex flex-col items-center gap-3 py-2">
           <div className="rounded-xl bg-white p-3">
             <QRCodeSVG value={info.deviceId} size={160} level="M" />
@@ -53,9 +76,9 @@ export function PairingPage({ onToast }: { onToast: (msg: string) => void }) {
           <code className="text-lg font-bold tracking-widest text-text-bright">{info.deviceId}</code>
         </div>
       </Panel>
-      <Panel title="Partner">
+      <Panel title={t('pairing.partner')}>
         <form className="space-y-3" onSubmit={(e) => void save(e)}>
-          <Field label="Partner-ID (6 Hex)" hint="z. B. f5e6d7">
+          <Field label={t('pairing.partner-id')} hint={t('pairing.partner-hint')}>
             <TextInput
               value={partner}
               onChange={(e) => setPartner(e.target.value)}
@@ -64,13 +87,8 @@ export function PairingPage({ onToast }: { onToast: (msg: string) => void }) {
               required
             />
           </Field>
-          <p className="text-xs text-muted">
-            Pub: {info.topicPub || '—'}
-            <br />
-            Sub: {info.topicSub || '—'}
-          </p>
-          <PrimaryButton type="submit" disabled={busy}>
-            Partner speichern
+          <PrimaryButton type="submit" loading={busy}>
+            {t('common.save')}
           </PrimaryButton>
         </form>
       </Panel>

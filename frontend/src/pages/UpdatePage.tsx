@@ -1,9 +1,12 @@
 import { useState } from 'react'
+import type { ShowToast } from '../components/Toast'
 import { api } from '../api/client'
 import { Panel } from '../components/Card'
 import { PrimaryButton } from '../components/Form'
+import { useI18n } from '../i18n'
 
-export function UpdatePage({ onToast }: { onToast: (msg: string) => void }) {
+export function UpdatePage({ onToast }: { onToast: ShowToast }) {
+  const { t } = useI18n()
   const [busy, setBusy] = useState(false)
 
   async function check() {
@@ -11,25 +14,20 @@ export function UpdatePage({ onToast }: { onToast: (msg: string) => void }) {
     try {
       const res = await api.checkUpdate()
       onToast(
-        res.ok
-          ? 'GitHub wird geprüft — das Gerät kann danach installieren'
-          : 'Update-Check fehlgeschlagen',
+        res.ok ? t('toast.update-checking') : t('toast.update-failed'),
+        res.ok ? 'info' : 'error',
       )
     } catch {
-      onToast('Update-Check fehlgeschlagen')
+      onToast(t('toast.update-failed'), 'error')
     } finally {
       setBusy(false)
     }
   }
 
   return (
-    <Panel title="Firmware-Update">
-      <p className="mb-4 text-sm text-muted">
-        Prüft auf GitHub, ob eine neuere Firmware verfügbar ist. Bei Erfolg kann das Gerät die
-        Aktualisierung selbstständig installieren.
-      </p>
-      <PrimaryButton disabled={busy} onClick={() => void check()}>
-        Nach Updates suchen
+    <Panel title={t('update.title')} hint={t('update.text')}>
+      <PrimaryButton loading={busy} onClick={() => void check()}>
+        {t('update.check')}
       </PrimaryButton>
     </Panel>
   )

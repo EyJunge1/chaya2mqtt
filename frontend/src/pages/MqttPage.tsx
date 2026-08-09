@@ -1,24 +1,40 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
+import type { ShowToast } from '../components/Toast'
 import { api } from '../api/client'
 import type { MqttConfigView, MqttStatus } from '../api/types'
 import { Panel } from '../components/Card'
 import { Field, PrimaryButton, TextInput } from '../components/Form'
+import { ErrorBlock, LoadingBlock } from '../components/StateBlock'
 import { StatusBadge } from '../components/StatusBadge'
+import { useI18n } from '../i18n'
 
 export function MqttPage({
   mqtt,
   onToast,
 }: {
   mqtt: MqttStatus
-  onToast: (msg: string) => void
+  onToast: ShowToast
 }) {
+  const { t } = useI18n()
   const [cfg, setCfg] = useState<MqttConfigView | null>(null)
   const [password, setPassword] = useState('')
   const [busy, setBusy] = useState(false)
+  const [loadError, setLoadError] = useState(false)
+
+  const load = useCallback(async () => {
+    setLoadError(false)
+    setCfg(null)
+    try {
+      setCfg(await api.getMqttConfig())
+    } catch {
+      setLoadError(true)
+      onToast(t('toast.mqtt-load-failed'), 'error')
+    }
+  }, [onToast, t])
 
   useEffect(() => {
-    void api.getMqttConfig().then(setCfg).catch(() => onToast('MQTT-Config laden fehlgeschlagen'))
-  }, [onToast])
+    void load()
+  }, [load])
 
   async function save(e: React.FormEvent) {
     e.preventDefault()
@@ -33,27 +49,43 @@ export function MqttPage({
         mqtt_topic_pub: cfg.topicPub,
         mqtt_topic_sub: cfg.topicSub,
       })
-      onToast(res.ok ? 'Gespeichert. MQTT verbindet neu.' : 'Speichern fehlgeschlagen')
+      onToast(res.ok ? t('toast.mqtt-saved') : t('toast.save-failed'), res.ok ? 'success' : 'error')
       if (res.ok) setPassword('')
     } catch {
-      onToast('Speichern fehlgeschlagen')
+      onToast(t('toast.save-failed'), 'error')
     } finally {
       setBusy(false)
     }
   }
 
+  if (loadError) {
+    return (
+      <ErrorBlock
+        title={t('mqtt.load-error-title')}
+        message={t('mqtt.load-error')}
+        retryLabel={t('common.retry')}
+        onRetry={() => void load()}
+      />
+    )
+  }
+
   if (!cfg) {
-    return <p className="text-sm text-muted">Lade MQTT…</p>
+    return <LoadingBlock label={t('mqtt.loading')} />
   }
 
   return (
     <div className="space-y-4">
-      <Panel title="Status">
-        <StatusBadge ok={mqtt.connected} />
+      <Panel title={t('mqtt.status')}>
+        <StatusBadge
+          ok={mqtt.connected}
+          label={t('status.mqtt')}
+          detailOk={t('status.mqtt-ok')}
+          detailBad={t('status.mqtt-bad')}
+        />
       </Panel>
-      <Panel title="Broker">
+      <Panel title={t('mqtt.broker')}>
         <form className="space-y-3" onSubmit={(e) => void save(e)}>
-          <Field label="Broker (Hostname oder IP)">
+          <Field label={t('mqtt.server')}>
             <TextInput
               value={cfg.server}
               onChange={(e) => setCfg({ ...cfg, server: e.target.value })}
@@ -61,7 +93,7 @@ export function MqttPage({
               required
             />
           </Field>
-          <Field label="Port">
+          <Field label={t('mqtt.port')}>
             <TextInput
               type="number"
               min={1}
@@ -71,7 +103,7 @@ export function MqttPage({
               required
             />
           </Field>
-          <Field label="Benutzername (optional)">
+          <Field label={t('mqtt.user')}>
             <TextInput
               value={cfg.username}
               onChange={(e) => setCfg({ ...cfg, username: e.target.value })}
@@ -79,8 +111,8 @@ export function MqttPage({
             />
           </Field>
           <Field
-            label="Passwort (optional)"
-            hint={cfg.hasPassword ? 'Gespeichert — leer lassen zum Behalten' : undefined}
+            label={t('mqtt.pass')}
+            hint={cfg.hasPassword ? t('mqtt.pass-hint') : undefined}
           >
             <TextInput
               type="password"
@@ -88,10 +120,10 @@ export function MqttPage({
               onChange={(e) => setPassword(e.target.value)}
               maxLength={63}
               autoComplete="current-password"
-              placeholder={cfg.hasPassword ? '(gespeichert)' : ''}
+              placeholder={cfg.hasPassword ? t('mqtt.pass-placeholder') : ''}
             />
           </Field>
-          <Field label="Topic Publish">
+          <Field label={t('mqtt.topic-pub')}>
             <TextInput
               value={cfg.topicPub}
               onChange={(e) => setCfg({ ...cfg, topicPub: e.target.value })}
@@ -99,7 +131,7 @@ export function MqttPage({
               required
             />
           </Field>
-          <Field label="Topic Subscribe">
+          <Field label={t('mqtt.topic-sub')}>
             <TextInput
               value={cfg.topicSub}
               onChange={(e) => setCfg({ ...cfg, topicSub: e.target.value })}
@@ -107,8 +139,8 @@ export function MqttPage({
               required
             />
           </Field>
-          <PrimaryButton type="submit" disabled={busy}>
-            Speichern
+          <PrimaryButton type="submit" loading={busy}>
+            {t('common.save')}
           </PrimaryButton>
         </form>
       </Panel>

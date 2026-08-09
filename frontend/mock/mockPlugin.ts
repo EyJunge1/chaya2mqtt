@@ -245,6 +245,8 @@ async function handleApi(req: IncomingMessage, res: ServerResponse): Promise<boo
   if (path === '/api/settings' && method === 'GET') {
     sendJson(res, 200, {
       resetDays: state.resetDays,
+      lang: state.lang,
+      theme: state.theme,
     })
     return true
   }
@@ -252,8 +254,20 @@ async function handleApi(req: IncomingMessage, res: ServerResponse): Promise<boo
   if (path === '/api/settings' && method === 'POST') {
     const params = parseForm(await readBody(req))
     if (!requireCsrf(params, res)) return true
-    const days = Number(params.get('reset_days') ?? '7')
-    state.resetDays = Number.isFinite(days) ? Math.min(30, Math.max(0, days)) : 7
+    const days = Number(params.get('reset_days') ?? String(state.resetDays))
+    state.resetDays = Number.isFinite(days) ? Math.min(30, Math.max(0, days)) : state.resetDays
+    const lang = params.get('lang')
+    if (lang === 'de' || lang === 'en') state.lang = lang
+    else if (lang != null) {
+      sendJson(res, 400, { ok: false, error: 'lang' })
+      return true
+    }
+    const theme = params.get('theme')
+    if (theme === 'dark' || theme === 'light') state.theme = theme
+    else if (theme != null) {
+      sendJson(res, 400, { ok: false, error: 'theme' })
+      return true
+    }
     sendJson(res, 200, { ok: true, message: 'saved' })
     return true
   }

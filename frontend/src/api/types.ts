@@ -60,8 +60,13 @@ export interface PairingInfo {
   topicSub: string
 }
 
+export type UiLang = 'de' | 'en'
+export type UiTheme = 'dark' | 'light'
+
 export interface SettingsInfo {
   resetDays: number
+  lang: UiLang
+  theme: UiTheme
 }
 
 export interface ApiOk {
