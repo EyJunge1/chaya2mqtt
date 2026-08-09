@@ -8,15 +8,15 @@ Chaya2MQTT unterstützt **Over-The-Air-Updates** über GitHub Releases. Die Firm
 flowchart LR
     trigger[Auto-Check oder manuell]
     github[GitHub Releases API]
-    semver[semver-Vergleich]
+    calver[CalVer-Vergleich]
     download[TLS-Download firmware.bin]
     sha256[SHA256-Verifikation]
     flash[esp_ota_write]
     reboot[ESP.restart]
 
     trigger --> github
-    github --> semver
-    semver -->|neuer| download
+    github --> calver
+    calver -->|neuer| download
     download --> sha256
     sha256 --> flash
     flash --> reboot
@@ -31,12 +31,39 @@ flowchart LR
 | Firmware-URL | `https://github.com/EyJunge1/chaya2mqtt/releases/latest/download/firmware.bin` |
 | SHA256-URL | `{firmware-url}.sha256` |
 
-Releases werden per Git-Tag (`v*`) ausgelöst (CI: `.github/workflows/build-release.yml`).
+Releases werden **manuell** per Git-Tag ausgelöst (CI: `.github/workflows/build-release.yml`). Der Tag muss auf einem Commit liegen, der in `main` enthalten ist.
+
+## Versionierung (CalVer)
+
+Schema: **`YYYY.M.PATCH`** (Monat ohne führende Null). Git-Tags tragen ein Prefixt `v`.
+
+| Art | Git-Tag | `APP_VERSION` in der Firmware |
+|-----|---------|-------------------------------|
+| Stable | `v2026.8.1` | `2026.8.1` |
+| Release Candidate | `v2026.8.1-rc.1` | `2026.8.1-rc.1` |
+
+RC-Releases werden auf GitHub als **Prerelease** veröffentlicht und nicht als „Latest“ markiert. OTA nutzt `releases/latest` und sieht deshalb nur Stable-Releases.
+
+### Tag erstellen und pushen
+
+```bash
+# Release Candidate (aus main)
+git checkout main
+git pull --no-tags origin main
+git tag -a v2026.8.1-rc.1 -m "RC 2026.8.1-rc.1"
+git push origin v2026.8.1-rc.1
+
+# Stable (aus main)
+git tag -a v2026.8.1 -m "Release 2026.8.1"
+git push origin v2026.8.1
+```
+
+Vor dem Tag lokal prüfen: `make check`.
 
 ## Versionsvergleich
 
-- `APP_VERSION` aus `config/version.h` (CI setzt aus Git-Tag, z. B. `v1.2.3`)
-- GitHub `tag_name` wird per semver geparst (`major * 10⁶ + minor * 10³ + patch`)
+- `APP_VERSION` aus `config/version.h` (CI setzt aus Tag **ohne** führendes `v`, z. B. `2026.8.1`)
+- GitHub `tag_name` wird als CalVer geparst (`YYYY * 10⁵ + M * 10³ + PATCH`, Stable sortiert über RC mit gleicher Basis)
 - Upgrade verfügbar wenn Remote-Version > lokale Version
 - `APP_VERSION == "dev"`: **kein automatischer Check** (nur manuell)
 
@@ -53,7 +80,7 @@ Releases werden per Git-Tag (`v*`) ausgelöst (CI: `.github/workflows/build-rele
 
 Ablauf in `otaLoop()` (OTA-Task, alle 100 ms):
 1. Kalendertag prüfen → wenn schon gecheckt: skip
-2. `otaGithubEvaluateLatestRelease()` → semver-Vergleich
+2. `otaGithubEvaluateLatestRelease()` → CalVer-Vergleich
 3. Bei Upgrade: URL merken, Download queueen
 4. Check-Tag in NVS speichern
 
@@ -100,11 +127,15 @@ Im **App-Task** (`appTaskFn`), nach den initialen Health-Check-Schleifen:
 
 GitHub Actions (`.github/workflows/build-release.yml`):
 
-1. Trigger: Push auf Tag `v*`
-2. `APP_VERSION` aus Tag setzen
-3. `pio run -e esp32dev-release`
-4. SHA256 von `firmware.bin` berechnen
-5. Release erstellen mit `firmware.bin` + `firmware.sha256`
+1. Trigger: Push auf Tag `vYYYY.M.PATCH` oder `vYYYY.M.PATCH-rc.N`
+2. Tag-Format prüfen; Commit muss Ancestor von `origin/main` sein
+3. `APP_VERSION` aus Tag setzen (ohne `v`)
+4. Frontend build + SPA einbetten (Lint/Tests nur lokal via `make check`)
+5. `pio run -e esp32dev-release`, OTA-Slot-Größe prüfen
+6. SHA256 von `firmware.bin` berechnen
+7. GitHub Release mit `firmware.bin` + `firmware.sha256` (RC = Prerelease)
+
+Lokale Checks vor Commits: `make check` (Cursor-Regel: `.cursor/rules/check-before-commit.mdc`).
 
 ## Fehlerbehandlung
 

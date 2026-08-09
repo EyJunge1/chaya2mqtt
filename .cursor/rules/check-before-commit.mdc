@@ -1,0 +1,14 @@
+---
+description: Vor jedem Commit lokale Checks mit make check ausführen
+alwaysApply: true
+---
+
+# Check vor Commit
+
+Vor **jedem** Commit in diesem Repository:
+
+1. `make check` ausführen (Frontend-Lint/Tests/Build, native Tests, ESP32-Release-Build).
+2. Bei Fehler **nicht** committen; zuerst den Fehler beheben und erneut prüfen.
+3. Erst nach erfolgreichem `make check` den Commit erstellen.
+
+Manuelle Terminal-Commits ohne Cursor werden dadurch nicht technisch blockiert; für Agent-Commits ist der Check Pflicht.

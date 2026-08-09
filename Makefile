@@ -5,11 +5,12 @@ ENV     ?= esp32dev
 PIO     ?= $(HOME)/.platformio/penv/bin/pio
 ENV_REL ?= esp32dev-release
 
-.PHONY: help build upload upload-clean clean erase monitor compiledb build-release upload-release erase-release upload-release-clean frontend frontend-test
+.PHONY: help check build upload upload-clean clean erase monitor compiledb build-release upload-release erase-release upload-release-clean frontend frontend-test
 
 help:
 	@echo "chaya2mqtt – PlatformIO über Makefile"
 	@echo ""
+	@echo "  make check          # Lint, Tests, Frontend- und Firmware-Build (vor Commit)"
 	@echo "  make build          # Frontend + Firmware bauen (ENV=$(ENV))"
 	@echo "  make upload         # bauen + flashen ($(ENV))"
 	@echo "  make erase          # Flash komplett löschen ($(ENV))"
@@ -26,6 +27,12 @@ help:
 	@echo ""
 	@echo "Andere Umgebung: make upload ENV=esp32dev-release"
 	@echo "GUI lokal ohne Flash: cd frontend && npm run dev"
+
+check:
+	cd frontend && npm ci && npm run lint && npm test && npm run build
+	python3 tools/embed_web_assets.py
+	"$(PIO)" test -e native
+	"$(PIO)" run -e $(ENV_REL)
 
 frontend:
 	cd frontend && npm ci && npm run build

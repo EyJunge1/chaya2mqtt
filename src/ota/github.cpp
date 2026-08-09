@@ -49,10 +49,14 @@ uint32_t semverPackFromTag(const char* tag) {
     if (n < 1) {
         return 0;
     }
-    if (major > 999U || minor > 999U || patch > 999U) {
+    // CalVer YYYY.M.PATCH (year up to 9999) or classic semver.
+    if (major > 9999U || minor > 999U || patch > 999U) {
         return UINT32_MAX;
     }
-    return major * 1000000U + minor * 1000U + patch;
+    const uint32_t base = major * 100000U + minor * 1000U + patch;
+    // Stable sorts above RC with the same YYYY.M.PATCH (releases/latest skips prereleases).
+    const bool isRc = (strstr(p, "-rc.") != nullptr) || (strstr(p, "-RC.") != nullptr);
+    return isRc ? (base * 2U) : (base * 2U + 1U);
 }
 
 bool githubParseLatestTagLegacy(const char* json, char* tagOut, size_t tagLen) {

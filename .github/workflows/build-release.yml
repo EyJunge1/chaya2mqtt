@@ -5,6 +5,10 @@ on:
     tags:
       - "v*"
 
+concurrency:
+  group: release-${{ github.repository }}-${{ github.ref_name }}
+  cancel-in-progress: false
+
 permissions:
   contents: write
 
@@ -13,13 +17,34 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Validate CalVer release tag
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin main
+          tag="${GITHUB_REF_NAME}"
+          # Stable: vYYYY.M.PATCH  |  RC: vYYYY.M.PATCH-rc.N  (month without leading zero)
+          if [[ "$tag" =~ ^v[0-9]{4}\.([1-9]|1[0-2])\.[0-9]+(-rc\.[0-9]+)?$ ]]; then
+            git merge-base --is-ancestor "$GITHUB_SHA" origin/main
+            exit 0
+          fi
+          echo "Unsupported release tag: $tag"
+          echo "Expected: vYYYY.M.PATCH or vYYYY.M.PATCH-rc.N (e.g. v2026.8.1 or v2026.8.1-rc.1)"
+          exit 1
 
       - name: Set APP_VERSION from tag
+        shell: bash
         run: |
+          set -euo pipefail
+          version="${GITHUB_REF_NAME#v}"
           cat > src/config/version.h <<EOF
           #pragma once
-          #define APP_VERSION "${{ github.ref_name }}"
+          #define APP_VERSION "${version}"
           EOF
+          echo "APP_VERSION=${version}"
 
       - name: Cache PlatformIO
         uses: actions/cache@v4
@@ -42,15 +67,13 @@ jobs:
       - name: Install PlatformIO
         run: pip install platformio
 
-      - name: Frontend tests
+      - name: Build frontend and embed SPA
         run: |
           cd frontend
           npm ci
-          npm test
           npm run build
-
-      - name: Embed SPA assets
-        run: python3 tools/embed_web_assets.py
+          cd ..
+          python3 tools/embed_web_assets.py
 
       - name: Build release firmware
         run: pio run -e esp32dev-release
@@ -67,13 +90,15 @@ jobs:
         run: |
           cd .pio/build/esp32dev-release
           sha256sum firmware.bin | awk '{print $1}' > firmware.sha256
-          echo "sha256=$(cat firmware.sha256)" >> $GITHUB_OUTPUT
+          echo "sha256=$(cat firmware.sha256)" >> "$GITHUB_OUTPUT"
 
       - name: Upload release artifact
         uses: softprops/action-gh-release@v2
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           generate_release_notes: true
+          prerelease: ${{ contains(github.ref_name, '-rc.') }}
+          make_latest: ${{ !contains(github.ref_name, '-rc.') }}
           body: |
             ## Firmware ${{ github.ref_name }}
 
