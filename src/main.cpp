@@ -20,7 +20,6 @@
 #include "network/network_task.h"
 #include "ota/ota_task.h"
 #include "web/admin.h"
-#include "web/auth/auth.h"
 #include "wifi/wlan.h"
 #include "config/version.h"
 
@@ -61,12 +60,10 @@ void setup() {
     loadMQTTConfig();
     loadHeartCounter();
     configLoadResetPeriodFromNvs();
-    configLoadWebAuthFromNvs();
     setupWiFi();
 
     mqttSetup();
 
-    buttonSetAuthBlinkShortPressHandler(webAuthHandleButtonDuringAuthBlink);
     // Run startup blink before the button task touches the LED GPIO (otherwise both race on ledOutput).
     buttonStartupBlink();
 

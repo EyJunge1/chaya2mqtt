@@ -14,7 +14,6 @@
 #include "ota/ota.h"
 #include "web/admin.h"
 #include "web/admin_globals.h"
-#include "web/auth/auth.h"
 
 #include <Arduino.h>
 #include <DNSServer.h>
@@ -164,7 +163,6 @@ void resetAllSettings() {
     portENTER_CRITICAL(&g_lastFailedBootSsidMux);
     g_lastFailedBootSsid[0] = '\0';
     portEXIT_CRITICAL(&g_lastFailedBootSsidMux);
-    webAuthInvalidateSession();
     webAdminWebServer().end();
     if (g_apMode.load(std::memory_order_relaxed)) {
         g_dnsServer.stop();

@@ -76,11 +76,7 @@ void buttonPollAndProcess() {
         if (btn.heldDown) {
             const unsigned long held = nowMs - btn.pressStartMs;
             if (!btn.factoryResetTriggered && held >= kShortPressMinMs && held < kFactoryResetHoldMs) {
-                if (buttonIsAuthBlinkActive()) {
-                    if (s_authBlinkShortPressHandler != nullptr) {
-                        s_authBlinkShortPressHandler();
-                    }
-                } else if (!ledSendSequenceActive() && !configIsApMode()) {
+                if (!ledSendSequenceActive() && !configIsApMode()) {
                     if (mqttCfgIsBrokerConfigured()) {
                         startMqttSendLedSequence();
                     }
@@ -108,7 +104,6 @@ static void buttonTaskFn(void*) {
         const unsigned long waitMs =
             ledSendSequenceActive() ? kButtonTaskPollActiveMs : kButtonTaskPollIdleMs;
         ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(waitMs));
-        consumeButtonCommands();
         buttonPollAndProcess();
         advanceLedSequence();
         chayaTaskWatchdogReset();
@@ -123,11 +118,6 @@ void buttonInit() {
     btn.debouncedLevel       = btn.lastRawReading;
     btn.lastDebounceChangeMs = millis();
 
-    s_buttonCmdQueue = xQueueCreate(4, sizeof(ButtonInternalCmd));
-    if (s_buttonCmdQueue == nullptr) {
-        ESP_LOGE(TAG, "button cmd queue create failed");
-        abort();
-    }
 }
 
 void buttonStartTask() {
@@ -160,8 +150,4 @@ void buttonStartupBlink() {
 
 void buttonEnableLedGpioHoldForLightSleep() {
     ledHoldWhenIdle();
-}
-
-void buttonSetAuthBlinkShortPressHandler(void (*fn)()) {
-    s_authBlinkShortPressHandler = fn;
 }

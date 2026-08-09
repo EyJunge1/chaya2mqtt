@@ -4,7 +4,6 @@ import { useLocation, useNavigate } from 'react-router-dom'
 
 const scenarios = [
   { id: 'sta-connected', label: 'STA verbunden', path: '/' },
-  { id: 'sta-auth', label: 'STA + Auth (Login)', path: '/auth' },
   { id: 'ap-setup', label: 'AP Setup', path: '/wifi' },
   { id: 'offline', label: 'Offline', path: '/' },
 ] as const
@@ -113,9 +112,6 @@ export function MockToolbar({ onChanged }: { onChanged: () => Promise<void> }) {
             <RotateCcw size={12} />
             Simulator zurücksetzen
           </button>
-          <p className="px-2 text-[10px] leading-relaxed text-muted">
-            Login-Code im Simulator: <strong className="text-text-bright">123456</strong>
-          </p>
         </div>
       ) : null}
     </div>

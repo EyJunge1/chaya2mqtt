@@ -12,7 +12,6 @@ const titles: Record<string, string> = {
   '/pairing': 'Pairing',
   '/settings': 'Einstellungen',
   '/update': 'Update',
-  '/auth': 'Anmeldung',
 }
 
 export function Layout({
@@ -28,7 +27,7 @@ export function Layout({
 }) {
   const { pathname } = useLocation()
   const title = titles[pathname] ?? 'Chaya2MQTT'
-  const showBack = pathname !== '/' && pathname !== '/auth'
+  const showBack = pathname !== '/'
 
   return (
     <div className="mx-auto min-h-screen w-full max-w-[560px] px-4 py-5">

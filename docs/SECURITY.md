@@ -34,44 +34,34 @@ WiFi-Passwörter, MQTT-Zugangsdaten und Konfiguration werden in der **NVS** (Non
 | Aspekt | Status |
 |--------|--------|
 | Transport | **HTTP (Port 80)** – keine TLS-Verschlüsselung |
-| Session | Cookie `chaya_sid` (HttpOnly, SameSite=Strict) |
+| Login | **Kein** Web-Login; Admin-UI ist im lokalen Netz für alle Teilnehmer erreichbar |
 | CSRF | Token über `/api/csrf`, in allen JSON-POSTs als `csrf_token` |
 | CSP | `script-src 'self'; style-src 'self'` (keine Inline-Skripte) |
 | UI | React-SPA aus PROGMEM; Logik über `/api/*` + SSE |
-| Risiko | Session-Hijacking / Credential-Sniffing im lokalen Netz möglich |
+| Risiko | Jeder Host im LAN kann die Admin-UI nutzen; Credential-Sniffing im lokalen Netz möglich |
 
-### Web-Auth (optional)
+### CSRF / Host-Schutz
 
-Wenn aktiviert (`cfg/authEn`):
+Es gibt **keine** Session-Authentifizierung. Schutz gegen Cross-Site-Requests und DNS-Rebinding:
 
 | Merkmal | Wert |
 |---------|------|
-| Challenge | 6-stelliger Code auf E-Ink |
-| Bestätigung | Physischer Tastendruck erforderlich |
-| Code-Gültigkeit | 5 Minuten |
-| Lockout | 1 Stunde nach 3 Fehlversuchen |
-| Session | 24 Stunden |
-| Parallele Sessions | **Eine** globale Session pro Gerät (neuer Login invalidiert ältere Cookies) |
-
-**Stärke:** Remote-Angreifer ohne physischen Gerätezugriff kann sich nicht authentifizieren (Tastendruck nötig).
-
-**Schwäche:** Im AP-Modus (Ersteinrichtung) ist Auth deaktiviert – jeder im AP-Bereich kann konfigurieren.
+| CSRF | Token über `/api/csrf`, Pflichtfeld `csrf_token` in POSTs |
+| Host-/Origin | Allowlist in Middleware und SSE-`authorizeConnect` |
+| CSP | Keine Inline-Skripte/Styles |
 
 Der Setup-Access-Point **`Chaya2MQTT`** ist bewusst **offen (ohne WPA/PSK)**, damit die Ersteinrichtung ohne vorab bekanntes Passwort möglich ist. Er sollte nur im Einrichtungs- bzw. WLAN-Fallbackmodus genutzt werden.
 
-### Öffentliche Routen (ohne Auth)
+### Öffentliche Routen
 
-Im AP-Modus: SPA-Shell (`/`, `/wifi`, …), `/assets/*`, `/api/csrf`, `/api/device`, `/api/wifi/*`, `/events`
-
-Im STA-Modus (Auth aktiv): SPA-Shell für `/`, `/wifi`, `/wifi-testing`, `/auth`; plus `/assets/*`, `/api/csrf`, `/api/device`, `/api/auth/login`, `/api/wifi/connect*`, `/events`
-(übrige `/api/*` erfordern Session)
+SPA-Shell (`/`, `/wifi`, …), `/assets/*`, `/api/*` und `/events` sind ohne Login erreichbar (Host-Check bleibt aktiv; POSTs brauchen CSRF).
 
 ### SSE (`/events`)
 
 | Aspekt | Status |
 |--------|--------|
 | Transport | Gleicher HTTP-Origin wie Admin-UI |
-| Auth | AP: offen; STA ohne Web-Auth: offen; STA mit Web-Auth: Session-Cookie wie HTML-Routen |
+| Auth | Offen (kein Session-Login) |
 | Host-Check | `webRequestHostAllowed()` in `authorizeConnect` (DNS-Rebinding-Schutz) |
 | Limit | Max. 6 gleichzeitige Clients |
 
@@ -106,7 +96,6 @@ Credentials liegen unverschlüsselt in NVS (siehe oben).
 
 Knopf 10 s halten oder NVS-Wipe löscht **alle** Namespaces:
 - `wifi`, `mqtt`, `cfg`, `chaya`
-- Session-Cookie wird invalidiert
 - RAM-Zähler werden zurückgesetzt
 
 ## FreeRTOS / Thread-Safety
@@ -114,7 +103,7 @@ Knopf 10 s halten oder NVS-Wipe löscht **alle** Namespaces:
 | Mechanismus | Zweck |
 |-------------|-------|
 | Mutexe | MQTT-Config, Publish-Pfad, NVS, WiFi-API |
-| Atomics | Zähler, Web-Admin-Flags, Auth-State |
+| Atomics | Zähler, Web-Admin-Flags |
 | Queues | NetCmd, DisplayMsg (serialisierte Aktionen) |
 | portMUX | Counter-Snapshots für Display |
 
@@ -125,7 +114,7 @@ Lock-Reihenfolge bei MQTT-Mutexen ist dokumentiert und muss eingehalten werden (
 | Bereich | Schutz | Empfehlung |
 |---------|--------|------------|
 | NVS-Credentials | Keine Verschlüsselung | Flash-Verschlüsselung optional |
-| Web-Admin | HTTP, optional Auth | Nur im vertrauenswürdigen Netz |
+| Web-Admin | HTTP, CSRF + Host-Check, kein Login | Nur im vertrauenswürdigen Netz |
 | MQTT | TLS + CA-Prüfung | Starker Broker mit Auth |
 | OTA | TLS + SHA256 | Vertrauen in GitHub-Quelle |
 | Physischer Zugriff | Kein Schutz | Gerät schützen |
@@ -134,6 +123,6 @@ Für den typischen Heimnetz-Einsatz ist das aktuelle Modell ausreichend. Für h�
 
 ## Weitere Dokumentation
 
-- Web-Auth-Flow: [WEB_ADMIN.md](WEB_ADMIN.md)
+- Web-Admin: [WEB_ADMIN.md](WEB_ADMIN.md)
 - NVS-Keys: [CONFIGURATION.md](CONFIGURATION.md)
 - MQTT-TLS: [MQTT.md](MQTT.md)

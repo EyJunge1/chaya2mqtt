@@ -1,6 +1,6 @@
 #include "web_utils.h"
 
-#include "auth/auth.h"
+#include "csrf.h"
 #include "config/app_config.h"
 #include "constants.h"
 #include "wifi/wlan.h"
@@ -174,7 +174,7 @@ void webSendEmpty(AsyncWebServerRequest* req, int code) {
 
 void appendCurrentWebCsrfTokenEscaped(Print& out) {
     char b[33];
-    webAuthGetCsrfTokenHex(b, sizeof(b));
+    webCsrfGetTokenHex(b, sizeof(b));
     appendHtmlEscaped(out, b);
 }
 

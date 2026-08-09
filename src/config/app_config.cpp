@@ -11,31 +11,9 @@
 
 DEFINE_LOG_TAG("CFG");
 
-// NVS namespace "cfg" — cached: display reset period, web auth enable.
+// NVS namespace "cfg" — cached: display reset period.
 
 static std::atomic<uint8_t> s_resetPeriodDaysCached{7};
-static std::atomic<bool>    s_webAuthEnabledCached{false};
-
-void configLoadWebAuthFromNvs() {
-    s_webAuthEnabledCached.store((app_nvs::readUChar(kNvsNsCfg, kNvsKeyCfgAuthEn, 0) != 0),
-                                 std::memory_order_relaxed);
-}
-
-bool configGetWebAuthEnabled() {
-    return s_webAuthEnabledCached.load(std::memory_order_relaxed);
-}
-
-bool configSetWebAuthEnabled(bool enabled) {
-    if (configGetWebAuthEnabled() == enabled) {
-        return true;
-    }
-    if (!app_nvs::writeUChar(kNvsNsCfg, kNvsKeyCfgAuthEn, enabled ? 1 : 0)) {
-        ESP_LOGE(TAG, "NVS cfg: failed to persist authEn");
-        return false;
-    }
-    s_webAuthEnabledCached.store(enabled, std::memory_order_relaxed);
-    return true;
-}
 
 void configLoadResetPeriodFromNvs() {
     const uint8_t raw = app_nvs::readUChar(kNvsNsCfg, kNvsKeyCfgRstPeriod, 7);
@@ -70,6 +48,5 @@ bool configSetResetPeriodDays(uint8_t days) {
 }
 
 void app_configResetRamAfterFactoryClear() {
-    s_webAuthEnabledCached.store(false, std::memory_order_relaxed);
     s_resetPeriodDaysCached.store(7, std::memory_order_relaxed);
 }

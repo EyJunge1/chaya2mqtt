@@ -1,12 +1,11 @@
-import { useCallback, useEffect, useState, type ReactNode } from 'react'
-import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
-import { api, AuthRequiredError, refreshCsrf } from './api/client'
+import { useCallback, useEffect, useState } from 'react'
+import { Navigate, Route, Routes } from 'react-router-dom'
+import { api, refreshCsrf } from './api/client'
 import { connectEvents } from './api/sse'
 import type { ChayaStatus, DeviceInfo, MqttStatus, WifiStatus } from './api/types'
 import { Layout } from './components/Layout'
 import { MockToolbar } from './components/MockToolbar'
 import { Toast } from './components/Toast'
-import { AuthPage } from './pages/AuthPage'
 import { DashboardPage } from './pages/DashboardPage'
 import { MqttPage } from './pages/MqttPage'
 import { PairingPage } from './pages/PairingPage'
@@ -15,22 +14,6 @@ import { UpdatePage } from './pages/UpdatePage'
 import { WifiPage } from './pages/WifiPage'
 import { WifiTestingPage } from './pages/WifiTestingPage'
 
-function RequireAuth({
-  device,
-  children,
-}: {
-  device: DeviceInfo | null
-  children: ReactNode
-}) {
-  const location = useLocation()
-  if (!device) return null
-  if (device.authRequired && location.pathname !== '/auth') {
-    const next = encodeURIComponent(location.pathname + location.search)
-    return <Navigate to={`/auth?next=${next}`} replace />
-  }
-  return children
-}
-
 export default function App() {
   const [device, setDevice] = useState<DeviceInfo | null>(null)
   const [chaya, setChaya] = useState<ChayaStatus>({ rx: 0, tx: 0, connected: false })
@@ -38,36 +21,27 @@ export default function App() {
   const [mqtt, setMqtt] = useState<MqttStatus>({ connected: false })
   const [toast, setToast] = useState<string | null>(null)
   const [bootError, setBootError] = useState<string | null>(null)
-  const navigate = useNavigate()
 
   const refreshDevice = useCallback(async () => {
     await refreshCsrf()
     const d = await api.getDevice()
     setDevice(d)
-    if (!d.authRequired) {
-      try {
-        const [c, w, m] = await Promise.all([
-          d.mode === 'sta' ? api.getChaya() : Promise.resolve({ rx: 0, tx: 0, connected: false }),
-          api.getWifiStatus(),
-          d.mode === 'sta' ? api.getMqttStatus() : Promise.resolve({ connected: false }),
-        ])
-        setChaya(c)
-        setWifi(w)
-        setMqtt(m)
-      } catch (err) {
-        if (err instanceof AuthRequiredError) {
-          navigate(`/auth?next=${encodeURIComponent(window.location.pathname)}`)
-        }
-      }
-    }
-  }, [navigate])
+    const [c, w, m] = await Promise.all([
+      d.mode === 'sta' ? api.getChaya() : Promise.resolve({ rx: 0, tx: 0, connected: false }),
+      api.getWifiStatus(),
+      d.mode === 'sta' ? api.getMqttStatus() : Promise.resolve({ connected: false }),
+    ])
+    setChaya(c)
+    setWifi(w)
+    setMqtt(m)
+  }, [])
 
   useEffect(() => {
     void refreshDevice().catch(() => setBootError('Gerät nicht erreichbar'))
   }, [refreshDevice])
 
   useEffect(() => {
-    if (!device || device.authRequired) return
+    if (!device) return
     return connectEvents({
       chaya: setChaya,
       wifi: setWifi,
@@ -103,59 +77,20 @@ export default function App() {
         <Routes>
           <Route
             path="/"
-            element={
-              <RequireAuth device={device}>
-                <DashboardPage device={device} chaya={chaya} onToast={setToast} />
-              </RequireAuth>
-            }
+            element={<DashboardPage device={device} chaya={chaya} onToast={setToast} />}
           />
           <Route
             path="/wifi"
             element={<WifiPage device={device} wifi={wifi} onToast={setToast} />}
           />
           <Route path="/wifi-testing" element={<WifiTestingPage onToast={setToast} />} />
-          <Route
-            path="/mqtt"
-            element={
-              <RequireAuth device={device}>
-                <MqttPage mqtt={mqtt} onToast={setToast} />
-              </RequireAuth>
-            }
-          />
-          <Route
-            path="/pairing"
-            element={
-              <RequireAuth device={device}>
-                <PairingPage onToast={setToast} />
-              </RequireAuth>
-            }
-          />
+          <Route path="/mqtt" element={<MqttPage mqtt={mqtt} onToast={setToast} />} />
+          <Route path="/pairing" element={<PairingPage onToast={setToast} />} />
           <Route
             path="/settings"
-            element={
-              <RequireAuth device={device}>
-                <SettingsPage onToast={setToast} onDeviceRefresh={refreshDevice} />
-              </RequireAuth>
-            }
+            element={<SettingsPage onToast={setToast} onDeviceRefresh={refreshDevice} />}
           />
-          <Route
-            path="/update"
-            element={
-              <RequireAuth device={device}>
-                <UpdatePage onToast={setToast} />
-              </RequireAuth>
-            }
-          />
-          <Route
-            path="/auth"
-            element={
-              device.authRequired ? (
-                <AuthPage onToast={setToast} onDeviceRefresh={refreshDevice} />
-              ) : (
-                <Navigate to="/" replace />
-              )
-            }
-          />
+          <Route path="/update" element={<UpdatePage onToast={setToast} />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </Layout>

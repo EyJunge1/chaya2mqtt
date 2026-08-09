@@ -2,14 +2,12 @@ import type { Connect, Plugin } from 'vite'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import {
   applyScenario,
-  authRequired,
   broadcastAll,
   chayaPayload,
   devicePayload,
   getState,
   mqttPayload,
   resetState,
-  rotateCsrf,
   subscribe,
   tickWifiConnect,
   wifiPayload,
@@ -79,18 +77,6 @@ async function handleApi(req: IncomingMessage, res: ServerResponse): Promise<boo
 
   if (path === '/api/device' && method === 'GET') {
     sendJson(res, 200, devicePayload())
-    return true
-  }
-
-  const needsAuth =
-    path.startsWith('/api/') &&
-    path !== '/api/csrf' &&
-    path !== '/api/device' &&
-    path !== '/api/auth/login' &&
-    !(state.mode === 'ap' && path.startsWith('/api/wifi'))
-
-  if (needsAuth && authRequired()) {
-    sendJson(res, 401, { ok: false, error: 'auth_required' })
     return true
   }
 
@@ -259,7 +245,6 @@ async function handleApi(req: IncomingMessage, res: ServerResponse): Promise<boo
   if (path === '/api/settings' && method === 'GET') {
     sendJson(res, 200, {
       resetDays: state.resetDays,
-      authEnabled: state.authEnabled,
     })
     return true
   }
@@ -269,52 +254,7 @@ async function handleApi(req: IncomingMessage, res: ServerResponse): Promise<boo
     if (!requireCsrf(params, res)) return true
     const days = Number(params.get('reset_days') ?? '7')
     state.resetDays = Number.isFinite(days) ? Math.min(30, Math.max(0, days)) : 7
-    state.authEnabled = params.has('auth_enabled')
-    if (!state.authEnabled) state.authenticated = true
     sendJson(res, 200, { ok: true, message: 'saved' })
-    return true
-  }
-
-  if (path === '/api/auth/login' && method === 'POST') {
-    const params = parseForm(await readBody(req))
-    if (!requireCsrf(params, res)) return true
-    if (!state.authEnabled) {
-      sendJson(res, 200, { ok: true, next: '/' })
-      return true
-    }
-    if (Date.now() < state.lockoutUntil) {
-      sendJson(res, 429, {
-        ok: false,
-        error: 'lockout',
-        lockoutSec: Math.ceil((state.lockoutUntil - Date.now()) / 1000),
-      })
-      return true
-    }
-    const code = params.get('code') ?? ''
-    if (code !== state.authCode) {
-      state.failStreak += 1
-      if (state.failStreak >= 3) {
-        state.lockoutUntil = Date.now() + 60_000
-        state.failStreak = 0
-      }
-      sendJson(res, 401, { ok: false, error: 'bad_code' })
-      return true
-    }
-    state.failStreak = 0
-    state.authenticated = true
-    state.sessionId = rotateCsrf()
-    rotateCsrf()
-    sendJson(res, 200, { ok: true, next: params.get('next') || '/' })
-    return true
-  }
-
-  if (path === '/api/auth/logout' && method === 'POST') {
-    const params = parseForm(await readBody(req))
-    if (!requireCsrf(params, res)) return true
-    state.authenticated = false
-    state.sessionId = null
-    rotateCsrf()
-    sendJson(res, 200, { ok: true, next: '/auth' })
     return true
   }
 

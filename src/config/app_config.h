@@ -8,9 +8,5 @@ void configLoadResetPeriodFromNvs();
 uint8_t configGetResetPeriodDays();
 bool configSetResetPeriodDays(uint8_t days);
 
-bool configGetWebAuthEnabled();
-bool configSetWebAuthEnabled(bool enabled);
-void configLoadWebAuthFromNvs();
-
 /** Reset RAM mirrors after factory NVS clear (before reboot). */
 void app_configResetRamAfterFactoryClear();

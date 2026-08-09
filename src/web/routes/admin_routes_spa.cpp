@@ -34,7 +34,7 @@ void sendSpaIndex(AsyncWebServerRequest* req) {
 
 bool isSpaUiPath(const String& uri) {
     return uri == "/" || uri == "/wifi" || uri == "/wifi-testing" || uri == "/mqtt"
-           || uri == "/pairing" || uri == "/settings" || uri == "/update" || uri == "/auth";
+           || uri == "/pairing" || uri == "/settings" || uri == "/update";
 }
 
 } // namespace
@@ -57,8 +57,8 @@ void adminRoutesRegisterSpa(AsyncWebServer& ws) {
         h.addMiddleware(mwRequireAllowedHost());
     }
 
-    static const char* kSpaPaths[] = {"/",         "/wifi",     "/wifi-testing", "/mqtt",
-                                      "/pairing",  "/settings", "/update",       "/auth"};
+    static const char* kSpaPaths[] = {"/",        "/wifi",     "/wifi-testing", "/mqtt",
+                                      "/pairing", "/settings", "/update"};
     for (const char* path : kSpaPaths) {
         AsyncCallbackWebHandler& h =
             ws.on(path, HTTP_GET, [](AsyncWebServerRequest* rq) { sendSpaIndex(rq); });

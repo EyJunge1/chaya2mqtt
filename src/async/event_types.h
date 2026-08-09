@@ -16,8 +16,6 @@ struct DisplayMsg {
     enum class Cmd : uint8_t {
         DrawHeart,
         DrawSplash,
-        DrawAuthCode,
-        DrawAuthPrompt,
     };
     Cmd      cmd;
     uint32_t payload;

@@ -94,9 +94,9 @@ Light-Sleep wurde bewusst deaktiviert, damit Web-Admin und MQTT-Reconnects respo
 | **Network-Task** | `src/network/network_task.*` | Orchestriert WLAN + MQTT + NetCmd |
 | **Display** | `src/display/*` | E-Paper, eigener Drawing-Task |
 | **Button** | `src/hw/button_*.cpp` | Taster + LED, eigener Task |
-| **Web-Admin** | `src/web/*` | HTTP-Routen, Auth, SSE, HTML |
+| **Web-Admin** | `src/web/*` | HTTP-Routen, CSRF, SSE, SPA |
 | **OTA** | `src/ota/*` | GitHub-Release-Check, Flash-Install |
-| **App-Config** | `src/config/app_config.*` | Reset-Periode, Web-Auth-Flag |
+| **App-Config** | `src/config/app_config.*` | Reset-Periode |
 | **TLS** | `src/tls/*` | Eingebettetes CA-Bundle (MQTT + OTA) |
 | **Diag** | `src/diag/*` | Stack-Monitor, Task-WDT |
 
@@ -137,7 +137,7 @@ sequenceDiagram
 3. **Display:** Hardware-Init (`initial_full_refresh=false`) + Display-Task starten
 4. **Button:** GPIO initialisieren
 5. **Serial:** 115200 nur im Debug-Build (`CORE_DEBUG_LEVEL > 0`)
-6. **NVS laden:** MQTT-Config, Zähler, Reset-Periode, Web-Auth
+6. **NVS laden:** MQTT-Config, Zähler, Reset-Periode
 7. **WiFi:** STA mit gespeicherten Credentials oder SoftAP `Chaya2MQTT` + Captive DNS
 8. **MQTT:** Client konfigurieren (noch nicht verbinden)
 9. **Tasks starten:** Button, Network, OTA, App
@@ -162,8 +162,6 @@ Die `NetCmd`-Enum (`async/event_types.h`) serialisiert netzwerkrelevante Aktione
 |--------|---------|
 | `DrawHeart` | `drawHeartWithNumber()` |
 | `DrawSplash` | `drawSplashScreen()` |
-| `DrawAuthCode` | 6-stelliger Login-Code auf E-Ink |
-| `DrawAuthPrompt` | „Web Auth?" auf E-Ink |
 
 Nur der **Display-Task** darf SPI/EPD direkt ansprechen. Alle anderen Tasks nutzen `requestDeferredDraw*()` oder `requestHeartRedraw()`.
 
@@ -221,7 +219,7 @@ Alle Einstellungen liegen in der **NVS** (Non-Volatile Storage). Vier Namespaces
 |-----------|--------|
 | `wifi` | SSID/Passwort |
 | `mqtt` | Broker, Topics, Partner-ID |
-| `cfg` | Reset-Periode, Web-Auth, OTA-Check-Tag |
+| `cfg` | Reset-Periode, OTA-Check-Tag |
 | `chaya` | Zähler, Baselines |
 
 Factory Reset löscht alle vier. Details: [CONFIGURATION.md](CONFIGURATION.md).

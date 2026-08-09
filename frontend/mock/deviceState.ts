@@ -2,11 +2,7 @@ import { randomBytes } from 'node:crypto'
 
 export type MockMode = 'ap' | 'sta'
 
-export type MockScenario =
-  | 'sta-connected'
-  | 'sta-auth'
-  | 'ap-setup'
-  | 'offline'
+export type MockScenario = 'sta-connected' | 'ap-setup' | 'offline'
 
 export interface MockState {
   scenario: MockScenario
@@ -14,10 +10,7 @@ export interface MockState {
   version: string
   hostname: string
   deviceId: string
-  authEnabled: boolean
-  authenticated: boolean
   csrf: string
-  sessionId: string | null
   rx: number
   tx: number
   mqttConnected: boolean
@@ -41,9 +34,6 @@ export interface MockState {
     password: string
     startedAt: number
   }
-  authCode: string
-  lockoutUntil: number
-  failStreak: number
   scanReadyAt: number
 }
 
@@ -60,10 +50,7 @@ export function createInitialState(scenario: MockScenario = 'sta-connected'): Mo
     version: 'dev-sim',
     hostname: 'chaya2mqtt',
     deviceId: 'a1b2c3',
-    authEnabled: false,
-    authenticated: true,
     csrf: newToken(),
-    sessionId: newToken(),
     rx: 3,
     tx: 7,
     mqttConnected: true,
@@ -82,9 +69,6 @@ export function createInitialState(scenario: MockScenario = 'sta-connected'): Mo
     },
     resetDays: 7,
     wifiConnect: { state: 'idle', ssid: '', password: '', startedAt: 0 },
-    authCode: '123456',
-    lockoutUntil: 0,
-    failStreak: 0,
     scanReadyAt: 0,
   }
   applyScenario(state, scenario)
@@ -96,25 +80,13 @@ export function applyScenario(state: MockState, scenario: MockScenario): void {
   switch (scenario) {
     case 'ap-setup':
       state.mode = 'ap'
-      state.authEnabled = false
-      state.authenticated = true
       state.wifiConnected = false
       state.mqttConnected = false
       state.wifiSsid = ''
       state.wifiIp = ''
       break
-    case 'sta-auth':
-      state.mode = 'sta'
-      state.authEnabled = true
-      state.authenticated = false
-      state.sessionId = null
-      state.wifiConnected = true
-      state.mqttConnected = true
-      break
     case 'offline':
       state.mode = 'sta'
-      state.authEnabled = false
-      state.authenticated = true
       state.wifiConnected = false
       state.mqttConnected = false
       state.wifiSsid = ''
@@ -123,9 +95,6 @@ export function applyScenario(state: MockState, scenario: MockScenario): void {
     case 'sta-connected':
     default:
       state.mode = 'sta'
-      state.authEnabled = false
-      state.authenticated = true
-      state.sessionId = state.sessionId ?? newToken()
       state.wifiConnected = true
       state.mqttConnected = true
       state.wifiSsid = state.wifiSsid || 'MockNet'
@@ -197,18 +166,11 @@ export function tickWifiConnect(): void {
   }
 }
 
-export function authRequired(): boolean {
-  return state.mode === 'sta' && state.authEnabled && !state.authenticated
-}
-
 export function devicePayload() {
   return {
     hostname: state.hostname,
     version: state.version,
     mode: state.mode,
     deviceId: state.deviceId,
-    authEnabled: state.authEnabled,
-    authRequired: authRequired(),
-    authenticated: !authRequired(),
   }
 }

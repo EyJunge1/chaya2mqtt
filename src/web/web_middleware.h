@@ -4,26 +4,8 @@
 
 ArMiddlewareCallback mwRequireAllowedHost();
 
-ArMiddlewareCallback mwRequireStaMode();
-ArMiddlewareCallback mwRequireApMode();
-
-ArMiddlewareCallback mwRequireSessionRedirectGet();
-
-ArMiddlewareCallback mwPostSessionAndCsrfRedirect(const char* csrfRedirectPath);
-
-ArMiddlewareCallback mwPostChayaSendGuard();
-
-ArMiddlewareCallback mwWifiConnectPostGuard();
-
-ArMiddlewareCallback mwApPostCsrfRedirect(const char* redirectOnMismatch);
-
-ArMiddlewareCallback mwWifiInfoOrApOpenGet();
-
-/** JSON APIs: 401/403 instead of redirects. */
-ArMiddlewareCallback mwApiSessionGet();
-ArMiddlewareCallback mwApiPostSessionAndCsrf();
-ArMiddlewareCallback mwApiWifiConnectPostGuard();
+/** JSON APIs: 403 on bad host/origin/CSRF instead of redirects. */
+ArMiddlewareCallback mwApiPostCsrf();
 ArMiddlewareCallback mwApiApPostCsrf();
 ArMiddlewareCallback mwApiStaMode();
 ArMiddlewareCallback mwApiApMode();
-ArMiddlewareCallback mwApiWifiInfoOrApOpenGet();

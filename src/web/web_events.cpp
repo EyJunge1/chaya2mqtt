@@ -1,7 +1,5 @@
 #include "web_events.h"
 
-#include "auth/auth.h"
-#include "config/app_config.h"
 #include "constants.h"
 #include "heart/counter.h"
 #include "mqtt/config.h"
@@ -102,13 +100,7 @@ void webEventsRegister(AsyncWebServer& ws) {
         if (s_events.count() >= kMaxSseClients) {
             return false;
         }
-        if (configIsApMode()) {
-            return true;
-        }
-        if (!configGetWebAuthEnabled()) {
-            return true;
-        }
-        return webAuthIsAuthenticated(req);
+        return true;
     });
     s_events.onConnect(onEsConnect);
     ws.addHandler(&s_events);

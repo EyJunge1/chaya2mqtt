@@ -12,8 +12,7 @@ std::atomic<bool> g_webAdminMqttNvsWriteFailed{false};
 std::atomic<bool> g_webAdminSettingsNvsWriteFailed{false};
 std::atomic<bool> g_systemShutdownInProgress{false};
 
-uint8_t       g_webAdminPendingResetDays     = 7;
-bool          g_webAdminPendingAuthEnabled   = false;
+uint8_t      g_webAdminPendingResetDays   = 7;
 portMUX_TYPE g_webAdminSettingsPendingMux = portMUX_INITIALIZER_UNLOCKED;
 
 bool adminParseBodyParam(AsyncWebServerRequest* req, const char* name, char* out,

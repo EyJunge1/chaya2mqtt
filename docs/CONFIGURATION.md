@@ -51,12 +51,13 @@ Beim Speichern werden Legacy-Keys (`ssid`, `pass`) entfernt und nur `cred_v1` ge
 | Key | Typ | Default | Beschreibung |
 |-----|-----|---------|--------------|
 | `rstPeriod` | UChar | `7` | Anzeige-Reset-Periode in UTC-Tagen (0=aus, 1–30) |
-| `authEn` | UChar | `0` | Web-Auth aktiviert (0=aus, 1=an) |
 | `upd_day` | UInt | `0` | Letzter OTA-Auto-Check (UTC-Kalendertag) |
 
 **Schreiben:**
-- `rstPeriod`, `authEn`: Web POST `/settings` (deferred via App-Task)
+- `rstPeriod`: Web POST `/settings` (deferred via App-Task)
 - `upd_day`: automatisch nach OTA-Check
+
+Hinweis: Ältere Firmwares konnten `cfg/authEn` setzen; dieser Key wird ignoriert.
 
 ### Reset-Periode (`rstPeriod`)
 
@@ -96,7 +97,6 @@ Einige Werte werden zusätzlich im RAM gecacht (Atomics):
 | `counterBaseline` | `chaya/cntBase` | counter |
 | `sentCountBaseline` | `chaya/sntBase` | counter |
 | `s_resetPeriodDaysCached` | `cfg/rstPeriod` | app_config |
-| `s_webAuthEnabledCached` | `cfg/authEn` | app_config |
 
 Aktive MQTT-Config (`mqttCfg`) lebt nur in `mqtt/config.cpp` – Zugriff über Snapshot/Pending-API.
 
@@ -108,12 +108,11 @@ Ablauf:
 1. `g_systemShutdownInProgress = true`
 2. NVS-Saves für Zähler suspendieren
 3. WiFi-Test abbrechen
-4. Web-Session invalidieren
-5. HTTP-Server stoppen, DNS/mDNS beenden
-6. WiFi disconnect
-7. **Alle vier Namespaces löschen:** `wifi`, `mqtt`, `cfg`, `chaya`
-8. RAM-Zähler und Config-Caches zurücksetzen
-9. Neustart → SoftAP `Chaya2MQTT`
+4. HTTP-Server stoppen, DNS/mDNS beenden
+5. WiFi disconnect
+6. **Alle vier Namespaces löschen:** `wifi`, `mqtt`, `cfg`, `chaya`
+7. RAM-Zähler und Config-Caches zurücksetzen
+8. Neustart → SoftAP `Chaya2MQTT`
 
 ## Konfigurationsänderung über Web-UI
 
@@ -123,7 +122,6 @@ Ablauf:
 | MQTT | POST `/mqtt` | Pending → App-Task → Network-Task → NVS |
 | Pairing | POST `/pairing` | Pending → App-Task → Network-Task → NVS |
 | Reset-Periode | POST `/settings` | Pending → App-Task → NVS |
-| Web-Auth | POST `/settings` | Pending → App-Task → NVS |
 
 MQTT- und Settings-Änderungen werden **deferred** verarbeitet (nicht im HTTP-Handler), um Blockierung zu vermeiden.
 
@@ -138,7 +136,6 @@ Modulspezifische Defaults und Limits liegen in `*_config.h` (nicht mehr zentral 
 | `wifi/wlan_config.h` | SSID/Pass-Limits, STA-Tuning, Scan/Reconnect |
 | `display/display_config.h` | `kDisplayCounterMax` |
 | `hw/button_config.h` | Debounce, Factory-Reset, LED-Timing |
-| `web/auth/auth_config.h` | Challenge-, Session- und Lockout-Zeiten |
 | `async/task_config.h` | Task-Stacks, Queue-Tiefen |
 
 ## Weitere Dokumentation

@@ -14,7 +14,7 @@
 #include "display/display.h"
 #include "ota/ota.h"
 #include "wifi/wlan.h"
-#include "auth/auth.h"
+#include "csrf.h"
 #include "web_events.h"
 
 #include <ESPAsyncWebServer.h>
@@ -43,9 +43,8 @@ void webAdminRegisterRoutes() {
     }
     g_webAdminRoutesRegistered = true;
 
-    webAuthInit();
+    webCsrfInit();
     AsyncWebServer& ws = webAdminWebServer();
-    webAuthRegisterRoutes(ws);
 
     adminRoutesRegisterApi(ws);
     adminRoutesRegisterWifi(ws);
@@ -60,25 +59,15 @@ void webAdminScheduleWifiConfiguredReboot() {
 }
 
 void webAdminLoop() {
-    webAuthLoop();
     webEventsTick();
 
     if (g_webAdminSettingsApplyPending.exchange(false, std::memory_order_acq_rel)
         && !g_systemShutdownInProgress.load(std::memory_order_acquire)) {
         uint8_t daysApply;
-        bool    authApply = false;
         portENTER_CRITICAL(&g_webAdminSettingsPendingMux);
         daysApply = g_webAdminPendingResetDays;
-        authApply = g_webAdminPendingAuthEnabled;
         portEXIT_CRITICAL(&g_webAdminSettingsPendingMux);
-        bool settingsNvsOk = true;
         if (!configSetResetPeriodDays(daysApply)) {
-            settingsNvsOk = false;
-        }
-        if (!configSetWebAuthEnabled(authApply)) {
-            settingsNvsOk = false;
-        }
-        if (!settingsNvsOk) {
             g_webAdminSettingsNvsWriteFailed.store(true, std::memory_order_release);
         } else {
             g_webAdminSettingsNvsWriteFailed.store(false, std::memory_order_release);

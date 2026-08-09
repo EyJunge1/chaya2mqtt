@@ -13,7 +13,6 @@ constexpr unsigned long kFailFlashMs               = 50;
 
 constexpr unsigned kLedSequenceStepMs      = 100;
 constexpr unsigned kPostPublishWaitMs      = 500;
-constexpr unsigned kAuthBlinkHalfPeriodMs = 500;
 constexpr int      kFactoryResetLedBlinkCycles = 6;
 constexpr unsigned long kFactoryResetLedBlinkPeriodMs = 120;
 

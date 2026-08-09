@@ -201,34 +201,6 @@ void drawHeartWithNumber() {
     ESP_LOGI(TAG, "Red heart with counters drawn");
 }
 
-void drawAuthPrompt() {
-    displayResumeSpiForDraw();
-
-    ESP_LOGI(TAG, "Drawing web auth prompt...");
-
-    static constexpr const char kPrompt[] = "Web Auth?";
-    drawCenteredTextScreen(kPrompt, 3, 1);
-    displayPanel().hibernate();
-    displaySuspendSpiLowPower();
-
-    ESP_LOGI(TAG, "Web auth prompt drawn");
-}
-
-void drawAuthCode(uint32_t code) {
-    displayResumeSpiForDraw();
-
-    ESP_LOGI(TAG, "Drawing web auth code...");
-
-    char digits[8];
-    snprintf(digits, sizeof(digits), "%06lu", static_cast<unsigned long>(code % 1000000U));
-
-    drawCenteredTextScreen(digits, 4, 2);
-    displayPanel().hibernate();
-    displaySuspendSpiLowPower();
-
-    ESP_LOGI(TAG, "Auth code drawn");
-}
-
 void drawSplashScreen() {
     displayResumeSpiForDraw();
 

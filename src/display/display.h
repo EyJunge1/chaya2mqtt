@@ -18,18 +18,8 @@ void requestHeartRedraw();
 /** Same as requestHeartRedraw but never blocks (e.g. MQTT client callback). */
 void requestHeartRedrawNonBlocking();
 
-/** Six-digit pairing code for web UI (E-Ink), code only centered. */
-void drawAuthCode(uint32_t code);
-
-/** Prompt shown while waiting for device button confirmation (E-Ink). */
-void drawAuthPrompt();
-
 /**
  * Defer E-Ink drawing to display task (never call draw* from AsyncWebServer handlers).
  */
-void requestDeferredDrawAuthCode(uint32_t code);
-void requestDeferredDrawAuthPrompt();
-/** @return false when display queue rejected the prompt. */
-bool requestDeferredDrawAuthPromptChecked();
 void requestDeferredDrawSplashScreen();
 void requestDeferredDrawHeartScreen();

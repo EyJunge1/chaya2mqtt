@@ -13,7 +13,7 @@
 2. CPU 240 MHz, BT aus, DFS (kein Light-Sleep)
 3. `displayInit()` + `displayStartTask()`
 5. `buttonInit()`
-6. NVS laden: MQTT, Zähler, Reset-Periode, Web-Auth
+6. NVS laden: MQTT, Zähler, Reset-Periode
 7. `setupWiFi()` – STA oder AP
 8. `mqttSetup()`
 9. `buttonStartupBlink()` (vor Button-Task!)
@@ -35,7 +35,7 @@ enum class NetCmd : uint8_t {
 };
 
 struct DisplayMsg {
-    enum class Cmd : uint8_t { DrawHeart, DrawSplash, DrawAuthCode, DrawAuthPrompt };
+    enum class Cmd : uint8_t { DrawHeart, DrawSplash };
     Cmd cmd;
     uint32_t payload;
 };
@@ -202,8 +202,6 @@ Nur dieser Task darf SPI/EPD ansprechen. Befehle über `g_displayCmdQueue`.
 | `displayStartTask()` | FreeRTOS-Task (4096 Stack, Prio 3) |
 | `requestHeartRedraw()` | Herz neu zeichnen (blockierend, 100 ms Queue-Timeout) |
 | `requestHeartRedrawNonBlocking()` | Herz neu zeichnen (0 ms Timeout, für MQTT-Callback) |
-| `requestDeferredDrawAuthCode(code)` | Auth-Code auf E-Ink |
-| `requestDeferredDrawAuthPrompt()` | „Web Auth?" auf E-Ink |
 | `requestDeferredDrawSplashScreen()` | Splash bei fehlendem Broker |
 | `requestDeferredDrawHeartScreen()` | Herz nach Setup |
 
@@ -228,7 +226,7 @@ Details zur Geometrie: [DISPLAY.md](DISPLAY.md)
 | Datei | Verantwortung |
 |-------|---------------|
 | `button_input.cpp` | GPIO/ISR, Debounce, Factory Reset → `NetCmd` |
-| `button_led.cpp` | LED-Sequenz, Auth-Blink, MQTT-Publish nach Blink |
+| `button_led.cpp` | LED-Sequenz, MQTT-Publish nach Blink |
 
 | Konstante | Wert | Bedeutung |
 |-----------|------|-----------|
@@ -241,7 +239,6 @@ Button-Task (4096 Stack, Prio 8, Core 1):
 - Debounce (~20 ms)
 - Kurzdruck → MQTT-Sende-LED-Sequenz (2× Blink → Publish → 2× Blink)
 - 10 s Halten → `NetCmd::FactoryResetRequested` in Network-Task (`resetAllSettings()` WDT-sicher dort)
-- Web-Auth: langsamer Blink, Kurzdruck bestätigt Prompt
 
 | Funktion | Beschreibung |
 |----------|--------------|
@@ -249,8 +246,6 @@ Button-Task (4096 Stack, Prio 8, Core 1):
 | `buttonStartTask()` | FreeRTOS-Task starten |
 | `buttonStartupBlink()` | 3× 200 ms Blink (blockierend, nur Setup) |
 | `buttonIsLedTxSequenceActive()` | MQTT-Sende-Sequenz läuft? |
-| `buttonSetAuthBlinkShortPressHandler(fn)` | Callback für Auth-Kurzdruck |
-| `buttonSetAuthBlinkActive(bool)` | Auth-LED-Blink steuern |
 
 ---
 
@@ -263,12 +258,12 @@ Button-Task (4096 Stack, Prio 8, Core 1):
 | `admin_json.h` | JSON-Helper für kleine Antworten |
 | `deferred_reboot.h` / `deferred_reboot.cpp` | Reboot nach WiFi-Save |
 | `web_utils.h` / `web_utils.cpp` | Redirects, Security-Headers |
-| `web_middleware.h` / `web_middleware.cpp` | CSRF-Middleware für AP-Routen |
+| `web_middleware.h` / `web_middleware.cpp` | Host-/CSRF-Middleware für API-Routen |
+| `csrf.h` / `csrf.cpp` | CSRF-Token erzeugen und prüfen |
 | `web_events.h` / `web_events.cpp` | SSE `/events` |
 | `routes/admin_routes_api.cpp` | JSON-API `/api/*` für die React-SPA |
 | `routes/admin_routes_spa.cpp` | SPA `index.html` + `/assets/app.{js,css}` (gzip/PROGMEM) |
 | `routes/admin_routes_wifi.cpp` / `mqtt` / `app` | Legacy-Stubs (Logik in API/SPA) |
-| `auth/auth.h` / `auth/auth_session.cpp` / `auth/auth_routes.cpp` / `auth/auth_challenge.cpp` | Session, CSRF, Challenge-Flow |
 | `assets/spa_*.h` | Generierte gzip-SPA-Assets (PROGMEM) |
 
 Details: [WEB_ADMIN.md](WEB_ADMIN.md)
@@ -301,8 +296,6 @@ Details: [OTA.md](OTA.md)
 |----------|--------------|
 | `configGetResetPeriodDays()` | 0=aus, 1–30 Tage (Default 7) |
 | `configSetResetPeriodDays(uint8_t)` | NVS `cfg/rstPeriod` |
-| `configGetWebAuthEnabled()` | Web-Auth an? |
-| `configSetWebAuthEnabled(bool)` | NVS `cfg/authEn` |
 
 ### `config/nvs_utils`
 
@@ -340,7 +333,6 @@ Thread-safe `Preferences`-Wrapper mit `g_nvsMutex`:
 | `wifi/wlan_config.h` | Wi-Fi-Limits, Connection-Tuning, Scan/Reconnect-Intervalle |
 | `display/display_config.h` | Display-Limits (`kDisplayCounterMax`) |
 | `hw/button_config.h` | Button/LED-Timing |
-| `web/auth/auth_config.h` | Auth-Timing (Challenge, Session, Lockout) |
 | `config/version.h` | `APP_VERSION` (CI setzt aus Git-Tag) |
 | `util/log_tag.h` | `DEFINE_LOG_TAG` Makro |
 | `util/ip_format.h` | IP-Adress-Formatierung |

@@ -9,7 +9,7 @@ npm ci
 npm run dev
 ```
 
-Öffne `http://127.0.0.1:5173/`. Der integrierte Mock unter `mock/` liefert `/api/*` und SSE `/events`. Über die Simulator-Leiste rechts oben lassen sich Szenarien wechseln (STA, Auth, AP-Setup, Offline).
+Öffne `http://127.0.0.1:5173/`. Der integrierte Mock unter `mock/` liefert `/api/*` und SSE `/events`. Über die Simulator-Leiste rechts oben lassen sich Szenarien wechseln (STA, AP-Setup, Offline).
 
 ## Tests / Production-Build
 

@@ -10,7 +10,6 @@
 
 #include <esp_log.h>
 #include <freertos/FreeRTOS.h>
-#include <freertos/queue.h>
 
 #include "util/log_tag.h"
 
@@ -20,8 +19,6 @@ std::atomic<LedTxPhase> ledTxPhase{LedTxPhase::Idle};
 unsigned long           ledPhaseStartMs    = 0;
 unsigned long           ledPhaseDurationMs = 0;
 unsigned                publishFailCount   = 0;
-QueueHandle_t           s_buttonCmdQueue   = nullptr;
-void (*s_authBlinkShortPressHandler)()     = nullptr;
 
 void armLedPhase(unsigned long durationMs) {
     ledPhaseStartMs    = millis();
@@ -35,63 +32,6 @@ void ledOutput(int level) {
 
 void ledHoldWhenIdle() {
     gpio_hold_en(static_cast<gpio_num_t>(kButtonLedPin));
-}
-
-void buttonRequestAuthBlinkOnFromAsync() {
-    ButtonInternalCmd cmd = ButtonInternalCmd::AuthBlinkOn;
-    if (s_buttonCmdQueue != nullptr && xQueueSend(s_buttonCmdQueue, &cmd, 0) != pdTRUE) {
-        ESP_LOGW(TAG, "button cmd queue full (AuthBlinkOn)");
-    }
-}
-
-void buttonRequestAuthBlinkOffFromAsync() {
-    ButtonInternalCmd cmd = ButtonInternalCmd::AuthBlinkOff;
-    if (s_buttonCmdQueue != nullptr && xQueueSend(s_buttonCmdQueue, &cmd, 0) != pdTRUE) {
-        ESP_LOGW(TAG, "button cmd queue full (AuthBlinkOff)");
-    }
-}
-
-void consumeButtonCommands() {
-    ButtonInternalCmd cmd;
-    while (xQueueReceive(s_buttonCmdQueue, &cmd, 0) == pdTRUE) {
-        switch (cmd) {
-        case ButtonInternalCmd::AuthBlinkOff: {
-            const LedTxPhase ph = ledTxPhase.load(std::memory_order_relaxed);
-            if (ph == LedTxPhase::AuthOn || ph == LedTxPhase::AuthOff) {
-                ledOutput(LOW);
-                ledTxPhase.store(LedTxPhase::Idle, std::memory_order_relaxed);
-                ledHoldWhenIdle();
-            }
-            break;
-        }
-        case ButtonInternalCmd::AuthBlinkOn:
-            if (ledTxPhase.load(std::memory_order_relaxed) == LedTxPhase::Idle) {
-                ledTxPhase.store(LedTxPhase::AuthOn, std::memory_order_relaxed);
-                ledOutput(HIGH);
-                armLedPhase(kAuthBlinkHalfPeriodMs);
-            }
-            break;
-        }
-    }
-}
-
-void buttonSetAuthBlinkActive(bool active) {
-    if (active) {
-        ButtonInternalCmd cmd = ButtonInternalCmd::AuthBlinkOn;
-        if (s_buttonCmdQueue != nullptr && xQueueSend(s_buttonCmdQueue, &cmd, 0) != pdTRUE) {
-            ESP_LOGW(TAG, "button cmd queue full (SetAuthBlink On)");
-        }
-    } else {
-        ButtonInternalCmd cmd = ButtonInternalCmd::AuthBlinkOff;
-        if (s_buttonCmdQueue != nullptr && xQueueSend(s_buttonCmdQueue, &cmd, 0) != pdTRUE) {
-            ESP_LOGW(TAG, "button cmd queue full (SetAuthBlink Off)");
-        }
-    }
-}
-
-bool buttonIsAuthBlinkActive() {
-    const LedTxPhase ph = ledTxPhase.load(std::memory_order_relaxed);
-    return ph == LedTxPhase::AuthOn || ph == LedTxPhase::AuthOff;
 }
 
 bool ledSendSequenceActive() {
@@ -122,8 +62,6 @@ static constexpr LedPhaseRow kLedPhaseRows[] = {
     {LedTxPhase::FailOn2, LOW, LedTxPhase::FailOff2, kFailFlashMs},
     {LedTxPhase::FailOff2, HIGH, LedTxPhase::FailOn3, kFailFlashMs},
     {LedTxPhase::FailOn3, LOW, LedTxPhase::FailOff3, kFailFlashMs},
-    {LedTxPhase::AuthOn, LOW, LedTxPhase::AuthOff, kAuthBlinkHalfPeriodMs},
-    {LedTxPhase::AuthOff, HIGH, LedTxPhase::AuthOn, kAuthBlinkHalfPeriodMs},
 };
 
 void startMqttSendLedSequence() {

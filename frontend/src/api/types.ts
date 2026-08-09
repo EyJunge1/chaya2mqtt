@@ -5,9 +5,6 @@ export interface DeviceInfo {
   version: string
   mode: DeviceMode
   deviceId: string
-  authEnabled: boolean
-  authRequired: boolean
-  authenticated: boolean
 }
 
 export interface ChayaStatus {
@@ -65,7 +62,6 @@ export interface PairingInfo {
 
 export interface SettingsInfo {
   resetDays: number
-  authEnabled: boolean
 }
 
 export interface ApiOk {
@@ -78,7 +74,6 @@ export interface ApiOk {
 export interface ApiErr {
   ok: false
   error: string
-  lockoutSec?: number
 }
 
 export type ApiResult = ApiOk | ApiErr

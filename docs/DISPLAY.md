@@ -18,8 +18,6 @@ Das E-Ink-Display zeigt ein **rotes Herz** mit **RX- und TX-Zählerständen** (D
 |--------|----------|----------|
 | `DrawHeart` | `drawHeartWithNumber()` | MQTT-Empfang, Publish, Setup, Counter-Reset |
 | `DrawSplash` | `drawSplashScreen()` | Setup ohne konfigurierten Broker (AP-Modus) |
-| `DrawAuthPrompt` | `drawAuthPrompt()` | Web-Auth: „Web Auth?" |
-| `DrawAuthCode` | `drawAuthCode(code)` | Web-Auth: 6-stelliger Code |
 
 ### API für andere Tasks
 
@@ -27,8 +25,6 @@ Das E-Ink-Display zeigt ein **rotes Herz** mit **RX- und TX-Zählerständen** (D
 |----------|-------------|---------|
 | `requestHeartRedraw()` | Ja (100 ms Queue) | Für Main/Button |
 | `requestHeartRedrawNonBlocking()` | Nein (0 ms) | Für MQTT-Callback |
-| `requestDeferredDrawAuthPrompt()` | Ja (2000 ms) | Web-Auth |
-| `requestDeferredDrawAuthCode(code)` | Ja (2000 ms) | Web-Auth |
 | `requestDeferredDrawSplashScreen()` | Ja (100 ms) | Setup |
 | `requestDeferredDrawHeartScreen()` | Ja (100 ms) | Setup |
 
@@ -119,15 +115,11 @@ sequenceDiagram
 3. `hibernate()` – Controller Deep Sleep, Bild bleibt bistabil
 4. SPI low-power (`displaySuspendSpiLowPower`, `gpio_hold` auf CS)
 
-## Auth-Anzeigen
+## Splash-Anzeige
 
 | Screen | Inhalt | TextSize |
 |--------|--------|----------|
-| `drawAuthPrompt()` | „Web Auth?" | 3 (min 1) |
-| `drawAuthCode(code)` | 6-stelliger Code | 4 (min 2) |
 | `drawSplashScreen()` | „Chaya2MQTT" | 3 (min 1) |
-
-Nach Auth-Prompt/Code: `webAuthResetConfirmDeadline()` verlängert das 10-s-Tastenfenster (E-Ink-Draw blockiert).
 
 ## SPI Low-Power
 
@@ -150,4 +142,3 @@ Details: [HARDWARE.md](HARDWARE.md)
 
 - Zähler-Logik: [heart/counter](../src/heart/counter.h) → [CONFIGURATION.md](CONFIGURATION.md)
 - Architektur (Display-Task): [ARCHITECTURE.md](ARCHITECTURE.md)
-- Web-Auth-Flow: [WEB_ADMIN.md](WEB_ADMIN.md)

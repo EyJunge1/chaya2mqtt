@@ -11,7 +11,6 @@ constexpr const char kNvsKeyWifiSsid[]   = "ssid";
 constexpr const char kNvsKeyWifiPass[]   = "pass";
 
 constexpr const char kNvsKeyCfgRstPeriod[] = "rstPeriod";
-constexpr const char kNvsKeyCfgAuthEn[]    = "authEn";
 constexpr const char kNvsKeyCfgUpdDay[]    = "upd_day";
 
 constexpr const char kNvsKeyChayaCounter[]     = "counter";

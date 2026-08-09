@@ -15,7 +15,6 @@ Dank **retained Messages** holt sich ein Gerät nach einer Offline-Phase automat
 | **Pairing** | Device-ID aus MAC → automatische Topics `chaya/<id>` |
 | **Knopf + LED** | Kurzdruck → MQTT senden; 10 s Halten → Factory Reset |
 | **OTA** | Automatischer GitHub-Release-Check (täglich) + manueller Trigger |
-| **Web-Auth** | Optional: 6-stelliger Code auf E-Ink + physischer Tastendruck |
 
 ## Hardware-Ziel
 
@@ -118,7 +117,7 @@ chaya2mqtt/
     ├── ota/                  # GitHub-Check, Flash-Install
     ├── tls/                  # CA-Bundle (MQTT + OTA)
     ├── util/                 # Zeit-Helfer, Logging, IP-Format
-    ├── web/                  # Admin-API + SPA-Serving (auth/, routes/, assets/)
+    ├── web/                  # Admin-API + SPA-Serving (routes/, assets/, csrf)
     └── wifi/                 # WLAN, Captive Portal, Verbindungstest
 frontend/                     # React-19 SPA (Vite, Tailwind, Lucide) + Mock-Gerät
 ```
@@ -148,7 +147,7 @@ Partition: **Dual OTA** (`huge_app.csv`) – je Slot ca. 1,875 MB.
 | [ARCHITECTURE.md](ARCHITECTURE.md) | FreeRTOS-Tasks, Queues, Datenflüsse |
 | [MODULES.md](MODULES.md) | Code-Referenz aller Module |
 | [MQTT.md](MQTT.md) | Protokoll, Topics, TLS, Pairing |
-| [WEB_ADMIN.md](WEB_ADMIN.md) | HTTP-Routen, Auth, SSE |
+| [WEB_ADMIN.md](WEB_ADMIN.md) | HTTP-Routen, CSRF, SSE |
 | [HARDWARE.md](HARDWARE.md) | Board, Display, Pinbelegung |
 | [OTA.md](OTA.md) | Firmware-Updates über GitHub |
 | [CONFIGURATION.md](CONFIGURATION.md) | NVS-Namespaces, Defaults |

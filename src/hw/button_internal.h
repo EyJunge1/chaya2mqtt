@@ -27,13 +27,6 @@ enum class LedTxPhase : uint8_t {
     FailOff2,
     FailOn3,
     FailOff3,
-    AuthOn,
-    AuthOff,
-};
-
-enum class ButtonInternalCmd : uint8_t {
-    AuthBlinkOn,
-    AuthBlinkOff,
 };
 
 extern std::atomic<TaskHandle_t> s_buttonTaskHandle;
@@ -41,8 +34,6 @@ extern std::atomic<LedTxPhase>   ledTxPhase;
 extern unsigned long             ledPhaseStartMs;
 extern unsigned long             ledPhaseDurationMs;
 extern unsigned                  publishFailCount;
-extern QueueHandle_t             s_buttonCmdQueue;
-extern void (*s_authBlinkShortPressHandler)();
 
 struct ButtonState {
     bool          heldDown              = false;
@@ -59,7 +50,6 @@ void armLedPhase(unsigned long durationMs);
 void ledOutput(int level);
 void ledHoldWhenIdle();
 
-void consumeButtonCommands();
 void advanceLedSequence();
 void startMqttSendLedSequence();
 bool ledSendSequenceActive();

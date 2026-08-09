@@ -4,10 +4,10 @@ Die Weboberfläche ist eine **React-19-SPA** (Vite, Tailwind CSS, Lucide), die a
 
 ## Zugriff
 
-| Modus | URL | Auth |
-|-------|-----|------|
-| AP (Setup) | Captive Portal / `http://4.3.2.1` | Offen (WLAN-Routen) |
-| STA | `http://chaya2mqtt.local` (mDNS) | Optional (Settings) |
+| Modus | URL | Zugang |
+|-------|-----|--------|
+| AP (Setup) | Captive Portal / `http://4.3.2.1` | Offen im AP-Netz |
+| STA | `http://chaya2mqtt.local` (mDNS) | Offen im lokalen Netz (kein Login) |
 
 Hostname: `chaya2mqtt` (Konstante `kDeviceHostname`).
 
@@ -19,7 +19,7 @@ npm ci
 npm run dev
 ```
 
-Der Vite-Devserver startet einen **virtuellen Chaya2MQTT** unter `frontend/mock/` mit denselben `/api/*`- und `/events`-Verträgen. Szenarien (STA, Auth, AP, Offline) lassen sich über die Simulator-Leiste umschalten.
+Der Vite-Devserver startet einen **virtuellen Chaya2MQTT** unter `frontend/mock/` mit denselben `/api/*`- und `/events`-Verträgen. Szenarien (STA, AP, Offline) lassen sich über die Simulator-Leiste umschalten.
 
 ```bash
 make frontend-test   # Vitest
@@ -30,7 +30,7 @@ make frontend        # Production-Build + PROGMEM-Header generieren
 
 Alle UI-Pfade liefern dieselbe `index.html` (Client-Router):
 
-`/`, `/wifi`, `/wifi-testing`, `/mqtt`, `/pairing`, `/settings`, `/update`, `/auth`
+`/`, `/wifi`, `/wifi-testing`, `/mqtt`, `/pairing`, `/settings`, `/update`
 
 Statische Assets:
 
@@ -43,26 +43,24 @@ Statische Assets:
 
 Mutationen erwarten `application/x-www-form-urlencoded` inkl. `csrf_token`.
 
-| Route | Methode | Auth | Beschreibung |
-|-------|---------|------|--------------|
-| `/api/csrf` | GET | Offen | `{token}` |
-| `/api/device` | GET | Offen | Modus, Version, Device-ID, Auth-Flags |
-| `/api/chaya` | GET | Session (STA) | `{rx,tx,connected}` |
-| `/api/chaya/send` | POST | Session + CSRF | Herz senden (queued) |
-| `/api/wifi/status` | GET | AP offen / STA Session | Link-Status |
-| `/api/wifi/scan` | GET | AP offen / STA Session | AP-Liste oder **202** |
-| `/api/wifi/connect` | POST | CSRF (+ Session wenn Auth an) | Credentials / AP-Test |
+| Route | Methode | Schutz | Beschreibung |
+|-------|---------|--------|--------------|
+| `/api/csrf` | GET | Host | `{token}` |
+| `/api/device` | GET | Host | Modus, Version, Device-ID |
+| `/api/chaya` | GET | Host + STA | `{rx,tx,connected}` |
+| `/api/chaya/send` | POST | CSRF + STA | Herz senden (queued) |
+| `/api/wifi/status` | GET | Host | Link-Status |
+| `/api/wifi/scan` | GET | Host | AP-Liste oder **202** |
+| `/api/wifi/connect` | POST | CSRF | Credentials / AP-Test |
 | `/api/wifi/connect-status` | GET | AP | Test-State |
 | `/api/wifi/connect-commit` | POST | AP + CSRF | Speichern + Reboot |
 | `/api/wifi/connect-abort` | POST | AP + CSRF | Test abbrechen |
-| `/api/mqtt` | GET/POST | Session + CSRF | Broker-Config (Passwort nie in GET) |
-| `/api/mqtt/status` | GET | Session | `{connected}` |
-| `/api/pairing` | GET/POST | Session + CSRF | Device-/Partner-ID |
-| `/api/settings` | GET/POST | Session + CSRF | Reset-Tage, Web-Auth |
-| `/api/auth/login` | POST | CSRF | Session-Cookie setzen |
-| `/api/auth/logout` | POST | Session + CSRF | Session beenden |
-| `/api/reboot` | POST | Session + CSRF | Neustart (deferred) |
-| `/api/update/check` | POST | Session + CSRF | GitHub-OTA-Check |
+| `/api/mqtt` | GET/POST | Host/CSRF + STA | Broker-Config (Passwort nie in GET) |
+| `/api/mqtt/status` | GET | Host + STA | `{connected}` |
+| `/api/pairing` | GET/POST | Host/CSRF + STA | Device-/Partner-ID |
+| `/api/settings` | GET/POST | Host/CSRF + STA | Reset-Tage |
+| `/api/reboot` | POST | CSRF + STA | Neustart (deferred) |
+| `/api/update/check` | POST | CSRF + STA | GitHub-OTA-Check |
 
 ## Server-Sent Events
 
@@ -72,11 +70,10 @@ Mutationen erwarten `application/x-www-form-urlencoded` inkl. `csrf_token`.
 
 Max. **6** SSE-Clients. Tick alle 500 ms im App-Task.
 
-## Auth / CSRF / Sicherheit
+## CSRF / Sicherheit
 
-- Optional Web-Auth (`cfg/authEn`), physischer Tastendruck + Code auf E-Ink
+- Kein Web-Login; Admin-UI ist für Teilnehmer des lokalen Netzes erreichbar
 - CSRF-Token über `/api/csrf`, in jedem POST als `csrf_token`
-- Session-Cookie `chaya_sid` (HttpOnly, SameSite=Strict, 24 h)
 - Host-/Origin-Allowlist; CSP ohne Inline-Script/Style (`script-src 'self'; style-src 'self'`)
 
 ## Build-Integration

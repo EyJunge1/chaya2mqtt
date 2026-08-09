@@ -14,12 +14,3 @@ void buttonEnableLedGpioHoldForLightSleep();
 
 /** True, solange die nicht-blockierende MQTT-Sende-LED-Sequenz laeuft (fuer adaptiven Light-Sleep). */
 bool buttonIsLedTxSequenceActive();
-
-/** Queued from AsyncWeb task; consumed on button task via cmd queue. */
-void buttonRequestAuthBlinkOnFromAsync();
-void buttonRequestAuthBlinkOffFromAsync();
-
-/** Slow blink for web-login challenge; short press invokes handler (e.g. confirm reveal). */
-void buttonSetAuthBlinkShortPressHandler(void (*fn)());
-void buttonSetAuthBlinkActive(bool active);
-bool buttonIsAuthBlinkActive();

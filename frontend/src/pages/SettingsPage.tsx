@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
 import { api } from '../api/client'
 import type { SettingsInfo } from '../api/types'
 import { Panel } from '../components/Card'
@@ -12,7 +11,6 @@ export function SettingsPage({
   onToast: (msg: string) => void
   onDeviceRefresh: () => Promise<void>
 }) {
-  const navigate = useNavigate()
   const [settings, setSettings] = useState<SettingsInfo | null>(null)
   const [busy, setBusy] = useState(false)
 
@@ -25,24 +23,11 @@ export function SettingsPage({
     if (!settings) return
     setBusy(true)
     try {
-      const res = await api.saveSettings(settings.resetDays, settings.authEnabled)
+      const res = await api.saveSettings(settings.resetDays)
       onToast(res.ok ? 'Gespeichert' : 'Speichern fehlgeschlagen')
       await onDeviceRefresh()
     } catch {
       onToast('Speichern fehlgeschlagen')
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  async function logout() {
-    setBusy(true)
-    try {
-      await api.logout()
-      await onDeviceRefresh()
-      navigate('/auth')
-    } catch {
-      onToast('Logout fehlgeschlagen')
     } finally {
       setBusy(false)
     }
@@ -79,32 +64,16 @@ export function SettingsPage({
               }
             />
           </Field>
-          <label className="flex items-center gap-3 rounded-lg border border-border bg-bg px-3 py-3">
-            <input
-              type="checkbox"
-              checked={settings.authEnabled}
-              onChange={(e) =>
-                setSettings({ ...settings, authEnabled: e.target.checked })
-              }
-              className="h-4 w-4 accent-accent"
-            />
-            <span className="text-sm text-text-bright">Web-Authentifizierung aktivieren</span>
-          </label>
           <PrimaryButton type="submit" disabled={busy}>
             Speichern
           </PrimaryButton>
         </form>
       </Panel>
 
-      <Panel title="Sitzung">
-        <div className="space-y-3">
-          <DangerButton disabled={busy} onClick={() => void logout()}>
-            Abmelden
-          </DangerButton>
-          <DangerButton disabled={busy} onClick={() => void reboot()}>
-            Gerät neu starten
-          </DangerButton>
-        </div>
+      <Panel title="Gerät">
+        <DangerButton disabled={busy} onClick={() => void reboot()}>
+          Gerät neu starten
+        </DangerButton>
       </Panel>
     </div>
   )

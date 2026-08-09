@@ -71,7 +71,7 @@ export function DashboardPage({
         <NavCard to="/wifi" title="WLAN" subtitle="Netzwerk & Status" icon={Wifi} />
         <NavCard to="/mqtt" title="MQTT" subtitle="Broker & Topics" icon={Radio} />
         <NavCard to="/pairing" title="Pairing" subtitle="Partner verbinden" icon={Link2} />
-        <NavCard to="/settings" title="Einstellungen" subtitle="Auth & Reset" icon={Settings} />
+        <NavCard to="/settings" title="Einstellungen" subtitle="Reset & Gerät" icon={Settings} />
         <NavCard to="/update" title="Update" subtitle="Firmware prüfen" icon={Upload} />
       </div>
     </div>

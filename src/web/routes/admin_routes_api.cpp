@@ -13,13 +13,8 @@
 #include "mqtt/config.h"
 #include "mqtt/mqtt.h"
 #include "ota/ota.h"
-#include "util/auth_code_validation.h"
 #include "util/log_tag.h"
-#include "util/time_helpers.h"
-#include "hw/button.h"
-#include "web/auth/auth.h"
-#include "web/auth/auth_config.h"
-#include "web/auth/auth_internal.h"
+#include "web/csrf.h"
 #include "web/deferred_reboot.h"
 #include "web/web_middleware.h"
 #include "web/web_utils.h"
@@ -28,12 +23,10 @@
 #include "wifi/wlan_config.h"
 
 #include <ESPAsyncWebServer.h>
-#include <algorithm>
 #include <cerrno>
 #include <cstdlib>
 #include <cstring>
 #include <esp_log.h>
-#include <esp_random.h>
 
 DEFINE_LOG_TAG("WEBAPI");
 
@@ -66,7 +59,7 @@ void sendErr(AsyncWebServerRequest* req, int code, const char* error) {
 
 void handleApiCsrfGet(AsyncWebServerRequest* req) {
     char token[33];
-    webAuthGetCsrfTokenHex(token, sizeof(token));
+    webCsrfGetTokenHex(token, sizeof(token));
     char body[64];
     const int n = snprintf(body, sizeof(body), "{\"token\":\"%s\"}", token);
     if (n < 0 || static_cast<size_t>(n) >= sizeof(body)) {
@@ -79,13 +72,7 @@ void handleApiCsrfGet(AsyncWebServerRequest* req) {
 void handleApiDeviceGet(AsyncWebServerRequest* req) {
     char deviceId[kDeviceIdBufLen]{};
     buildDeviceId(deviceId, sizeof(deviceId));
-    const bool ap          = configIsApMode();
-    const bool authEnabled = configGetWebAuthEnabled();
-    const bool authed      = webAuthIsAuthenticated(req);
-    const bool authRequired = !ap && authEnabled && !authed;
-    if (authRequired) {
-        maybeStartAwaitingButtonConfirm(/*resetFailStreak=*/false);
-    }
+    const bool ap = configIsApMode();
 
     char body[320];
     size_t pos = 0;
@@ -101,14 +88,12 @@ void handleApiDeviceGet(AsyncWebServerRequest* req) {
         webSendEmpty(req, 500);
         return;
     }
-    n = snprintf(body + pos, sizeof(body) - pos,
-                 ",\"authEnabled\":%s,\"authRequired\":%s,\"authenticated\":%s}",
-                 authEnabled ? "true" : "false", authRequired ? "true" : "false",
-                 authRequired ? "false" : "true");
-    if (n < 0 || pos + static_cast<size_t>(n) >= sizeof(body)) {
+    if (pos + 2U > sizeof(body)) {
         webSendEmpty(req, 500);
         return;
     }
+    body[pos++] = '}';
+    body[pos]   = '\0';
     webSendJson(req, 200, body);
 }
 
@@ -548,11 +533,9 @@ void handleApiPairingPost(AsyncWebServerRequest* req) {
 }
 
 void handleApiSettingsGet(AsyncWebServerRequest* req) {
-    char body[96];
-    const int n =
-        snprintf(body, sizeof(body), "{\"resetDays\":%u,\"authEnabled\":%s}",
-                 static_cast<unsigned>(configGetResetPeriodDays()),
-                 configGetWebAuthEnabled() ? "true" : "false");
+    char body[64];
+    const int n = snprintf(body, sizeof(body), "{\"resetDays\":%u}",
+                           static_cast<unsigned>(configGetResetPeriodDays()));
     if (n < 0 || static_cast<size_t>(n) >= sizeof(body)) {
         webSendEmpty(req, 500);
         return;
@@ -574,8 +557,7 @@ void handleApiSettingsPost(AsyncWebServerRequest* req) {
         }
     }
     portENTER_CRITICAL(&g_webAdminSettingsPendingMux);
-    g_webAdminPendingResetDays   = days;
-    g_webAdminPendingAuthEnabled = req->hasParam("auth_enabled", true);
+    g_webAdminPendingResetDays = days;
     portEXIT_CRITICAL(&g_webAdminSettingsPendingMux);
     g_webAdminSettingsApplyPending.store(true, std::memory_order_release);
     sendOk(req, 200, "\"message\":\"saved\"");
@@ -595,132 +577,6 @@ void handleApiUpdateCheckPost(AsyncWebServerRequest* req) {
     sendOk(req, 200, "\"message\":\"checking\"");
 }
 
-bool isSafeNextPath(const char* next) {
-    if (next == nullptr || next[0] != '/') {
-        return false;
-    }
-    if (strstr(next, "..") != nullptr) {
-        return false;
-    }
-    if (strcmp(next, "/logout") == 0) {
-        return false;
-    }
-    return true;
-}
-
-unsigned lockoutRemainingSec(unsigned long nowMs) {
-    const unsigned long start = s_authLockoutStartMs.load(std::memory_order_acquire);
-    if (start == 0UL || deadlineReached(start, kAuthLockoutMs, nowMs)) {
-        return 0U;
-    }
-    const uint32_t remMs = remainingMs(start, kAuthLockoutMs, nowMs);
-    const unsigned long sec = (static_cast<unsigned long>(remMs) + 999UL) / 1000UL;
-    return static_cast<unsigned>(std::min(sec, static_cast<unsigned long>(7200)));
-}
-
-void handleApiAuthLoginPost(AsyncWebServerRequest* req) {
-    if (!webRequestOriginAllowed(req)) {
-        webSendEmpty(req, 403);
-        return;
-    }
-    if (!configGetWebAuthEnabled() || configIsApMode()) {
-        sendOk(req, 200, "\"next\":\"/\"");
-        return;
-    }
-    const unsigned long nowMs = millis();
-    const unsigned long lockoutStart = s_authLockoutStartMs.load(std::memory_order_acquire);
-    if (lockoutStart != 0UL && !deadlineReached(lockoutStart, kAuthLockoutMs, nowMs)) {
-        char body[96];
-        snprintf(body, sizeof(body),
-                 "{\"ok\":false,\"error\":\"lockout\",\"lockoutSec\":%u}",
-                 lockoutRemainingSec(nowMs));
-        webSendJson(req, 429, body);
-        return;
-    }
-    if (!webAuthValidateCsrfPost(req) || !req->hasParam("code", true)) {
-        sendErr(req, 401, "bad_code");
-        return;
-    }
-    const AsyncWebParameter* p = req->getParam("code", true);
-    const String& codeStr = (p != nullptr) ? p->value() : String();
-    if (!webAuthCodeSyntaxOk(codeStr.c_str())) {
-        sendErr(req, 401, "bad_code");
-        return;
-    }
-    const uint32_t entered = static_cast<uint32_t>(strtoul(codeStr.c_str(), nullptr, 10));
-    if (!tryConsumeAuthChallenge(entered, nowMs)) {
-        const unsigned fails = s_authFailStreak.fetch_add(1, std::memory_order_acq_rel) + 1U;
-        if (fails >= kAuthFailsForLock) {
-            s_authLockoutStartMs.store(nowMs, std::memory_order_release);
-            s_authFailStreak.store(0, std::memory_order_release);
-        }
-        sendErr(req, 401, "bad_code");
-        return;
-    }
-    s_authFailStreak.store(0, std::memory_order_relaxed);
-    portENTER_CRITICAL(&s_authMux);
-    esp_fill_random(s_sessionRaw, sizeof(s_sessionRaw));
-    s_sessionActive    = true;
-    s_sessionCreatedMs = nowMs;
-    rotateCsrfTokenLocked();
-    char hexCookie[33];
-    hexEncode16(s_sessionRaw, hexCookie);
-    portEXIT_CRITICAL(&s_authMux);
-
-    awaitingClearAtomic();
-    challengeClearAtomic();
-    buttonRequestAuthBlinkOffFromAsync();
-    scheduleMainTaskScreenAfterAuthFlow();
-
-    char nextPath[256] = "/";
-    if (req->hasParam("next", true)) {
-        const AsyncWebParameter* np = req->getParam("next", true);
-        if (np != nullptr && isSafeNextPath(np->value().c_str())) {
-            strlcpy(nextPath, np->value().c_str(), sizeof(nextPath));
-        }
-    }
-
-    char body[320];
-    size_t pos = 0;
-    int n = snprintf(body, sizeof(body), "{\"ok\":true,\"next\":");
-    if (n < 0 || static_cast<size_t>(n) >= sizeof(body)) {
-        webSendEmpty(req, 500);
-        return;
-    }
-    pos = static_cast<size_t>(n);
-    if (!appendJsonStringQuotedEscaped(nextPath, body, sizeof(body), &pos)) {
-        webSendEmpty(req, 500);
-        return;
-    }
-    if (pos + 2U > sizeof(body)) {
-        webSendEmpty(req, 500);
-        return;
-    }
-    body[pos++] = '}';
-    body[pos]   = '\0';
-
-    AsyncWebServerResponse* resp = req->beginResponse(200, "application/json", body);
-    char cookieBuf[160];
-    snprintf(cookieBuf, sizeof(cookieBuf), "%s=%s; Path=/; HttpOnly; Max-Age=%lu; SameSite=Strict",
-             kCookieName, hexCookie, static_cast<unsigned long>(kSessionCookieMaxAgeSec));
-    resp->addHeader(F("Set-Cookie"), cookieBuf);
-    webAddSecurityHeaders(resp);
-    req->send(resp);
-}
-
-void handleApiAuthLogoutPost(AsyncWebServerRequest* req) {
-    if (!configGetWebAuthEnabled() || configIsApMode()) {
-        sendOk(req, 200, "\"next\":\"/\"");
-        return;
-    }
-    webAuthInvalidateSession();
-    AsyncWebServerResponse* resp =
-        req->beginResponse(200, "application/json", "{\"ok\":true,\"next\":\"/auth\"}");
-    resp->addHeader(F("Set-Cookie"), F("chaya_sid=; Path=/; HttpOnly; Max-Age=0; SameSite=Strict"));
-    webAddSecurityHeaders(resp);
-    req->send(resp);
-}
-
 } // namespace
 
 void adminRoutesRegisterApi(AsyncWebServer& ws) {
@@ -737,29 +593,29 @@ void adminRoutesRegisterApi(AsyncWebServer& ws) {
     {
         AsyncCallbackWebHandler& h =
             ws.on("/api/chaya", HTTP_GET, [](AsyncWebServerRequest* rq) { handleApiChayaGet(rq); });
+        h.addMiddleware(mwRequireAllowedHost());
         h.addMiddleware(mwApiStaMode());
-        h.addMiddleware(mwApiSessionGet());
     }
     {
         AsyncCallbackWebHandler& h = ws.on("/api/chaya/send", HTTP_POST,
                                            [](AsyncWebServerRequest* rq) { handleApiChayaSendPost(rq); });
         h.addMiddleware(mwApiStaMode());
-        h.addMiddleware(mwApiPostSessionAndCsrf());
+        h.addMiddleware(mwApiPostCsrf());
     }
     {
         AsyncCallbackWebHandler& h = ws.on("/api/wifi/status", HTTP_GET,
                                            [](AsyncWebServerRequest* rq) { handleApiWifiStatusGet(rq); });
-        h.addMiddleware(mwApiWifiInfoOrApOpenGet());
+        h.addMiddleware(mwRequireAllowedHost());
     }
     {
         AsyncCallbackWebHandler& h = ws.on("/api/wifi/scan", HTTP_GET,
                                            [](AsyncWebServerRequest* rq) { handleApiWifiScanGet(rq); });
-        h.addMiddleware(mwApiWifiInfoOrApOpenGet());
+        h.addMiddleware(mwRequireAllowedHost());
     }
     {
         AsyncCallbackWebHandler& h = ws.on("/api/wifi/connect", HTTP_POST,
                                            [](AsyncWebServerRequest* rq) { handleApiWifiConnectPost(rq); });
-        h.addMiddleware(mwApiWifiConnectPostGuard());
+        h.addMiddleware(mwApiPostCsrf());
     }
     {
         AsyncCallbackWebHandler& h = ws.on(
@@ -782,65 +638,55 @@ void adminRoutesRegisterApi(AsyncWebServer& ws) {
     {
         AsyncCallbackWebHandler& h = ws.on("/api/mqtt/status", HTTP_GET,
                                            [](AsyncWebServerRequest* rq) { handleApiMqttStatusGet(rq); });
+        h.addMiddleware(mwRequireAllowedHost());
         h.addMiddleware(mwApiStaMode());
-        h.addMiddleware(mwApiSessionGet());
     }
     {
         AsyncCallbackWebHandler& h =
             ws.on("/api/mqtt", HTTP_GET, [](AsyncWebServerRequest* rq) { handleApiMqttGet(rq); });
+        h.addMiddleware(mwRequireAllowedHost());
         h.addMiddleware(mwApiStaMode());
-        h.addMiddleware(mwApiSessionGet());
     }
     {
         AsyncCallbackWebHandler& h =
             ws.on("/api/mqtt", HTTP_POST, [](AsyncWebServerRequest* rq) { handleApiMqttPost(rq); });
         h.addMiddleware(mwApiStaMode());
-        h.addMiddleware(mwApiPostSessionAndCsrf());
+        h.addMiddleware(mwApiPostCsrf());
     }
     {
         AsyncCallbackWebHandler& h =
             ws.on("/api/pairing", HTTP_GET, [](AsyncWebServerRequest* rq) { handleApiPairingGet(rq); });
+        h.addMiddleware(mwRequireAllowedHost());
         h.addMiddleware(mwApiStaMode());
-        h.addMiddleware(mwApiSessionGet());
     }
     {
         AsyncCallbackWebHandler& h = ws.on("/api/pairing", HTTP_POST,
                                            [](AsyncWebServerRequest* rq) { handleApiPairingPost(rq); });
         h.addMiddleware(mwApiStaMode());
-        h.addMiddleware(mwApiPostSessionAndCsrf());
+        h.addMiddleware(mwApiPostCsrf());
     }
     {
         AsyncCallbackWebHandler& h = ws.on("/api/settings", HTTP_GET,
                                            [](AsyncWebServerRequest* rq) { handleApiSettingsGet(rq); });
+        h.addMiddleware(mwRequireAllowedHost());
         h.addMiddleware(mwApiStaMode());
-        h.addMiddleware(mwApiSessionGet());
     }
     {
         AsyncCallbackWebHandler& h = ws.on("/api/settings", HTTP_POST,
                                            [](AsyncWebServerRequest* rq) { handleApiSettingsPost(rq); });
         h.addMiddleware(mwApiStaMode());
-        h.addMiddleware(mwApiPostSessionAndCsrf());
+        h.addMiddleware(mwApiPostCsrf());
     }
     {
         AsyncCallbackWebHandler& h =
             ws.on("/api/reboot", HTTP_POST, [](AsyncWebServerRequest* rq) { handleApiRebootPost(rq); });
         h.addMiddleware(mwApiStaMode());
-        h.addMiddleware(mwApiPostSessionAndCsrf());
+        h.addMiddleware(mwApiPostCsrf());
     }
     {
         AsyncCallbackWebHandler& h = ws.on("/api/update/check", HTTP_POST,
                                            [](AsyncWebServerRequest* rq) { handleApiUpdateCheckPost(rq); });
         h.addMiddleware(mwApiStaMode());
-        h.addMiddleware(mwApiPostSessionAndCsrf());
-    }
-    {
-        AsyncCallbackWebHandler& h = ws.on("/api/auth/login", HTTP_POST,
-                                           [](AsyncWebServerRequest* rq) { handleApiAuthLoginPost(rq); });
-        h.addMiddleware(mwRequireAllowedHost());
-    }
-    {
-        AsyncCallbackWebHandler& h = ws.on("/api/auth/logout", HTTP_POST,
-                                           [](AsyncWebServerRequest* rq) { handleApiAuthLogoutPost(rq); });
-        h.addMiddleware(mwApiPostSessionAndCsrf());
+        h.addMiddleware(mwApiPostCsrf());
     }
 }

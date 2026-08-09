@@ -67,7 +67,6 @@ Der Taster ist ein **beleuchteter Knopf** – die LED wird über GPIO 4 angesteu
 |-----------|---------------|
 | Startup | 3× 200 ms Blink |
 | MQTT senden | 2× Blink → Publish → 2× Blink (Erfolg) oder 3× Blink (Fehler) |
-| Web-Auth | Langsamer Blink während Challenge |
 | Factory Reset | Blinkmuster bei 10 s Halten |
 
 ## EPD-Treiber

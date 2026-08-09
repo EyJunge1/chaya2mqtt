@@ -45,9 +45,6 @@ function formBody(fields: Record<string, string | number | boolean | undefined>)
 
 async function apiGet<T>(path: string): Promise<T> {
   const res = await fetch(path, { credentials: 'same-origin' })
-  if (res.status === 401) {
-    throw new AuthRequiredError()
-  }
   if (!res.ok) {
     throw new Error(`${path} failed (${res.status})`)
   }
@@ -61,9 +58,6 @@ async function apiPost(path: string, fields: Record<string, string | number | bo
     headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' },
     body: formBody(fields),
   })
-  if (res.status === 401) {
-    throw new AuthRequiredError()
-  }
   const data = await parseJson<ApiResult>(res)
   if (!res.ok && data && typeof data === 'object' && 'ok' in data && data.ok === false) {
     return data
@@ -72,13 +66,6 @@ async function apiPost(path: string, fields: Record<string, string | number | bo
     return { ok: false, error: `request_failed_${res.status}` }
   }
   return data
-}
-
-export class AuthRequiredError extends Error {
-  constructor() {
-    super('auth_required')
-    this.name = 'AuthRequiredError'
-  }
 }
 
 export async function refreshCsrf(): Promise<string> {
@@ -95,7 +82,6 @@ export const api = {
   scanWifi: async (): Promise<WifiScanAp[] | 'pending'> => {
     const res = await fetch('/api/wifi/scan', { credentials: 'same-origin' })
     if (res.status === 202) return 'pending'
-    if (res.status === 401) throw new AuthRequiredError()
     if (!res.ok) throw new Error(`wifi scan failed (${res.status})`)
     return parseJson<WifiScanAp[]>(res)
   },
@@ -117,10 +103,7 @@ export const api = {
   getPairing: () => apiGet<PairingInfo>('/api/pairing'),
   savePartner: (partner_id: string) => apiPost('/api/pairing', { partner_id }),
   getSettings: () => apiGet<SettingsInfo>('/api/settings'),
-  saveSettings: (reset_days: number, auth_enabled: boolean) =>
-    apiPost('/api/settings', { reset_days, auth_enabled }),
-  login: (code: string, next = '/') => apiPost('/api/auth/login', { code, next }),
-  logout: () => apiPost('/api/auth/logout'),
+  saveSettings: (reset_days: number) => apiPost('/api/settings', { reset_days }),
   reboot: () => apiPost('/api/reboot'),
   checkUpdate: () => apiPost('/api/update/check'),
 }

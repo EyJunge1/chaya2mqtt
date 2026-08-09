@@ -3,11 +3,8 @@
 
 #include "async/event_types.h"
 #include "async/task_handles.h"
-#include "hw/button.h"
 #include "heart/counter.h"
 #include "hw/pins.h"
-// Nach Auth-UI: Session-Fenster + LED koordinieren (siehe web/auth_challenge.cpp — bewusste Kopplung).
-#include "web/auth/auth.h"
 
 #include "async/task_config.h"
 #include "diag/stack_monitor.h"
@@ -125,15 +122,6 @@ static void displayTaskFn(void*) {
         case DisplayMsg::Cmd::DrawSplash:
             drawSplashScreen();
             break;
-        case DisplayMsg::Cmd::DrawAuthCode:
-            drawAuthCode(msg.payload);
-            buttonSetAuthBlinkActive(true);
-            break;
-        case DisplayMsg::Cmd::DrawAuthPrompt:
-            drawAuthPrompt();
-            webAuthResetConfirmDeadline();
-            buttonSetAuthBlinkActive(true);
-            break;
         }
         logTaskStackHighWaterPeriodic("DISP", s_stackLogCounter, 600);
     }
@@ -154,18 +142,6 @@ void requestHeartRedraw() {
 
 void requestHeartRedrawNonBlocking() {
     (void)displayPostHeartRedraw(0);
-}
-
-void requestDeferredDrawAuthCode(uint32_t code) {
-    displayPostMsg(DisplayMsg::Cmd::DrawAuthCode, code, pdMS_TO_TICKS(500));
-}
-
-void requestDeferredDrawAuthPrompt() {
-    (void)displayPostMsg(DisplayMsg::Cmd::DrawAuthPrompt, 0, pdMS_TO_TICKS(500));
-}
-
-bool requestDeferredDrawAuthPromptChecked() {
-    return displayPostMsg(DisplayMsg::Cmd::DrawAuthPrompt, 0, pdMS_TO_TICKS(500));
 }
 
 void requestDeferredDrawSplashScreen() {
