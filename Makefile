@@ -29,7 +29,7 @@ help:
 	@echo "GUI lokal ohne Flash: cd frontend && npm run dev"
 
 check:
-	cd frontend && npm ci && npm run lint && npm test && npm run build
+	cd frontend && npm ci && npm run lint && npm run format:check && npm test && npm run build
 	python3 scripts/embed_web_assets.py
 	"$(PIO)" test -e native
 	"$(PIO)" run -e $(ENV_REL)

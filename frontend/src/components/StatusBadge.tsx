@@ -1,4 +1,4 @@
-import { useI18n } from '../i18n/useI18n'
+import { useI18n } from "../i18n/useI18n";
 
 export function StatusBadge({
   ok,
@@ -6,13 +6,13 @@ export function StatusBadge({
   detailOk,
   detailBad,
 }: {
-  ok: boolean
-  label: string
-  detailOk?: string
-  detailBad?: string
+  ok: boolean;
+  label: string;
+  detailOk?: string;
+  detailBad?: string;
 }) {
-  const { t } = useI18n()
-  const detail = ok ? (detailOk ?? t('status.connected')) : (detailBad ?? t('status.disconnected'))
+  const { t } = useI18n();
+  const detail = ok ? (detailOk ?? t("status.connected")) : (detailBad ?? t("status.disconnected"));
 
   return (
     <span className="group relative inline-flex">
@@ -21,7 +21,7 @@ export function StatusBadge({
         aria-label={`${label}: ${detail}`}
         className="inline-flex cursor-default items-center gap-1.5 rounded-full border border-border bg-surface px-2.5 py-1 text-xs font-semibold text-text-bright transition hover:border-accent/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-bg"
       >
-        <span className={`size-2 rounded-full ${ok ? 'bg-status-ok' : 'bg-danger'}`} aria-hidden />
+        <span className={`size-2 rounded-full ${ok ? "bg-status-ok" : "bg-danger"}`} aria-hidden />
         {label}
       </span>
       <span
@@ -31,5 +31,5 @@ export function StatusBadge({
         {detail}
       </span>
     </span>
-  )
+  );
 }

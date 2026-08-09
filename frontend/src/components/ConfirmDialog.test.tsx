@@ -1,15 +1,15 @@
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
-import { afterEach, describe, expect, it, vi } from 'vitest'
-import { ConfirmDialog } from './ConfirmDialog'
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { ConfirmDialog } from "./ConfirmDialog";
 
 afterEach(() => {
-  cleanup()
-})
+  cleanup();
+});
 
-describe('ConfirmDialog', () => {
-  it('calls confirm and cancel handlers', () => {
-    const onConfirm = vi.fn()
-    const onCancel = vi.fn()
+describe("ConfirmDialog", () => {
+  it("calls confirm and cancel handlers", () => {
+    const onConfirm = vi.fn();
+    const onCancel = vi.fn();
     render(
       <ConfirmDialog
         open
@@ -20,10 +20,10 @@ describe('ConfirmDialog', () => {
         onConfirm={onConfirm}
         onCancel={onCancel}
       />,
-    )
-    fireEvent.click(screen.getByRole('button', { name: 'Neu starten' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Abbrechen' }))
-    expect(onConfirm).toHaveBeenCalledTimes(1)
-    expect(onCancel).toHaveBeenCalledTimes(1)
-  })
-})
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Neu starten" }));
+    fireEvent.click(screen.getByRole("button", { name: "Abbrechen" }));
+    expect(onConfirm).toHaveBeenCalledTimes(1);
+    expect(onCancel).toHaveBeenCalledTimes(1);
+  });
+});

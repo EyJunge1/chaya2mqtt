@@ -1,5 +1,5 @@
-import { useEffect, useRef } from 'react'
-import { DangerButton, SecondaryButton } from './Form'
+import { useEffect, useRef } from "react";
+import { DangerButton, SecondaryButton } from "./Form";
 
 export function ConfirmDialog({
   open,
@@ -11,36 +11,36 @@ export function ConfirmDialog({
   onConfirm,
   onCancel,
 }: {
-  open: boolean
-  title: string
-  description: string
-  confirmLabel: string
-  cancelLabel: string
-  confirming?: boolean
-  onConfirm: () => void
-  onCancel: () => void
+  open: boolean;
+  title: string;
+  description: string;
+  confirmLabel: string;
+  cancelLabel: string;
+  confirming?: boolean;
+  onConfirm: () => void;
+  onCancel: () => void;
 }) {
-  const ref = useRef<HTMLDialogElement>(null)
+  const ref = useRef<HTMLDialogElement>(null);
 
   useEffect(() => {
-    const el = ref.current
-    if (!el) return
+    const el = ref.current;
+    if (!el) return;
     if (open && !el.open) {
-      if (typeof el.showModal === 'function') el.showModal()
-      else el.setAttribute('open', '')
+      if (typeof el.showModal === "function") el.showModal();
+      else el.setAttribute("open", "");
     }
     if (!open && el.open) {
-      if (typeof el.close === 'function') el.close()
-      else el.removeAttribute('open')
+      if (typeof el.close === "function") el.close();
+      else el.removeAttribute("open");
     }
-  }, [open])
+  }, [open]);
 
   return (
     <dialog
       ref={ref}
       onCancel={(e) => {
-        e.preventDefault()
-        if (!confirming) onCancel()
+        e.preventDefault();
+        if (!confirming) onCancel();
       }}
       className="m-auto w-[min(92vw,24rem)] rounded-2xl border border-border bg-surface p-0 text-text shadow-[0_20px_60px_rgba(0,0,0,0.45)] backdrop:bg-black/55 open:flex open:flex-col"
     >
@@ -67,5 +67,5 @@ export function ConfirmDialog({
         </SecondaryButton>
       </div>
     </dialog>
-  )
+  );
 }

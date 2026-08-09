@@ -1,4 +1,4 @@
-@import 'tailwindcss';
+@import "tailwindcss";
 
 @theme {
   --color-bg: var(--ui-bg);
@@ -15,7 +15,7 @@
   --color-ring: var(--ui-ring);
 }
 
-[data-theme='light'] {
+[data-theme="light"] {
   color-scheme: light;
   --ui-bg: #faf6f8;
   --ui-surface: #ffffff;
@@ -31,7 +31,7 @@
   --ui-ring: #e85a9b;
 }
 
-[data-theme='dark'] {
+[data-theme="dark"] {
   color-scheme: dark;
   --ui-bg: #0a0a0a;
   --ui-surface: #141414;
@@ -85,8 +85,8 @@ textarea {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  [class*='toast-in'],
-  [class*='toast-progress'] {
+  [class*="toast-in"],
+  [class*="toast-progress"] {
     animation: none;
   }
 }

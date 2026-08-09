@@ -1,63 +1,63 @@
-import { RotateCcw, X } from 'lucide-react'
-import { useState } from 'react'
-import { useLocation, useNavigate } from 'react-router-dom'
-import type { DeviceMode } from '../api/types'
+import { RotateCcw, X } from "lucide-react";
+import { useState } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
+import type { DeviceMode } from "../api/types";
 
 const scenarios = [
-  { id: 'sta-connected', label: 'STA online', path: '/' },
-  { id: 'offline', label: 'STA offline', path: '/' },
-  { id: 'ap-setup', label: 'AP Setup', path: '/' },
-] as const
+  { id: "sta-connected", label: "STA online", path: "/" },
+  { id: "offline", label: "STA offline", path: "/" },
+  { id: "ap-setup", label: "AP Setup", path: "/" },
+] as const;
 
 const pages = [
-  { path: '/', label: 'Dashboard' },
-  { path: '/wifi', label: 'Wi-Fi' },
-  { path: '/mqtt', label: 'MQTT' },
-  { path: '/pairing', label: 'Pairing' },
-  { path: '/settings', label: 'Settings' },
-  { path: '/update', label: 'Update' },
-] as const
+  { path: "/", label: "Dashboard" },
+  { path: "/wifi", label: "Wi-Fi" },
+  { path: "/mqtt", label: "MQTT" },
+  { path: "/pairing", label: "Pairing" },
+  { path: "/settings", label: "Settings" },
+  { path: "/update", label: "Update" },
+] as const;
 
 export function MockToolbar({
   onChanged,
-  mode = 'sta',
+  mode = "sta",
 }: {
-  onChanged: () => Promise<void>
-  mode?: DeviceMode
+  onChanged: () => Promise<void>;
+  mode?: DeviceMode;
 }) {
-  const [open, setOpen] = useState(true)
-  const [busy, setBusy] = useState(false)
-  const navigate = useNavigate()
-  const location = useLocation()
-  if (!import.meta.env.DEV) return null
+  const [open, setOpen] = useState(true);
+  const [busy, setBusy] = useState(false);
+  const navigate = useNavigate();
+  const location = useLocation();
+  if (!import.meta.env.DEV) return null;
 
   const visiblePages =
-    mode === 'ap'
-      ? pages.filter((page) => page.path === '/').map((page) => ({ ...page, label: 'Setup' }))
-      : pages
+    mode === "ap"
+      ? pages.filter((page) => page.path === "/").map((page) => ({ ...page, label: "Setup" }))
+      : pages;
 
   async function setScenario(scenario: (typeof scenarios)[number]) {
-    setBusy(true)
+    setBusy(true);
     try {
-      const body = new URLSearchParams({ scenario: scenario.id })
-      const response = await fetch('/api/_mock/scenario', { method: 'POST', body })
-      if (!response.ok) throw new Error(`scenario failed (${response.status})`)
-      await onChanged()
-      navigate(scenario.path)
+      const body = new URLSearchParams({ scenario: scenario.id });
+      const response = await fetch("/api/_mock/scenario", { method: "POST", body });
+      if (!response.ok) throw new Error(`scenario failed (${response.status})`);
+      await onChanged();
+      navigate(scenario.path);
     } finally {
-      setBusy(false)
+      setBusy(false);
     }
   }
 
   async function reset() {
-    setBusy(true)
+    setBusy(true);
     try {
-      const response = await fetch('/api/_mock/reset', { method: 'POST' })
-      if (!response.ok) throw new Error(`reset failed (${response.status})`)
-      await onChanged()
-      navigate('/')
+      const response = await fetch("/api/_mock/reset", { method: "POST" });
+      if (!response.ok) throw new Error(`reset failed (${response.status})`);
+      await onChanged();
+      navigate("/");
     } finally {
-      setBusy(false)
+      setBusy(false);
     }
   }
 
@@ -104,8 +104,8 @@ export function MockToolbar({
                   disabled={busy}
                   className={`rounded-md px-2 py-1.5 text-left ${
                     location.pathname === page.path
-                      ? 'bg-accent/15 text-accent'
-                      : 'text-muted hover:bg-surface-hover hover:text-text-bright'
+                      ? "bg-accent/15 text-accent"
+                      : "text-muted hover:bg-surface-hover hover:text-text-bright"
                   }`}
                   onClick={() => navigate(page.path)}
                 >
@@ -127,5 +127,5 @@ export function MockToolbar({
         </div>
       ) : null}
     </div>
-  )
+  );
 }

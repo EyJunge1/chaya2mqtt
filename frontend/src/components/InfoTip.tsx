@@ -1,9 +1,9 @@
-import { Info } from 'lucide-react'
+import { Info } from "lucide-react";
 
 const focusRing =
-  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-bg'
+  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-bg";
 
-export function InfoTip({ text, className = '' }: { text: string; className?: string }) {
+export function InfoTip({ text, className = "" }: { text: string; className?: string }) {
   return (
     <span className={`group relative inline-flex ${className}`}>
       <button
@@ -22,5 +22,5 @@ export function InfoTip({ text, className = '' }: { text: string; className?: st
         {text}
       </span>
     </span>
-  )
+  );
 }

@@ -1,7 +1,7 @@
-import type { LucideIcon } from 'lucide-react'
-import type { ReactNode } from 'react'
-import { Link } from 'react-router-dom'
-import { InfoTip } from './InfoTip'
+import type { LucideIcon } from "lucide-react";
+import type { ReactNode } from "react";
+import { Link } from "react-router-dom";
+import { InfoTip } from "./InfoTip";
 
 export function NavCard({
   to,
@@ -9,10 +9,10 @@ export function NavCard({
   subtitle,
   icon: Icon,
 }: {
-  to: string
-  title: string
-  subtitle?: string
-  icon: LucideIcon
+  to: string;
+  title: string;
+  subtitle?: string;
+  icon: LucideIcon;
 }) {
   return (
     <Link
@@ -27,7 +27,7 @@ export function NavCard({
         {subtitle ? <span className="block truncate text-sm text-muted">{subtitle}</span> : null}
       </span>
     </Link>
-  )
+  );
 }
 
 export function Panel({
@@ -36,10 +36,10 @@ export function Panel({
   children,
   action,
 }: {
-  title?: string
-  hint?: string
-  children: ReactNode
-  action?: ReactNode
+  title?: string;
+  hint?: string;
+  children: ReactNode;
+  action?: ReactNode;
 }) {
   return (
     <section className="rounded-xl border border-border bg-surface p-4">
@@ -58,5 +58,5 @@ export function Panel({
       )}
       {children}
     </section>
-  )
+  );
 }

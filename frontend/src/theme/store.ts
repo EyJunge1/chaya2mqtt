@@ -1,38 +1,38 @@
-export type Theme = 'dark' | 'light'
+export type Theme = "dark" | "light";
 
-let currentTheme: Theme = 'light'
-const listeners = new Set<() => void>()
+let currentTheme: Theme = "light";
+const listeners = new Set<() => void>();
 
 function emit() {
-  for (const listener of listeners) listener()
+  for (const listener of listeners) listener();
 }
 
 function applyTheme(theme: Theme) {
-  currentTheme = theme
-  if (typeof document !== 'undefined') {
-    document.documentElement.dataset.theme = theme
-    document.documentElement.style.colorScheme = theme
+  currentTheme = theme;
+  if (typeof document !== "undefined") {
+    document.documentElement.dataset.theme = theme;
+    document.documentElement.style.colorScheme = theme;
   }
-  emit()
+  emit();
 }
 
 export function subscribeTheme(listener: () => void) {
-  listeners.add(listener)
+  listeners.add(listener);
   return () => {
-    listeners.delete(listener)
-  }
+    listeners.delete(listener);
+  };
 }
 
 export function getTheme(): Theme {
-  return currentTheme
+  return currentTheme;
 }
 
 export function setTheme(theme: Theme) {
-  if (theme !== 'dark' && theme !== 'light') return
-  applyTheme(theme)
+  if (theme !== "dark" && theme !== "light") return;
+  applyTheme(theme);
 }
 
-if (typeof document !== 'undefined') {
-  document.documentElement.dataset.theme = currentTheme
-  document.documentElement.style.colorScheme = currentTheme
+if (typeof document !== "undefined") {
+  document.documentElement.dataset.theme = currentTheme;
+  document.documentElement.style.colorScheme = currentTheme;
 }

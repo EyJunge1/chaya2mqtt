@@ -1,36 +1,36 @@
-import { translations, type Lang, type TranslationKey } from './translations'
+import { translations, type Lang, type TranslationKey } from "./translations";
 
-export type TranslateFn = (key: TranslationKey, params?: Record<string, string | number>) => string
+export type TranslateFn = (key: TranslationKey, params?: Record<string, string | number>) => string;
 
-let currentLang: Lang = 'en'
-const listeners = new Set<() => void>()
+let currentLang: Lang = "en";
+const listeners = new Set<() => void>();
 
 function emit() {
-  for (const listener of listeners) listener()
+  for (const listener of listeners) listener();
 }
 
 function applyLang(lang: Lang) {
-  currentLang = lang
-  if (typeof document !== 'undefined') {
-    document.documentElement.lang = lang
+  currentLang = lang;
+  if (typeof document !== "undefined") {
+    document.documentElement.lang = lang;
   }
-  emit()
+  emit();
 }
 
 export function subscribeLanguage(listener: () => void) {
-  listeners.add(listener)
+  listeners.add(listener);
   return () => {
-    listeners.delete(listener)
-  }
+    listeners.delete(listener);
+  };
 }
 
 export function getLanguage(): Lang {
-  return currentLang
+  return currentLang;
 }
 
 export function setLanguage(lang: Lang) {
-  if (lang !== 'de' && lang !== 'en') return
-  applyLang(lang)
+  if (lang !== "de" && lang !== "en") return;
+  applyLang(lang);
 }
 
 export function t(
@@ -38,13 +38,13 @@ export function t(
   params: Record<string, string | number> = {},
   lang: Lang = getLanguage(),
 ): string {
-  let text: string = translations[lang][key] || translations.en[key] || key
+  let text: string = translations[lang][key] || translations.en[key] || key;
   for (const [k, v] of Object.entries(params)) {
-    text = text.replaceAll(`{${k}}`, String(v))
+    text = text.replaceAll(`{${k}}`, String(v));
   }
-  return text
+  return text;
 }
 
-if (typeof document !== 'undefined') {
-  document.documentElement.lang = currentLang
+if (typeof document !== "undefined") {
+  document.documentElement.lang = currentLang;
 }
