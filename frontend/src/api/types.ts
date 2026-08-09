@@ -82,3 +82,19 @@ export interface ApiErr {
 }
 
 export type ApiResult = ApiOk | ApiErr;
+
+export type OtaChannel = "stable" | "beta";
+
+export type OtaPhase =
+  "idle" | "checking" | "available" | "downloading" | "verifying" | "rebooting" | "error";
+
+export interface OtaStatus {
+  phase: OtaPhase;
+  channel: OtaChannel;
+  localVersion: string;
+  availableVersion: string;
+  bytesDone: number;
+  bytesTotal: number;
+  error: string;
+  generation: number;
+}

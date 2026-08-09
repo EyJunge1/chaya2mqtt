@@ -4,6 +4,8 @@ import type {
   DeviceInfo,
   MqttConfigView,
   MqttStatus,
+  OtaChannel,
+  OtaStatus,
   PairingInfo,
   SettingsInfo,
   WifiConnectStatus,
@@ -104,5 +106,7 @@ export const api = {
   saveSettings: (fields: { reset_days: number; lang: string; theme: string }) =>
     apiPost("/api/settings", fields),
   reboot: () => apiPost("/api/reboot"),
-  checkUpdate: () => apiPost("/api/update/check"),
+  getUpdateStatus: () => apiGet<OtaStatus>("/api/update/status"),
+  checkUpdate: (channel?: OtaChannel) => apiPost("/api/update/check", channel ? { channel } : {}),
+  installUpdate: () => apiPost("/api/update/install"),
 };

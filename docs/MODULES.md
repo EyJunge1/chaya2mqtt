@@ -276,7 +276,9 @@ Details: [WEB_ADMIN.md](WEB_ADMIN.md)
 | `ota.h` / `ota.cpp` | Auto-Check-Logik, Download-Queue |
 | `ota_task.cpp` | OTA-Task (8192 Stack, Prio 4) |
 | `github.h` / `github.cpp` | GitHub Releases API, CalVer-Vergleich |
-| `flash.h` / `flash.cpp` | TLS-Download, SHA256, Flash-Install |
+| `flash.h` / `flash.cpp` | TLS + MD5-Sidecar, Arduino-`HTTPUpdate` |
+| `version_cmp.h` | CalVer-/RC-Vergleich (header-only) |
+| `github_parse.h` | GitHub-Release-JSON-Helfer (header-only) |
 
 | Funktion | Beschreibung |
 |----------|--------------|

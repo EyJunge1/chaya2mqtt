@@ -60,13 +60,15 @@ Mutationen erwarten `application/x-www-form-urlencoded` inkl. `csrf_token`.
 | `/api/pairing` | GET/POST | Host/CSRF + STA | Device-/Partner-ID |
 | `/api/settings` | GET/POST | Host/CSRF + STA | Reset-Tage |
 | `/api/reboot` | POST | CSRF + STA | Neustart (deferred) |
-| `/api/update/check` | POST | CSRF + STA | GitHub-OTA-Check |
+| `/api/update/status` | GET | Host + STA | OTA-Status (Phase, Kanal, Versionen, Fortschritt) |
+| `/api/update/check` | POST | CSRF + STA | GitHub-OTA-Check (`channel=stable\|beta` optional) |
+| `/api/update/install` | POST | CSRF + STA | Bestätigte Installation starten |
 
 ## Server-Sent Events
 
 | Route | Events |
 |-------|--------|
-| `/events` | `chaya`, `wifi`, `mqtt` (wie bisher) |
+| `/events` | `chaya`, `wifi`, `mqtt`, `ota` |
 
 Max. **6** SSE-Clients. Tick alle 500 ms im App-Task.
 

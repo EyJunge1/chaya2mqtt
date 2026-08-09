@@ -14,6 +14,7 @@ constexpr const char kNvsKeyCfgRstPeriod[] = "rstPeriod";
 constexpr const char kNvsKeyCfgUiLang[]    = "ui_lang";
 constexpr const char kNvsKeyCfgUiTheme[]   = "ui_theme";
 constexpr const char kNvsKeyCfgUpdDay[]    = "upd_day";
+constexpr const char kNvsKeyCfgUpdChan[]   = "upd_chan";
 
 constexpr const char kNvsKeyChayaCounter[]     = "counter";
 constexpr const char kNvsKeyChayaSentCount[]   = "sentCount";

@@ -3,10 +3,12 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import {
   applyScenario,
   broadcastAll,
+  bumpOta,
   chayaPayload,
   devicePayload,
   getState,
   mqttPayload,
+  otaPayload,
   resetState,
   subscribe,
   tickWifiConnect,
@@ -279,10 +281,72 @@ async function handleApi(req: IncomingMessage, res: ServerResponse): Promise<boo
     return true;
   }
 
+  if (path === "/api/update/status" && method === "GET") {
+    sendJson(res, 200, otaPayload());
+    return true;
+  }
+
   if (path === "/api/update/check" && method === "POST") {
     const params = parseForm(await readBody(req));
     if (!requireCsrf(params, res)) return true;
+    const channel = params.get("channel");
+    if (channel === "stable" || channel === "beta") {
+      bumpOta({ channel, phase: "checking", error: "" });
+    } else if (channel != null) {
+      sendJson(res, 400, { ok: false, error: "channel" });
+      return true;
+    } else {
+      bumpOta({ phase: "checking", error: "" });
+    }
     sendJson(res, 200, { ok: true, message: "checking" });
+    setTimeout(() => {
+      const available = getState().ota.channel === "beta" ? "2026.8.2-rc.1" : "2026.8.2";
+      bumpOta({
+        phase: "available",
+        availableVersion: available,
+        bytesDone: 0,
+        bytesTotal: 0,
+        error: "",
+      });
+    }, 800);
+    return true;
+  }
+
+  if (path === "/api/update/install" && method === "POST") {
+    const params = parseForm(await readBody(req));
+    if (!requireCsrf(params, res)) return true;
+    const cur = getState().ota;
+    if (!cur.availableVersion || (cur.phase !== "available" && cur.phase !== "error")) {
+      sendJson(res, 409, { ok: false, error: "not_available" });
+      return true;
+    }
+    bumpOta({ phase: "downloading", bytesDone: 0, bytesTotal: 1000000, error: "" });
+    sendJson(res, 200, { ok: true, message: "installing" });
+    let done = 0;
+    const timer = setInterval(() => {
+      done += 200000;
+      if (done < 1000000) {
+        bumpOta({ phase: "downloading", bytesDone: done, bytesTotal: 1000000 });
+        return;
+      }
+      clearInterval(timer);
+      bumpOta({ phase: "verifying", bytesDone: 1000000, bytesTotal: 1000000 });
+      setTimeout(() => {
+        bumpOta({ phase: "rebooting" });
+        setTimeout(() => {
+          const st = getState();
+          st.version = st.ota.availableVersion || st.version;
+          bumpOta({
+            phase: "idle",
+            availableVersion: "",
+            bytesDone: 0,
+            bytesTotal: 0,
+            error: "",
+          });
+          broadcastAll();
+        }, 1200);
+      }, 600);
+    }, 400);
     return true;
   }
 
@@ -306,6 +370,7 @@ function handleSse(req: IncomingMessage, res: ServerResponse): boolean {
   write("chaya", chayaPayload());
   write("wifi", wifiPayload());
   write("mqtt", mqttPayload());
+  write("ota", otaPayload());
 
   const unsub = subscribe((event: string, data: unknown) => write(event, data));
   const heartbeat = setInterval(() => res.write(": ping\n\n"), 15000);

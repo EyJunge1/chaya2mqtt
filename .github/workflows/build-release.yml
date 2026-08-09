@@ -85,12 +85,12 @@ jobs:
           echo "firmware.bin=$SIZE bytes (limit $MAX)"
           test "$SIZE" -le "$MAX"
 
-      - name: Compute firmware hashes
+      - name: Compute firmware MD5
         id: hashes
         run: |
           cd .pio/build/esp32dev-release
-          sha256sum firmware.bin | awk '{print $1}' > firmware.sha256
-          echo "sha256=$(cat firmware.sha256)" >> "$GITHUB_OUTPUT"
+          md5sum firmware.bin | awk '{print $1}' > firmware.md5
+          echo "md5=$(cat firmware.md5)" >> "$GITHUB_OUTPUT"
 
       - name: Upload release artifact
         uses: softprops/action-gh-release@v2
@@ -104,7 +104,7 @@ jobs:
 
             | Algorithmus | Hash |
             |-------------|------|
-            | SHA-256     | `${{ steps.hashes.outputs.sha256 }}` |
+            | MD5         | `${{ steps.hashes.outputs.md5 }}` |
           files: |
             .pio/build/esp32dev-release/firmware.bin
-            .pio/build/esp32dev-release/firmware.sha256
+            .pio/build/esp32dev-release/firmware.md5

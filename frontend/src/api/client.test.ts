@@ -48,4 +48,38 @@ describe("api client", () => {
     );
     await expect(api.scanWifi()).resolves.toBe("pending");
   });
+
+  it("checkUpdate posts channel and csrf", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      text: async () => JSON.stringify({ ok: true, message: "checking" }),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    await expect(api.checkUpdate("beta")).resolves.toEqual({ ok: true, message: "checking" });
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/update/check",
+      expect.objectContaining({
+        method: "POST",
+        body: "csrf_token=abc123&channel=beta",
+      }),
+    );
+  });
+
+  it("installUpdate posts csrf", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      text: async () => JSON.stringify({ ok: true, message: "installing" }),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    await expect(api.installUpdate()).resolves.toEqual({ ok: true, message: "installing" });
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/update/install",
+      expect.objectContaining({
+        method: "POST",
+        body: "csrf_token=abc123",
+      }),
+    );
+  });
 });

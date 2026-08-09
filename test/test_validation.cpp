@@ -3,6 +3,8 @@
 #include "constants.h"
 #include "util/time_helpers.h"
 #include "heart/counter.h"
+#include "ota/version_cmp.h"
+#include "ota/github_parse.h"
 
 void test_calendar_day_since_epoch() {
     TEST_ASSERT_EQUAL_UINT32(0U, calendarDaySinceEpochUtc(0));
@@ -51,6 +53,47 @@ void test_deadline_helpers() {
     TEST_ASSERT_EQUAL_UINT32(0U, remainingMs(1000U, 500U, 2000U));
 }
 
+void test_ota_version_compare() {
+    TEST_ASSERT_TRUE(otaVersionIsNewer("v2026.8.2", "2026.8.1"));
+    TEST_ASSERT_FALSE(otaVersionIsNewer("v2026.8.1", "2026.8.1"));
+    TEST_ASSERT_FALSE(otaVersionIsNewer("v2026.8.0", "2026.8.1"));
+    TEST_ASSERT_TRUE(otaVersionIsNewer("v2026.8.1", "2026.8.1-rc.1"));
+    TEST_ASSERT_FALSE(otaVersionIsNewer("v2026.8.1-rc.2", "2026.8.1"));
+    TEST_ASSERT_TRUE(otaVersionIsNewer("v2026.8.1-rc.2", "2026.8.1-rc.1"));
+    TEST_ASSERT_TRUE(otaVersionIsRc("2026.8.1-rc.1"));
+    TEST_ASSERT_FALSE(otaVersionIsRc("2026.8.1"));
+}
+
+void test_ota_github_release_select() {
+    const char* json =
+        "["
+        "{\"tag_name\":\"v2026.8.2-rc.1\",\"draft\":false,\"prerelease\":true,"
+        "\"assets\":[{\"name\":\"firmware.bin\"},{\"name\":\"firmware.md5\"}]},"
+        "{\"tag_name\":\"v2026.8.1\",\"draft\":false,\"prerelease\":false,"
+        "\"assets\":[{\"name\":\"firmware.bin\"},{\"name\":\"firmware.md5\"}]}"
+        "]";
+
+    char tag[64]{};
+    bool isPre = false;
+    TEST_ASSERT_TRUE(otaSelectReleaseFromListJson(json, true, tag, sizeof(tag), &isPre));
+    TEST_ASSERT_EQUAL_STRING("v2026.8.2-rc.1", tag);
+    TEST_ASSERT_TRUE(isPre);
+
+    TEST_ASSERT_TRUE(otaSelectReleaseFromListJson(json, false, tag, sizeof(tag), &isPre));
+    TEST_ASSERT_EQUAL_STRING("v2026.8.1", tag);
+    TEST_ASSERT_FALSE(isPre);
+
+    const char* onlyStable =
+        "[{\"tag_name\":\"v2026.8.1\",\"draft\":false,\"prerelease\":false}]";
+    TEST_ASSERT_TRUE(otaSelectReleaseFromListJson(onlyStable, true, tag, sizeof(tag), &isPre));
+    TEST_ASSERT_EQUAL_STRING("v2026.8.1", tag);
+    TEST_ASSERT_FALSE(isPre);
+
+    TEST_ASSERT_TRUE(otaJsonHasAssetName(json, "firmware.bin"));
+    TEST_ASSERT_TRUE(otaJsonHasAssetName(json, "firmware.md5"));
+    TEST_ASSERT_FALSE(otaJsonHasAssetName(json, "missing.bin"));
+}
+
 int main(int, char**) {
     UNITY_BEGIN();
     RUN_TEST(test_calendar_day_since_epoch);
@@ -60,5 +103,7 @@ int main(int, char**) {
     RUN_TEST(test_wifi_ssid_syntax);
     RUN_TEST(test_ui_pref_syntax);
     RUN_TEST(test_deadline_helpers);
+    RUN_TEST(test_ota_version_compare);
+    RUN_TEST(test_ota_github_release_select);
     return UNITY_END();
 }

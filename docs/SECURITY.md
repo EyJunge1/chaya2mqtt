@@ -81,15 +81,14 @@ Credentials liegen unverschlüsselt in NVS (siehe oben).
 | Aspekt | Status |
 |--------|--------|
 | Download | HTTPS + TLS (CA-Bundle) |
-| Integrität | SHA256-Hash-Verifikation |
+| Integrität | MD5-Sidecar gegen Übertragungsfehler (`HTTPUpdate`) |
 | Code-Signatur | **Nicht implementiert** |
-| Quelle | GitHub Releases (`EyJunge1/chaya2mqtt`) |
+| Quelle | GitHub Releases (`EyJunge1/chaya2mqtt`), Kanäle Stable/Beta |
 | Risiko | Kompromittiertes GitHub-Konto oder MITM auf GitHub-Seite |
 
 ### Empfohlene Abmilderungen
 
 - Releases nur von vertrauenswürdigen Maintainers akzeptieren
-- SHA256-Hash manuell gegen Release-Notes prüfen
 - Für höhere Sicherheit: Secure-Boot + signierte Firmware (nicht in dieser Firmware)
 
 ## Factory Reset
@@ -116,7 +115,7 @@ Lock-Reihenfolge bei MQTT-Mutexen ist dokumentiert und muss eingehalten werden (
 | NVS-Credentials | Keine Verschlüsselung | Flash-Verschlüsselung optional |
 | Web-Admin | HTTP, CSRF + Host-Check, kein Login | Nur im vertrauenswürdigen Netz |
 | MQTT | TLS + CA-Prüfung | Starker Broker mit Auth |
-| OTA | TLS + SHA256 | Vertrauen in GitHub-Quelle |
+| OTA | TLS + MD5 | Vertrauen in GitHub-Quelle |
 | Physischer Zugriff | Kein Schutz | Gerät schützen |
 
 Für den typischen Heimnetz-Einsatz ist das aktuelle Modell ausreichend. Für höhere Anforderungen sind die oben genannten Abmilderungen auf ESP32-Ebene (Flash-Verschlüsselung, Secure Boot) zu prüfen.

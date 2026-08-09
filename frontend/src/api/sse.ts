@@ -1,9 +1,10 @@
-import type { ChayaStatus, MqttStatus, WifiStatus } from "./types";
+import type { ChayaStatus, MqttStatus, OtaStatus, WifiStatus } from "./types";
 
 export type SseHandlers = {
   chaya?: (data: ChayaStatus) => void;
   wifi?: (data: WifiStatus) => void;
   mqtt?: (data: MqttStatus) => void;
+  ota?: (data: OtaStatus) => void;
   error?: () => void;
 };
 
@@ -24,6 +25,7 @@ export function connectEvents(handlers: SseHandlers): () => void {
   bind("chaya", handlers.chaya);
   bind("wifi", handlers.wifi);
   bind("mqtt", handlers.mqtt);
+  bind("ota", handlers.ota);
   es.onerror = () => handlers.error?.();
 
   return () => es.close();

@@ -2,11 +2,22 @@
 
 #include <cstddef>
 
-/** Inspect GitHub `releases/latest` and semver-compare vs APP_VERSION (implementation: ota/github.cpp). */
+#include "ota.h"
+
+struct OtaReleaseInfo {
+    char tag[64]{};
+    char version[64]{}; // tag without leading 'v'
+    char binUrl[256]{};
+    char md5Url[256]{};
+    OtaChannel channel = OtaChannel::Stable;
+    bool       isPrerelease = false;
+};
+
 enum class GithubCheckResult {
     ApiError           = 0,
     ParsedNoUpgrade    = 1,
     ParsedUpgradeAvail = 2,
 };
 
-GithubCheckResult otaGithubEvaluateLatestRelease(char* firmwareUrlBuf, size_t firmwareUrlBufLen);
+/** Resolve the newest release for `channel` and compare against APP_VERSION. */
+GithubCheckResult otaGithubEvaluateChannel(OtaChannel channel, OtaReleaseInfo* out);

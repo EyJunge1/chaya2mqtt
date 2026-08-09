@@ -52,10 +52,12 @@ Beim Speichern werden Legacy-Keys (`ssid`, `pass`) entfernt und nur `cred_v1` ge
 |-----|-----|---------|--------------|
 | `rstPeriod` | UChar | `7` | Anzeige-Reset-Periode in UTC-Tagen (0=aus, 1–30) |
 | `upd_day` | UInt | `0` | Letzter OTA-Auto-Check (UTC-Kalendertag) |
+| `upd_chan` | String | `stable` | OTA-Kanal (`stable` oder `beta`) |
 
 **Schreiben:**
 - `rstPeriod`: Web POST `/settings` (deferred via App-Task)
 - `upd_day`: automatisch nach OTA-Check
+- `upd_chan`: bei Kanalwahl im Update-Check
 
 Hinweis: Ältere Firmwares konnten `cfg/authEn` setzen; dieser Key wird ignoriert.
 

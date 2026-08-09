@@ -95,7 +95,7 @@ Light-Sleep wurde bewusst deaktiviert, damit Web-Admin und MQTT-Reconnects respo
 | **Display** | `src/display/*` | E-Paper, eigener Drawing-Task |
 | **Button** | `src/hw/button_*.cpp` | Taster + LED, eigener Task |
 | **Web-Admin** | `src/web/*` | HTTP-Routen, CSRF, SSE, SPA |
-| **OTA** | `src/ota/*` | GitHub-Release-Check, Flash-Install |
+| **OTA** | `src/ota/*` | GitHub Stable/Beta-Check, HTTPUpdate+MD5, Status/SSE |
 | **App-Config** | `src/config/app_config.*` | Reset-Periode |
 | **TLS** | `src/tls/*` | Eingebettetes CA-Bundle (MQTT + OTA) |
 | **Diag** | `src/diag/*` | Stack-Monitor, Task-WDT |
@@ -219,7 +219,7 @@ Alle Einstellungen liegen in der **NVS** (Non-Volatile Storage). Vier Namespaces
 |-----------|--------|
 | `wifi` | SSID/Passwort |
 | `mqtt` | Broker, Topics, Partner-ID |
-| `cfg` | Reset-Periode, OTA-Check-Tag |
+| `cfg` | Reset-Periode, OTA-Check-Tag, OTA-Kanal |
 | `chaya` | Zähler, Baselines |
 
 Factory Reset löscht alle vier. Details: [CONFIGURATION.md](CONFIGURATION.md).

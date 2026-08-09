@@ -1,5 +1,8 @@
 #include "github.h"
 
+#include "github_parse.h"
+#include "version_cmp.h"
+
 #include "tls/tls_bundle_setup.h"
 #include "config/version.h"
 #include "wifi/wlan.h"
@@ -9,10 +12,8 @@
 #include <HTTPClient.h>
 #include <WiFi.h>
 #include <WiFiClientSecure.h>
-#include <cctype>
-#include <cstdint>
+#include <algorithm>
 #include <cstdio>
-#include <cstdlib>
 #include <cstring>
 #include <Arduino.h>
 #include <esp_log.h>
@@ -27,89 +28,59 @@ namespace {
 constexpr const char kGithubLatestReleaseApiUrl[] =
     "https://api.github.com/repos/EyJunge1/chaya2mqtt/releases/latest";
 
-constexpr const char kGithubLatestFirmwareBinUrl[] =
-    "https://github.com/EyJunge1/chaya2mqtt/releases/latest/download/firmware.bin";
+constexpr const char kGithubReleasesListApiUrl[] =
+    "https://api.github.com/repos/EyJunge1/chaya2mqtt/releases?per_page=10";
 
-constexpr size_t kGithubJsonBuf = 8192;
+constexpr const char kGithubDownloadBase[] =
+    "https://github.com/EyJunge1/chaya2mqtt/releases/download/";
+
+constexpr size_t kGithubJsonBuf = 16384;
 
 char s_githubJsonBuf[kGithubJsonBuf];
 
-uint32_t semverPackFromTag(const char* tag) {
+void stripLeadingV(const char* tag, char* out, size_t outLen) {
+    if (out == nullptr || outLen == 0U) {
+        return;
+    }
+    out[0] = '\0';
     if (tag == nullptr || tag[0] == '\0') {
-        return 0;
+        return;
     }
     const char* p = tag;
     if (p[0] == 'v' || p[0] == 'V') {
         ++p;
     }
-    unsigned major = 0;
-    unsigned minor = 0;
-    unsigned patch = 0;
-    const int n = sscanf(p, "%u.%u.%u", &major, &minor, &patch);
-    if (n < 1) {
-        return 0;
-    }
-    // CalVer YYYY.M.PATCH (year up to 9999) or classic semver.
-    if (major > 9999U || minor > 999U || patch > 999U) {
-        return UINT32_MAX;
-    }
-    const uint32_t base = major * 100000U + minor * 1000U + patch;
-    // Stable sorts above RC with the same YYYY.M.PATCH (releases/latest skips prereleases).
-    const bool isRc = (strstr(p, "-rc.") != nullptr) || (strstr(p, "-RC.") != nullptr);
-    return isRc ? (base * 2U) : (base * 2U + 1U);
+    strlcpy(out, p, outLen);
 }
 
-bool githubParseLatestTagLegacy(const char* json, char* tagOut, size_t tagLen) {
-    constexpr const char kKey[] = "\"tag_name\"";
-    const char*          key    = strstr(json, kKey);
-    if (key == nullptr) {
+bool fillReleaseUrls(const char* tag, OtaReleaseInfo* out) {
+    if (tag == nullptr || tag[0] == '\0' || out == nullptr) {
         return false;
     }
-    const char* colon = strchr(key, ':');
-    if (colon == nullptr) {
-        return false;
-    }
-    const char* p = colon + 1;
-    while (*p == ' ' || *p == '\t') {
-        ++p;
-    }
-    if (*p != '\"') {
-        return false;
-    }
-    ++p;
-    size_t i = 0;
-    while (*p != '\0' && *p != '\"' && (i + 1) < tagLen) {
-        tagOut[i++] = *p++;
-    }
-    tagOut[i] = '\0';
-    return i > 0;
+    strlcpy(out->tag, tag, sizeof(out->tag));
+    stripLeadingV(tag, out->version, sizeof(out->version));
+    const int nBin = snprintf(out->binUrl, sizeof(out->binUrl), "%s%s/firmware.bin",
+                              kGithubDownloadBase, tag);
+    const int nMd5 = snprintf(out->md5Url, sizeof(out->md5Url), "%s%s/firmware.md5",
+                              kGithubDownloadBase, tag);
+    return nBin > 0 && static_cast<size_t>(nBin) < sizeof(out->binUrl) && nMd5 > 0
+           && static_cast<size_t>(nMd5) < sizeof(out->md5Url);
 }
 
-bool githubExtractTagFromJsonBuffer(char* jsonBuf, size_t len, char* tagOut, size_t tagLen) {
-    if (len >= kGithubJsonBuf) {
-        len = kGithubJsonBuf - 1;
+bool httpGetGithubJson(const char* url, size_t* outLen) {
+    if (url == nullptr || outLen == nullptr) {
+        return false;
     }
-    jsonBuf[len] = '\0';
-    return githubParseLatestTagLegacy(jsonBuf, tagOut, tagLen);
-}
-
-} // namespace
-
-GithubCheckResult otaGithubEvaluateLatestRelease(char* firmwareUrlBuf,
-                                                 size_t firmwareUrlBufLen) {
-    if (firmwareUrlBuf == nullptr || firmwareUrlBufLen == 0U) {
-        return GithubCheckResult::ApiError;
-    }
-    firmwareUrlBuf[0] = '\0';
+    *outLen = 0;
+    s_githubJsonBuf[0] = '\0';
 
     if (!wlanStaConnectedOk()) {
         ESP_LOGW(TAG, "GitHub update: STA Wi-Fi not connected");
-        return GithubCheckResult::ApiError;
+        return false;
     }
-
     if (!chayaTlsEnsureCaBundleInstalled()) {
         ESP_LOGE(TAG, "GitHub API: CA bundle install failed");
-        return GithubCheckResult::ApiError;
+        return false;
     }
 
     WiFiClientSecure tls;
@@ -118,11 +89,10 @@ GithubCheckResult otaGithubEvaluateLatestRelease(char* firmwareUrlBuf,
     tls.setTimeout(30000);
 
     HTTPClient https;
-    if (!https.begin(tls, kGithubLatestReleaseApiUrl)) {
+    if (!https.begin(tls, url)) {
         ESP_LOGE(TAG, "GitHub API: HTTPS begin failed");
-        return GithubCheckResult::ApiError;
+        return false;
     }
-
     https.setConnectTimeout(15000);
     https.setTimeout(30000);
     https.addHeader(F("User-Agent"), F("Chaya2MQTT-esp32"));
@@ -133,22 +103,17 @@ GithubCheckResult otaGithubEvaluateLatestRelease(char* firmwareUrlBuf,
     if (httpCode != HTTP_CODE_OK) {
         ESP_LOGE(TAG, "GitHub API: HTTP error %d", httpCode);
         https.end();
-        return GithubCheckResult::ApiError;
+        return false;
     }
 
     auto&               stream        = https.getStream();
-    char                remoteTag[64]{};
     size_t              len           = 0;
-    bool                tagParsed     = false;
     const unsigned long streamStartMs = millis();
-    constexpr unsigned long kGithubStreamDeadlineMs = 30000UL;
+    constexpr unsigned long kGithubStreamDeadlineMs = 45000UL;
 
     while (https.connected() && len + 1 < kGithubJsonBuf
            && (millis() - streamStartMs) < kGithubStreamDeadlineMs) {
         chayaTaskWatchdogReset();
-        if (tagParsed) {
-            break;
-        }
         if (stream.available() <= 0) {
             if (!https.connected()) {
                 break;
@@ -166,35 +131,86 @@ GithubCheckResult otaGithubEvaluateLatestRelease(char* firmwareUrlBuf,
             break;
         }
         len += static_cast<size_t>(n);
-        tagParsed = githubExtractTagFromJsonBuffer(s_githubJsonBuf, len, remoteTag, sizeof(remoteTag));
     }
-
     https.end();
+    s_githubJsonBuf[len] = '\0';
+    *outLen              = len;
+    return len > 0U;
+}
 
-    if (!tagParsed) {
-        tagParsed =
-            (len > 0)
-            && githubExtractTagFromJsonBuffer(s_githubJsonBuf, len, remoteTag, sizeof(remoteTag));
+bool evaluateTag(const char* tag, bool isPrerelease, OtaChannel channel, OtaReleaseInfo* out,
+                 GithubCheckResult* result) {
+    if (tag == nullptr || out == nullptr || result == nullptr) {
+        return false;
     }
+    if (!fillReleaseUrls(tag, out)) {
+        *result = GithubCheckResult::ApiError;
+        return false;
+    }
+    out->channel       = channel;
+    out->isPrerelease  = isPrerelease;
 
-    if (!tagParsed) {
-        ESP_LOGE(TAG, "GitHub: failed to parse tag_name");
+    ESP_LOGI(TAG, "GitHub channel=%s tag=%s local=%s",
+             channel == OtaChannel::Beta ? "beta" : "stable", tag, APP_VERSION);
+
+    if (!otaVersionIsNewer(tag, APP_VERSION)) {
+        *result = GithubCheckResult::ParsedNoUpgrade;
+        return true;
+    }
+    *result = GithubCheckResult::ParsedUpgradeAvail;
+    return true;
+}
+
+} // namespace
+
+GithubCheckResult otaGithubEvaluateChannel(OtaChannel channel, OtaReleaseInfo* out) {
+    if (out == nullptr) {
         return GithubCheckResult::ApiError;
     }
+    *out = OtaReleaseInfo{};
+    out->channel = channel;
 
-    ESP_LOGI(TAG, "GitHub latest=%s local=%s", remoteTag, APP_VERSION);
+    size_t len = 0;
+    if (channel == OtaChannel::Stable) {
+        if (!httpGetGithubJson(kGithubLatestReleaseApiUrl, &len)) {
+            return GithubCheckResult::ApiError;
+        }
+        char tag[64]{};
+        if (!otaParseJsonStringField(s_githubJsonBuf, "tag_name", tag, sizeof(tag))) {
+            ESP_LOGE(TAG, "GitHub: failed to parse tag_name");
+            return GithubCheckResult::ApiError;
+        }
+        bool draft = false;
+        (void)otaParseJsonBoolField(s_githubJsonBuf, "draft", &draft);
+        if (draft) {
+            ESP_LOGW(TAG, "GitHub latest is draft — skipping");
+            return GithubCheckResult::ParsedNoUpgrade;
+        }
+        if (!otaJsonHasAssetName(s_githubJsonBuf, "firmware.bin")
+            || !otaJsonHasAssetName(s_githubJsonBuf, "firmware.md5")) {
+            // Assets may appear later in a truncated buffer; still allow if tag parses.
+            ESP_LOGW(TAG, "GitHub latest: firmware assets not seen in JSON prefix");
+        }
+        GithubCheckResult result = GithubCheckResult::ApiError;
+        if (!evaluateTag(tag, false, channel, out, &result)) {
+            return GithubCheckResult::ApiError;
+        }
+        return result;
+    }
 
-    const uint32_t remoteV = semverPackFromTag(remoteTag);
-    const uint32_t localV  = semverPackFromTag(APP_VERSION);
-    if (remoteV == UINT32_MAX || localV == UINT32_MAX) {
-        ESP_LOGW(TAG, "GitHub semver parse uncertain — skipping auto-upgrade");
-        return GithubCheckResult::ParsedNoUpgrade;
+    // Beta: prefer newest prerelease; fall back to newest stable in the list.
+    if (!httpGetGithubJson(kGithubReleasesListApiUrl, &len)) {
+        return GithubCheckResult::ApiError;
     }
-    if (remoteV > localV) {
-        ESP_LOGI(TAG, "Newer firmware reported on GitHub");
-        static_cast<void>(strlcpy(firmwareUrlBuf, kGithubLatestFirmwareBinUrl, firmwareUrlBufLen));
-        return GithubCheckResult::ParsedUpgradeAvail;
+    char tag[64]{};
+    bool isPre = false;
+    if (!otaSelectReleaseFromListJson(s_githubJsonBuf, true, tag, sizeof(tag), &isPre)) {
+        ESP_LOGE(TAG, "GitHub: no suitable beta/stable release in list");
+        return GithubCheckResult::ApiError;
     }
-    ESP_LOGI(TAG, "Firmware is up to date");
-    return GithubCheckResult::ParsedNoUpgrade;
+    GithubCheckResult result = GithubCheckResult::ApiError;
+    if (!evaluateTag(tag, isPre, channel, out, &result)) {
+        return GithubCheckResult::ApiError;
+    }
+    return result;
 }

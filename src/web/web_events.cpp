@@ -4,6 +4,7 @@
 #include "heart/counter.h"
 #include "mqtt/config.h"
 #include "mqtt/mqtt.h"
+#include "ota/ota.h"
 #include "wifi/wlan.h"
 #include "web_utils.h"
 
@@ -45,6 +46,8 @@ char     s_lastWifiIp[16]{};
 int      s_lastWifiRssi       = 0;
 bool     s_haveLastMqttStatus = false;
 bool     s_lastMqttPageConn   = false;
+bool     s_haveLastOta        = false;
+uint32_t s_lastOtaGeneration  = 0;
 
 portMUX_TYPE s_esCacheMux = portMUX_INITIALIZER_UNLOCKED;
 
@@ -153,9 +156,13 @@ void webEventsTick() {
 
     const bool mqttConnNow = mqttPageRelevant ? mqttIsConnected() : false;
 
+    OtaStatus otaSt{};
+    otaCopyStatus(&otaSt);
+
     bool chayaDirty      = false;
     bool wifiDirty       = false;
     bool mqttStatusDirty = force;
+    bool otaDirty        = force;
     portENTER_CRITICAL(&s_esCacheMux);
     chayaDirty =
         force || !s_haveLastChaya || s_lastRx != rx || s_lastTx != tx || s_lastMqttConn != mqttLineOk;
@@ -186,9 +193,16 @@ void webEventsTick() {
     } else {
         s_haveLastMqttStatus = false;
     }
+    if (!s_haveLastOta || s_lastOtaGeneration != otaSt.generation) {
+        otaDirty = true;
+    }
+    if (otaDirty) {
+        s_haveLastOta       = true;
+        s_lastOtaGeneration = otaSt.generation;
+    }
     portEXIT_CRITICAL(&s_esCacheMux);
 
-    char buf[320];
+    char buf[384];
 
     if (chayaDirty) {
         const size_t n = buildChayaPayload(rx, tx, mqttLineOk, buf, sizeof(buf));
@@ -213,6 +227,13 @@ void webEventsTick() {
         const size_t plen = buildMqttStatusPayload(mqttConnNow, buf, sizeof(buf));
         if (plen > 0U && plen < sizeof(buf)) {
             s_events.send(buf, "mqtt");
+        }
+    }
+
+    if (otaDirty) {
+        const size_t plen = otaFormatStatusJson(buf, sizeof(buf));
+        if (plen > 0U && plen < sizeof(buf)) {
+            s_events.send(buf, "ota");
         }
     }
 }

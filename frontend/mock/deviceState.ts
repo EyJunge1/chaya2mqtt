@@ -37,6 +37,16 @@ export interface MockState {
     startedAt: number;
   };
   scanReadyAt: number;
+  ota: {
+    phase: "idle" | "checking" | "available" | "downloading" | "verifying" | "rebooting" | "error";
+    channel: "stable" | "beta";
+    localVersion: string;
+    availableVersion: string;
+    bytesDone: number;
+    bytesTotal: number;
+    error: string;
+    generation: number;
+  };
 }
 
 const listeners = new Set<(event: string, data: unknown) => void>();
@@ -74,6 +84,16 @@ export function createInitialState(scenario: MockScenario = "sta-connected"): Mo
     theme: "light",
     wifiConnect: { state: "idle", ssid: "", password: "", startedAt: 0 },
     scanReadyAt: 0,
+    ota: {
+      phase: "idle",
+      channel: "stable",
+      localVersion: "dev-sim",
+      availableVersion: "",
+      bytesDone: 0,
+      bytesTotal: 0,
+      error: "",
+      generation: 1,
+    },
   };
   applyScenario(state, scenario);
   return state;
@@ -147,10 +167,25 @@ export function mqttPayload() {
   return { connected: state.mqttConnected };
 }
 
+export function otaPayload() {
+  return { ...state.ota, localVersion: state.version };
+}
+
+export function bumpOta(partial: Partial<MockState["ota"]>): void {
+  state.ota = {
+    ...state.ota,
+    ...partial,
+    localVersion: state.version,
+    generation: state.ota.generation + 1,
+  };
+  emit("ota", otaPayload());
+}
+
 export function broadcastAll(): void {
   emit("chaya", chayaPayload());
   emit("wifi", wifiPayload());
   emit("mqtt", mqttPayload());
+  emit("ota", otaPayload());
 }
 
 export function tickWifiConnect(): void {

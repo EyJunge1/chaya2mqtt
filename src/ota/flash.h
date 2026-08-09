@@ -1,4 +1,7 @@
 #pragma once
 
-/** Download .bin via TLS, SHA256-verify, install to next OTA partition. */
-bool otaFlashVerifiedInstall(const char* binUrl);
+#include <cstddef>
+#include <cstdint>
+
+/** Download .bin via TLS + HTTPUpdate, verify with preloaded MD5 sidecar. */
+bool otaFlashVerifiedInstall(const char* binUrl, const char* md5Url);
