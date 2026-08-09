@@ -35,3 +35,23 @@ select,
 textarea {
   font: inherit;
 }
+
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(0.75rem) scale(0.98);
+  }
+}
+
+@keyframes toast-progress {
+  to {
+    transform: scaleX(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [class*='toast-in'],
+  [class*='toast-progress'] {
+    animation: none;
+  }
+}
