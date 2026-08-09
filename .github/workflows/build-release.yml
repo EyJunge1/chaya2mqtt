@@ -93,7 +93,7 @@ jobs:
           echo "md5=$(cat firmware.md5)" >> "$GITHUB_OUTPUT"
 
       - name: Upload release artifact
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           generate_release_notes: true
