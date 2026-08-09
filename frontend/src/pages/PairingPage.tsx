@@ -78,7 +78,7 @@ export function PairingPage({ onToast }: { onToast: ShowToast }) {
           </code>
         </div>
       </Panel>
-      <Panel title={t("pairing.partner")}>
+      <Panel>
         <form className="space-y-3" onSubmit={(e) => void save(e)}>
           <Field label={t("pairing.partner-id")} hint={t("pairing.partner-hint")}>
             <TextInput

@@ -131,7 +131,7 @@ export function WifiSetup({
         </div>
       </Panel>
 
-      <Panel title={t("wifi.connect")}>
+      <Panel>
         <form className="space-y-3" onSubmit={(e) => void connect(e)}>
           <Field label={t("wifi.ssid")}>
             <TextInput

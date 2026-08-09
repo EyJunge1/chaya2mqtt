@@ -82,7 +82,7 @@ export function MqttPage({ mqtt, onToast }: { mqtt: MqttStatus; onToast: ShowToa
       </Panel>
       <Panel title={t("mqtt.broker")}>
         <form className="space-y-3" onSubmit={(e) => void save(e)}>
-          <Field label={t("mqtt.server")}>
+          <Field label={t("mqtt.server")} hint={t("mqtt.server-hint")}>
             <TextInput
               value={cfg.server}
               onChange={(e) => setCfg({ ...cfg, server: e.target.value })}
@@ -100,14 +100,17 @@ export function MqttPage({ mqtt, onToast }: { mqtt: MqttStatus; onToast: ShowToa
               required
             />
           </Field>
-          <Field label={t("mqtt.user")}>
+          <Field label={t("mqtt.user")} hint={t("mqtt.user-hint")}>
             <TextInput
               value={cfg.username}
               onChange={(e) => setCfg({ ...cfg, username: e.target.value })}
               maxLength={63}
             />
           </Field>
-          <Field label={t("mqtt.pass")} hint={cfg.hasPassword ? t("mqtt.pass-hint") : undefined}>
+          <Field
+            label={t("mqtt.pass")}
+            hint={cfg.hasPassword ? t("mqtt.pass-hint") : t("mqtt.pass-hint-empty")}
+          >
             <TextInput
               type="password"
               value={password}

@@ -6,7 +6,8 @@ import type { ChayaStatus, DeviceInfo, MqttStatus, WifiStatus } from "./api/type
 import { Layout } from "./components/Layout";
 import { MockToolbar } from "./components/MockToolbar";
 import { ErrorBlock, LoadingBlock } from "./components/StateBlock";
-import { Toast, type ShowToast, type ToastMessage, type ToastVariant } from "./components/Toast";
+import { ToastStack, type ShowToast, type ToastItem, type ToastVariant } from "./components/Toast";
+import { pushToast } from "./components/toastStack";
 import { useI18n } from "./i18n/useI18n";
 import type { Lang } from "./i18n/translations";
 import { DashboardPage } from "./pages/DashboardPage";
@@ -24,12 +25,16 @@ export default function App() {
   const [chaya, setChaya] = useState<ChayaStatus>({ rx: 0, tx: 0, connected: false });
   const [wifi, setWifi] = useState<WifiStatus>({ connected: false });
   const [mqtt, setMqtt] = useState<MqttStatus>({ connected: false });
-  const [toast, setToast] = useState<ToastMessage>(null);
+  const [toasts, setToasts] = useState<ToastItem[]>([]);
   const [bootError, setBootError] = useState(false);
   const [booting, setBooting] = useState(true);
 
   const showToast: ShowToast = useCallback((text, variant: ToastVariant = "success") => {
-    setToast({ text, variant });
+    setToasts((prev) => pushToast(prev, text, variant));
+  }, []);
+
+  const dismissToast = useCallback((id: string) => {
+    setToasts((prev) => prev.filter((item) => item.id !== id));
   }, []);
 
   const refreshDevice = useCallback(async () => {
@@ -129,7 +134,7 @@ export default function App() {
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </Layout>
-      <Toast message={toast} onClose={() => setToast(null)} />
+      <ToastStack toasts={toasts} onDismiss={dismissToast} />
     </>
   );
 }
