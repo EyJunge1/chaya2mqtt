@@ -5,12 +5,12 @@
   --color-surface: #141414;
   --color-surface-hover: #1a1a1a;
   --color-border: #2a2a2a;
-  --color-text: #dff9e3;
+  --color-text: #fbe0ef;
   --color-text-bright: #ffffff;
-  --color-accent: #1dae6b;
+  --color-accent: #ef7ab4;
   --color-danger: #f44336;
-  --color-success: #76d39e;
-  --color-muted: #8aa892;
+  --color-success: #f4a8c8;
+  --color-muted: #b08a9e;
 }
 
 html {
