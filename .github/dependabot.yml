@@ -1,0 +1,24 @@
+version: 2
+
+# PlatformIO (platformio.ini / lib_deps) und ESP-IDF Component Manager
+# (idf_component.yml) werden von Dependabot noch nicht unterstützt.
+# Siehe: https://github.com/dependabot/dependabot-core/issues/13206
+
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: Etc/UTC
+    open-pull-requests-limit: 3
+    labels:
+      - dependencies
+    groups:
+      github-actions:
+        patterns:
+          - "*"
+        update-types:
+          - minor
+          - patch
