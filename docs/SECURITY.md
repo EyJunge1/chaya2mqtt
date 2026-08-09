@@ -35,7 +35,9 @@ WiFi-Passwörter, MQTT-Zugangsdaten und Konfiguration werden in der **NVS** (Non
 |--------|--------|
 | Transport | **HTTP (Port 80)** – keine TLS-Verschlüsselung |
 | Session | Cookie `chaya_sid` (HttpOnly, SameSite=Strict) |
-| CSRF | Token in allen POST-Formularen |
+| CSRF | Token über `/api/csrf`, in allen JSON-POSTs als `csrf_token` |
+| CSP | `script-src 'self'; style-src 'self'` (keine Inline-Skripte) |
+| UI | React-SPA aus PROGMEM; Logik über `/api/*` + SSE |
 | Risiko | Session-Hijacking / Credential-Sniffing im lokalen Netz möglich |
 
 ### Web-Auth (optional)
@@ -59,10 +61,10 @@ Der Setup-Access-Point **`Chaya2MQTT`** ist bewusst **offen (ohne WPA/PSK)**, da
 
 ### Öffentliche Routen (ohne Auth)
 
-Im AP-Modus: `/`, `/wifi*`, `/favicon.ico`
+Im AP-Modus: SPA-Shell (`/`, `/wifi`, …), `/assets/*`, `/api/csrf`, `/api/device`, `/api/wifi/*`, `/events`
 
-Im STA-Modus (Auth aktiv): `/`, `/wifi`, `/wifi-connect*`, `/auth`, `/logout`, `/favicon.ico`
-(`/wifi-scan` und `/wifi-status` erfordern im STA-Modus eine aktive Session)
+Im STA-Modus (Auth aktiv): SPA-Shell für `/`, `/wifi`, `/wifi-testing`, `/auth`; plus `/assets/*`, `/api/csrf`, `/api/device`, `/api/auth/login`, `/api/wifi/connect*`, `/events`
+(übrige `/api/*` erfordern Session)
 
 ### SSE (`/events`)
 

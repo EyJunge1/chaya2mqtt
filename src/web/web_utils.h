@@ -8,7 +8,8 @@ class AsyncWebServerRequest;
 class AsyncWebServerResponse;
 class AsyncResponseStream;
 
-void webAddSecurityHeaders(AsyncWebServerResponse* resp);
+/** Security headers. When noStore is false, omits Cache-Control (caller sets caching). */
+void webAddSecurityHeaders(AsyncWebServerResponse* resp, bool noStore = true);
 
 void webRedirect(AsyncWebServerRequest* req, const __FlashStringHelper* location);
 

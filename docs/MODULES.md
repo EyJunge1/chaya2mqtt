@@ -265,12 +265,11 @@ Button-Task (4096 Stack, Prio 8, Core 1):
 | `web_utils.h` / `web_utils.cpp` | Redirects, Security-Headers |
 | `web_middleware.h` / `web_middleware.cpp` | CSRF-Middleware für AP-Routen |
 | `web_events.h` / `web_events.cpp` | SSE `/events` |
-| `routes/admin_routes_wifi.cpp` | WiFi-Routen |
-| `routes/admin_routes_mqtt.cpp` | MQTT + Pairing-Routen |
-| `routes/admin_routes_app.cpp` | Dashboard, Settings, OTA, Chaya |
-| `auth/auth.h` / `auth/auth_session.cpp` / `auth/auth_routes.cpp` / `auth/auth_challenge.cpp` | Session, CSRF, Challenge-Flow, HTTP-Routen |
-| `pages/pages.h` / `pages/pages_common.cpp` / `pages/pages_admin.cpp` / `pages/pages_status.cpp` | HTML-Streaming |
-| `assets/*.h` | Eingebettetes CSS/JS (PROGMEM) |
+| `routes/admin_routes_api.cpp` | JSON-API `/api/*` für die React-SPA |
+| `routes/admin_routes_spa.cpp` | SPA `index.html` + `/assets/app.{js,css}` (gzip/PROGMEM) |
+| `routes/admin_routes_wifi.cpp` / `mqtt` / `app` | Legacy-Stubs (Logik in API/SPA) |
+| `auth/auth.h` / `auth/auth_session.cpp` / `auth/auth_routes.cpp` / `auth/auth_challenge.cpp` | Session, CSRF, Challenge-Flow |
+| `assets/spa_*.h` | Generierte gzip-SPA-Assets (PROGMEM) |
 
 Details: [WEB_ADMIN.md](WEB_ADMIN.md)
 

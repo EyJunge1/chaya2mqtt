@@ -7,3 +7,7 @@ void adminRoutesRegisterWifi(AsyncWebServer& ws);
 void adminRoutesRegisterMqtt(AsyncWebServer& ws);
 
 void adminRoutesRegisterApplication(AsyncWebServer& ws);
+
+void adminRoutesRegisterApi(AsyncWebServer& ws);
+
+void adminRoutesRegisterSpa(AsyncWebServer& ws);

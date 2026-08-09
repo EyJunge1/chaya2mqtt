@@ -6,3 +6,6 @@ __pycache__/
 .vscode
 compile_commands.json
 .cursor
+frontend/node_modules/
+frontend/dist/
+frontend/node_modules/.tmp/

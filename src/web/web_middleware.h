@@ -18,3 +18,12 @@ ArMiddlewareCallback mwWifiConnectPostGuard();
 ArMiddlewareCallback mwApPostCsrfRedirect(const char* redirectOnMismatch);
 
 ArMiddlewareCallback mwWifiInfoOrApOpenGet();
+
+/** JSON APIs: 401/403 instead of redirects. */
+ArMiddlewareCallback mwApiSessionGet();
+ArMiddlewareCallback mwApiPostSessionAndCsrf();
+ArMiddlewareCallback mwApiWifiConnectPostGuard();
+ArMiddlewareCallback mwApiApPostCsrf();
+ArMiddlewareCallback mwApiStaMode();
+ArMiddlewareCallback mwApiApMode();
+ArMiddlewareCallback mwApiWifiInfoOrApOpenGet();

@@ -33,11 +33,34 @@ jobs:
         with:
           python-version: "3.12"
 
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
       - name: Install PlatformIO
         run: pip install platformio
 
+      - name: Frontend tests
+        run: |
+          cd frontend
+          npm ci
+          npm test
+          npm run build
+
+      - name: Embed SPA assets
+        run: python3 tools/embed_web_assets.py
+
       - name: Build release firmware
         run: pio run -e esp32dev-release
+
+      - name: Check firmware fits OTA slot
+        run: |
+          SIZE=$(stat -c%s .pio/build/esp32dev-release/firmware.bin)
+          MAX=$((0x1E0000))
+          echo "firmware.bin=$SIZE bytes (limit $MAX)"
+          test "$SIZE" -le "$MAX"
 
       - name: Compute firmware hashes
         id: hashes

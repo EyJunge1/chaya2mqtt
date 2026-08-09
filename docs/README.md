@@ -118,8 +118,9 @@ chaya2mqtt/
     ├── ota/                  # GitHub-Check, Flash-Install
     ├── tls/                  # CA-Bundle (MQTT + OTA)
     ├── util/                 # Zeit-Helfer, Logging, IP-Format
-    ├── web/                  # Admin-UI (auth/, routes/, pages/, assets/)
+    ├── web/                  # Admin-API + SPA-Serving (auth/, routes/, assets/)
     └── wifi/                 # WLAN, Captive Portal, Verbindungstest
+frontend/                     # React-19 SPA (Vite, Tailwind, Lucide) + Mock-Gerät
 ```
 
 ## Build-Umgebungen

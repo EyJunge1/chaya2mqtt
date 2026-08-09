@@ -178,3 +178,110 @@ ArMiddlewareCallback mwWifiInfoOrApOpenGet() {
         next();
     };
 }
+
+ArMiddlewareCallback mwApiSessionGet() {
+    return [](AsyncWebServerRequest* req, ArMiddlewareNext next) {
+        if (!webRequestHostAllowed(req)) {
+            webSendEmpty(req, 403);
+            return;
+        }
+        if (!webAuthIsAuthenticated(req)) {
+            webSendJson(req, 401, "{\"ok\":false,\"error\":\"auth_required\"}");
+            return;
+        }
+        next();
+    };
+}
+
+ArMiddlewareCallback mwApiPostSessionAndCsrf() {
+    return [](AsyncWebServerRequest* req, ArMiddlewareNext next) {
+        if (mwRejectIfHostOrOriginBad(req)) {
+            return;
+        }
+        if (!webAuthIsAuthenticated(req)) {
+            webSendJson(req, 401, "{\"ok\":false,\"error\":\"auth_required\"}");
+            return;
+        }
+        if (!webAuthValidateCsrfPost(req)) {
+            webSendJson(req, 403, "{\"ok\":false,\"error\":\"csrf\"}");
+            return;
+        }
+        next();
+    };
+}
+
+ArMiddlewareCallback mwApiWifiConnectPostGuard() {
+    return [](AsyncWebServerRequest* req, ArMiddlewareNext next) {
+        if (mwRejectIfHostOrOriginBad(req)) {
+            return;
+        }
+        if (!webAuthValidateCsrfPost(req)) {
+            webSendJson(req, 403, "{\"ok\":false,\"error\":\"csrf\"}");
+            return;
+        }
+        if (!configIsApMode() && configGetWebAuthEnabled() && !webAuthIsAuthenticated(req)) {
+            webSendJson(req, 401, "{\"ok\":false,\"error\":\"auth_required\"}");
+            return;
+        }
+        next();
+    };
+}
+
+ArMiddlewareCallback mwApiApPostCsrf() {
+    return [](AsyncWebServerRequest* req, ArMiddlewareNext next) {
+        if (mwRejectIfHostOrOriginBad(req)) {
+            return;
+        }
+        if (!configIsApMode()) {
+            webSendJson(req, 400, "{\"ok\":false,\"error\":\"not_ap\"}");
+            return;
+        }
+        if (!webAuthValidateCsrfPost(req)) {
+            webSendJson(req, 403, "{\"ok\":false,\"error\":\"csrf\"}");
+            return;
+        }
+        next();
+    };
+}
+
+ArMiddlewareCallback mwApiStaMode() {
+    return [](AsyncWebServerRequest* req, ArMiddlewareNext next) {
+        if (configIsApMode()) {
+            webSendJson(req, 400, "{\"ok\":false,\"error\":\"ap_mode\"}");
+            return;
+        }
+        next();
+    };
+}
+
+ArMiddlewareCallback mwApiApMode() {
+    return [](AsyncWebServerRequest* req, ArMiddlewareNext next) {
+        if (!webRequestHostAllowed(req)) {
+            webSendEmpty(req, 403);
+            return;
+        }
+        if (!configIsApMode()) {
+            webSendJson(req, 400, "{\"ok\":false,\"error\":\"not_ap\"}");
+            return;
+        }
+        next();
+    };
+}
+
+ArMiddlewareCallback mwApiWifiInfoOrApOpenGet() {
+    return [](AsyncWebServerRequest* req, ArMiddlewareNext next) {
+        if (!webRequestHostAllowed(req)) {
+            webSendEmpty(req, 403);
+            return;
+        }
+        if (configIsApMode()) {
+            next();
+            return;
+        }
+        if (!webAuthIsAuthenticated(req)) {
+            webSendJson(req, 401, "{\"ok\":false,\"error\":\"auth_required\"}");
+            return;
+        }
+        next();
+    };
+}

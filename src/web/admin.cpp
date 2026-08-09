@@ -47,10 +47,12 @@ void webAdminRegisterRoutes() {
     AsyncWebServer& ws = webAdminWebServer();
     webAuthRegisterRoutes(ws);
 
+    adminRoutesRegisterApi(ws);
     adminRoutesRegisterWifi(ws);
     adminRoutesRegisterMqtt(ws);
     adminRoutesRegisterApplication(ws);
     webEventsRegister(ws);
+    adminRoutesRegisterSpa(ws); // SPA + onNotFound last
 }
 
 void webAdminScheduleWifiConfiguredReboot() {

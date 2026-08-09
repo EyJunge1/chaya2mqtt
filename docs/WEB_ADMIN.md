@@ -1,186 +1,94 @@
 # Web-Administration
 
-Die Weboberfläche läuft auf **Port 80** (HTTP) über `ESPAsyncWebServer`. Im AP-Modus (Ersteinrichtung) sind die meisten Routen ohne Authentifizierung erreichbar; im STA-Modus kann optional **Web-Auth** aktiviert werden.
+Die Weboberfläche ist eine **React-19-SPA** (Vite, Tailwind CSS, Lucide), die als gzip-komprimierte PROGMEM-Assets in der Firmware liegt. Der ESP32 liefert HTML/JS/CSS aus und spricht JSON + SSE; die UI läuft im Browser.
 
 ## Zugriff
 
 | Modus | URL | Auth |
 |-------|-----|------|
-| AP (Setup) | Captive Portal / `http://4.3.2.1` | Offen (WiFi-Routen) |
+| AP (Setup) | Captive Portal / `http://4.3.2.1` | Offen (WLAN-Routen) |
 | STA | `http://chaya2mqtt.local` (mDNS) | Optional (Settings) |
 
 Hostname: `chaya2mqtt` (Konstante `kDeviceHostname`).
 
-## HTTP-Routen
+## Lokale Entwicklung (ohne Flashen)
 
-### Dashboard & Anwendung
-
-| Route | Methode | Auth (STA) | Beschreibung |
-|-------|---------|------------|--------------|
-| `/` | GET | Session | Dashboard mit RX/TX-Zähler, MQTT/WiFi-Status |
-| `/chaya-status` | GET | Session | JSON: `{rx, tx, connected}` |
-| `/chaya-send` | POST | Session + CSRF | MQTT-Senden (queued als `NetCmd::ChayaSendRequested`) |
-| `/settings` | GET | Session | Reset-Periode, Web-Auth an/aus |
-| `/settings` | POST | Session + CSRF | Einstellungen speichern (deferred) |
-| `/update` | GET | Session | OTA-Update-Seite |
-| `/update-check` | POST | Session + CSRF | Manuellen GitHub-Check anstoßen |
-| `/reboot` | POST | Session + CSRF | Neustart (deferred) |
-
-### WiFi
-
-| Route | Methode | Auth | Beschreibung |
-|-------|---------|------|--------------|
-| `/wifi` | GET | Offen (AP) / Offen (STA) | WLAN-Formular |
-| `/wifi-scan` | GET | Offen (AP) / Session (STA) | JSON: Scan-Ergebnisse (max. 40 APs) |
-| `/wifi-status` | GET | Offen (AP) / Session (STA) | JSON: Link-Status |
-| `/wifi-connect` | POST | Offen / Session + CSRF | Credentials speichern / AP-Test starten |
-| `/wifi-testing` | GET | AP | Test-Fortschritts-Seite |
-| `/wifi-connect-status` | GET | AP | JSON: Test-State |
-| `/wifi-connect-commit` | POST | AP + CSRF | Test OK → NVS + Reboot |
-| `/wifi-connect-abort` | POST | AP + CSRF | Test abbrechen |
-
-### MQTT & Pairing
-
-| Route | Methode | Auth | Beschreibung |
-|-------|---------|------|--------------|
-| `/mqtt` | GET | Session | Broker/Topics konfigurieren |
-| `/mqtt` | POST | Session + CSRF | MQTT speichern (deferred → Network-Task) |
-| `/mqtt-status` | GET | Session | JSON: `{connected}` |
-| `/pairing` | GET | Session | Device-ID + QR-Code, Partner-Eingabe |
-| `/pairing` | POST | Session + CSRF | Partner-ID speichern → Auto-Topics |
-
-### Authentifizierung
-
-| Route | Methode | Auth | Beschreibung |
-|-------|---------|------|--------------|
-| `/auth` | GET | Offen | Login-Seite (Challenge starten) |
-| `/auth` | POST | Offen + CSRF | 6-stelligen Code eingeben |
-| `/logout` | POST | Session + CSRF | Session beenden |
-
-### Live-Events
-
-| Route | Methode | Auth | Beschreibung |
-|-------|---------|------|--------------|
-| `/events` | SSE | Offen (AP) / Session | Server-Sent Events |
-
-## Server-Sent Events (SSE)
-
-Endpoint `/events` liefert Live-Updates für das Dashboard:
-
-| Event-Typ | Payload (JSON) | Inhalt |
-|-----------|----------------|--------|
-| `chaya` | `{rx, tx, connected}` | Zähler-Deltas + MQTT-Verbindung |
-| `wifi` | `{connected, ssid?, ip?, rssi?}` | WLAN-Link-Status |
-| `mqtt` | `{connected}` | MQTT-Verbindungsstatus |
-
-Clients verbinden sich per `EventSource('/events')`. Der App-Task tickt `webEventsTick()` alle 500 ms und sendet nur bei Änderungen.
-
-**Limit:** Maximal **6** gleichzeitige SSE-Clients (`kMaxSseClients` in `web_events.cpp`); weitere Verbindungen werden abgewiesen.
-
-WiFi-RSSI wird alle 4 Ticks neu gelesen (Performance-Optimierung).
-
-## Web-Auth-Flow
-
-Web-Auth ist optional und wird unter **Settings** aktiviert (`cfg/authEn`). Im AP-Modus ist Auth immer deaktiviert.
-
-### Ablauf
-
-```mermaid
-sequenceDiagram
-    participant U as Browser
-    participant W as Web-Server
-    participant D as Display-Task
-    participant B as Button
-
-    U->>W: GET /auth
-    W->>D: requestDeferredDrawAuthPrompt
-    D->>D: drawAuthPrompt "Web Auth?"
-    D->>B: buttonSetAuthBlinkActive(true)
-    Note over B: LED blinkt langsam (10s Fenster)
-    B->>W: webAuthHandleButtonDuringAuthBlink (Kurzdruck)
-    W->>D: requestDeferredDrawAuthCode(123456)
-    D->>D: drawAuthCode auf E-Ink
-    Note over U: User sieht Code auf Display
-    U->>W: POST /auth code=123456
-    W->>W: Session-Cookie setzen (chaya_sid)
-    W->>U: Redirect zu Dashboard
+```bash
+cd frontend
+npm ci
+npm run dev
 ```
 
-### Zeitfenster
+Der Vite-Devserver startet einen **virtuellen Chaya2MQTT** unter `frontend/mock/` mit denselben `/api/*`- und `/events`-Verträgen. Szenarien (STA, Auth, AP, Offline) lassen sich über die Simulator-Leiste umschalten.
 
-| Phase | Dauer | Beschreibung |
-|-------|-------|--------------|
-| Tastenbestätigung | **10 s** | Nach „Web Auth?" auf Display – physischer Kurzdruck nötig |
-| Code-Eingabe | **5 min** | 6-stelliger Code auf E-Ink, Eingabe im Browser |
-| Session | **24 h** | Cookie `chaya_sid` |
-| Lockout | **1 h** | Nach 3 Fehlversuchen |
+```bash
+make frontend-test   # Vitest
+make frontend        # Production-Build + PROGMEM-Header generieren
+```
 
-### Sicherheitsmerkmale
+## SPA-Routen (UI)
 
-- **Physischer Tastendruck** erforderlich, bevor der Code generiert wird (Schutz vor Remote-Auth ohne Gerätezugriff)
-- **CSRF-Token** in allen POST-Formularen
-- Session-Cookie mit `HttpOnly`, `SameSite=Lax` (serverseitige TTL 24 h)
-- Pro Gerät gilt **eine** aktive Web-Session (paralleler Login invalidiert die vorherige)
-- Lockout nach wiederholten Fehlversuchen
+Alle UI-Pfade liefern dieselbe `index.html` (Client-Router):
 
-### Öffentliche Pfade (ohne Session)
+`/`, `/wifi`, `/wifi-testing`, `/mqtt`, `/pairing`, `/settings`, `/update`, `/auth`
 
-**Im AP-Modus:**
-- `/`, `/wifi`, `/wifi-scan`, `/wifi-status`, `/wifi-connect*`, `/favicon.ico`
+Statische Assets:
 
-**Im STA-Modus (Auth aktiv):**
-- `/wifi`, `/wifi-connect*`, `/auth`, `/logout`, `/`, `/favicon.ico`
-- `/wifi-scan` und `/wifi-status` erfordern Session (Host-Check + CSRF auf POSTs)
-
-## CSRF-Schutz
-
-Jedes POST-Formular enthält ein `csrf_token`-Feld. Der Token wird bei `webAuthInit()` generiert und über `webAuthValidateCsrfPost()` geprüft. Ungültige Tokens werden abgelehnt.
-
-## Deferred Work Pattern
-
-Deferred Work gilt für MQTT-/Settings-Apply und Reboot. **Ausnahme:** WiFi-Credential-Schreibzugriffe in `handleWifiConnect*` können im Request-Pfad NVS schreiben.
-
-Die meisten HTTP-Handler delegieren langsame Arbeit; blockierende Pfade sind oben ausgenommen:
-
-| Aktion | Mechanismus | Verarbeitung |
-|--------|-------------|--------------|
-| MQTT speichern | `g_webAdminMqttApplyVersion` (Versions-Counter) | App-Task → `NetCmd::MqttSettingsChanged` |
-| Settings speichern | `g_webAdminSettingsApplyPending` | App-Task → NVS write |
-| Reboot | `g_webAdminRebootRequested` | App-Task → `ESP.restart()` |
-| WiFi-Reconnect | `g_webAdminWifiReconnectRequested` | App-Task → Reboot |
-| OTA-Check | `otaQueueGithubCheck()` | OTA-Task |
-
-Vor Reboot werden Zähler geflusht (`flushHeartCounterIfDirty()`).
-
-## Eingebettete Assets
-
-CSS und JavaScript liegen als PROGMEM-Header unter `src/web/assets/`:
-
-| Datei | Inhalt |
+| Route | Inhalt |
 |-------|--------|
-| `styles.h` | Gemeinsames CSS |
-| `common_js.h` | Shared JS |
-| `wifi_scan_js.h` | WiFi-Scan-UI |
-| `wifi_status_js.h` | WiFi-Status + SSE |
-| `wifi_connect_test_js.h` | AP-Verbindungstest |
-| `mqtt_status_js.h` | MQTT-Status + SSE |
-| `chaya_js.h` | Dashboard-Zähler + Send + SSE |
-| `pairing_js.h` | Pairing-QR-Code |
+| `/assets/app.js` | gzip JS-Bundle |
+| `/assets/app.css` | gzip CSS |
 
-HTML wird per Streaming aus `pages/pages_common.cpp`, `pages/pages_admin.cpp` und `pages/pages_status.cpp` generiert.
+## JSON-API
 
-## WiFi-Verbindungstest (AP-Modus)
+Mutationen erwarten `application/x-www-form-urlencoded` inkl. `csrf_token`.
 
-Im Setup-AP wird die WLAN-Verbindung **vor dem Speichern getestet**:
+| Route | Methode | Auth | Beschreibung |
+|-------|---------|------|--------------|
+| `/api/csrf` | GET | Offen | `{token}` |
+| `/api/device` | GET | Offen | Modus, Version, Device-ID, Auth-Flags |
+| `/api/chaya` | GET | Session (STA) | `{rx,tx,connected}` |
+| `/api/chaya/send` | POST | Session + CSRF | Herz senden (queued) |
+| `/api/wifi/status` | GET | AP offen / STA Session | Link-Status |
+| `/api/wifi/scan` | GET | AP offen / STA Session | AP-Liste oder **202** |
+| `/api/wifi/connect` | POST | CSRF (+ Session wenn Auth an) | Credentials / AP-Test |
+| `/api/wifi/connect-status` | GET | AP | Test-State |
+| `/api/wifi/connect-commit` | POST | AP + CSRF | Speichern + Reboot |
+| `/api/wifi/connect-abort` | POST | AP + CSRF | Test abbrechen |
+| `/api/mqtt` | GET/POST | Session + CSRF | Broker-Config (Passwort nie in GET) |
+| `/api/mqtt/status` | GET | Session | `{connected}` |
+| `/api/pairing` | GET/POST | Session + CSRF | Device-/Partner-ID |
+| `/api/settings` | GET/POST | Session + CSRF | Reset-Tage, Web-Auth |
+| `/api/auth/login` | POST | CSRF | Session-Cookie setzen |
+| `/api/auth/logout` | POST | Session + CSRF | Session beenden |
+| `/api/reboot` | POST | Session + CSRF | Neustart (deferred) |
+| `/api/update/check` | POST | Session + CSRF | GitHub-OTA-Check |
 
-1. User gibt SSID/Passwort ein → POST `/wifi-connect`
-2. Redirect zu `/wifi-testing` (Fortschrittsanzeige)
-3. Gerät versucht STA-Verbindung im Hintergrund (`wifi/test.cpp`)
-4. Polling über `/wifi-connect-status` (JSON)
-5. Bei Erfolg: POST `/wifi-connect-commit` → NVS speichern + Reboot
-6. Bei Abbruch: POST `/wifi-connect-abort`
+## Server-Sent Events
 
-Im STA-Modus werden Credentials direkt gespeichert und ein Reboot geplant.
+| Route | Events |
+|-------|--------|
+| `/events` | `chaya`, `wifi`, `mqtt` (wie bisher) |
+
+Max. **6** SSE-Clients. Tick alle 500 ms im App-Task.
+
+## Auth / CSRF / Sicherheit
+
+- Optional Web-Auth (`cfg/authEn`), physischer Tastendruck + Code auf E-Ink
+- CSRF-Token über `/api/csrf`, in jedem POST als `csrf_token`
+- Session-Cookie `chaya_sid` (HttpOnly, SameSite=Strict, 24 h)
+- Host-/Origin-Allowlist; CSP ohne Inline-Script/Style (`script-src 'self'; style-src 'self'`)
+
+## Build-Integration
+
+1. `frontend/` → `npm run build` → `frontend/dist/`
+2. `tools/embed_web_assets.py` → `src/web/assets/spa_{html,js,css}.h`
+3. PlatformIO `pre:scripts/pio_pre_frontend.py` führt das vor jedem Firmware-Build aus
+4. Soft-Limit: komprimierte SPA ≤ 350 KiB; OTA-Slot 1,875 MB
+
+## Deferred Work
+
+Unverändert: MQTT-/Settings-Apply und Reboot laufen deferred im App-Task. WiFi-Credential-Schreiben kann im Request-Pfad NVS schreiben.
 
 ## Weitere Dokumentation
 
