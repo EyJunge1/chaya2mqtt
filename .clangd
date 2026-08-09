@@ -25,7 +25,7 @@ CompileFlags:
     - -Wno-unused-command-line-argument
 
 Diagnostics:
-  UnusedIncludes: None
+  UnusedIncludes: Strict
 
 Index:
   Background: Build
