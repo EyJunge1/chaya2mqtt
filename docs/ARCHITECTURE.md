@@ -1,8 +1,8 @@
-# Architektur
+# Architecture
 
-## Überblick
+## Overview
 
-Chaya2MQTT ist eine **FreeRTOS-Multi-Task-Firmware** für den ESP32. Die klassische Arduino-`loop()`-Schleife wird nicht genutzt – `main.cpp` startet in `setup()` alle Tasks und beendet `loop()` sofort mit `vTaskDelete(nullptr)`.
+Chaya2MQTT is **FreeRTOS multitasking firmware** for the ESP32. The traditional Arduino `loop()` is not used—`main.cpp` starts all tasks in `setup()` and immediately terminates `loop()` with `vTaskDelete(nullptr)`.
 
 ```mermaid
 flowchart TB
@@ -30,79 +30,79 @@ flowchart TB
     disp --> drawHeart
 ```
 
-## FreeRTOS-Tasks
+## FreeRTOS tasks
 
-| Task | Stack | Priorität | Core | Datei | Aufgabe |
-|------|-------|-----------|------|-------|---------|
-| **network** | 7168 | 5 | 1 | `network/network_task.cpp` | `wlanLoop()` (inkl. Recovery), `mqttLoop()`, `NetCmd`-Queue |
-| **button** | 4096 | 8 | 1 | `hw/button_input.cpp`, `hw/button_led.cpp` | Debounce, LED-Sequenz, Factory Reset, MQTT-Senden |
-| **app** | 4096 | 4 | 1 | `async/app_task.cpp` | `webAdminLoop()`, Counter-Resets, NVS-Saves |
+| Task | Stack | Priority | Core | File | Responsibility |
+|------|-------|----------|------|------|----------------|
+| **network** | 7168 | 5 | 1 | `network/network_task.cpp` | `wlanLoop()` (including recovery), `mqttLoop()`, `NetCmd` queue |
+| **button** | 4096 | 8 | 1 | `hw/button_input.cpp`, `hw/button_led.cpp` | Debouncing, LED sequence, factory reset, MQTT sending |
+| **app** | 4096 | 4 | 1 | `async/app_task.cpp` | `webAdminLoop()`, counter resets, NVS saves |
 | **ota** | 8192 | 4 | 1 | `ota/ota_task.cpp` | `otaLoop()` (GitHub + Download) |
-| **display** | 4096 | 3 | 1 | `display/display.cpp` | Exklusiver SPI/EPD-Zugriff |
+| **display** | 4096 | 3 | 1 | `display/display.cpp` | Exclusive SPI/EPD access |
 
-**Task-Watchdog:** Network, App, OTA und Button sind beim ESP Task-WDT angemeldet. Der **Display-Task ist absichtlich ausgenommen**, da ein E-Ink-Full-Refresh bis zu ~14 s dauern kann.
+**Task watchdog:** Network, app, OTA, and button are registered with the ESP task WDT. The **display task is intentionally excluded** because a full E-Ink refresh can take up to ~14 s.
 
-## CPU & Energie
+## CPU & power
 
-| Parameter | Wert |
-|-----------|------|
-| CPU-Takt (max) | **240 MHz** (`setCpuFrequencyMhz(240)`) |
-| CPU-Takt (min, DFS) | 80 MHz |
-| Light-Sleep | **deaktiviert** (`light_sleep_enable = false`) |
-| Bluetooth | aus (`btStop()`, Speicher freigegeben) |
-| WiFi Power Save | Modem-Sleep wenn MQTT-Session aktiv |
+| Parameter | Value |
+|-----------|-------|
+| CPU clock (max) | **240 MHz** (`setCpuFrequencyMhz(240)`) |
+| CPU clock (min, DFS) | 80 MHz |
+| Light sleep | **Disabled** (`light_sleep_enable = false`) |
+| Bluetooth | Off (`btStop()`, memory released) |
+| WiFi power saving | Modem sleep when the MQTT session is active |
 
-Light-Sleep wurde bewusst deaktiviert, damit Web-Admin und MQTT-Reconnects responsiv bleiben.
+Light sleep is intentionally disabled so that web administration and MQTT reconnects remain responsive.
 
-## Async-Infrastruktur
+## Async infrastructure
 
-`asyncInfraInit()` (in `async/task_handles.cpp`) legt beim Start an:
+At startup, `asyncInfraInit()` (in `async/task_handles.cpp`) creates:
 
 ### Queues
 
-| Queue | Größe | Element | Zweck |
-|-------|-------|---------|-------|
-| `g_netCmdQueue` | 32 | `NetCmd` | Netzwerk-Befehle (MQTT-Apply, Reconnect, Chaya-Send) |
-| `g_displayCmdQueue` | 32 | `DisplayMsg` | Display-Zeichnungsbefehle |
+| Queue | Size | Element | Purpose |
+|-------|------|---------|---------|
+| `g_netCmdQueue` | 32 | `NetCmd` | Network commands (apply MQTT settings, reconnect, Chaya send) |
+| `g_displayCmdQueue` | 32 | `DisplayMsg` | Display drawing commands |
 
-### Mutexe
+### Mutexes
 
-| Mutex | Zweck |
-|-------|-------|
-| `g_chayaPublishMutex` | Chaya-Publish-Pfad (Button/Web vs. MQTT) |
-| `g_mqttClientMutex` | MQTT-Client allozieren / `esp_mqtt_*` |
-| `g_heartDebounceMutex` | NVS-Persistenz nach erfolgreichem Publish |
+| Mutex | Purpose |
+|-------|---------|
+| `g_chayaPublishMutex` | Chaya publish path (button/web vs. MQTT) |
+| `g_mqttClientMutex` | Allocate MQTT client / `esp_mqtt_*` |
+| `g_heartDebounceMutex` | NVS persistence after a successful publish |
 | `g_nvsMutex` | Thread-safe `Preferences`-Wrapper |
-| `g_wifiTestMutex` | WiFi-Verbindungstest (Web vs. Network) |
-| `g_wifiApiMutex` | Arduino `WiFi` / `esp_wifi` API-Zugriff |
-| `s_mqttCfgMutex` | MQTT-Konfiguration (lazy-init in `mqtt/config.cpp`) |
+| `g_wifiTestMutex` | WiFi connection test (web vs. network) |
+| `g_wifiApiMutex` | Arduino `WiFi` / `esp_wifi` API access |
+| `s_mqttCfgMutex` | MQTT configuration (lazy initialization in `mqtt/config.cpp`) |
 
-**Lock-Reihenfolge** (niemals umkehren, dokumentiert in `mqtt/mqtt.h`):
+**Lock order** (never reverse it; documented in `mqtt/mqtt.h`):
 
 1. `g_chayaPublishMutex`
 2. `g_mqttClientMutex`
 3. optional `g_heartDebounceMutex`
 
-## Modulübersicht
+## Module overview
 
-| Modul | Pfad | Aufgabe |
-|-------|------|---------|
-| **MQTT-Config** | `src/mqtt/config.*` | Broker-Konfiguration (NVS `mqtt`), Snapshot/Pending-API |
-| **MQTT-Client** | `src/mqtt/mqtt_*.cpp` | `esp_mqtt_client`, TLS, Publish/Subscribe, Reconnect |
-| **Counter** | `src/heart/counter*.cpp` | Herz-/Sent-Zähler, Baselines, NVS `chaya` |
-| **WLAN** | `src/wifi/wlan*.cpp` | STA/AP, Captive DNS, mDNS, NTP, Reconnect |
-| **Network-Task** | `src/network/network_task.*` | Orchestriert WLAN + MQTT + NetCmd |
-| **Display** | `src/display/*` | E-Paper, eigener Drawing-Task |
-| **Button** | `src/hw/button_*.cpp` | Taster + LED, eigener Task |
-| **Web-Admin** | `src/web/*` | HTTP-Routen, CSRF, SSE, SPA |
-| **OTA** | `src/ota/*` | GitHub Stable/Beta-Check, HTTPUpdate+MD5, Status/SSE |
-| **App-Config** | `src/config/app_config.*` | Reset-Periode |
-| **TLS** | `src/tls/*` | Eingebettetes CA-Bundle (MQTT + OTA) |
-| **Diag** | `src/diag/*` | Stack-Monitor, Task-WDT |
+| Module | Path | Responsibility |
+|--------|------|----------------|
+| **MQTT configuration** | `src/mqtt/config.*` | Broker configuration (NVS `mqtt`), snapshot/pending API |
+| **MQTT client** | `src/mqtt/mqtt_*.cpp` | `esp_mqtt_client`, TLS, publish/subscribe, reconnect |
+| **Counter** | `src/heart/counter*.cpp` | Heart/sent counters, baselines, NVS `chaya` |
+| **WiFi** | `src/wifi/wlan*.cpp` | STA/AP, captive DNS, mDNS, NTP, reconnect |
+| **Network task** | `src/network/network_task.*` | Orchestrates WiFi + MQTT + NetCmd |
+| **Display** | `src/display/*` | E-paper, dedicated drawing task |
+| **Button** | `src/hw/button_*.cpp` | Button + LED, dedicated task |
+| **Web admin** | `src/web/*` | HTTP routes, CSRF, SSE, SPA |
+| **OTA** | `src/ota/*` | GitHub stable/beta check, HTTPUpdate + MD5, status/SSE |
+| **App configuration** | `src/config/app_config.*` | Reset period |
+| **TLS** | `src/tls/*` | Embedded CA bundle (MQTT + OTA) |
+| **Diagnostics** | `src/diag/*` | Stack monitor, task WDT |
 
-Dateiname **`wlan`** statt `wifi` vermeidet Namenskollision mit Arduino `<WiFi.h>`.
+The filename **`wlan`** instead of `wifi` avoids a name collision with Arduino `<WiFi.h>`.
 
-## Setup-Ablauf
+## Setup sequence
 
 ```mermaid
 sequenceDiagram
@@ -117,7 +117,7 @@ sequenceDiagram
     participant T as tasks
 
     M->>A: asyncInfraInit
-    M->>M: CPU 240MHz, BT aus, DFS
+    M->>M: CPU 240MHz, BT off, DFS
     M->>D: displayInit + displayStartTask
     M->>B: buttonInit
     M->>C: loadMQTTConfig
@@ -132,40 +132,40 @@ sequenceDiagram
     M->>D: requestDeferredDraw*
 ```
 
-1. **Async-Infra:** Queues und Mutexe anlegen (inkl. TLS-CA-Bundle-Mutex)
-2. **CPU:** 240 MHz, BT aus, DFS (80–240 MHz, kein Light-Sleep; `CONFIG_PM_ENABLE`)
-3. **Display:** Hardware-Init (`initial_full_refresh=false`) + Display-Task starten
-4. **Button:** GPIO initialisieren
-5. **Serial:** 115200 nur im Debug-Build (`CORE_DEBUG_LEVEL > 0`)
-6. **NVS laden:** MQTT-Config, Zähler, Reset-Periode
-7. **WiFi:** STA mit gespeicherten Credentials oder SoftAP `Chaya2MQTT` + Captive DNS
-8. **MQTT:** Client konfigurieren (noch nicht verbinden)
-9. **Tasks starten:** Button, Network, OTA, App
-10. **Erste Zeichnung:** Herz (wenn Broker konfiguriert) oder Splash (AP-Modus)
-11. **OTA-Verify (deferred):** im App-Task erst nach 30 s stabilem Lauf seit WiFi-Boot-Settle (`ota_health.h` → `otaTryMarkValidAfterHealthCheck()`; kein sofortiges Markieren in `setup()`)
+1. **Async infrastructure:** Create queues and mutexes (including the TLS CA bundle mutex)
+2. **CPU:** 240 MHz, BT off, DFS (80–240 MHz, no light sleep; `CONFIG_PM_ENABLE`)
+3. **Display:** Initialize hardware (`initial_full_refresh=false`) + start display task
+4. **Button:** Initialize GPIO
+5. **Serial:** 115200 in debug builds only (`CORE_DEBUG_LEVEL > 0`)
+6. **Load NVS:** MQTT configuration, counters, reset period
+7. **WiFi:** STA with stored credentials or `Chaya2MQTT` SoftAP + captive DNS
+8. **MQTT:** Configure client (do not connect yet)
+9. **Start tasks:** Button, network, OTA, app
+10. **First drawing:** Heart (if a broker is configured) or splash screen (AP mode)
+11. **OTA verification (deferred):** In the app task, only after 30 s of stable runtime since WiFi boot settlement (`ota_health.h` → `otaTryMarkValidAfterHealthCheck()`; no immediate marking in `setup()`)
 
-## NetCmd – Netzwerk-Befehlsqueue
+## NetCmd – network command queue
 
-Die `NetCmd`-Enum (`async/event_types.h`) serialisiert netzwerkrelevante Aktionen:
+The `NetCmd` enum (`async/event_types.h`) serializes network-related actions:
 
-| Befehl | Auslöser | Wirkung |
-|--------|---------|---------|
-| `MqttSettingsChanged` | Web POST `/api/mqtt` | Client kill, Pending→Active, NVS save, `mqttSetup`, Connect +3 s verzögert |
-| `MqttKillClient` | Intern | `mqttDisconnect()` |
-| `WifiReconnect` | `WiFi.onEvent` (Disconnect / LOST_IP) | Soft-Reconnect, nach Schwelle Forced-Reassoc (`disconnect+begin`) mit Backoff |
-| `ChayaSendRequested` | Web POST `/chaya-send` (Button nutzt direkt `mqttPublishChayaAndApplySentCounters()`) | `mqttPublishChayaAndApplySentCounters()` |
-| `FactoryResetRequested` | Button 10 s halten | Network-Task ruft `resetAllSettings()` (WDT-sicher außerhalb Button-Task) |
+| Command | Trigger | Effect |
+|---------|---------|--------|
+| `MqttSettingsChanged` | Web POST `/api/mqtt` | Kill client, pending → active, save NVS, `mqttSetup`, delay connection by 3 s |
+| `MqttKillClient` | Internal | `mqttDisconnect()` |
+| `WifiReconnect` | `WiFi.onEvent` (disconnect / LOST_IP) | Soft reconnect, then forced reassociation (`disconnect+begin`) with backoff after the threshold |
+| `ChayaSendRequested` | Web POST `/chaya-send` (the button directly uses `mqttPublishChayaAndApplySentCounters()`) | `mqttPublishChayaAndApplySentCounters()` |
+| `FactoryResetRequested` | Hold button for 10 s | Network task calls `resetAllSettings()` (WDT-safe outside the button task) |
 
-## DisplayMsg – Display-Befehlsqueue
+## DisplayMsg – display command queue
 
-| Befehl | Wirkung |
-|--------|---------|
+| Command | Effect |
+|---------|--------|
 | `DrawHeart` | `drawHeartWithNumber()` |
 | `DrawSplash` | `drawSplashScreen()` |
 
-Nur der **Display-Task** darf SPI/EPD direkt ansprechen. Alle anderen Tasks nutzen `requestDeferredDraw*()` oder `requestHeartRedraw()`.
+Only the **display task** may access SPI/EPD directly. All other tasks use `requestDeferredDraw*()` or `requestHeartRedraw()`.
 
-## Datenfluss: Knopfdruck → Display-Update
+## Data flow: button press → display update
 
 ```mermaid
 sequenceDiagram
@@ -177,56 +177,56 @@ sequenceDiagram
     participant D as display_task
 
     B->>M: mqttPublishChayaAndApplySentCounters()
-    M->>M: publish retained auf topic_pub
+    M->>M: retained publish to topic_pub
     M->>C: heartSentCounter++
     M->>D: requestHeartRedraw
 
     W->>N: NetCmd ChayaSendRequested
     N->>M: mqttPublishChayaAndApplySentCounters()
 
-    Note over M: Partner-Gerät empfängt
+    Note over M: Partner device receives
     M->>C: heartCounterStoreFromRemote(payload)
     M->>D: requestHeartRedrawNonBlocking
     D->>D: drawHeartWithNumber
 ```
 
-## Web-Admin: Deferred Work
+## Web admin: deferred work
 
-HTTP-Handler blockieren nicht für langsame Operationen. Stattdessen:
+HTTP handlers do not block for slow operations. Instead:
 
-1. **Atomics/Flags** setzen (`g_webAdminMqttApplyVersion.fetch_add(1)`, `g_webAdminRebootRequested`, …)
-2. **App-Task** (`webAdminLoop()`) verarbeitet Flags alle 500 ms
-3. Netzwerk-Aktionen werden als `NetCmd` in die Queue gestellt
+1. Set **atomics/flags** (`g_webAdminMqttApplyVersion.fetch_add(1)`, `g_webAdminRebootRequested`, etc.)
+2. The **app task** (`webAdminLoop()`) processes flags every 500 ms
+3. Network actions are placed in the queue as `NetCmd`
 
-SSE-Events (`/events`) werden ebenfalls im App-Task getickt (`webEventsTick()`).
+SSE events (`/events`) are also ticked in the app task (`webEventsTick()`).
 
-## Zähler-Logik: Absolut vs. Delta
+## Counter logic: absolute vs. delta
 
-| Konzept | Speicherort | Bedeutung |
-|---------|-------------|-----------|
-| `heartCounter` | RAM + NVS | Empfangener **absoluter** Stand (vom Partner) |
-| `heartSentCounter` | RAM + NVS | Erfolgreich gesendete Werte |
-| `counterBaseline` / `sentCountBaseline` | RAM + NVS | Basis für **Anzeige-Delta** |
-| Display | E-Ink | Zeigt `raw − baseline`, gecappt bei 999 |
+| Concept | Storage location | Meaning |
+|---------|------------------|---------|
+| `heartCounter` | RAM + NVS | Received **absolute** value (from partner) |
+| `heartSentCounter` | RAM + NVS | Successfully sent values |
+| `counterBaseline` / `sentCountBaseline` | RAM + NVS | Basis for the **display delta** |
+| Display | E-Ink | Shows `raw − baseline`, capped at 999 |
 
-MQTT transportiert **absolute** Zähler; das Display zeigt **Deltas**. Details: [DISPLAY.md](DISPLAY.md).
+MQTT transports **absolute** counters; the display shows **deltas**. Details: [DISPLAY.md](DISPLAY.md).
 
-## Persistenz
+## Persistence
 
-Alle Einstellungen liegen in der **NVS** (Non-Volatile Storage). Vier Namespaces:
+All settings are stored in **NVS** (Non-Volatile Storage). There are four namespaces:
 
-| Namespace | Inhalt |
-|-----------|--------|
-| `wifi` | SSID/Passwort |
-| `mqtt` | Broker, Topics, Partner-ID |
-| `cfg` | Reset-Periode, OTA-Check-Tag, OTA-Kanal |
-| `chaya` | Zähler, Baselines |
+| Namespace | Content |
+|-----------|---------|
+| `wifi` | SSID/password |
+| `mqtt` | Broker, topics, partner ID |
+| `cfg` | Reset period, OTA check day, OTA channel |
+| `chaya` | Counters, baselines |
 
-Factory Reset löscht alle vier. Details: [CONFIGURATION.md](CONFIGURATION.md).
+Factory reset deletes all four. Details: [CONFIGURATION.md](CONFIGURATION.md).
 
-## Weitere Dokumentation
+## Further documentation
 
-- Code-Referenz: [MODULES.md](MODULES.md)
-- MQTT-Protokoll: [MQTT.md](MQTT.md)
-- Web-Admin: [WEB_ADMIN.md](WEB_ADMIN.md)
+- Code reference: [MODULES.md](MODULES.md)
+- MQTT protocol: [MQTT.md](MQTT.md)
+- Web admin: [WEB_ADMIN.md](WEB_ADMIN.md)
 - Hardware: [HARDWARE.md](HARDWARE.md)

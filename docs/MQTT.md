@@ -1,149 +1,149 @@
-# MQTT-Protokoll
+# MQTT Protocol
 
 ## Transport
 
-| Aspekt | Wert |
-|--------|------|
-| Protokoll | **MQTT over TLS** (`mqtts://`) |
-| Standard-Port | **8883** |
-| TLS | Mozilla-CA-Bundle via `esp_crt_bundle_attach` |
-| Client | ESP-IDF `esp_mqtt_client` (kein PubSubClient) |
-| Client-ID | `Chaya2MQTT-<deviceId>` oder `Chaya2MQTT-<random>` |
+| Aspect | Value |
+|--------|-------|
+| Protocol | **MQTT over TLS** (`mqtts://`) |
+| Default port | **8883** |
+| TLS | Mozilla CA bundle via `esp_crt_bundle_attach` |
+| Client | ESP-IDF `esp_mqtt_client` (not PubSubClient) |
+| Client ID | `Chaya2MQTT-<deviceId>` or `Chaya2MQTT-<random>` |
 | Keep-Alive | 60 s (`kMqttKeepAliveSeconds` in `mqtt/mqtt_config.h`) |
-| Buffer | 512 Bytes (in/out) |
-| Outbox-Limit | 4096 Bytes (`kMqttOutboxLimitBytes`) |
-| Auto-Reconnect (ESP-IDF) | deaktiviert – Reconnect nur in `mqttLoop()` |
+| Buffer | 512 bytes (in/out) |
+| Outbox limit | 4096 bytes (`kMqttOutboxLimitBytes`) |
+| Auto-reconnect (ESP-IDF) | Disabled—reconnect only in `mqttLoop()` |
 
 ## Topics
 
-Topics sind **nicht** nutzereditierbar. Sie werden aus der eigenen Device-ID und der Partner-ID abgeleitet:
+Topics are **not** user-editable. They are derived from the device's own ID and the partner ID:
 
-| Topic | Ableitung | Richtung |
-|-------|-----------|----------|
-| **Sende-Topic** | `chaya2mqtt/<eigene_id>` (z. B. `chaya2mqtt/a1b2c3`) | Publish beim Knopfdruck / Web-Send |
-| **Empfangs-Topic** | `chaya2mqtt/<partner_id>` (z. B. `chaya2mqtt/f5e6d7`) | Subscribe – nur wenn Partner gesetzt |
+| Topic | Derivation | Direction |
+|-------|------------|-----------|
+| **Publish topic** | `chaya2mqtt/<eigene_id>` (e.g. `chaya2mqtt/a1b2c3`) | Publish on button press / web send |
+| **Subscribe topic** | `chaya2mqtt/<partner_id>` (e.g. `chaya2mqtt/f5e6d7`) | Subscribe—only if a partner is set |
 
-Ohne Partner verbindet sich das Gerät weiterhin mit dem Broker und publiziert auf dem eigenen Topic, **abonniert aber kein Geräte-Topic**.
+Without a partner, the device still connects to the broker and publishes to its own topic, **but does not subscribe to a device topic**.
 
-Die Device-ID sind die letzten 3 Bytes der WiFi-MAC als 6-stelliges Hex (lowercase):
+The device ID consists of the last 3 bytes of the WiFi MAC as 6 lowercase hexadecimal characters:
 
 ```
 Device-ID = sprintf("%02x%02x%02x", mac[3], mac[4], mac[5])
 ```
 
-Mehrere Paare können denselben Broker nutzen, ohne Topic-Kollisionen.
+Multiple pairs can use the same broker without topic collisions.
 
-### Zwei Geräte koppeln
+### Pairing two devices
 
-1. Auf beiden Geräten **MQTT** öffnen (`/mqtt`) und denselben Broker eintragen.
-2. Die eigene Device-ID notieren und auf dem jeweils anderen Gerät als **Partner-ID** speichern.
-3. Topics werden automatisch gesetzt (`mqttCfgApplyPairingTopics`).
+1. Open **MQTT** (`/mqtt`) on both devices and enter the same broker.
+2. Note each device's own ID and save it as the **partner ID** on the other device.
+3. Topics are set automatically (`mqttCfgApplyPairingTopics`).
 
-Broker und Partner werden atomar über `POST /api/mqtt` gespeichert. Leere Partner-ID entkoppelt ohne Brokerverlust.
+The broker and partner are saved atomically through `POST /api/mqtt`. An empty partner ID unpairs the device without losing the broker configuration.
 
-## Nachrichtenformat
+## Message format
 
-### Publish (Knopf / Web-Send)
+### Publish (button / web send)
 
-| Aspekt | Wert |
-|--------|------|
-| Payload | Dezimalstring = `heartSentCounter + 1` |
+| Aspect | Value |
+|--------|-------|
+| Payload | Decimal string = `heartSentCounter + 1` |
 | QoS | **0** |
 | Retain | **true** |
-| Beispiel | `"42"` |
+| Example | `"42"` |
 
-Nach erfolgreichem Publish wird `heartSentCounter` inkrementiert und in NVS gespeichert (debounced, ≥30 s).
+After a successful publish, `heartSentCounter` is incremented and saved to NVS (debounced, ≥30 s).
 
-### Subscribe (Empfang)
+### Subscribe (reception)
 
-| Aspekt | Wert |
-|--------|------|
+| Aspect | Value |
+|--------|-------|
 | QoS | **1** |
-| Payload | Dezimalstring, max. **10 Zeichen** |
-| Verarbeitung | `heartCounter` wird auf den Payload-Wert **gesetzt** (nicht inkrementiert) |
-| Ungültig | Leer, nicht-numerisch, >10 Zeichen, `ERANGE` → ignoriert |
-| Display | `requestHeartRedrawNonBlocking()` nur bei geänderter Zahl |
+| Payload | Decimal string, maximum **10 characters** |
+| Processing | `heartCounter` is **set** to the payload value (not incremented) |
+| Invalid | Empty, non-numeric, >10 characters, `ERANGE` → ignored |
+| Display | `requestHeartRedrawNonBlocking()` only when the number changes |
 
-Retained Messages liefern beim Reconnect automatisch den letzten Zählerstand.
+Retained messages automatically provide the latest counter on reconnect.
 
 ### Last Will and Testament (LWT)
 
-| Aspekt | Wert |
-|--------|------|
+| Aspect | Value |
+|--------|-------|
 | Topic | `{topic_pub}/lwt` |
 | Payload (offline) | `offline` |
-| Payload (online) | `online` (retained, nach Connect) |
+| Payload (online) | `online` (retained, after connection) |
 | QoS | **1** |
 | Retain | **true** |
 
-## Verbindungsaufbau
+## Establishing a connection
 
-`mqttLoop()` (im Network-Task) steuert den Reconnect:
+`mqttLoop()` (in the network task) controls reconnection:
 
 ```mermaid
 flowchart TD
     start[mqttLoop]
-    checkBroker{Broker konfiguriert?}
-    checkWifi{STA verbunden?}
-    checkNtp{NTP synchronisiert?}
-    checkStable{STA stabil ≥3s nach GOT_IP?}
-    backoff{Backoff abgelaufen?}
+    checkBroker{Broker configured?}
+    checkWifi{STA connected?}
+    checkNtp{NTP synchronized?}
+    checkStable{STA stable ≥3s after GOT_IP?}
+    backoff{Backoff elapsed?}
     connect[esp_mqtt_client_init/start]
-    connected{Verbunden?}
+    connected{Connected?}
 
     start --> checkBroker
-    checkBroker -->|nein| wait60s[Backoff 60s]
-    checkBroker -->|ja| checkWifi
-    checkWifi -->|nein| wait20s[Backoff 20s]
-    checkWifi -->|ja| checkNtp
-    checkNtp -->|nein| wait2s[Backoff 2s]
-    checkNtp -->|ja| checkStable
-    checkStable -->|nein| wait2s
-    checkStable -->|ja| backoff
-    backoff -->|nein| start
-    backoff -->|ja| connect
+    checkBroker -->|no| wait60s[Backoff 60s]
+    checkBroker -->|yes| checkWifi
+    checkWifi -->|no| wait20s[Backoff 20s]
+    checkWifi -->|yes| checkNtp
+    checkNtp -->|no| wait2s[Backoff 2s]
+    checkNtp -->|yes| checkStable
+    checkStable -->|no| wait2s
+    checkStable -->|yes| backoff
+    backoff -->|no| start
+    backoff -->|yes| connect
     connect --> connected
-    connected -->|nein| expBackoff[Exponentiell 30–60s, schwaches WiFi bis 90s]
+    connected -->|no| expBackoff[Exponential 30–60s, weak WiFi up to 90s]
     expBackoff --> start
 ```
 
-| Bedingung | Backoff |
+| Condition | Backoff |
 |-----------|---------|
-| Kein Broker konfiguriert | 60 s |
-| Kein STA | 20 s |
-| NTP nicht synchronisiert / STA nicht stabil | 2 s |
-| Verbindungsfehler | 30 s initial, max. 60 s (schwaches WiFi: max. 90 s) |
+| No broker configured | 60 s |
+| No STA connection | 20 s |
+| NTP not synchronized / STA not stable | 2 s |
+| Connection error | 30 s initially, maximum 60 s (weak WiFi: maximum 90 s) |
 
-Nach MQTT-Settings-Änderung (Web-UI): Connect wird um **3 s** verzögert (`mqttPostponeConnect`).
+After an MQTT settings change (web UI), connection is delayed by **3 s** (`mqttPostponeConnect`).
 
-## Robustheit (gegenüber Gaggimate)
+## Robustness (compared with Gaggimate)
 
-Chaya2MQTT behält bewusst **ESP-IDF `esp_mqtt_client`** statt `256dpi/MQTT`:
+Chaya2MQTT deliberately retains **ESP-IDF `esp_mqtt_client`** instead of `256dpi/MQTT`:
 
-| Aspekt | Chaya2MQTT | Gaggimate (master MQTTPlugin) |
+| Aspect | Chaya2MQTT | Gaggimate (master MQTTPlugin) |
 |--------|------------|-------------------------------|
-| Transport | nur MQTTS + CA-Bundle | Plain MQTT / WiFiClient |
-| LWT | retained online/offline | fehlt |
-| Client-ID | gerätebezogen (`Chaya2MQTT-<id>`) | fest `"GaggiMate"` |
-| Reconnect | eigener Backoff in `mqttLoop()` | nur indirekt über WiFi-Events |
-| Generation-Guard | Events nach Client-Destroy ignoriert | — |
-| Settings-Apply | Publish gesperrt, Kill+Rebuild | Plugin nur beim Boot |
+| Transport | MQTTS + CA bundle only | Plain MQTT / WiFiClient |
+| LWT | Retained online/offline | Missing |
+| Client ID | Device-specific (`Chaya2MQTT-<id>`) | Fixed `"GaggiMate"` |
+| Reconnect | Dedicated backoff in `mqttLoop()` | Only indirectly through WiFi events |
+| Generation guard | Events after client destruction are ignored | — |
+| Settings application | Publishing blocked, kill + rebuild | Plugin only at boot |
 
-WLAN- und MQTT-Backoff sind entkoppelt: TLS-/Broker-Fehler erzeugen keine WiFi-Reconnect-Schleife. Manuelle Hardware-Szenarien: Broker-Neustart, WLAN-Unterbrechung, Wiederanmeldung — siehe [TESTING.md](TESTING.md).
+WiFi and MQTT backoff are decoupled: TLS/broker errors do not cause a WiFi reconnect loop. Manual hardware scenarios include broker restart, WiFi interruption, and reconnection—see [TESTING.md](TESTING.md).
 
-## Konfigurations-API
+## Configuration API
 
-Die aktive MQTT-Konfiguration lebt nur in `mqtt/config.cpp`. Zugriff ausschließlich über:
+The active MQTT configuration exists only in `mqtt/config.cpp`. It is accessed exclusively through:
 
-| Funktion | Zweck |
-|----------|-------|
-| `mqttCfgSnapshot(MqttConfig*)` | Thread-safe Kopie der aktiven Config |
-| `mqttCfgStorePending(const MqttConfig*)` | Web-Formular → Pending-Config |
-| `mqttCfgApplyPendingToActive()` | Pending → Active (Network-Task) |
-| `mqttCfgApplyPairingTopics(MqttConfig*)` | Topics aus eigener ID + Partner-ID ableiten |
-| `mqttCfgTopicPubLockedCopy(char*, size_t)` | Sende-Topic unter Mutex |
-| `mqttCfgIsBrokerConfigured()` | Server-Feld nicht leer? |
-| `mqttCfgHasUnappliedPending()` | Pending noch nicht angewendet? |
+| Function | Purpose |
+|----------|---------|
+| `mqttCfgSnapshot(MqttConfig*)` | Thread-safe copy of the active configuration |
+| `mqttCfgStorePending(const MqttConfig*)` | Web form → pending configuration |
+| `mqttCfgApplyPendingToActive()` | Pending → active (network task) |
+| `mqttCfgApplyPairingTopics(MqttConfig*)` | Derive topics from own ID + partner ID |
+| `mqttCfgTopicPubLockedCopy(char*, size_t)` | Copy publish topic under mutex |
+| `mqttCfgIsBrokerConfigured()` | Is the server field non-empty? |
+| `mqttCfgHasUnappliedPending()` | Is pending configuration not yet applied? |
 
 ### MqttConfig-Struct
 
@@ -159,25 +159,25 @@ struct MqttConfig {
 };
 ```
 
-Defaults und Protokoll-Limits: `mqtt/mqtt_config.h`. Backoff/Timing: `mqtt/mqtt_timing.h`.
+Defaults and protocol limits: `mqtt/mqtt_config.h`. Backoff/timing: `mqtt/mqtt_timing.h`.
 
-## NVS-Speicherung
+## NVS storage
 
 Namespace `mqtt`:
 
-| Key | Typ | Beschreibung |
-|-----|-----|--------------|
-| `server` | String | Broker-Hostname/IP |
-| `port` | Int | Port (Default 8883) |
-| `user` | String | MQTT-Username |
-| `pass` | String | MQTT-Passwort |
-| `partner_id` | String | Partner-Device-ID (6 Hex) |
+| Key | Type | Description |
+|-----|------|-------------|
+| `server` | String | Broker hostname/IP |
+| `port` | Int | Port (default 8883) |
+| `user` | String | MQTT username |
+| `pass` | String | MQTT password |
+| `partner_id` | String | Partner device ID (6 hexadecimal characters) |
 
-Topics werden nicht mehr in NVS persistiert; beim Speichern werden Legacy-Keys `topic_pub` / `topic_sub` entfernt.
+Topics are no longer persisted in NVS; legacy keys `topic_pub` / `topic_sub` are removed when saving.
 
 Details: [CONFIGURATION.md](CONFIGURATION.md)
 
-## Settings-Apply-Flow (Web-UI)
+## Settings application flow (web UI)
 
 ```mermaid
 sequenceDiagram
@@ -188,7 +188,7 @@ sequenceDiagram
 
     W->>W: mqttCfgStorePending
     W->>W: g_webAdminMqttApplyVersion.fetch_add(1)
-    A->>A: webAdminLoop erkennt Flag
+    A->>A: webAdminLoop detects flag
     A->>N: NetCmd MqttSettingsChanged
     N->>M: mqttBeginSettingsApply
     N->>M: mqttDisconnect
@@ -198,10 +198,10 @@ sequenceDiagram
     N->>N: requestHeartRedraw
 ```
 
-Während `mqttBeginSettingsApply` … `mqttEndSettingsApply` sind Publishes blockiert (`mqttPublishBlocked()`).
+Publishing is blocked from `mqttBeginSettingsApply` through `mqttEndSettingsApply` (`mqttPublishBlocked()`).
 
-## Sicherheit
+## Security
 
-- TLS mit Zertifikatsprüfung gegen Mozilla-CA-Bundle
-- Broker muss ein Zertifikat einer öffentlichen CA haben
-- Credentials in NVS unverschlüsselt (siehe [SECURITY.md](SECURITY.md))
+- TLS with certificate validation against the Mozilla CA bundle
+- The broker must have a certificate from a public CA
+- Credentials are stored unencrypted in NVS.

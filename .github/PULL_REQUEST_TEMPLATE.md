@@ -1,15 +1,15 @@
-## Zusammenfassung
+## Summary
 
 - 
 
-## Testplan
+## Test plan
 
-- [ ] Passende automatisierte Tests ergänzt oder aktualisiert
-- [ ] `make check` erfolgreich
-- [ ] Dokumentation und API-Verträge bei Bedarf aktualisiert
-- [ ] Keine Zugangsdaten oder generierten Build-Artefakte enthalten
+- [ ] Relevant automated tests added or updated
+- [ ] `make check` passes
+- [ ] Documentation and API contracts updated where necessary
+- [ ] No credentials or generated build artifacts included
 
-## Hardwareprüfung
+## Hardware verification
 
-- [ ] Nicht erforderlich
-- [ ] Auf Zielhardware geprüft; Ergebnis:
+- [ ] Not required
+- [ ] Tested on target hardware; result:

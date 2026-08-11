@@ -2,10 +2,10 @@
 
 class AsyncWebServer;
 
-/** AsyncWebServer-Instanz (Port 80). */
+/** AsyncWebServer instance (port 80). */
 AsyncWebServer& webAdminWebServer();
 
-/** Alle HTTP-Routen einmal registrieren (vor webAdminWebServer().begin()). */
+/** Register all HTTP routes once (before webAdminWebServer().begin()). */
 void webAdminRegisterRoutes();
 
 /** Deferred reboot/Wi-Fi reconnect/OTA from request handlers; called from loop(). */

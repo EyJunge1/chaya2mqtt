@@ -1,112 +1,112 @@
-# Konfiguration & NVS
+# Configuration & NVS
 
-Alle persistenten Einstellungen werden in der **NVS** (Non-Volatile Storage) des ESP32 gespeichert. Die Firmware nutzt vier Namespaces über `Preferences` (thread-safe via `g_nvsMutex` in `config/nvs_utils`).
+All persistent settings are stored in the ESP32's **NVS** (Non-Volatile Storage). The firmware uses four namespaces through `Preferences` (thread-safe via `g_nvsMutex` in `config/nvs_utils`).
 
-## NVS-Namespaces
+## NVS namespaces
 
-| Namespace | Modul | Beschreibung |
-|-----------|-------|--------------|
-| `wifi` | `wifi/wlan.cpp` | WLAN-Credentials |
-| `mqtt` | `mqtt/config.cpp` | Broker-Konfiguration |
-| `cfg` | `config/app_config.cpp`, `ota/ota.cpp` | App-Einstellungen, OTA-Check-Tag |
-| `chaya` | `heart/counter_nvs.cpp` | Zähler und Baselines |
+| Namespace | Module | Description |
+|-----------|--------|-------------|
+| `wifi` | `wifi/wlan.cpp` | WiFi credentials |
+| `mqtt` | `mqtt/config.cpp` | Broker configuration |
+| `cfg` | `config/app_config.cpp`, `ota/ota.cpp` | App settings, OTA check day |
+| `chaya` | `heart/counter_nvs.cpp` | Counters and baselines |
 
 ## Namespace `wifi`
 
-| Key | Typ | Beschreibung |
-|-----|-----|--------------|
-| `cfg_v2` | Bytes (packed) | Aktuelles Format: SSID, Passwort, IP-Modus, statische IPv4-Felder, NTP |
-| `cred_v1` | Bytes (packed) | Legacy: nur SSID + Passwort (wird beim Laden nach DHCP migriert) |
-| `ssid` | String | Legacy-Format (Fallback) |
-| `pass` | String | Legacy-Format (Fallback) |
+| Key | Type | Description |
+|-----|------|-------------|
+| `cfg_v2` | Bytes (packed) | Current format: SSID, password, IP mode, static IPv4 fields, NTP |
+| `cred_v1` | Bytes (packed) | Legacy: SSID + password only (migrated to DHCP when loaded) |
+| `ssid` | String | Legacy format (fallback) |
+| `pass` | String | Legacy format (fallback) |
 
-Beim Speichern werden Legacy-Keys (`ssid`, `pass`, `cred_v1`) entfernt und nur `cfg_v2` geschrieben.
+When saving, legacy keys (`ssid`, `pass`, `cred_v1`) are removed and only `cfg_v2` is written.
 
-### `cfg_v2`-Felder
+### `cfg_v2` fields
 
-| Feld | Default | Beschreibung |
-|------|---------|--------------|
-| Modus | `dhcp` | `dhcp` oder `static` (manuell) |
-| IP / Gateway / Netmask | leer | Pflicht bei `static` |
-| DNS1 / DNS2 | leer | Leer = DNS vom DHCP; gesetzt = Override (üblich: Cloudflare `1.1.1.1` / `1.0.0.1`) |
-| NTP1 / NTP2 | leer | Leer = automatisch (DHCP Option 42, sonst `time.cloudflare.com`); gesetzt = Override |
+| Field | Default | Description |
+|-------|---------|-------------|
+| Mode | `dhcp` | `dhcp` or `static` (manual) |
+| IP / gateway / netmask | empty | Required for `static` |
+| DNS1 / DNS2 | empty | Empty = DNS from DHCP; set = override (commonly Cloudflare `1.1.1.1` / `1.0.0.1`) |
+| NTP1 / NTP2 | empty | Empty = automatic (DHCP option 42, otherwise `time.cloudflare.com`); set = override |
 
-Ungültige statische Felder in NVS werden beim Laden auf DHCP zurückgesetzt. Bekannte Built-in-NTP-Paare werden als „automatisch“ (leer) geladen.
+Invalid static fields in NVS are reset to DHCP when loaded. Known built-in NTP pairs are loaded as “automatic” (empty).
 
-**Schreiben:** `wlanSaveConfigToNvs()` – aus Web POST `/api/wifi/connect` (STA) oder `/api/wifi/connect-commit` (AP-Test)
+**Written by:** `wlanSaveConfigToNvs()`—from web POST `/api/wifi/connect` (STA) or `/api/wifi/connect-commit` (AP test)
 
 ## Namespace `mqtt`
 
-| Key | Typ | Default | Beschreibung |
-|-----|-----|---------|--------------|
-| `server` | String | `""` | Broker-Hostname oder IP |
-| `port` | Int | `8883` | MQTT-Port |
-| `user` | String | `""` | MQTT-Username |
-| `pass` | String | `""` | MQTT-Passwort |
-| `partner_id` | String | `""` | Partner-Device-ID (6 Hex) |
+| Key | Type | Default | Description |
+|-----|------|---------|-------------|
+| `server` | String | `""` | Broker hostname or IP |
+| `port` | Int | `8883` | MQTT port |
+| `user` | String | `""` | MQTT username |
+| `pass` | String | `""` | MQTT password |
+| `partner_id` | String | `""` | Partner device ID (6 hexadecimal characters) |
 
-Legacy-Keys `topic_pub` / `topic_sub` werden beim Speichern entfernt. Topics leben nur noch abgeleitet in RAM.
+Legacy keys `topic_pub` / `topic_sub` are removed when saving. Topics now exist only as derived values in RAM.
 
-**Schreiben:** `saveMQTTConfig()` – nach `mqttCfgApplyPendingToActive()` im Network-Task
+**Written by:** `saveMQTTConfig()`—after `mqttCfgApplyPendingToActive()` in the network task
 
-### Sanitisierung beim Laden
+### Sanitization when loading
 
-- Ungültiger Server → geleert
-- Ungültige Partner-ID → geleert
-- Partner-ID = eigene ID → geleert
-- Topics immer abgeleitet: `chaya2mqtt/<own>`; Subscribe nur mit Partner `chaya2mqtt/<partner>`
+- Invalid server → cleared
+- Invalid partner ID → cleared
+- Partner ID = own ID → cleared
+- Topics are always derived: `chaya2mqtt/<own>`; subscribe only with a partner: `chaya2mqtt/<partner>`
 
 ## Namespace `cfg`
 
-| Key | Typ | Default | Beschreibung |
-|-----|-----|---------|--------------|
-| `rstPeriod` | UChar | `7` | Anzeige-Reset-Periode in UTC-Tagen (0=aus, 1–30) |
-| `ui_lang` | String | `en` | UI-Sprache (`en` / `de`) |
-| `ui_theme` | String | `light` | Web-UI-Theme (`light` / `dark`) |
-| `disp_dark` | UChar | `0` | E-Ink Dark Mode (`0`=hell, `1`=schwarz/weiß invertiert, Herz bleibt rot) |
-| `upd_day` | UInt | `0` | Letzter OTA-Auto-Check (UTC-Kalendertag) |
-| `upd_chan` | String | `stable` | OTA-Kanal (`stable` oder `beta`) |
+| Key | Type | Default | Description |
+|-----|------|---------|-------------|
+| `rstPeriod` | UChar | `7` | Display reset period in UTC days (0=off, 1–30) |
+| `ui_lang` | String | `en` | UI language (`en` / `de`) |
+| `ui_theme` | String | `light` | Web UI theme (`light` / `dark`) |
+| `disp_dark` | UChar | `0` | E-Ink dark mode (`0`=light, `1`=black/white inverted; heart remains red) |
+| `upd_day` | UInt | `0` | Last automatic OTA check (UTC calendar day) |
+| `upd_chan` | String | `stable` | OTA channel (`stable` or `beta`) |
 
-**Schreiben:**
-- `rstPeriod` / `ui_lang` / `ui_theme` / `disp_dark`: Web POST `/api/settings` (deferred via App-Task)
-- `upd_day`: automatisch nach OTA-Check
-- `upd_chan`: bei Kanalwahl im Update-Check
+**Written by:**
+- `rstPeriod` / `ui_lang` / `ui_theme` / `disp_dark`: web POST `/api/settings` (deferred via the app task)
+- `upd_day`: automatically after an OTA check
+- `upd_chan`: when selecting a channel during the update check
 
-Hinweis: Ältere Firmwares konnten `cfg/authEn` setzen; dieser Key wird ignoriert.
+Note: Older firmware versions could set `cfg/authEn`; this key is ignored.
 
-### Reset-Periode (`rstPeriod`)
+### Reset period (`rstPeriod`)
 
-| Wert | Verhalten |
-|------|-----------|
-| `0` | Periodischer Reset deaktiviert |
-| `1`–`30` | Alle N UTC-Tage: Baselines auf aktuelle Raw-Werte setzen |
-| fehlend/ungültig | Default **7** Tage |
+| Value | Behavior |
+|-------|----------|
+| `0` | Periodic reset disabled |
+| `1`–`30` | Every N UTC days: set baselines to the current raw values |
+| missing/invalid | Default: **7** days |
 
-Der periodische Reset setzt nur die **Anzeige-Baselines** zurück (Display zeigt wieder 0). Die absoluten MQTT-Zähler (`heartCounter`, `heartSentCounter`) bleiben unverändert.
+The periodic reset only resets the **display baselines** (the display returns to 0). The absolute MQTT counters (`heartCounter`, `heartSentCounter`) remain unchanged.
 
-Zusätzlich: Wenn ein Anzeige-Delta ≥ **999** erreicht, wird die Baseline für diese Seite sofort nachgezogen.
+In addition, if a displayed delta reaches ≥ **999**, the baseline for that side is advanced immediately.
 
 ## Namespace `chaya`
 
-| Key | Typ | Default | Beschreibung |
-|-----|-----|---------|--------------|
-| `counter` | Int | `0` | Empfangener Zählerstand (absolut) |
-| `sentCount` | Int | `0` | Gesendete Zählerstände (absolut) |
-| `cntBase` | Int | `0` | RX-Anzeige-Baseline |
-| `sntBase` | Int | `0` | TX-Anzeige-Baseline |
-| `rstDay` | UInt | `UINT32_MAX` | Letzter periodischer Reset (UTC-Tag) |
+| Key | Type | Default | Description |
+|-----|------|---------|-------------|
+| `counter` | Int | `0` | Received counter (absolute) |
+| `sentCount` | Int | `0` | Sent counter (absolute) |
+| `cntBase` | Int | `0` | RX display baseline |
+| `sntBase` | Int | `0` | TX display baseline |
+| `rstDay` | UInt | `UINT32_MAX` | Last periodic reset (UTC day) |
 
-**Speicher-Strategie:**
-- Debounced: Saves nur alle **≥30 s** wenn sich der Wert geändert hat
-- Flush vor Reboot/OTA: sofort speichern wenn dirty
-- Während Factory Reset: NVS-Writes suspendiert
+**Storage strategy:**
+- Debounced: save only every **≥30 s** if the value has changed
+- Flush before reboot/OTA: save immediately if dirty
+- During factory reset: NVS writes are suspended
 
-## RAM-Caches
+## RAM caches
 
-Einige Werte werden zusätzlich im RAM gecacht (Atomics):
+Some values are additionally cached in RAM (atomics):
 
-| Variable | Namespace-Key | Modul |
-|----------|---------------|-------|
+| Variable | Namespace key | Module |
+|----------|---------------|--------|
 | `heartCounter` | `chaya/counter` | counter |
 | `heartSentCounter` | `chaya/sentCount` | counter |
 | `counterBaseline` | `chaya/cntBase` | counter |
@@ -114,48 +114,47 @@ Einige Werte werden zusätzlich im RAM gecacht (Atomics):
 | `s_resetPeriodDaysCached` | `cfg/rstPeriod` | app_config |
 | `s_displayDarkCached` | `cfg/disp_dark` | app_config |
 
-Aktive MQTT-Config (`mqttCfg`) lebt nur in `mqtt/config.cpp` – Zugriff über Snapshot/Pending-API.
+The active MQTT configuration (`mqttCfg`) exists only in `mqtt/config.cpp`—access is through the snapshot/pending API.
 
-## Factory Reset
+## Factory reset
 
-Auslöser: Knopf **10 s** halten → `resetAllSettings()` in `wifi/wlan.cpp`
+Trigger: hold the button for **10 s** → `resetAllSettings()` in `wifi/wlan.cpp`
 
-Ablauf:
+Sequence:
 1. `g_systemShutdownInProgress = true`
-2. NVS-Saves für Zähler suspendieren
-3. WiFi-Test abbrechen
-4. HTTP-Server stoppen, DNS/mDNS beenden
-5. WiFi disconnect
-6. **Alle vier Namespaces löschen:** `wifi`, `mqtt`, `cfg`, `chaya`
-7. RAM-Zähler und Config-Caches zurücksetzen
-8. Neustart → SoftAP `Chaya2MQTT`
+2. Suspend NVS saves for counters
+3. Abort the WiFi test
+4. Stop the HTTP server and terminate DNS/mDNS
+5. Disconnect WiFi
+6. **Delete all four namespaces:** `wifi`, `mqtt`, `cfg`, `chaya`
+7. Reset RAM counters and configuration caches
+8. Restart → SoftAP `Chaya2MQTT`
 
-## Konfigurationsänderung über Web-UI
+## Configuration changes through the web UI
 
-| Einstellung | Route | Verarbeitung |
-|-------------|-------|--------------|
-| WiFi | POST `/api/wifi/connect` | Direkt NVS (STA) oder Test→Commit (AP); Felder: SSID/Pass, Modus, optional IPv4/DNS/NTP |
-| MQTT + Pairing | POST `/api/mqtt` | Pending → App-Task → Network-Task → NVS |
-| Reset-Periode | POST `/settings` | Pending → App-Task → NVS |
+| Setting | Route | Processing |
+|---------|-------|------------|
+| WiFi | POST `/api/wifi/connect` | Directly to NVS (STA) or test → commit (AP); fields: SSID/password, mode, optional IPv4/DNS/NTP |
+| MQTT + pairing | POST `/api/mqtt` | Pending → app task → network task → NVS |
+| Reset period | POST `/settings` | Pending → app task → NVS |
 
-MQTT- und Settings-Änderungen werden **deferred** verarbeitet (nicht im HTTP-Handler), um Blockierung zu vermeiden.
+MQTT and settings changes are processed **as deferred work** (not in the HTTP handler) to avoid blocking.
 
-## Konstanten-Header
+## Constants headers
 
-Modulspezifische Defaults und Limits liegen in `*_config.h` (nicht mehr zentral in `constants.h`):
+Module-specific defaults and limits are located in `*_config.h` (no longer centrally in `constants.h`):
 
-| Header | Inhalt |
-|--------|--------|
-| `constants.h` | Device-Identity, NTP, Syntax-Validierung |
-| `mqtt/mqtt_config.h` | MQTT-Topic-Prefix, Port, Keepalive, Outbox |
-| `wifi/wlan_config.h` | SSID/Pass-Limits, STA-Tuning, Scan/Reconnect |
+| Header | Content |
+|--------|---------|
+| `constants.h` | Device identity, NTP, syntax validation |
+| `mqtt/mqtt_config.h` | MQTT topic prefix, port, keepalive, outbox |
+| `wifi/wlan_config.h` | SSID/password limits, STA tuning, scan/reconnect |
 | `display/display_config.h` | `kDisplayCounterMax` |
-| `hw/button_config.h` | Debounce, Factory-Reset, LED-Timing |
-| `async/task_config.h` | Task-Stacks, Queue-Tiefen |
+| `hw/button_config.h` | Debounce, factory reset, LED timing |
+| `async/task_config.h` | Task stacks, queue depths |
 
-## Weitere Dokumentation
+## Further documentation
 
-- MQTT-Config-Details: [MQTT.md](MQTT.md)
-- Web-Routen: [WEB_ADMIN.md](WEB_ADMIN.md)
-- Sicherheit: [SECURITY.md](SECURITY.md)
-- Zähler-Logik: [DISPLAY.md](DISPLAY.md)
+- MQTT configuration details: [MQTT.md](MQTT.md)
+- Web routes: [WEB_ADMIN.md](WEB_ADMIN.md)
+- Counter logic: [DISPLAY.md](DISPLAY.md)

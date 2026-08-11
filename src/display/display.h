@@ -9,7 +9,7 @@ void displayInit();
 void displayStartTask();
 
 void drawHeartWithNumber();
-/** Anzeige wenn kein MQTT-Server konfiguriert (z. B. nach Flash/Reset). */
+/** Screen shown when no MQTT server is configured (e.g. after flashing/reset). */
 void drawSplashScreen();
 
 /** Queue heart redraw on display task (e.g. from main loop / button). */

@@ -1,5 +1,5 @@
-name: Fehlerbericht
-description: Einen reproduzierbaren Fehler in Firmware, Weboberfläche oder Hardwaredokumentation melden
+name: Bug report
+description: Report a reproducible bug in firmware, the web interface, or hardware documentation
 title: "[Bug]: "
 labels:
   - bug
@@ -7,52 +7,50 @@ body:
   - type: markdown
     attributes:
       value: |
-        Sicherheitsprobleme bitte nicht öffentlich melden. Verwende dafür „Report a vulnerability“ im Security-Bereich.
-
-        Bitte keine Passwörter, Tokens, privaten MQTT-Topics oder sonstigen Zugangsdaten einfügen. Logs und Screenshots vor dem Absenden prüfen und bei Bedarf schwärzen.
+        Do not include passwords, tokens, private MQTT topics, or other credentials. Review logs and screenshots before submitting and redact them if necessary.
   - type: input
     id: version
     attributes:
       label: Version
-      description: Firmware-Version, Release-Tag oder Commit
+      description: Firmware version, release tag, or commit
       placeholder: v2026.8.0
     validations:
       required: true
   - type: dropdown
     id: area
     attributes:
-      label: Bereich
+      label: Area
       options:
         - Firmware
-        - Weboberfläche
+        - Web interface
         - MQTT
-        - WLAN / Setup
+        - Wi-Fi / Setup
         - OTA
         - Display
         - Hardware / PCB
-        - Dokumentation
+        - Documentation
     validations:
       required: true
   - type: textarea
     id: description
     attributes:
-      label: Fehlerbeschreibung
-      description: Was ist passiert?
-      placeholder: Kurze, klare Beschreibung des Fehlers.
+      label: Bug description
+      description: What happened?
+      placeholder: A short, clear description of the bug.
     validations:
       required: true
   - type: textarea
     id: expected
     attributes:
-      label: Erwartetes Verhalten
-      description: Was sollte stattdessen passieren?
+      label: Expected behavior
+      description: What should have happened instead?
     validations:
       required: true
   - type: textarea
     id: reproduction
     attributes:
-      label: Reproduktion
-      description: Möglichst genaue Schritte, um den Fehler zu reproduzieren
+      label: Reproduction
+      description: Provide detailed steps to reproduce the bug
       placeholder: |
         1. …
         2. …
@@ -62,30 +60,30 @@ body:
   - type: textarea
     id: environment
     attributes:
-      label: Umgebung / Hardware
-      description: Optional, aber hilfreich. Beispiele je nach Bereich.
+      label: Environment / Hardware
+      description: Optional, but helpful. Examples depend on the affected area.
       placeholder: |
-        Hardware: Waveshare ESP32 + 1.54″ BWR / eigene PCB
-        Build: esp32dev oder esp32dev-release
-        MQTT-Broker: Typ und TLS ja/nein (ohne Zugangsdaten)
-        Browser/OS: nur bei Weboberfläche
+        Hardware: Waveshare ESP32 + 1.54″ BWR / custom PCB
+        Build: esp32dev or esp32dev-release
+        MQTT broker: type and TLS yes/no (without credentials)
+        Browser/OS: only for the web interface
   - type: textarea
     id: logs
     attributes:
-      label: Relevante Logs
-      description: Keine Passwörter, Tokens, privaten MQTT-Topics oder sonstigen Zugangsdaten einfügen. Logs bei Bedarf schwärzen.
+      label: Relevant logs
+      description: Do not include passwords, tokens, private MQTT topics, or other credentials. Redact logs if necessary.
       render: shell
   - type: textarea
     id: additional
     attributes:
-      label: Screenshots / Zusatzinformationen
-      description: Optional Screenshots, Seriennummer-Hinweise ohne Geheimnisse oder weitere Kontextinformationen.
+      label: Screenshots / Additional information
+      description: Optional screenshots, serial number details without secrets, or other contextual information.
   - type: checkboxes
     id: checks
     attributes:
-      label: Vor dem Absenden
+      label: Before submitting
       options:
-        - label: Ich habe bestehende Issues auf Duplikate geprüft.
+        - label: I have checked existing issues for duplicates.
           required: true
-        - label: Der Bericht enthält keine Zugangsdaten oder anderen sensiblen Daten.
+        - label: This report does not contain credentials or other sensitive data.
           required: true

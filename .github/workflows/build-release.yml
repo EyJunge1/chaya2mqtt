@@ -102,7 +102,7 @@ jobs:
           body: |
             ## Firmware ${{ github.ref_name }}
 
-            | Algorithmus | Hash |
+            | Algorithm | Hash |
             |-------------|------|
             | MD5         | `${{ steps.hashes.outputs.md5 }}` |
           files: |

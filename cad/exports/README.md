@@ -1,10 +1,10 @@
-# 3D-Druckexporte
+# 3D print exports
 
-Dieser Ordner ist für druckfertige Exporte der Gehäusemodelle vorgesehen:
+This directory is intended for print-ready exports of the enclosure models:
 
 - `STL`
 - `3MF`
 
-Die bearbeitbaren CAD-Quelldateien und STEP-Austauschmodelle bleiben im übergeordneten `cad/`-Ordner. Zu jedem Export sollten Zielhardware, Gehäusevariante und Revision im Dateinamen oder einer begleitenden README stehen.
+The editable CAD source files and STEP exchange models remain in the parent `cad/` directory. Each export should identify its target hardware, enclosure variant, and revision in the filename or an accompanying README.
 
-Aktuell gibt es noch keine freigegebenen Gehäuseexporte.
+There are currently no approved enclosure exports.

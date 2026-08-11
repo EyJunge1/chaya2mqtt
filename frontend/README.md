@@ -2,26 +2,26 @@
 
 React 19 + Vite + Tailwind CSS + Lucide Icons.
 
-## Entwicklung ohne ESP32
+## Development without an ESP32
 
 ```bash
 npm ci
 npm run dev
 ```
 
-Öffne `http://127.0.0.1:5173/`. Der integrierte Mock unter `mock/` liefert `/api/*` und SSE `/events`. Über die Simulator-Leiste rechts oben lassen sich Szenarien wechseln (STA, AP-Setup, Offline).
+Open `http://127.0.0.1:5173/`. The integrated mock in `mock/` provides `/api/*` and SSE `/events`. Use the simulator bar in the upper-right corner to switch between scenarios (STA, AP setup, offline).
 
-## Tests / Production-Build
+## Tests / production build
 
 ```bash
 npm test
 npm run build
 ```
 
-`npm run build` erzeugt `dist/` mit gehashten Asset-Dateinamen. Anschließend im Repo-Root:
+`npm run build` creates `dist/` with hashed asset filenames. Then run the following from the repository root:
 
 ```bash
 python3 scripts/embed_web_assets.py
 ```
 
-Das schreibt den gzip-Blob sowie Manifest und Assembler-Stub nach `src/web/assets/` (auch automatisch via PlatformIO-Pre-Script und `make frontend`).
+This writes the gzip blob, manifest, and assembler stub to `src/web/assets/` (also done automatically by the PlatformIO pre-script).
