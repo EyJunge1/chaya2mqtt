@@ -1,25 +1,25 @@
-# PCB — Hardware-Quelle der Wahrheit
+# PCB — Hardware source of truth
 
-Dieser Ordner dokumentiert und spezifiziert die physische Chaya2MQTT-Hardware.
+This directory documents and specifies the physical Chaya2MQTT hardware.
 
-| Pfad | Inhalt |
+| Path | Contents |
 |------|--------|
-| `current-reference/` | KiCad-Referenzschaltplan der **aktuellen** COTS-Hardware (Waveshare ESP32 Driver Board + 1,54″-BWR + Taster/LED) |
-| `chaya2mqtt-s2/` | Future-Schaltplan mit ESP32-S2-MINI-2 und GDEM0154F61H |
-| `chaya2mqtt-s2/production/` | ERC/BOM/PDF; Layout und Fertigungsdaten warten auf Gehäusemaße |
-| `lib/` | Projektweite Custom-Symbole |
+| `current-reference/` | KiCad reference schematic for the **current** COTS hardware (Waveshare ESP32 Driver Board + 1.54″ BWR + button/LED) |
+| `chaya2mqtt-s2/` | Future schematic with ESP32-S2-MINI-2 and GDEM0154F61H |
+| `chaya2mqtt-s2/production/` | ERC/BOM/PDF; layout and manufacturing data await enclosure dimensions |
+| `lib/` | Project-wide custom symbols |
 
-Firmware-Pinmapping:
+Firmware pin mapping:
 - Waveshare / Default: `src/hw/pins_esp32_waveshare.h`
 
-Die Firmware bleibt unverändert. Der S2-Ordner ist ausschließlich Hardwareplanung.
+The firmware remains unchanged. The S2 directory is exclusively for hardware planning.
 
-Siehe auch `docs/HARDWARE.md`.
+See also `docs/HARDWARE.md`.
 
-## Gates vor physischer Bestellung
+## Gates before ordering physical hardware
 
-1. Panelcode/FPC des verbauten 1,54″-BWR-Panels manuell bestätigen (Ziel: Waveshare 1.54″ e-Paper (B) / GDEH0154Z90-Familie, 24-Pin 0,5 mm).
-2. EPD-Boost-Bauteilwerte gegen Datenblatt-Figur 7-5 (Waveshare B Spec) bzw. Panel-Hersteller freigeben — **elektrische Erstfreigabe Pflicht**.
-3. KiCad ERC/DRC ohne ungeklärte Fehler (`scripts/pcb_erc_drc.sh`).
-4. Mechanik/Gehäuse festlegen: Display vorne, USB-C hinten, roter LED-Ring-Taster oben.
-5. Erst danach Layout, DRC, Gerber, Drill und Pick-and-Place erzeugen.
+1. Manually confirm the panel code/FPC of the installed 1.54″ BWR panel (target: Waveshare 1.54″ e-Paper (B) / GDEH0154Z90 family, 24-pin 0.5 mm).
+2. Validate the EPD boost component values against datasheet Figure 7-5 (Waveshare B Spec) or with the panel manufacturer—**initial electrical approval is mandatory**.
+3. KiCad ERC/DRC without unresolved errors (`scripts/pcb_erc_drc.sh`).
+4. Finalize the mechanical design/enclosure: display at the front, USB-C at the rear, red LED ring button at the top.
+5. Only then generate the layout, DRC, Gerber, drill, and pick-and-place files.

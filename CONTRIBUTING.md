@@ -1,40 +1,39 @@
-# Zu Chaya2MQTT beitragen
+# Contributing to Chaya2MQTT
 
-Danke für dein Interesse an Chaya2MQTT.
+Thank you for your interest in Chaya2MQTT.
 
-## Vor einer Änderung
+## Before making a change
 
-- Für reproduzierbare Fehler die Issue-Vorlage **Fehlerbericht** verwenden.
-- Für Verbesserungen und Änderungsvorschläge die Vorlage **Feature- oder Änderungsvorschlag** verwenden.
-- Größere Architektur-, Protokoll- oder Hardwareänderungen vor der Umsetzung im Feature-Formular abstimmen.
-- Sicherheitsprobleme nicht öffentlich melden; siehe [Security Policy](.github/SECURITY.md) und „Report a vulnerability“.
-- Keine Passwörter, Tokens, privaten MQTT-Topics oder sonstigen Zugangsdaten in Issues anhängen.
+- Use the **Bug report** issue template for reproducible bugs.
+- Use the **Feature or change request** template for improvements and proposed changes.
+- Discuss major architecture, protocol, or hardware changes in the feature form before implementing them.
+- Do not include passwords, tokens, private MQTT topics, or other credentials in issues.
 
-## Entwicklungsumgebung
+## Development environment
 
-Benötigt werden PlatformIO, Node.js 22 und die in [docs/TESTING.md](docs/TESTING.md) beschriebenen Werkzeuge.
+PlatformIO, Node.js 22, and the tools described in [docs/TESTING.md](docs/TESTING.md) are required.
 
 ```bash
 cd frontend
 npm ci
 cd ..
-make check-pr
+make check
 ```
 
-## Pull Requests
+## Pull requests
 
-- Änderungen klein und nachvollziehbar halten.
-- Neue oder geänderte Logik mit passenden Tests abdecken.
-- REST-, SSE- oder MQTT-Vertragsänderungen in Implementierung, Mock und Dokumentation gemeinsam aktualisieren.
-- Keine Zugangsdaten, `.env`-Dateien oder generierten Build-Artefakte committen.
-- Vor dem Push `make check` vollständig erfolgreich ausführen.
+- Keep changes small and easy to understand.
+- Cover new or changed logic with appropriate tests.
+- Update implementation, mock, and documentation together when changing REST, SSE, or MQTT contracts.
+- Do not commit credentials, `.env` files, or generated build artifacts.
+- Run `make check` successfully in full before pushing.
 
-Die vollständigen Qualitätsgates und manuellen Hardwareprüfungen stehen in [docs/TESTING.md](docs/TESTING.md).
+The complete quality gates and manual hardware checks are documented in [docs/TESTING.md](docs/TESTING.md).
 
-## Stil
+## Style
 
-- Bestehende C++-, TypeScript- und Dokumentationskonventionen beibehalten.
-- Frontend-Code mit der vorhandenen Prettier-Konfiguration formatieren.
-- Öffentliche Schnittstellen und sicherheitsrelevante Designentscheidungen dokumentieren.
+- Follow the existing C++, TypeScript, and documentation conventions.
+- Format frontend code with the existing Prettier configuration.
+- Document public interfaces and security-relevant design decisions.
 
-Mit einem Beitrag bestätigst du, dass du ihn unter der Repository-Lizenz [CC BY-NC-SA 4.0](LICENSE) veröffentlichen darfst.
+By contributing, you confirm that you may publish your contribution under the repository's [CC BY-NC-SA 4.0](LICENSE) license.

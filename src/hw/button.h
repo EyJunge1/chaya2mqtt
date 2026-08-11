@@ -2,15 +2,15 @@
 
 #include "pins.h"
 
-/** GPIO des Tasters (Light-Sleep-Wakeup, Debounce, Pin-Mode). */
+/** Button GPIO (light-sleep wakeup, debounce, pin mode). */
 static constexpr int kButtonGpio = pins::kButton;
 
 void buttonInit();
 /** ISR + FreeRTOS task for debounce, LED, publish; call after buttonInit(). */
 void buttonStartTask();
 void buttonStartupBlink();
-/** Nach Startup-Blink: LED-Pegel im Light-Sleep halten (weniger Glitches). */
+/** After the startup blink: hold the LED level in light sleep (fewer glitches). */
 void buttonEnableLedGpioHoldForLightSleep();
 
-/** True, solange die nicht-blockierende MQTT-Sende-LED-Sequenz laeuft (fuer adaptiven Light-Sleep). */
+/** True while the non-blocking MQTT transmit LED sequence is active (for adaptive light sleep). */
 bool buttonIsLedTxSequenceActive();

@@ -1,45 +1,42 @@
 # Chaya2MQTT
 
-Firmware für **Chaya2MQTT**: ESP32 mit E-Ink-Display und MQTT – zwei gekoppelte Herz-Geräte tauschen Zählerstände über einen MQTT-Broker aus.
+Firmware for **Chaya2MQTT**: an ESP32 with an e-ink display and MQTT—two paired heart devices exchange counter values through an MQTT broker.
 
-## Dokumentation
+## Documentation
 
-| Datei | Inhalt |
+| File | Contents |
 |-------|--------|
-| [docs/README.md](docs/README.md) | Projektübersicht, Schnellstart, Einrichtung, Pairing |
-| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | FreeRTOS-Tasks, Queues, Mutexe, Datenflüsse |
-| [docs/MODULES.md](docs/MODULES.md) | Code-Referenz aller Module |
-| [docs/MQTT.md](docs/MQTT.md) | MQTT-Protokoll, Topics, TLS, Pairing |
-| [docs/WEB_ADMIN.md](docs/WEB_ADMIN.md) | HTTP-Routen, Auth-Flow, SSE |
-| [docs/HARDWARE.md](docs/HARDWARE.md) | Board, Display, Pinbelegung |
-| [docs/OTA.md](docs/OTA.md) | Firmware-Updates über GitHub |
-| [docs/CONFIGURATION.md](docs/CONFIGURATION.md) | NVS-Namespaces, Defaults, Factory Reset |
-| [docs/DISPLAY.md](docs/DISPLAY.md) | Display-Task, Herz-Geometrie, Delta-Logik |
-| [docs/SECURITY.md](docs/SECURITY.md) | Threat Model, Empfehlungen |
+| [docs/README.md](docs/README.md) | Project overview, quick start, setup, pairing |
+| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | FreeRTOS tasks, queues, mutexes, data flows |
+| [docs/MODULES.md](docs/MODULES.md) | Code reference for all modules |
+| [docs/MQTT.md](docs/MQTT.md) | MQTT protocol, topics, TLS, pairing |
+| [docs/WEB_ADMIN.md](docs/WEB_ADMIN.md) | HTTP routes, authentication flow, SSE |
+| [docs/HARDWARE.md](docs/HARDWARE.md) | Board, display, pin assignment |
+| [docs/OTA.md](docs/OTA.md) | Firmware updates through GitHub |
+| [docs/CONFIGURATION.md](docs/CONFIGURATION.md) | NVS namespaces, defaults, factory reset |
+| [docs/DISPLAY.md](docs/DISPLAY.md) | Display task, heart geometry, delta logic |
 
-## Schnellstart
+## Quick start
 
 ```bash
-pio run -e esp32dev-release -t upload   # Release-Build (empfohlen für Feldgeräte)
-pio device monitor                       # Serial-Monitor (115200 Baud)
+pio run -e esp32dev-release -t upload   # Release build (recommended for deployed devices)
+pio device monitor                       # Serial monitor (115200 baud)
 ```
 
-Für Entwicklung mit Debug-Logs: `pio run -e esp32dev -t upload`
+For development with debug logs: `pio run -e esp32dev -t upload`
 
-Oder: `make upload` / `make monitor`
+Alternatively: `make upload` / `make monitor`
 
-## Sicherheit
+## Security
 
-Siehe [docs/SECURITY.md](docs/SECURITY.md) – NVS-Klartext, HTTP ohne TLS, OTA ohne Code-Signatur.
+Wi-Fi and MQTT credentials are stored as plaintext in NVS, the web interface uses HTTP without a login, and OTA firmware is not cryptographically signed. The device is intended for use on a trusted home network.
 
-Sicherheitslücken bitte nicht als öffentliches Issue melden; Details stehen in der [Security Policy](.github/SECURITY.md).
+## Contributing
 
-## Mitwirken
+Guidance for issues and pull requests is available in [CONTRIBUTING.md](CONTRIBUTING.md). The [Code of Conduct](CODE_OF_CONDUCT.md) applies to all areas of the project.
 
-Hinweise für Issues und Pull Requests stehen in [CONTRIBUTING.md](CONTRIBUTING.md). Für alle Projektbereiche gilt der [Verhaltenskodex](CODE_OF_CONDUCT.md).
+## License
 
-## Lizenz
+This project is licensed under [CC BY-NC-SA 4.0](https://creativecommons.org/licenses/by-nc-sa/4.0/).
 
-Dieses Projekt steht unter [CC BY-NC-SA 4.0](https://creativecommons.org/licenses/by-nc-sa/4.0/).
-
-Du darfst den Code nutzen, teilen und weiterentwickeln — mit Namensnennung und unter derselben Lizenz. **Kommerzielle Nutzung ist nicht erlaubt.** Details stehen in [LICENSE](LICENSE).
+You may use, share, and modify the code—with attribution and under the same license. **Commercial use is not permitted.** See [LICENSE](LICENSE) for details.

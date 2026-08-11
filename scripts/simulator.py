@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 """
-MQTT-Gegenseite fuer das chaya2mqtt ESP32 E-Ink-Projekt.
+MQTT counterpart for the chaya2mqtt ESP32 E-Ink project.
 
-Interaktiv (Default): SUB auf Empfangs-Topic des ESP, PUB auf dessen Sende-Gegen-Topic.
-Smoke-Modus (--smoke): deterministische Pass/Fail-Pruefung ohne Tastatureingabe.
+Interactive (default): SUB to the ESP's receive topic, PUB to its corresponding send topic.
+Smoke mode (--smoke): deterministic pass/fail check without keyboard input.
 
-Lokale Konfiguration unten eintragen oder per CLI ueberschreiben.
-Echte Zugangsdaten niemals committen.
+Enter local configuration below or override it via CLI.
+Never commit real credentials.
 """
 
 from __future__ import annotations
@@ -22,16 +22,16 @@ from typing import Any
 try:
     import paho.mqtt.client as mqtt
 except ImportError:  # pragma: no cover
-    print("Fehlt Abhaengigkeit: pip install paho-mqtt", file=sys.stderr)
+    print("Missing dependency: pip install paho-mqtt", file=sys.stderr)
     raise
 
-# ----- Lokale Konfiguration (keine echten Secrets committen) -----
+# ----- Local configuration (do not commit real secrets) -----
 MQTT_HOST = ""
 MQTT_PORT = 8883
 MQTT_USER = ""
 MQTT_PASS = ""
 
-# Gegenueber ESP-Defaults: ESP publiziert chaya2mqtt/to_b, subscribed chaya2mqtt/to_a
+# Relative to ESP defaults: ESP publishes chaya2mqtt/to_b, subscribes to chaya2mqtt/to_a
 MQTT_TOPIC_PUB = "chaya2mqtt/to_a"
 MQTT_TOPIC_SUB = "chaya2mqtt/to_b"
 
@@ -47,25 +47,25 @@ def _conn_ok(reason_code: Any) -> bool:
 
 def _build_arg_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
-        description="Simuliert die MQTT-Gegenseite zum ESP32 (TLS). "
-        "Defaults stehen am Anfang des Scripts; CLI ueberschreibt."
+        description="Simulates the MQTT counterpart to the ESP32 (TLS). "
+        "Defaults are defined at the top of the script; CLI options override them."
     )
-    p.add_argument("--host", help="MQTT-Broker (Default: MQTT_HOST im Script)")
-    p.add_argument("--port", type=int, help=f"MQTT-Port (Default: {MQTT_PORT})")
-    p.add_argument("--user", help="MQTT-Benutzer (Default: MQTT_USER im Script)")
-    p.add_argument("--pass", dest="password", help="MQTT-Passwort (Default: MQTT_PASS im Script)")
-    p.add_argument("--topic-pub", dest="topic_pub", help="Sende-Topic (Default: MQTT_TOPIC_PUB)")
-    p.add_argument("--topic-sub", dest="topic_sub", help="Empfangs-Topic (Default: MQTT_TOPIC_SUB)")
+    p.add_argument("--host", help="MQTT broker (default: MQTT_HOST in the script)")
+    p.add_argument("--port", type=int, help=f"MQTT port (default: {MQTT_PORT})")
+    p.add_argument("--user", help="MQTT user (default: MQTT_USER in the script)")
+    p.add_argument("--pass", dest="password", help="MQTT password (default: MQTT_PASS in the script)")
+    p.add_argument("--topic-pub", dest="topic_pub", help="Publish topic (default: MQTT_TOPIC_PUB)")
+    p.add_argument("--topic-sub", dest="topic_sub", help="Subscribe topic (default: MQTT_TOPIC_SUB)")
     p.add_argument(
         "--smoke",
         action="store_true",
-        help="Nicht-interaktiver Smoke-Test: warte auf ESP-LWT/Counter, sende ein Herz, Exit 0/1",
+        help="Non-interactive smoke test: wait for ESP LWT/counter, send a heart, exit 0/1",
     )
     p.add_argument(
         "--timeout",
         type=float,
         default=45.0,
-        help="Smoke-Timeout in Sekunden (Default: 45)",
+        help="Smoke timeout in seconds (default: 45)",
     )
     return p
 
@@ -132,9 +132,9 @@ def _make_client(
         _properties: Any,
     ) -> None:
         if not _conn_ok(reason_code):
-            print(f"[Fehler] Verbindung abgelehnt: {reason_code}", flush=True)
+            print(f"[ERROR] Connection rejected: {reason_code}", flush=True)
             return
-        print(f"[OK] Verbunden. Warte auf ESP32-Herzen ({topic_sub})", flush=True)
+        print(f"[OK] Connected. Waiting for ESP32 hearts ({topic_sub})", flush=True)
         cli.subscribe(topic_sub, qos=1)
         cli.subscribe(lwt_topic, qos=1)
 
@@ -152,10 +152,10 @@ def _make_client(
             try:
                 remote = int(msg.payload.decode("utf-8").strip())
             except (UnicodeDecodeError, ValueError):
-                print("[WARN] Ungueltiger Zaehler-Payload, ignoriert.", flush=True)
+                print("[WARN] Invalid counter payload, ignoring.", flush=True)
                 return
             state.set_remote_counter(remote)
-            print(f"Remote-Zaehlerstand (ESP gesendet): {remote}", flush=True)
+            print(f"Remote counter (sent by ESP): {remote}", flush=True)
             if interactive_prompt is not None:
                 interactive_prompt()
 
@@ -168,7 +168,7 @@ def _make_client(
     ) -> None:
         if state.quit_event.is_set():
             return
-        print(f"[MQTT] Verbindung getrennt: {reason_code}", flush=True)
+        print(f"[MQTT] Disconnected: {reason_code}", flush=True)
 
     client.on_connect = on_connect  # type: ignore[method-assign]
     client.on_message = on_message  # type: ignore[method-assign]
@@ -178,15 +178,15 @@ def _make_client(
 
 def _publish_heart(client: mqtt.Client, state: SimulatorState, topic_pub: str) -> bool:
     if not client.is_connected():
-        print("[WARN] Nicht verbunden – kann nicht senden.", flush=True)
+        print("[WARN] Not connected — cannot publish.", flush=True)
         return False
     n = state.next_sent_value()
     payload = str(n).encode("utf-8")
     ok = client.publish(topic_pub, payload, qos=1, retain=True).rc == mqtt.MQTT_ERR_SUCCESS
     if ok:
-        print(f"-> Zaehler {n} (retained) auf {topic_pub}", flush=True)
+        print(f"-> Counter {n} (retained) to {topic_pub}", flush=True)
     else:
-        print("[WARN] Publish fehlgeschlagen.", flush=True)
+        print("[WARN] Publish failed.", flush=True)
     return ok
 
 
@@ -202,7 +202,7 @@ def run_smoke(
     """Return 0 on PASS, 1 on FAIL."""
     state = SimulatorState()
     client = _make_client(host, port, user, password, topic_pub, topic_sub, state)
-    print(f"[SMOKE] Verbinde mit {host}:{port} (TLS)…", flush=True)
+    print(f"[SMOKE] Connecting to {host}:{port} (TLS)…", flush=True)
     try:
         client.connect(host, port, keepalive=60)
     except OSError as e:
@@ -215,11 +215,11 @@ def run_smoke(
     while time.monotonic() < connected_wait and not client.is_connected():
         time.sleep(0.1)
     if not client.is_connected():
-        print("[FAIL] Broker-Verbindung nicht hergestellt", flush=True)
+        print("[FAIL] Broker connection not established", flush=True)
         client.loop_stop()
         return 1
 
-    print("[SMOKE] Warte auf ESP LWT=online oder Counter-Payload…", flush=True)
+    print("[SMOKE] Waiting for ESP LWT=online or counter payload…", flush=True)
     while time.monotonic() < deadline:
         with state._lock:
             online = state.esp_online is True
@@ -229,8 +229,8 @@ def run_smoke(
         time.sleep(0.2)
     else:
         print(
-            "[FAIL] Timeout: weder LWT online noch Counter empfangen. "
-            "Topics/Pairing/Broker pruefen.",
+            "[FAIL] Timeout: received neither LWT online nor a counter. "
+            "Check topics/pairing/broker.",
             flush=True,
         )
         state.quit_event.set()
@@ -242,12 +242,12 @@ def run_smoke(
         return 1
 
     if not _publish_heart(client, state, topic_pub):
-        print("[FAIL] Publish an ESP fehlgeschlagen", flush=True)
+        print("[FAIL] Publish to ESP failed", flush=True)
         state.quit_event.set()
         client.loop_stop()
         return 1
 
-    # Kurz warten, damit retained Publish die Broker-Queue verlassen kann.
+    # Wait briefly so the retained publish can leave the broker queue.
     time.sleep(0.5)
     print(
         f"[PASS] smoke ok (esp_online={state.esp_online}, "
@@ -278,7 +278,7 @@ def run_interactive(
         sys.stderr.flush()
         print(
             "\n─────────────────────────────",
-            "\nEnter  → Herz senden   |   q + Enter → Beenden",
+            "\nEnter  → Send heart   |   q + Enter → Quit",
             "\n> ",
             end="",
             flush=True,
@@ -308,11 +308,11 @@ def run_interactive(
                 _publish_heart(client, state, topic_pub)
             prompt()
 
-    print(f"[chaya2mqtt Simulator] Verbinde mit {host}:{port} (TLS)...", flush=True)
+    print(f"[chaya2mqtt Simulator] Connecting to {host}:{port} (TLS)...", flush=True)
     try:
         client.connect(host, port, keepalive=60)
     except OSError as e:
-        print(f"[Fehler] connect: {e}", file=sys.stderr, flush=True)
+        print(f"[ERROR] connect: {e}", file=sys.stderr, flush=True)
         return 1
 
     client.loop_start()
@@ -329,7 +329,7 @@ def run_interactive(
         client.disconnect()
     except OSError as exc:
         print(f"[Warn] disconnect: {exc}", file=sys.stderr, flush=True)
-    print("\n[Auf Wiedersehen]", flush=True)
+    print("\n[Goodbye]", flush=True)
     return 0
 
 
@@ -345,7 +345,7 @@ def main() -> None:
     topic_sub = (args.topic_sub or MQTT_TOPIC_SUB).strip()
 
     if not host:
-        parser.error("MQTT_HOST im Script setzen oder --host angeben.")
+        parser.error("Set MQTT_HOST in the script or specify --host.")
 
     if args.smoke:
         raise SystemExit(

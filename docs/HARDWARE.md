@@ -1,77 +1,77 @@
 # Hardware
 
-## Hauptplatine: Waveshare e-Paper ESP32 Driver Board
+## Main board: Waveshare e-Paper ESP32 Driver Board
 
-| Eigenschaft | Wert |
-|-------------|------|
-| **Hersteller** | Waveshare |
-| **Produkt** | Universal e-Paper Raw Panel Driver Board, ESP32 WiFi / Bluetooth Wireless |
+| Property | Value |
+|----------|-------|
+| **Manufacturer** | Waveshare |
+| **Product** | Universal e-Paper Raw Panel Driver Board, ESP32 WiFi / Bluetooth Wireless |
 | **SKU** | 15823 |
 | **SoC** | ESP32 (onboard) – WiFi 802.11 b/g/n, Bluetooth 4.2 |
-| **Betriebsspannung** | 5 V (USB) |
-| **Betriebsstrom** | 50–150 mA |
-| **Low-Power-Strom** | < 2 mA (CP2102 abgeschaltet) |
+| **Operating voltage** | 5 V (USB) |
+| **Operating current** | 50–150 mA |
+| **Low-power current** | < 2 mA (CP2102 disabled) |
 | **SPI-Interface** | 4-Wire SPI |
-| **Abmessungen** | 29,46 × 48,25 mm |
+| **Dimensions** | 29.46 × 48.25 mm |
 
-Das Board hat den **ESP32 direkt integriert** – kein separates DevKit nötig. Das E-Paper-Panel wird über den SPI-Header angeschlossen.
+The board has an **integrated ESP32**—no separate DevKit is required. The e-paper panel connects through the SPI header.
 
 > **Wiki:** [E-Paper_ESP32_Driver_Board](https://www.waveshare.com/wiki/E-Paper_ESP32_Driver_Board)
 
 ## Display: 1.54" e-Paper (B)
 
-| Eigenschaft | Wert |
-|-------------|------|
-| **Modell** | Waveshare 1.54" e-Paper (B) |
+| Property | Value |
+|----------|-------|
+| **Model** | Waveshare 1.54" e-Paper (B) |
 | **Controller** | SSD1682 |
-| **Farben** | Schwarz, Weiß, **Rot** (3-Farben / BWR) |
-| **Auflösung** | 200 × 200 Pixel |
-| **Aktive Fläche** | 27,60 × 27,60 mm |
-| **Full Refresh** | ca. **8–14 s** |
-| **Partial Refresh** | Nicht unterstützt (3-Farben-Variante) |
+| **Colors** | Black, white, **red** (3-color / BWR) |
+| **Resolution** | 200 × 200 pixels |
+| **Active area** | 27.60 × 27.60 mm |
+| **Full refresh** | Approx. **8–14 s** |
+| **Partial refresh** | Not supported (3-color variant) |
 | **Interface** | SPI |
-| **Treiber** | [GxEPD2](https://github.com/ZinggJM/GxEPD2) (`GxEPD2_154_Z90c` + `GxEPD2_3C`) |
+| **Driver** | [GxEPD2](https://github.com/ZinggJM/GxEPD2) (`GxEPD2_154_Z90c` + `GxEPD2_3C`) |
 
-## Pinbelegung
+## Pinout
 
-Alle GPIO-Zuweisungen sind zentral in **`src/hw/pins.h`** (`namespace pins`) definiert.
+All GPIO assignments are defined centrally in **`src/hw/pins.h`** (`namespace pins`).
 
-> **Hinweis:** GPIO 6–11 sind mit dem Flash verbunden und dürfen nicht verwendet werden.
+> **Note:** GPIO 6–11 are connected to flash and must not be used.
 
 ### SPI & Display
 
-| Signal | GPIO | Funktion |
+| Signal | GPIO | Function |
 |--------|------|----------|
-| SCK | **13** | SPI-Takt |
-| MISO | **12** | SPI MISO (vom Waveshare-Layout belegt; EPD braucht typisch nur MOSI) |
-| MOSI | **14** | SPI Daten zum Display |
+| SCK | **13** | SPI clock |
+| MISO | **12** | SPI MISO (assigned by the Waveshare layout; the EPD typically requires only MOSI) |
+| MOSI | **14** | SPI data to the display |
 | CS | **15** | Chip Select Display |
 | DC | **27** | Data/Command |
 | RST | **26** | Reset |
-| BUSY | **25** | Busy-Status (Input) |
+| BUSY | **25** | Busy status (input) |
 
-Initialisierung: `SPI.begin(13, 12, 14, 15)`.
+Initialization: `SPI.begin(13, 12, 14, 15)`.
 
-Nach jedem Draw wird SPI low-power gehalten (`gpio_hold` auf CS).
+After each draw, SPI is kept in low-power mode (`gpio_hold` on CS).
 
-### Taster & LED
+### Button & LED
 
-| Funktion | GPIO | Modus |
-|----------|------|-------|
-| **Button** | **2** | `INPUT_PULLDOWN` – offen = LOW, gedrückt = HIGH |
-| **Button-LED** | **4** | `OUTPUT` – HIGH = LED an |
+| Function | GPIO | Mode |
+|----------|------|------|
+| **Button** | **2** | `INPUT_PULLDOWN`—open = LOW, pressed = HIGH |
+| **Button LED** | **4** | `OUTPUT`—HIGH = LED on |
 
-Der Taster ist ein **beleuchteter Knopf** – die LED wird über GPIO 4 angesteuert und dient als visuelles Feedback:
+The button is **illuminated**—its LED is controlled through GPIO 4 and provides visual feedback:
 
-| Situation | LED-Verhalten |
-|-----------|---------------|
-| Startup | 3× 200 ms Blink |
-| MQTT senden | 2× Blink → Publish → 2× Blink (Erfolg) oder 3× Blink (Fehler) |
-| Factory Reset | Blinkmuster bei 10 s Halten |
+| Situation | LED behavior |
+|-----------|--------------|
+| Startup | Blink 3× for 200 ms |
+| MQTT send | Blink 2× → publish → blink 2× (success) or 3× (error) |
+| Factory reset | Blink pattern after holding for 10 s |
 
-### Verdrahtungsdiagramm (Taster + LED)
+### Wiring diagram (button + LED)
 
-Firmware erwartet: Taster schaltet **3,3 V → GPIO 2** (gedrückt = HIGH). Interner Pull-down am ESP32; kein externer Pull-up nötig. LED von GPIO 4 über Vorwiderstand nach GND (aktive HIGH-Ansteuerung).
+The firmware expects the button to switch **3.3 V → GPIO 2** (pressed = HIGH). The ESP32's internal pull-down is used; no external pull-up is required. Connect the LED from GPIO 4 through a series resistor to GND (active-HIGH drive).
 
 ```text
                  Waveshare ESP32 Driver Board
@@ -79,9 +79,9 @@ Firmware erwartet: Taster schaltet **3,3 V → GPIO 2** (gedrückt = HIGH). Inte
      USB 5 V ────┤ 5V / USB                 │
                  │                          │
            3V3 ──┤ 3V3                      │
-                 │                     GPIO2├────┬──── Taster ──── 3V3
+                 │                     GPIO2├────┬──── Button ──── 3V3
                  │                          │    │
-                 │                          │   (interne Pull-down)
+                 │                          │   (internal pull-down)
                  │                          │
                  │                     GPIO4├────[220Ω–1kΩ]──── LED+ → LED− → GND
                  │                          │
@@ -89,93 +89,93 @@ Firmware erwartet: Taster schaltet **3,3 V → GPIO 2** (gedrückt = HIGH). Inte
                  └──────────────────────────┘
 ```
 
-**Empfehlungen:**
-- LED-Vorwiderstand: typisch **220 Ω–1 kΩ** (je nach LED / Helligkeit)
-- Kurze Leitungen; bei Gehäuse JST-XH oder gleichwertige Stecker statt lose Litze
-- Gemeinsame GND-Referenz zwischen Taster, LED und Board zwingend
+**Recommendations:**
+- LED series resistor: typically **220 Ω–1 kΩ** (depending on the LED / brightness)
+- Use short wires; in an enclosure, use JST-XH or equivalent connectors instead of loose stranded wire
+- A shared GND reference between the button, LED, and board is mandatory
 
-### Freie / reservierte GPIOs
+### Available / reserved GPIOs
 
 | GPIO | Status |
 |------|--------|
-| 6–11 | **Reserviert** (Flash) — nicht nutzen |
-| 2, 4 | Belegt (Button / LED) |
-| 12–15, 25–27 | Belegt (Display-SPI) |
-| 0, 5, 16–19, 21–23, 32–33, 34–39 | Theoretisch frei am ESP32 — **Waveshare-Header prüfen**, bevor Sensoren angeschlossen werden |
+| 6–11 | **Reserved** (flash)—do not use |
+| 2, 4 | Assigned (button / LED) |
+| 12–15, 25–27 | Assigned (display SPI) |
+| 0, 5, 16–19, 21–23, 32–33, 34–39 | Theoretically available on the ESP32—**check the Waveshare header** before connecting sensors |
 
-Bluetooth ist firmwareseitig absichtlich deaktiviert (`btStop()`).
+Bluetooth is intentionally disabled in the firmware (`btStop()`).
 
-## Einsatzbedingungen
+## Operating conditions
 
-| Aspekt | Annahme |
-|--------|---------|
-| Betrieb | Always-on im Heim-WLAN, 5 V USB |
-| Umgebung | Indoor, Raumtemperatur (ca. 0–40 °C), trockene Luft |
-| Gehäuse | Optional; Display und USB zugänglich halten |
-| Outdoor / Batterie | **Nicht spezifiziert** — kein Deep-Sleep-Design |
+| Aspect | Assumption |
+|--------|------------|
+| Operation | Always on in a home WiFi network, 5 V USB |
+| Environment | Indoors, room temperature (approx. 0–40 °C), dry air |
+| Enclosure | Optional; keep the display and USB accessible |
+| Outdoor / battery | **Not specified**—not designed for deep sleep |
 
-## EPD-Treiber
+## EPD driver
 
-Display-Ansteuerung über die PlatformIO-Library **`ZinggJM/GxEPD2`** (aktuell 1.6.x):
+The display is controlled by the PlatformIO library **`ZinggJM/GxEPD2`** (currently 1.6.x):
 
-| Komponente | Inhalt |
-|------------|--------|
-| Panel-Treiber | `GxEPD2_154_Z90c` – SSD1682 / GDEH0154Z90, SPI, Refresh, Hibernate |
-| 3-Farben-Wrapper | `GxEPD2_3C<…>` – Paging über `firstPage()` / `nextPage()` |
-| Projekt-Alias | `ChayaEpdPanel` in `src/display/internal.h` |
+| Component | Details |
+|-----------|---------|
+| Panel driver | `GxEPD2_154_Z90c`—SSD1682 / GDEH0154Z90, SPI, refresh, hibernate |
+| 3-color wrapper | `GxEPD2_3C<…>`—paging through `firstPage()` / `nextPage()` |
+| Project alias | `ChayaEpdPanel` in `src/display/internal.h` |
 
-Verhalten in der Firmware:
-- Full-Window-Refresh (kein Partial Update bei 3-Farben-Panel)
-- `hibernate()` setzt Controller in Deep Sleep (Bild bleibt bistabil)
-- Farben: `GxEPD_BLACK`, `GxEPD_WHITE`, `GxEPD_RED` (aus GxEPD2)
-- Im Setup-AP zeigt der Splash SSID und `http://4.3.2.1`; der Setup-AP ist offen
+Firmware behavior:
+- Full-window refresh (no partial update with the 3-color panel)
+- `hibernate()` puts the controller into deep sleep (the image remains bistable)
+- Colors: `GxEPD_BLACK`, `GxEPD_WHITE`, `GxEPD_RED` (from GxEPD2)
+- In the setup AP, the splash screen shows the SSID and `http://4.3.2.1`; the setup AP is open
 
-## Verkabelungshinweise
+## Wiring notes
 
-- **Stromversorgung:** 5 V über USB am Driver Board
-- **Display:** Direkt über E-Paper-Header (Flachbandkabel / Pin-Header)
-- **Taster + LED:** Extern an GPIO 2 (Button) und GPIO 4 (LED) — siehe Diagramm oben
-- **Refresh-Dauer:** Jeder Full Refresh dauert ca. 8–14 s – das Display flackert kurz bei jedem Update
+- **Power supply:** 5 V through USB on the driver board
+- **Display:** Directly through the e-paper header (ribbon cable / pin header)
+- **Button + LED:** Externally connected to GPIO 2 (button) and GPIO 4 (LED)—see the diagram above
+- **Refresh duration:** Each full refresh takes approximately 8–14 s—the display briefly flickers with every update
 
-## Flash-Partition
+## Flash partitions
 
 Dual-OTA-Layout (`huge_app.csv`):
 
-| Partition | Größe | Zweck |
-|-----------|-------|-------|
+| Partition | Size | Purpose |
+|-----------|------|---------|
 | `nvs` | 20 KB | Non-Volatile Storage |
-| `otadata` | 8 KB | OTA-Boot-Auswahl |
+| `otadata` | 8 KB | OTA boot selection |
 | `ota_0` | 1,875 MB | App-Slot A |
 | `ota_1` | 1,875 MB | App-Slot B |
-| `coredump` | 64 KB | Core-Dump |
-| `spiffs` | 128 KB | SPIFFS (derzeit ungenutzt) |
+| `coredump` | 64 KB | Core dump |
+| `spiffs` | 128 KB | SPIFFS (currently unused) |
 
-Core-Dump-Analyse lokal: `python3 scripts/analyze_coredump.py <dump.bin>` — siehe [OTA.md](OTA.md)#usb-recovery--core-dumps.
+Local core dump analysis: `python3 scripts/analyze_coredump.py <dump.bin>`—see [OTA.md](OTA.md)#usb-recovery--core-dumps.
 
-## Brick-Recovery (USB)
+## Brick recovery (USB)
 
-Wenn OTA/Boot fehlschlägt und das Gerät nicht mehr im WLAN erreichbar ist:
+If OTA/boot fails and the device is no longer reachable through WiFi:
 
-1. USB verbinden, Port notieren
-2. Optional Flash löschen: `make erase` bzw. `make erase-release`
-3. Release neu flashen: `make upload-release` oder `make upload-release-clean`
-4. Serial-Monitor: `make monitor` (Decoder laut `platformio.ini`)
-5. Ohne gespeicherte WLAN-Credentials erscheint wieder der offene SoftAP `Chaya2MQTT`; das Display zeigt SSID und Setup-URL/IP
+1. Connect USB and note the port
+2. Optionally erase flash: `pio run -e esp32dev-release -t erase`
+3. Flash the release again: `make upload ENV=esp32dev-release`
+4. Serial monitor: `make monitor` (decoder as configured in `platformio.ini`)
+5. Without stored WiFi credentials, the open `Chaya2MQTT` SoftAP reappears; the display shows the SSID and setup URL/IP
 
-## PCB-Dokumentation (`pcb/`)
+## PCB documentation (`pcb/`)
 
-| Pfad | Inhalt |
-|------|--------|
-| [`pcb/current-reference/`](../pcb/current-reference/) | KiCad-Referenzschaltplan der aktuellen Waveshare-COTS-Hardware (Pinmap = `pins_esp32_waveshare.h`) |
-| [`pcb/chaya2mqtt-s2/`](../pcb/chaya2mqtt-s2/) | Nicht freigegebener Entwurf für mögliche künftige Hardware |
+| Path | Content |
+|------|---------|
+| [`pcb/current-reference/`](../pcb/current-reference/) | KiCad reference schematic for the current Waveshare COTS hardware (pin map = `pins_esp32_waveshare.h`) |
+| [`pcb/chaya2mqtt-s2/`](../pcb/chaya2mqtt-s2/) | Unreleased design for possible future hardware |
 
-Die Firmware unterstützt derzeit ausschließlich die Waveshare-Hardware. Künftige Hardware ist noch nicht festgelegt; Entwürfe und offene Prüfungen bleiben deshalb unter [`pcb/`](../pcb/) und sind keine freigegebenen Produktionsziele.
+The firmware currently supports only the Waveshare hardware. Future hardware has not yet been determined; designs and outstanding checks therefore remain under [`pcb/`](../pcb/) and are not approved production targets.
 
-Das Gaggimate-PCB dient nur als Ideenquelle (CC BY-NC-SA 4.0); Netzspannungsblöcke werden nicht übernommen.
+The Gaggimate PCB serves only as a source of ideas (CC BY-NC-SA 4.0); mains-voltage sections are not reused.
 
-## Weitere Dokumentation
+## Further documentation
 
-- Display-Geometrie: [DISPLAY.md](DISPLAY.md)
-- Architektur: [ARCHITECTURE.md](ARCHITECTURE.md)
+- Display geometry: [DISPLAY.md](DISPLAY.md)
+- Architecture: [ARCHITECTURE.md](ARCHITECTURE.md)
 - OTA / Recovery: [OTA.md](OTA.md)
 - PCB: [`pcb/README.md`](../pcb/README.md)

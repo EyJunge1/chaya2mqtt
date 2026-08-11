@@ -1,11 +1,12 @@
 #pragma once
 
-/** ESP-IDF MQTT client + Herz-Publish.
- *  Lock-Reihenfolge bei mehreren Mutexen (niemals umkehren):
+/** ESP-IDF MQTT client + heart publish.
+ *  Lock order when acquiring multiple mutexes (never reverse):
  *   1. g_chayaPublishMutex (`mqttPublishChaya*`),
- *   2. g_mqttClientMutex (Client allozieren / esp_mqtt_*),
- *   3. optional g_heartDebounceMutex (Persist nach erfolgreichem Publish).
- *  Broker-Konfiguration nur ueber mqtt/config.h APIs (mqttCfgSnapshot, mqttCfgStorePending, …).
+ *   2. g_mqttClientMutex (allocate client / esp_mqtt_*),
+ *   3. optional g_heartDebounceMutex (persist after a successful publish).
+ *  Access broker configuration only through mqtt/config.h APIs (mqttCfgSnapshot,
+ *  mqttCfgStorePending, …).
  */
 void mqttSetup();
 void mqttDisconnect();

@@ -1,109 +1,109 @@
 # Display
 
-Das E-Ink-Display zeigt ein **rotes Herz** mit **RX- und TX-Zählerständen** (Delta-Anzeige). Alle Zeichnungen laufen ausschließlich im **Display-Task** – andere Tasks senden Befehle über die `g_displayCmdQueue`.
+The E-Ink display shows a **red heart** with **RX and TX counters** (delta display). All drawing takes place exclusively in the **display task**—other tasks send commands via `g_displayCmdQueue`.
 
-## Display-Task
+## Display task
 
-| Parameter | Wert |
-|-----------|------|
+| Parameter | Value |
+|-----------|-------|
 | Stack | 4096 Bytes |
-| Priorität | 3 |
+| Priority | 3 |
 | Core | 1 |
-| WDT | **Nicht angemeldet** (Full Refresh kann >5 s dauern) |
-| Boot-Init | `displayInit()` mit `initial_full_refresh=false` — erster Full Refresh erfolgt beim ersten Draw-Command |
+| WDT | **Not registered** (a full refresh can take >5 s) |
+| Boot initialization | `displayInit()` with `initial_full_refresh=false`—the first full refresh occurs with the first draw command |
 
-### Befehle (`DisplayMsg`)
+### Commands (`DisplayMsg`)
 
-| Befehl | Funktion | Auslöser |
-|--------|----------|----------|
-| `DrawHeart` | `drawHeartWithNumber()` | MQTT-Empfang, Publish, Setup, Counter-Reset |
-| `DrawSplash` | `drawSplashScreen()` | Setup ohne konfigurierten Broker (AP-Modus) |
+| Command | Function | Trigger |
+|---------|----------|---------|
+| `DrawHeart` | `drawHeartWithNumber()` | MQTT reception, publish, setup, counter reset |
+| `DrawSplash` | `drawSplashScreen()` | Setup without a configured broker (AP mode) |
 
-### API für andere Tasks
+### API for other tasks
 
-| Funktion | Blockierend | Timeout |
-|----------|-------------|---------|
-| `requestHeartRedraw()` | Ja (100 ms Queue) | Für Main/Button |
-| `requestHeartRedrawNonBlocking()` | Nein (0 ms) | Für MQTT-Callback |
-| `requestDeferredDrawSplashScreen()` | Ja (100 ms) | Setup |
-| `requestDeferredDrawHeartScreen()` | Ja (100 ms) | Setup |
+| Function | Blocking | Timeout |
+|----------|----------|---------|
+| `requestHeartRedraw()` | Yes (100 ms queue) | For main/button |
+| `requestHeartRedrawNonBlocking()` | No (0 ms) | For MQTT callback |
+| `requestDeferredDrawSplashScreen()` | Yes (100 ms) | Setup |
+| `requestDeferredDrawHeartScreen()` | Yes (100 ms) | Setup |
 
-## Zähler-Delta vs. Absolut
+## Counter delta vs. absolute value
 
-Das Display zeigt **Deltas**, MQTT transportiert **absolute** Werte:
+The display shows **deltas**, while MQTT transports **absolute** values:
 
 ```
-Anzeige RX = max(0, heartCounter − counterBaseline), gecappt bei 999
-Anzeige TX = max(0, heartSentCounter − sentCountBaseline), gecappt bei 999
+Displayed RX = max(0, heartCounter − counterBaseline), capped at 999
+Displayed TX = max(0, heartSentCounter − sentCountBaseline), capped at 999
 ```
 
 | Variable | MQTT | Display | NVS |
 |----------|------|---------|-----|
-| `heartCounter` | Absolut (empfangen) | Delta via Baseline | `chaya/counter` |
-| `heartSentCounter` | Absolut (gesendet) | Delta via Baseline | `chaya/sentCount` |
-| `counterBaseline` | – | RX-Basis | `chaya/cntBase` |
-| `sentCountBaseline` | – | TX-Basis | `chaya/sntBase` |
+| `heartCounter` | Absolute (received) | Delta via baseline | `chaya/counter` |
+| `heartSentCounter` | Absolute (sent) | Delta via baseline | `chaya/sentCount` |
+| `counterBaseline` | – | RX baseline | `chaya/cntBase` |
+| `sentCountBaseline` | – | TX baseline | `chaya/sntBase` |
 
-### Beispiel
+### Example
 
-| Aktion | heartCounter | counterBaseline | Anzeige RX |
-|--------|-------------|-----------------|------------|
+| Action | heartCounter | counterBaseline | Displayed RX |
+|--------|--------------|-----------------|--------------|
 | Start | 0 | 0 | 0 |
-| Partner sendet 42 | 42 | 0 | 42 |
-| Periodischer Reset (Tag 7) | 42 | 42 | 0 |
-| Partner sendet 50 | 50 | 42 | 8 |
+| Partner sends 42 | 42 | 0 | 42 |
+| Periodic reset (day 7) | 42 | 42 | 0 |
+| Partner sends 50 | 50 | 42 | 8 |
 
 ### Overflow (≥999)
 
-Wenn ein Anzeige-Delta ≥ **999** (`kDisplayCounterMax` in `display/display_config.h`) erreicht:
-- Anzeige zeigt `"999+"` wenn der Delta-Wert **größer als** 999 ist (bei exakt 999 wird `999` gezeigt; danach kann die App-Baseline nachziehen)
-- `maybeResetDisplayBaselinesWhenCapped()` setzt die Baseline auf den aktuellen Raw-Wert
-- Anzeige springt zurück auf 0
+When a displayed delta reaches ≥ **999** (`kDisplayCounterMax` in `display/display_config.h`):
+- The display shows `"999+"` when the delta is **greater than** 999 (exactly 999 is shown as `999`; the app can then advance the baseline)
+- `maybeResetDisplayBaselinesWhenCapped()` sets the baseline to the current raw value
+- The display returns to 0
 
-## Herz-Geometrie
+## Heart geometry
 
-Konstanten in `display/draw.cpp`:
+Constants in `display/draw.cpp`:
 
-| Parameter | Wert | Beschreibung |
-|-----------|------|--------------|
-| `kCenterX` | 100 | Herz-Mittelpunkt X |
-| `kHeartSize` | 70 | Herz-Größe |
-| `kCircleRadius` | 45 | Radius der beiden Herz-Kreise |
-| `kCircleSpacing` | 32 | Abstand der Kreise vom Zentrum |
-| `kCircleY` | 50 | Y-Position der Kreise |
-| `kTriangleTop` | 65 | Spitze des Dreiecks (oben) |
-| `kTriangleBottom` | 163 | Spitze des Dreiecks (unten) |
+| Parameter | Value | Description |
+|-----------|-------|-------------|
+| `kCenterX` | 100 | X coordinate of the heart's center |
+| `kHeartSize` | 70 | Heart size |
+| `kCircleRadius` | 45 | Radius of the two heart circles |
+| `kCircleSpacing` | 32 | Distance between the circles and the center |
+| `kCircleY` | 50 | Y position of the circles |
+| `kTriangleTop` | 65 | Top point of the triangle |
+| `kTriangleBottom` | 163 | Bottom point of the triangle |
 
-Aufbau:
-1. Zwei rote Kreise (`GxEPD_RED`) oben
-2. Rotes Dreieck als Herzspitze
-3. Rotes Rechteck als Verbindung
-4. Pfeile (RX unten links ↓, TX oben rechts ↑) in Vordergrundfarbe
-5. Zähler unten (RX links, TX rechts) in Vordergrundfarbe
+Structure:
+1. Two red circles (`GxEPD_RED`) at the top
+2. A red triangle as the point of the heart
+3. A red rectangle connecting them
+4. Arrows (RX at bottom left ↓, TX at top right ↑) in the foreground color
+5. Counters at the bottom (RX on the left, TX on the right) in the foreground color
 
 ### Dark Mode
 
-Persistente Einstellung `cfg/disp_dark` (API `displayDark` / Form `display_dark`), unabhängig vom Web-UI-Theme:
+Persistent setting `cfg/disp_dark` (API `displayDark` / form field `display_dark`), independent of the web UI theme:
 
-| Modus | Hintergrund | Zähler/Pfeile | Herz |
-|-------|-------------|---------------|------|
-| Hell (`0`, Default) | Weiß | Schwarz | Rot |
-| Dunkel (`1`) | Schwarz | Weiß | Rot |
+| Mode | Background | Counters/arrows | Heart |
+|------|------------|-----------------|-------|
+| Light (`0`, default) | White | Black | Red |
+| Dark (`1`) | Black | White | Red |
 
-Nach Speichern einer Änderung wird sofort `requestDeferredDrawHeartScreen()` ausgelöst (ohne Counter-Throttle). Splash-Text nutzt dieselbe Palette.
+After a change is saved, `requestDeferredDrawHeartScreen()` is triggered immediately (without counter throttling). The splash text uses the same palette.
 
-## Text-Rendering
+## Text rendering
 
-| Stellenzahl | TextSize |
-|-------------|----------|
-| ≤3 Ziffern | 4 |
-| ≥4 Ziffern | 3 |
+| Number of digits | TextSize |
+|------------------|----------|
+| ≤3 digits | 4 |
+| ≥4 digits | 3 |
 
-Zentrierung über `getTextBounds()` nach dynamischem `setTextSize`. Bei Delta **> 999** wird `"999+"` angezeigt.
+Centering uses `getTextBounds()` after dynamic `setTextSize`. For deltas **> 999**, `"999+"` is displayed.
 
-Footer-Position: Y=167, RX links (Margin 4 + Arrow-Lane 26), TX rechts (symmetrisch).
+Footer position: Y=167, RX on the left (margin 4 + arrow lane 26), TX on the right (symmetrical).
 
-## Refresh-Ablauf
+## Refresh sequence
 
 ```mermaid
 sequenceDiagram
@@ -114,42 +114,42 @@ sequenceDiagram
     T->>S: displayResumeSpiForDraw
     T->>E: firstPage
     loop nextPage
-        T->>E: Zeichnen (Herz, Pfeile, Text)
+        T->>E: Draw (heart, arrows, text)
         T->>E: nextPage (Full Refresh ~14s)
     end
     T->>E: hibernate
     T->>S: displaySuspendSpiLowPower
 ```
 
-1. SPI aktivieren (`displayResumeSpiForDraw`)
-2. `firstPage()` → Zeichnen → `nextPage()` (Full Refresh, ~8–14 s)
-3. `hibernate()` – Controller Deep Sleep, Bild bleibt bistabil
-4. SPI low-power (`displaySuspendSpiLowPower`, `gpio_hold` auf CS)
+1. Enable SPI (`displayResumeSpiForDraw`)
+2. `firstPage()` → draw → `nextPage()` (full refresh, ~8–14 s)
+3. `hibernate()`—controller deep sleep; the image remains bistable
+4. Put SPI into low-power mode (`displaySuspendSpiLowPower`, `gpio_hold` on CS)
 
-## Splash-Anzeige
+## Splash display
 
-| Screen | Inhalt | TextSize |
-|--------|--------|----------|
+| Screen | Content | TextSize |
+|--------|---------|----------|
 | `drawSplashScreen()` | „Chaya2MQTT" | 3 (min 1) |
 
 ## SPI Low-Power
 
-Zwischen Draws wird SPI deaktiviert:
-- SCK/MOSI/MISO als Input mit Pulldown
-- CS als Output HIGH mit `gpio_hold_en`
-- Reduziert Stromverbrauch und Glitches
+SPI is disabled between draws:
+- SCK/MOSI/MISO as inputs with pull-down
+- CS as output HIGH with `gpio_hold_en`
+- Reduces power consumption and glitches
 
-## EPD-Treiber
+## EPD driver
 
-[GxEPD2](https://github.com/ZinggJM/GxEPD2) als PlatformIO-Library (`ZinggJM/GxEPD2`):
-- Panel: `GxEPD2_154_Z90c` (200×200, 3-Farben BWR)
-- Wrapper: `GxEPD2_3C<…>` für Paging (`firstPage()` / `nextPage()`)
-- Alias `ChayaEpdPanel` in `src/display/internal.h`
+[GxEPD2](https://github.com/ZinggJM/GxEPD2) as a PlatformIO library (`ZinggJM/GxEPD2`):
+- Panel: `GxEPD2_154_Z90c` (200×200, 3-color BWR)
+- Wrapper: `GxEPD2_3C<…>` for paging (`firstPage()` / `nextPage()`)
+- Alias: `ChayaEpdPanel` in `src/display/internal.h`
 - Full-Window-Refresh only (~8–14 s)
 
 Details: [HARDWARE.md](HARDWARE.md)
 
-## Weitere Dokumentation
+## Further documentation
 
-- Zähler-Logik: [heart/counter](../src/heart/counter.h) → [CONFIGURATION.md](CONFIGURATION.md)
-- Architektur (Display-Task): [ARCHITECTURE.md](ARCHITECTURE.md)
+- Counter logic: [heart/counter](../src/heart/counter.h) → [CONFIGURATION.md](CONFIGURATION.md)
+- Architecture (display task): [ARCHITECTURE.md](ARCHITECTURE.md)

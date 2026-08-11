@@ -1,7 +1,7 @@
-# PlatformIO-Boarddefinitionen
+# PlatformIO board definitions
 
-Dieser Ordner ist für eine künftige eigene PlatformIO-Boarddefinition reserviert.
+This directory is reserved for a future custom PlatformIO board definition.
 
-Aktuell unterstützt Chaya2MQTT ausschließlich die Waveshare-COTS-Hardware über PlatformIOs eingebautes Boardprofil `esp32dev`. Deshalb befindet sich hier noch keine Board-JSON-Datei.
+Chaya2MQTT currently supports only the Waveshare COTS hardware through PlatformIO's built-in `esp32dev` board profile. Therefore, this directory does not yet contain a board JSON file.
 
-Sobald die neue Hardware festgelegt und validiert ist, kommen hier ihre Einstellungen für MCU, Flash, PSRAM, Partitionierung, USB und Upload hinein.
+Once the new hardware has been finalized and validated, its MCU, flash, PSRAM, partitioning, USB, and upload settings will be added here.

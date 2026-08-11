@@ -1,12 +1,13 @@
-# ERC-Einstufungen
+# ERC classifications
 
-KiCad 10 ERC meldet für Rev A2 **0 Verstöße**. Alle elektrischen Pins sind
-entweder einem benannten Netz zugeordnet oder explizit als `No Connect`
-markiert. Die erzeugten Custom-Symbole liegen in
-`chaya2mqtt-s2.kicad_sym`, sind im lokalen `sym-lib-table` registriert und
-zusätzlich in der Schaltplandatei eingebettet.
+KiCad 10 ERC reports **0 violations** for Rev A2. All electrical pins are
+either assigned to a named net or explicitly marked as `No Connect`.
+The generated custom symbols are stored in `chaya2mqtt-s2.kicad_sym`,
+registered in the local `sym-lib-table`, and additionally embedded in the
+schematic file.
 
-Für diesen Schaltplan sind keine projektspezifischen ERC-Ausnahmen erforderlich.
+No project-specific ERC exclusions are required for this schematic.
 
-ERC-Freiheit ist keine Produktionsfreigabe. E-Paper-Hochspannungen, USB,
-FPC-Ausrichtung, LDO-Thermik und RF-Verhalten müssen am Prototyp geprüft werden.
+Passing ERC does not constitute production approval. E-paper high voltages,
+USB, FPC orientation, LDO thermal behavior, and RF behavior must be tested on
+the prototype.

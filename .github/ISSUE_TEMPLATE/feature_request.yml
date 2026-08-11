@@ -1,5 +1,5 @@
-name: Feature- oder Änderungsvorschlag
-description: Eine Verbesserung oder größere Änderung vorschlagen
+name: Feature or change request
+description: Suggest an improvement or major change
 title: "[Feature]: "
 labels:
   - enhancement
@@ -7,72 +7,71 @@ body:
   - type: markdown
     attributes:
       value: |
-        Für Fehlerberichte bitte die Vorlage „Fehlerbericht“ verwenden.
-        Sicherheitsprobleme bitte nicht öffentlich melden, sondern über „Report a vulnerability“.
+        For bug reports, please use the "Bug report" template.
 
-        Größere Architektur-, Protokoll- oder Hardwareänderungen bitte vor der Umsetzung hier abstimmen.
+        Please discuss major architecture, protocol, or hardware changes here before implementation.
   - type: dropdown
     id: area
     attributes:
-      label: Bereich
+      label: Area
       options:
         - Firmware
-        - Weboberfläche
-        - MQTT / Protokoll
-        - WLAN / Setup
+        - Web interface
+        - MQTT / Protocol
+        - Wi-Fi / Setup
         - OTA
         - Display
         - Hardware / PCB
-        - Dokumentation
+        - Documentation
         - CI / Tests
-        - Sonstiges
+        - Other
     validations:
       required: true
   - type: dropdown
     id: scope
     attributes:
-      label: Umfang
-      description: Bei größeren Änderungen bitte Alternativen und Auswirkungen besonders klar beschreiben.
+      label: Scope
+      description: For major changes, please describe alternatives and impact particularly clearly.
       options:
-        - Kleine Verbesserung
-        - Neue Funktion
-        - Größere Architektur-, Protokoll- oder Hardwareänderung
+        - Small improvement
+        - New feature
+        - Major architecture, protocol, or hardware change
     validations:
       required: true
   - type: textarea
     id: problem
     attributes:
-      label: Problem / Nutzen
-      description: Welches Problem soll gelöst werden und warum ist das wichtig?
+      label: Problem / Benefit
+      description: What problem should be solved, and why is it important?
     validations:
       required: true
   - type: textarea
     id: proposal
     attributes:
-      label: Vorgeschlagene Lösung
-      description: Wie soll die Änderung aussehen?
+      label: Proposed solution
+      description: What should the change look like?
     validations:
       required: true
   - type: textarea
     id: alternatives
     attributes:
-      label: Alternativen
-      description: Welche Alternativen wurden erwogen?
+      label: Alternatives
+      description: What alternatives were considered?
   - type: textarea
     id: impact
     attributes:
-      label: Auswirkungen
-      description: Mögliche Auswirkungen auf bestehende Geräte, APIs, MQTT-Topics, NVS-Schema, OTA oder Hardware.
+      label: Impact
+      description: Possible impact on existing devices, APIs, MQTT topics, the NVS schema, OTA, or hardware.
       placeholder: |
-        Breaking Change? ja/nein
-        Betroffene Verträge: REST/OpenAPI, AsyncAPI/SSE, MQTT, Pinmap, …
-        Migrationsbedarf: …
+        Breaking change? yes/no
+        Affected contracts: REST/OpenAPI, AsyncAPI/SSE, MQTT, pin map, …
+        Migration required: …
   - type: checkboxes
     id: checks
     attributes:
-      label: Vor dem Absenden
+      label: Before submitting
       options:
-        - label: Ich habe bestehende Issues auf Duplikate geprüft.
+        - label: I have checked existing issues for duplicates.
           required: true
-        - label: Bei größeren Änderungen stimme ich den Vorschlag vor der Umsetzung hier ab.
+        - label: For major changes, I will discuss the proposal here before implementation.
           required: true

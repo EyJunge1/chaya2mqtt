@@ -1,14 +1,14 @@
 ---
-description: Vor jedem Commit lokale Checks mit make check ausführen
+description: Run local checks with make check before every commit
 alwaysApply: true
 ---
 
-# Check vor Commit
+# Pre-commit checks
 
-Vor **jedem** Commit in diesem Repository:
+Before **every** commit in this repository:
 
-1. `make check` ausführen (Frontend-Lint/Coverage/Build, native Unity + ASan, cppcheck, Playwright, ESP32-Release-Build). Details: `docs/TESTING.md`.
-2. Bei Fehler **nicht** committen; zuerst den Fehler beheben und erneut prüfen.
-3. Erst nach erfolgreichem `make check` den Commit erstellen.
+1. Run `make check` (frontend lint/coverage/build, native Unity + ASan, cppcheck, Playwright, ESP32 release build). Details: `docs/TESTING.md`.
+2. If it fails, **do not** commit; fix the error first and run the checks again.
+3. Create the commit only after `make check` succeeds.
 
-Manuelle Terminal-Commits ohne Cursor werden dadurch nicht technisch blockiert; für Agent-Commits ist der Check Pflicht.
+Manual terminal commits made without Cursor are not technically blocked; this check is mandatory for agent commits.

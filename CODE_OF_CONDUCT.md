@@ -1,26 +1,24 @@
-# Verhaltenskodex
+# Code of Conduct
 
-Chaya2MQTT soll eine respektvolle und zugängliche Projektgemeinschaft sein.
+Chaya2MQTT aims to be a respectful and accessible project community.
 
-## Erwartetes Verhalten
+## Expected behavior
 
-- Sachlich, freundlich und konstruktiv kommunizieren.
-- Unterschiedliche Erfahrungen und Perspektiven respektieren.
-- Feedback auf Inhalte und technische Entscheidungen beziehen, nicht auf Personen.
-- Fehler eingestehen und gemeinsam nach Lösungen suchen.
-- Private Informationen anderer nicht ohne Einwilligung veröffentlichen.
+- Communicate objectively, kindly, and constructively.
+- Respect different experiences and perspectives.
+- Direct feedback at content and technical decisions, not at individuals.
+- Acknowledge mistakes and work together to find solutions.
+- Do not publish other people's private information without their consent.
 
-## Nicht akzeptiertes Verhalten
+## Unacceptable behavior
 
-- Beleidigungen, Belästigung, Diskriminierung oder Einschüchterung.
-- Sexualisierte Sprache oder unerwünschte persönliche Aufmerksamkeit.
-- Trolling, persönliche Angriffe oder absichtliche Störung von Diskussionen.
-- Veröffentlichung privater oder sensibler Daten.
+- Insults, harassment, discrimination, or intimidation.
+- Sexualized language or unwelcome personal attention.
+- Trolling, personal attacks, or deliberately disrupting discussions.
+- Publishing private or sensitive data.
 
-## Durchsetzung
+## Enforcement
 
-Maintainer dürfen Beiträge bearbeiten, ausblenden oder entfernen und Personen bei wiederholten oder schweren Verstößen zeitweise oder dauerhaft von der Mitarbeit ausschließen.
+Maintainers may edit, hide, or remove contributions and may temporarily or permanently exclude individuals from participating in the project for repeated or serious violations.
 
-Vorfälle sollen nicht öffentlich diskutiert werden. Nutze für eine vertrauliche Meldung die Funktion **Report a vulnerability** im Security-Bereich des GitHub-Repositories und kennzeichne die Meldung eindeutig als Verhaltensvorfall. Meldungen werden vertraulich und nach bestem Ermessen bearbeitet.
-
-Dieser Kodex gilt in allen Projektbereichen sowie überall dort, wo eine Person das Projekt offiziell vertritt.
+This code applies in all areas of the project and wherever an individual officially represents the project.

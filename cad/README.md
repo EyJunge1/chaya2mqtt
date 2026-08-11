@@ -1,15 +1,15 @@
-# CAD — Gehäuse
+# CAD — Enclosure
 
-Dieser Ordner ist für die mechanischen CAD-Dateien des Chaya2MQTT-Gehäuses vorgesehen.
+This directory is intended for the mechanical CAD files of the Chaya2MQTT enclosure.
 
-Aktuell unterstützt das Projekt die Waveshare-COTS-Hardware. Gehäusemodelle sollten deshalb die Abmessungen dieser aktuellen Hardware verwenden.
+The project currently supports the Waveshare COTS hardware. Enclosure models should therefore use the dimensions of this current hardware.
 
-Sobald die neue Hardware festgelegt und validiert ist, kommen hier die zugehörigen Gehäusemodelle hinein. Entwürfe für mögliche künftige Platinen müssen bis dahin eindeutig als vorläufig gekennzeichnet werden.
+Once the new hardware has been finalized and validated, its enclosure models will be added here. Until then, designs for potential future PCBs must be clearly marked as preliminary.
 
-Bevorzugte Austauschformate:
+Preferred exchange formats:
 
-- Quelldateien des verwendeten CAD-Programms in `cad/`
-- `STEP` für bearbeitbare 3D-Geometrie und Fertigung in `cad/`
-- `STL` oder `3MF` für den 3D-Druck in `cad/exports/`
+- Source files from the CAD application used in `cad/`
+- `STEP` for editable 3D geometry and manufacturing in `cad/`
+- `STL` or `3MF` for 3D printing in `cad/exports/`
 
-Zu jedem Gehäuseentwurf sollten Variante, Zielhardware, Revision und benötigte Schrauben beziehungsweise Druckparameter dokumentiert werden.
+Each enclosure design should document its variant, target hardware, revision, and required screws or print parameters.

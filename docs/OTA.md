@@ -1,210 +1,205 @@
-# OTA – Firmware-Updates
+# OTA – Firmware Updates
 
-Chaya2MQTT unterstützt **Over-The-Air-Updates** über GitHub Releases. Die Firmware wird per HTTPS heruntergeladen, mit MD5 gegen Übertragungsfehler geprüft und über Arduino-`HTTPUpdate` in die nächste OTA-Partition geflasht.
+Chaya2MQTT supports **over-the-air updates** through GitHub Releases. The firmware is downloaded via HTTPS, checked with MD5 for transmission errors, and flashed to the next OTA partition using Arduino `HTTPUpdate`.
 
-## Übersicht
+## Overview
 
 ```mermaid
 flowchart LR
-    trigger[Auto-Check oder manuell]
+    trigger[Automatic check or manual]
     github[GitHub Releases API]
-    calver[CalVer-Vergleich]
-    confirm[UI-Bestätigung]
+    calver[CalVer comparison]
+    confirm[UI confirmation]
     md5[MD5-Sidecar]
     httpUpdate[HTTPUpdate]
-    reboot[Kontrollierter Reboot]
+    reboot[Controlled reboot]
 
     trigger --> github
     github --> calver
-    calver -->|neuer| confirm
+    calver -->|newer| confirm
     confirm --> md5
     md5 --> httpUpdate
     httpUpdate --> reboot
 ```
 
-## Kanäle
+## Channels
 
-| Kanal | Quelle | Auswahl |
-|-------|--------|---------|
-| `stable` | `/repos/.../releases/latest` | Neuestes nicht-Draft-Release |
-| `beta` | `/repos/.../releases?per_page=10` | Neuestes Prerelease, sonst Fallback auf Stable |
+| Channel | Source | Selection |
+|---------|--------|-----------|
+| `stable` | `/repos/.../releases/latest` | Latest non-draft release |
+| `beta` | `/repos/.../releases?per_page=10` | Latest prerelease, otherwise fallback to stable |
 
-Kanalwahl wird in NVS (`cfg/upd_chan`) gespeichert. Ein automatisches Downgrade findet nicht statt.
+The channel selection is stored in NVS (`cfg/upd_chan`). Automatic downgrades are not performed.
 
-## GitHub-Release-Quelle
+## GitHub release source
 
-| Parameter | Wert |
-|-----------|------|
+| Parameter | Value |
+|-----------|-------|
 | Repository | `EyJunge1/chaya2mqtt` |
 | Firmware-URL | `https://github.com/EyJunge1/chaya2mqtt/releases/download/{tag}/firmware.bin` |
 | MD5-URL | `https://github.com/EyJunge1/chaya2mqtt/releases/download/{tag}/firmware.md5` |
 
-Releases werden **manuell** per Git-Tag ausgelöst (CI: `.github/workflows/build-release.yml`). Der Tag muss auf einem Commit liegen, der in `main` enthalten ist.
+Releases are triggered **manually** by a Git tag (CI: `.github/workflows/build-release.yml`). The tag must point to a commit contained in `main`.
 
-## Versionierung (CalVer)
+## Versioning (CalVer)
 
-Schema: **`YYYY.M.PATCH`** (Monat ohne führende Null). Git-Tags tragen ein Prefixt `v`.
+Schema: **`YYYY.M.PATCH`** (month without a leading zero). Git tags have a `v` prefix.
 
-| Art | Git-Tag | `APP_VERSION` in der Firmware |
-|-----|---------|-------------------------------|
+| Type | Git tag | `APP_VERSION` in the firmware |
+|------|---------|-------------------------------|
 | Stable | `v2026.8.1` | `2026.8.1` |
 | Release Candidate | `v2026.8.1-rc.1` | `2026.8.1-rc.1` |
 
-RC-Releases werden auf GitHub als **Prerelease** veröffentlicht und nicht als „Latest“ markiert. Der Stable-Kanal sieht sie deshalb nicht; der Beta-Kanal bevorzugt sie.
+RC releases are published on GitHub as **prereleases** and are not marked “Latest.” The stable channel therefore does not see them; the beta channel prefers them.
 
-### Tag erstellen und pushen
+### Creating and pushing a tag
 
 ```bash
-# Release Candidate (aus main)
+# Release candidate (from main)
 git checkout main
 git pull --no-tags origin main
 git tag -a v2026.8.1-rc.1 -m "RC 2026.8.1-rc.1"
 git push origin v2026.8.1-rc.1
 
-# Stable (aus main)
+# Stable (from main)
 git tag -a v2026.8.1 -m "Release 2026.8.1"
 git push origin v2026.8.1
 ```
 
-Vor dem Tag lokal prüfen: `make check`.
+Before tagging, run locally: `make check`.
 
-## Versionsvergleich
+## Version comparison
 
-- `APP_VERSION` aus `config/version.h` (CI setzt aus Tag **ohne** führendes `v`, z. B. `2026.8.1`)
-- GitHub `tag_name` wird komponentenweise als CalVer verglichen (`YYYY`, Monat, Patch, RC-Nummer); Stable sortiert über RC mit derselben Basisversion
-- Upgrade verfügbar wenn Remote-Version > lokale Version
-- `APP_VERSION == "dev"`: **kein automatischer Check** (nur manuell)
+- `APP_VERSION` from `config/version.h` (CI sets it from the tag **without** the leading `v`, e.g. `2026.8.1`)
+- GitHub `tag_name` is compared component by component as CalVer (`YYYY`, month, patch, RC number); stable sorts above RC with the same base version
+- An upgrade is available if the remote version > local version
+- `APP_VERSION == "dev"`: **no automatic check** (manual only)
 
-## Auto-Check (täglich)
+## Automatic check (daily)
 
-| Bedingung | Beschreibung |
-|-----------|--------------|
-| Modus | Nur im STA-Modus (nicht AP) |
-| WiFi | STA verbunden |
-| NTP | Zeit synchronisiert (`> 1700000000` UTC) |
+| Condition | Description |
+|-----------|-------------|
+| Mode | STA mode only (not AP) |
+| WiFi | STA connected |
+| NTP | Time synchronized (`> 1700000000` UTC) |
 | Version | `APP_VERSION != "dev"` |
-| Intervall | Max. 1× pro UTC-Kalendertag |
-| NVS-Key | `cfg/upd_day` (letzter Check-Tag) |
+| Interval | At most once per UTC calendar day |
+| NVS key | `cfg/upd_day` (last check day) |
 
-Ablauf:
-1. Kalendertag prüfen → wenn schon gecheckt: skip
-2. `otaGithubEvaluateChannel()` → CalVer-Vergleich für den gewählten Kanal
-3. Bei Upgrade: Status `available` setzen (**keine** automatische Installation)
-4. Check-Tag in NVS speichern
+Sequence:
+1. Check the calendar day → if already checked: skip
+2. `otaGithubEvaluateChannel()` → CalVer comparison for the selected channel
+3. On upgrade: set status to `available` (**no** automatic installation)
+4. Store the check day in NVS
 
-## Manueller Check / Installation
+## Manual check / installation
 
-| Endpoint | Methode | Beschreibung |
-|----------|---------|--------------|
-| `/api/update/status` | GET | Status-Snapshot |
-| `/api/update/check` | POST | Check starten; optional `channel=stable\|beta` |
-| `/api/update/install` | POST | Installation nach Bestätigung starten |
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/update/status` | GET | Status snapshot |
+| `/api/update/check` | POST | Start check; optional `channel=stable\|beta` |
+| `/api/update/install` | POST | Start installation after confirmation |
 
-SSE-Event `ota` liefert Live-Updates (Phase, Fortschritt, Fehler).
+The `ota` SSE event provides live updates (phase, progress, error).
 
-Web-UI: `/update` — Kanalwahl, Versionsanzeige, Fortschritt, Confirm-Dialog vor Install.
+Web UI: `/update`—channel selection, version display, progress, and a confirmation dialog before installation.
 
-## Download & Installation
+## Download & installation
 
 `otaFlashVerifiedInstall(binUrl, md5Url)` in `ota/flash.cpp`:
 
-1. **MD5-Datei laden:** `firmware.md5` per HTTPS + TLS (CA-Bundle)
-2. **HTTPUpdate:** `setMD5sum()`, Redirects an, `rebootOnUpdate(false)`
-3. **Flash:** Arduino-`HTTPUpdate`/`Update` schreibt in die nächste OTA-Partition
-4. **Fortschritt:** Callbacks aktualisieren den OTA-Status für SSE/UI
-5. **Reboot:** kontrolliert durch chaya2mqtt nach Flush
+1. **Load MD5 file:** `firmware.md5` via HTTPS + TLS (CA bundle)
+2. **HTTPUpdate:** `setMD5sum()`, redirects enabled, `rebootOnUpdate(false)`
+3. **Flash:** Arduino `HTTPUpdate`/`Update` writes to the next OTA partition
+4. **Progress:** callbacks update the OTA status for SSE/UI
+5. **Reboot:** controlled by chaya2mqtt after flushing
 
-Bei MD5-Mismatch oder Flash-Fehler: **kein Reboot**.
+On an MD5 mismatch or flash error: **no reboot**.
 
-## OTA-Task
+## OTA task
 
-| Parameter | Wert |
-|-----------|------|
-| Stack | 8192 Bytes |
-| Priorität | 4 |
+| Parameter | Value |
+|-----------|-------|
+| Stack | 8192 bytes |
+| Priority | 4 |
 | Core | 1 |
-| WDT | angemeldet (temporär abgemeldet während `otaLoop()`) |
+| WDT | Registered (temporarily unregistered during `otaLoop()`) |
 
-Vor Reboot nach erfolgreichem Flash:
+Before rebooting after a successful flash:
 - `flushHeartCounterIfDirty()` / `flushHeartSentCounterIfDirty()`
 - `releaseGpioHoldBeforeRestart()`
 - `ESP.restart()`
 
-## Boot nach OTA
+## Boot after OTA
 
-Im **App-Task** (`appTaskFn`) wird Rollback erst nach einem **stabilen Laufzeitfenster** aufgehoben:
+In the **app task** (`appTaskFn`), rollback is canceled only after a **stable runtime window**:
 
 - Helper: `otaHealthWindowElapsed()` in `src/ota/ota_health.h`
-- Default: **`kOtaHealthStableMs = 30000`** (30 s) nach erstem WiFi-Boot-Settle (`wlanBootSettledAtMs()`)
-- Voraussetzungen: `wlanIsSetupComplete()` und `wlanIsBootWifiSettled()` (STA **oder** AP-Fallback)
-- MQTT-Verfügbarkeit ist **keine** Pflicht (Broker/Router sind externe Fehlerquellen)
-- Danach: `otaTryMarkValidAfterHealthCheck()` markiert das Image als gültig und bricht Rollback ab
+- Default: **`kOtaHealthStableMs = 30000`** (30 s) after the first WiFi boot settlement (`wlanBootSettledAtMs()`)
+- Requirements: `wlanIsSetupComplete()` and `wlanIsBootWifiSettled()` (STA **or** AP fallback)
+- MQTT availability is **not** required (broker/router are external sources of failure)
+- Then `otaTryMarkValidAfterHealthCheck()` marks the image as valid and cancels rollback
 
-Pure-Helper-Tests: `test/test_ota/test_ota.cpp` (`test_ota_health_window`, inkl. Wraparound).
+Pure helper tests: `test/test_ota/test_ota.cpp` (`test_ota_health_window`, including wraparound).
 
-## CI/CD Pipeline
+## CI/CD pipeline
 
 GitHub Actions (`.github/workflows/build-release.yml`):
 
-1. Trigger: Push auf Tag `vYYYY.M.PATCH` oder `vYYYY.M.PATCH-rc.N`
-2. Tag-Format prüfen; Commit muss Ancestor von `origin/main` sein
-3. `APP_VERSION` aus Tag setzen (ohne `v`)
-4. Frontend build + SPA einbetten (Lint/Tests nur lokal via `make check`)
-5. `pio run -e esp32dev-release`, OTA-Slot-Größe prüfen
-6. MD5 von `firmware.bin` berechnen
-7. GitHub Release mit `firmware.bin` + `firmware.md5` (RC = Prerelease)
+1. Trigger: push of tag `vYYYY.M.PATCH` or `vYYYY.M.PATCH-rc.N`
+2. Validate tag format; commit must be an ancestor of `origin/main`
+3. Set `APP_VERSION` from the tag (without `v`)
+4. Build frontend + embed SPA (lint/tests run locally only via `make check`)
+5. Run `pio run -e esp32dev-release` and verify OTA slot size
+6. Calculate MD5 of `firmware.bin`
+7. GitHub Release with `firmware.bin` + `firmware.md5` (RC = prerelease)
 
-Lokale Checks vor Commits: `make check` (Cursor-Regel: `.cursor/rules/check-before-commit.mdc`).
+Local checks before commits: `make check` (Cursor rule: `.cursor/rules/check-before-commit.mdc`).
 
-## Fehlerbehandlung
+## Error handling
 
-| Fehler | Verhalten |
-|--------|-----------|
-| GitHub API nicht erreichbar | Status `error` / `api_error`, kein Download |
-| Kein Upgrade verfügbar | Status `idle`, Check-Tag trotzdem speichern |
-| MD5-Mismatch | Installation abbrechen, kein Reboot |
-| Flash-Fehler | Installation abbrechen, kein Reboot |
-| AP-Modus | Auto-Check übersprungen |
+| Error | Behavior |
+|-------|----------|
+| GitHub API unavailable | Status `error` / `api_error`, no download |
+| No upgrade available | Status `idle`, still store the check day |
+| MD5 mismatch | Abort installation, no reboot |
+| Flash error | Abort installation, no reboot |
+| AP mode | Automatic check skipped |
 
-## Sicherheit
+## Security
 
-- TLS mit Mozilla-CA-Bundle für Download
-- MD5-Integritätsprüfung gegen Übertragungsfehler (kein kryptografischer Herkunftsnachweis)
-- **Keine Code-Signatur** der Firmware-Blobs
-- Threat Model: Vertrauen in GitHub-Release-Quelle
-- Während OTA: Factory Reset / Reboot / Netzwerk-Restart sind blockiert (`otaBlocksDestructiveAction`)
+- TLS with the Mozilla CA bundle for downloads
+- MD5 integrity check against transmission errors (not cryptographic proof of origin)
+- **No code signature** for firmware blobs
+- Threat model: trust in the GitHub release source
+- During OTA, factory reset / reboot / network restart are blocked (`otaBlocksDestructiveAction`)
 
-Details: [SECURITY.md](SECURITY.md)
+## USB recovery & core dumps
 
-## USB-Recovery & Core-Dumps
+### Device no longer reachable (“brick”)
 
-### Gerät nicht mehr erreichbar („Brick“)
+1. Connect USB
+2. `pio run -e esp32dev-release -t erase` (optional; deletes NVS including WiFi)
+3. `make upload ENV=esp32dev-release`
+4. The open `Chaya2MQTT` SoftAP appears without credentials; the display shows the SSID and setup URL/IP
 
-1. USB verbinden
-2. `make erase-release` (optional, löscht NVS inkl. WLAN)
-3. `make upload-release`
-4. Der offene SoftAP `Chaya2MQTT` erscheint ohne Credentials; das Display zeigt SSID und Setup-URL/IP
-5. Alternativ: `make upload-release-clean` = erase + flash
+There is **no** unauthenticated HTTP endpoint for core dumps.
 
-Es gibt **keinen** unauthentifizierten HTTP-Endpunkt für Core-Dumps.
+### Reading a core dump
 
-### Core-Dump lesen
-
-Partition `coredump` (64 KiB @ `0x3D0000` in `huge_app.csv`):
+The `coredump` partition (64 KiB @ `0x3D0000` in `huge_app.csv`):
 
 ```bash
-# Dump von Flash lesen (Port anpassen)
+# Read dump from flash (adjust port)
 esptool.py --chip esp32 --port /dev/tty.usbserial-* read_flash 0x3D0000 0x10000 /tmp/coredump.bin
 
-# Gegen das passende ELF analysieren
-pio run -e esp32dev-release   # erzeugt .pio/build/esp32dev-release/firmware.elf
-make analyze-coredump DUMP=/tmp/coredump.bin
-# oder:
+# Analyze against the matching ELF
+pio run -e esp32dev-release   # creates .pio/build/esp32dev-release/firmware.elf
 python3 scripts/analyze_coredump.py /tmp/coredump.bin esp32dev-release
 ```
 
-## Weitere Dokumentation
+## Further documentation
 
-- Konfiguration (NVS `upd_day`, `upd_chan`): [CONFIGURATION.md](CONFIGURATION.md)
-- Architektur (OTA-Task): [ARCHITECTURE.md](ARCHITECTURE.md)
-- Hardware / Brick-Recovery: [HARDWARE.md](HARDWARE.md)
+- Configuration (NVS `upd_day`, `upd_chan`): [CONFIGURATION.md](CONFIGURATION.md)
+- Architecture (OTA task): [ARCHITECTURE.md](ARCHITECTURE.md)
+- Hardware / brick recovery: [HARDWARE.md](HARDWARE.md)
