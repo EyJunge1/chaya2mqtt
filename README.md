@@ -33,7 +33,7 @@ Wi-Fi and MQTT credentials are stored as plaintext in NVS, the web interface use
 
 ## Contributing
 
-Guidance for issues and pull requests is available in [CONTRIBUTING.md](CONTRIBUTING.md). The [Code of Conduct](CODE_OF_CONDUCT.md) applies to all areas of the project.
+Guidance for issues and pull requests is available in [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## License
 
