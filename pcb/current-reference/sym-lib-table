@@ -1,0 +1,4 @@
+(sym_lib_table
+  (version 7)
+  (lib (name "chaya2mqtt")(type "KiCad")(uri "${KIPRJMOD}/../lib/chaya2mqtt.kicad_sym")(options "")(descr "chaya2mqtt custom symbols"))
+)

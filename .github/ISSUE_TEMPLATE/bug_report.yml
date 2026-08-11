@@ -1,0 +1,91 @@
+name: Fehlerbericht
+description: Einen reproduzierbaren Fehler in Firmware, Weboberfläche oder Hardwaredokumentation melden
+title: "[Bug]: "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Sicherheitsprobleme bitte nicht öffentlich melden. Verwende dafür „Report a vulnerability“ im Security-Bereich.
+
+        Bitte keine Passwörter, Tokens, privaten MQTT-Topics oder sonstigen Zugangsdaten einfügen. Logs und Screenshots vor dem Absenden prüfen und bei Bedarf schwärzen.
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: Firmware-Version, Release-Tag oder Commit
+      placeholder: v2026.8.0
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Bereich
+      options:
+        - Firmware
+        - Weboberfläche
+        - MQTT
+        - WLAN / Setup
+        - OTA
+        - Display
+        - Hardware / PCB
+        - Dokumentation
+    validations:
+      required: true
+  - type: textarea
+    id: description
+    attributes:
+      label: Fehlerbeschreibung
+      description: Was ist passiert?
+      placeholder: Kurze, klare Beschreibung des Fehlers.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Erwartetes Verhalten
+      description: Was sollte stattdessen passieren?
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Reproduktion
+      description: Möglichst genaue Schritte, um den Fehler zu reproduzieren
+      placeholder: |
+        1. …
+        2. …
+        3. …
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Umgebung / Hardware
+      description: Optional, aber hilfreich. Beispiele je nach Bereich.
+      placeholder: |
+        Hardware: Waveshare ESP32 + 1.54″ BWR / eigene PCB
+        Build: esp32dev oder esp32dev-release
+        MQTT-Broker: Typ und TLS ja/nein (ohne Zugangsdaten)
+        Browser/OS: nur bei Weboberfläche
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevante Logs
+      description: Keine Passwörter, Tokens, privaten MQTT-Topics oder sonstigen Zugangsdaten einfügen. Logs bei Bedarf schwärzen.
+      render: shell
+  - type: textarea
+    id: additional
+    attributes:
+      label: Screenshots / Zusatzinformationen
+      description: Optional Screenshots, Seriennummer-Hinweise ohne Geheimnisse oder weitere Kontextinformationen.
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Vor dem Absenden
+      options:
+        - label: Ich habe bestehende Issues auf Duplikate geprüft.
+          required: true
+        - label: Der Bericht enthält keine Zugangsdaten oder anderen sensiblen Daten.
+          required: true

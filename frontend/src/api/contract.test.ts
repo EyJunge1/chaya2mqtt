@@ -1,0 +1,91 @@
+import { existsSync, readFileSync } from "node:fs";
+import { resolve } from "node:path";
+import { describe, expect, it } from "vitest";
+import { API_GET_PATHS, API_POST_PATHS, SSE_EVENT_TYPES, SPA_UI_PATHS } from "./contract";
+import { api } from "./client";
+
+function findRoot(): string {
+  let dir = process.cwd();
+  for (let i = 0; i < 6; i++) {
+    if (existsSync(resolve(dir, "docs/WEB_ADMIN.md")) && existsSync(resolve(dir, "src/web"))) {
+      return dir;
+    }
+    dir = resolve(dir, "..");
+  }
+  throw new Error("repository root not found from " + process.cwd());
+}
+
+const root = findRoot();
+
+function read(rel: string): string {
+  return readFileSync(resolve(root, rel), "utf8");
+}
+
+describe("api contract", () => {
+  it("exposes expected client methods", () => {
+    expect(typeof api.getDevice).toBe("function");
+    expect(typeof api.getUpdateStatus).toBe("function");
+    expect(typeof api.checkUpdate).toBe("function");
+    expect(typeof api.installUpdate).toBe("function");
+    expect(typeof api.sendChaya).toBe("function");
+  });
+
+  it("keeps mock plugin aligned with GET/POST paths", () => {
+    const mock = read("frontend/mock/mockPlugin.ts");
+    for (const path of [...API_GET_PATHS, ...API_POST_PATHS]) {
+      expect(mock).toContain(`"${path}"`);
+    }
+    expect(mock).toContain('"/events"');
+  });
+
+  it("keeps firmware API routes aligned", () => {
+    const apiCpp = read("src/web/routes/admin_routes_api.cpp");
+    for (const path of [...API_GET_PATHS, ...API_POST_PATHS]) {
+      expect(apiCpp).toContain(`"${path}"`);
+    }
+  });
+
+  it("documents SSE event types and SPA paths", () => {
+    const docs = read("docs/WEB_ADMIN.md");
+    for (const event of SSE_EVENT_TYPES) {
+      expect(docs).toContain(event);
+    }
+    for (const path of SPA_UI_PATHS) {
+      expect(docs).toContain(path);
+    }
+  });
+
+  it("keeps OpenAPI paths aligned with the contract", () => {
+    const openapi = read("docs/openapi.yaml");
+    for (const path of [...API_GET_PATHS, ...API_POST_PATHS]) {
+      expect(openapi).toContain(`  ${path}:`);
+    }
+  });
+
+  it("keeps MQTT config fields aligned across client, mock and OpenAPI", () => {
+    const client = read("frontend/src/api/client.ts");
+    const mock = read("frontend/mock/mockPlugin.ts");
+    const openapi = read("docs/openapi.yaml");
+    const firmware = read("src/web/routes/admin_routes_api.cpp");
+    for (const field of ["mqtt_server", "mqtt_port", "mqtt_user", "mqtt_pass", "partner_id"]) {
+      expect(client).toContain(field);
+      expect(mock).toContain(field);
+      expect(openapi).toContain(field);
+      expect(firmware).toContain(field);
+    }
+  });
+
+  it("documents CSRF in OpenAPI and SSE in AsyncAPI", () => {
+    const openapi = read("docs/openapi.yaml");
+    const asyncapi = read("docs/asyncapi.yaml");
+    expect(openapi).toContain("/api/csrf");
+    expect(openapi).toContain("csrf_token");
+    expect(asyncapi).toContain("/events");
+  });
+
+  it("keeps mutating client posts expecting csrf_token", () => {
+    const client = read("frontend/src/api/client.ts");
+    expect(client).toContain("csrf_token");
+    expect(client).toContain("/api/csrf");
+  });
+});

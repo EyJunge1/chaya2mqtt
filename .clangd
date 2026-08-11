@@ -1,0 +1,31 @@
+CompileFlags:
+  CompilationDatabase: .
+  Remove:
+    # Xtensa-spezifische Flags, die macOS-Clang nicht kennt
+    - -mlongcalls
+    - -mdisable-hardware-atomics
+    - -mfix-esp32-psram-cache-issue
+    - -mfix-esp32-psram-cache-strategy=*
+    - -mtext-section-literals
+    - -mno-serialize-volatile
+    # GCC-spezifische Flags
+    - -fno-tree-switch-conversion
+    - -fstrict-volatile-bitfields
+    - -fno-jump-tables
+    - -freorder-blocks
+    - -fno-builtin-memcpy
+    - -fno-builtin-memset
+    - -fno-builtin-bzero
+    - -Wno-old-style-declaration
+    - -Wno-strict-prototypes
+    - -Wno-error=unused-but-set-variable
+    - -gdwarf-4
+  Add:
+    - -Wno-unknown-warning-option
+    - -Wno-unused-command-line-argument
+
+Diagnostics:
+  UnusedIncludes: Strict
+
+Index:
+  Background: Build

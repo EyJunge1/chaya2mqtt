@@ -1,0 +1,78 @@
+name: Feature- oder Änderungsvorschlag
+description: Eine Verbesserung oder größere Änderung vorschlagen
+title: "[Feature]: "
+labels:
+  - enhancement
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Für Fehlerberichte bitte die Vorlage „Fehlerbericht“ verwenden.
+        Sicherheitsprobleme bitte nicht öffentlich melden, sondern über „Report a vulnerability“.
+
+        Größere Architektur-, Protokoll- oder Hardwareänderungen bitte vor der Umsetzung hier abstimmen.
+  - type: dropdown
+    id: area
+    attributes:
+      label: Bereich
+      options:
+        - Firmware
+        - Weboberfläche
+        - MQTT / Protokoll
+        - WLAN / Setup
+        - OTA
+        - Display
+        - Hardware / PCB
+        - Dokumentation
+        - CI / Tests
+        - Sonstiges
+    validations:
+      required: true
+  - type: dropdown
+    id: scope
+    attributes:
+      label: Umfang
+      description: Bei größeren Änderungen bitte Alternativen und Auswirkungen besonders klar beschreiben.
+      options:
+        - Kleine Verbesserung
+        - Neue Funktion
+        - Größere Architektur-, Protokoll- oder Hardwareänderung
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem / Nutzen
+      description: Welches Problem soll gelöst werden und warum ist das wichtig?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Vorgeschlagene Lösung
+      description: Wie soll die Änderung aussehen?
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternativen
+      description: Welche Alternativen wurden erwogen?
+  - type: textarea
+    id: impact
+    attributes:
+      label: Auswirkungen
+      description: Mögliche Auswirkungen auf bestehende Geräte, APIs, MQTT-Topics, NVS-Schema, OTA oder Hardware.
+      placeholder: |
+        Breaking Change? ja/nein
+        Betroffene Verträge: REST/OpenAPI, AsyncAPI/SSE, MQTT, Pinmap, …
+        Migrationsbedarf: …
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Vor dem Absenden
+      options:
+        - label: Ich habe bestehende Issues auf Duplikate geprüft.
+          required: true
+        - label: Bei größeren Änderungen stimme ich den Vorschlag vor der Umsetzung hier ab.
+          required: true

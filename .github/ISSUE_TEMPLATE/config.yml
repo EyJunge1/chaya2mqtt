@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Sicherheitslücke melden
+    url: https://github.com/EyJunge1/chaya2mqtt/security/advisories/new
+    about: Verdächtige Schwachstellen bitte vertraulich über GitHub Security Advisories melden, nicht als öffentliches Issue.

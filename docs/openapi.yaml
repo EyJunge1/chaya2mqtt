@@ -1,0 +1,603 @@
+openapi: 3.2.0
+info:
+  title: Chaya2MQTT Web Admin API
+  version: 1.0.0
+  description: |
+    HTTP JSON API served by the device firmware (ESPAsyncWebServer on port 80).
+    Mutations use `application/x-www-form-urlencoded` and require `csrf_token`.
+    There is no login; access is limited by Host/Origin allowlists on the LAN.
+  license:
+    name: Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International
+    identifier: CC-BY-NC-SA-4.0
+servers:
+  - url: http://chaya2mqtt.local
+    description: STA mode via mDNS
+  - url: http://4.3.2.1
+    description: AP setup mode
+security: []
+tags:
+  - name: csrf
+    description: CSRF token for state-changing requests
+  - name: device
+    description: Device identity and firmware mode
+  - name: chaya
+    description: Heart counters and send action
+  - name: wifi
+    description: Wi-Fi status, scan, and setup
+  - name: mqtt
+    description: MQTT broker, pairing and derived topics
+  - name: settings
+    description: General device settings and reboot
+  - name: update
+    description: Firmware OTA status and install
+  - name: reset
+    description: Partial and factory resets
+paths:
+  /api/csrf:
+    get:
+      tags: [csrf]
+      summary: Fetch CSRF token
+      operationId: getCsrf
+      responses:
+        "200":
+          description: Token payload
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [token]
+                properties:
+                  token:
+                    type: string
+        "403":
+          $ref: "#/components/responses/Forbidden"
+  /api/device:
+    get:
+      tags: [device]
+      summary: Device identity and mode
+      operationId: getDevice
+      responses:
+        "200":
+          description: Device info
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeviceInfo"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+  /api/chaya:
+    get:
+      tags: [chaya]
+      summary: Heart counters (STA)
+      operationId: getChaya
+      responses:
+        "200":
+          description: Counter snapshot
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChayaStatus"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+  /api/chaya/send:
+    post:
+      tags: [chaya]
+      summary: Queue heart send
+      operationId: sendChaya
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/CsrfForm"
+      responses:
+        "202":
+          description: Queued
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiOk"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "503":
+          $ref: "#/components/responses/ApiError"
+  /api/wifi/status:
+    get:
+      tags: [wifi]
+      summary: Current Wi-Fi link status
+      operationId: getWifiStatus
+      responses:
+        "200":
+          description: Connected or disconnected status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WifiStatus"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+  /api/wifi/config:
+    get:
+      tags: [wifi]
+      summary: Stored Wi-Fi config (no password)
+      operationId: getWifiConfig
+      responses:
+        "200":
+          description: Config
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WifiConfig"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+  /api/wifi/scan:
+    get:
+      tags: [wifi]
+      summary: Scan access points
+      operationId: scanWifi
+      responses:
+        "200":
+          description: Scan results
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/WifiScanAp"
+        "202":
+          description: Scan still running
+        "403":
+          $ref: "#/components/responses/Forbidden"
+  /api/wifi/connect:
+    post:
+      tags: [wifi]
+      summary: Start AP test or save STA credentials
+      operationId: connectWifi
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              allOf:
+                - $ref: "#/components/schemas/CsrfForm"
+                - type: object
+                  required: [ssid, mode]
+                  properties:
+                    ssid: { type: string }
+                    password: { type: string }
+                    mode: { type: string, enum: [dhcp, static] }
+                    ip: { type: string }
+                    gateway: { type: string }
+                    netmask: { type: string }
+                    dns1: { type: string }
+                    dns2: { type: string }
+                    ntp1: { type: string }
+                    ntp2: { type: string }
+      responses:
+        "200":
+          description: Accepted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiOk"
+        "400":
+          $ref: "#/components/responses/ApiError"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+  /api/wifi/connect-status:
+    get:
+      tags: [wifi]
+      summary: AP connection test status
+      operationId: getWifiConnectStatus
+      responses:
+        "200":
+          description: Test state
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [state, ssid]
+                properties:
+                  state:
+                    type: string
+                    enum: [idle, testing, ok, fail]
+                  ssid:
+                    type: string
+        "403":
+          $ref: "#/components/responses/Forbidden"
+  /api/wifi/connect-commit:
+    post:
+      tags: [wifi]
+      summary: Commit successful AP test and reboot
+      operationId: commitWifiConnect
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/CsrfForm"
+      responses:
+        "200":
+          description: Saved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiOk"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+  /api/wifi/connect-abort:
+    post:
+      tags: [wifi]
+      summary: Abort AP connection test
+      operationId: abortWifiConnect
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/CsrfForm"
+      responses:
+        "200":
+          description: Aborted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiOk"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+  /api/mqtt/status:
+    get:
+      tags: [mqtt]
+      summary: MQTT connection status (STA)
+      operationId: getMqttStatus
+      responses:
+        "200":
+          description: Status
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [connected]
+                properties:
+                  connected: { type: boolean }
+        "403":
+          $ref: "#/components/responses/Forbidden"
+  /api/mqtt:
+    get:
+      tags: [mqtt]
+      summary: MQTT config view (password never returned)
+      operationId: getMqttConfig
+      responses:
+        "200":
+          description: Config
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MqttConfigView"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+    post:
+      tags: [mqtt]
+      summary: Save MQTT broker and partner ID (topics are derived)
+      operationId: saveMqttConfig
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              allOf:
+                - $ref: "#/components/schemas/CsrfForm"
+                - type: object
+                  properties:
+                    mqtt_server: { type: string }
+                    mqtt_port: { type: integer }
+                    mqtt_user: { type: string }
+                    mqtt_pass: { type: string }
+                    partner_id:
+                      type: string
+                      description: >
+                        6 lowercase hex digits for the partner device, or empty to unpair.
+                        Topics are derived automatically.
+                      pattern: "^([0-9a-f]{6})?$"
+      responses:
+        "200":
+          description: Saved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiOk"
+        "400":
+          $ref: "#/components/responses/ApiError"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+  /api/settings:
+    get:
+      tags: [settings]
+      summary: Device settings
+      operationId: getSettings
+      responses:
+        "200":
+          description: Settings
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SettingsInfo"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+    post:
+      tags: [settings]
+      summary: Save settings
+      operationId: saveSettings
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              allOf:
+                - $ref: "#/components/schemas/CsrfForm"
+                - type: object
+                  properties:
+                    reset_days: { type: integer, minimum: 0, maximum: 30 }
+                    lang: { type: string, enum: [de, en] }
+                    theme: { type: string, enum: [dark, light] }
+                    display_dark: { type: integer, enum: [0, 1], description: E-Ink dark mode }
+      responses:
+        "200":
+          description: Saved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiOk"
+        "400":
+          $ref: "#/components/responses/ApiError"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+  /api/reboot:
+    post:
+      tags: [settings]
+      summary: Reboot device
+      operationId: rebootDevice
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/CsrfForm"
+      responses:
+        "200":
+          description: Reboot scheduled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiOk"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+  /api/factory-reset:
+    post:
+      tags: [reset]
+      summary: Factory reset
+      operationId: factoryReset
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/CsrfForm"
+      responses:
+        "202":
+          description: Queued
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiOk"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+  /api/update/status:
+    get:
+      tags: [update]
+      summary: OTA status
+      operationId: getUpdateStatus
+      responses:
+        "200":
+          description: Status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OtaStatus"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+  /api/update/check:
+    post:
+      tags: [update]
+      summary: Check GitHub for updates
+      operationId: checkUpdate
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              allOf:
+                - $ref: "#/components/schemas/CsrfForm"
+                - type: object
+                  properties:
+                    channel:
+                      type: string
+                      enum: [stable, beta]
+      responses:
+        "200":
+          description: Check queued
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiOk"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "503":
+          $ref: "#/components/responses/ApiError"
+  /api/update/install:
+    post:
+      tags: [update]
+      summary: Install pending update
+      operationId: installUpdate
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/CsrfForm"
+      responses:
+        "200":
+          description: Install started
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiOk"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/ApiError"
+        "503":
+          $ref: "#/components/responses/ApiError"
+components:
+  schemas:
+    CsrfForm:
+      type: object
+      required: [csrf_token]
+      properties:
+        csrf_token:
+          type: string
+    ApiOk:
+      type: object
+      required: [ok]
+      properties:
+        ok:
+          type: boolean
+          const: true
+        message:
+          type: string
+        queued:
+          type: boolean
+    ApiErr:
+      type: object
+      required: [ok, error]
+      properties:
+        ok:
+          type: boolean
+          const: false
+        error:
+          type: string
+    DeviceInfo:
+      type: object
+      required: [hostname, version, mode, deviceId]
+      properties:
+        hostname: { type: string }
+        version: { type: string }
+        mode: { type: string, enum: [ap, sta] }
+        deviceId: { type: string }
+        apSsid:
+          type: string
+          description: SoftAP SSID (AP/setup mode only)
+        apIp:
+          type: string
+          description: SoftAP IPv4 (AP/setup mode only)
+    ChayaStatus:
+      type: object
+      required: [rx, tx, connected]
+      properties:
+        rx: { type: integer }
+        tx: { type: integer }
+        connected: { type: boolean }
+    WifiStatus:
+      oneOf:
+        - type: object
+          required: [connected]
+          properties:
+            connected: { type: boolean, const: false }
+        - type: object
+          required: [connected, ssid, ip, gateway, netmask, dns1, dns2, rssi]
+          properties:
+            connected: { type: boolean, const: true }
+            ssid: { type: string }
+            ip: { type: string }
+            gateway: { type: string }
+            netmask: { type: string }
+            dns1: { type: string }
+            dns2: { type: string }
+            rssi: { type: integer }
+    WifiConfig:
+      type: object
+      required: [ssid, mode, ip, gateway, netmask, dns1, dns2, ntp1, ntp2]
+      properties:
+        ssid: { type: string }
+        mode: { type: string, enum: [dhcp, static] }
+        ip: { type: string }
+        gateway: { type: string }
+        netmask: { type: string }
+        dns1: { type: string }
+        dns2: { type: string }
+        ntp1: { type: string }
+        ntp2: { type: string }
+    WifiScanAp:
+      type: object
+      required: [ssid, rssi, open]
+      properties:
+        ssid: { type: string }
+        rssi: { type: integer }
+        open: { type: boolean }
+    MqttConfigView:
+      type: object
+      required: [deviceId, server, port, username, hasPassword, topicPub, topicSub, partnerId]
+      properties:
+        deviceId:
+          type: string
+          description: Own 6-char lowercase hex device ID (derived from MAC)
+        server: { type: string }
+        port: { type: integer }
+        username: { type: string }
+        hasPassword: { type: boolean }
+        topicPub:
+          type: string
+          description: Derived publish topic chaya2mqtt/<deviceId>
+        topicSub:
+          type: string
+          description: Derived subscribe topic chaya2mqtt/<partnerId>, or empty when unpaired
+        partnerId: { type: string }
+    SettingsInfo:
+      type: object
+      required: [resetDays, lang, theme, displayDark]
+      properties:
+        resetDays: { type: integer, minimum: 0, maximum: 30 }
+        lang: { type: string, enum: [de, en] }
+        theme: { type: string, enum: [dark, light] }
+        displayDark:
+          type: boolean
+          description: E-Ink dark mode (black background, white counters, red heart)
+    OtaStatus:
+      type: object
+      required:
+        [phase, channel, localVersion, availableVersion, bytesDone, bytesTotal, error, generation]
+      properties:
+        phase:
+          type: string
+          enum: [idle, checking, available, downloading, verifying, rebooting, error]
+        channel:
+          type: string
+          enum: [stable, beta]
+        localVersion: { type: string }
+        availableVersion: { type: string }
+        bytesDone: { type: integer }
+        bytesTotal: { type: integer }
+        error: { type: string }
+        generation: { type: integer }
+  responses:
+    Forbidden:
+      description: Host/Origin or CSRF rejected
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ApiErr"
+    ApiError:
+      description: Request failed
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ApiErr"

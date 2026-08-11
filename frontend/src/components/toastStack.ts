@@ -1,0 +1,26 @@
+export type ToastVariant = "success" | "error" | "warning" | "info";
+
+export type ToastItem = {
+  id: string;
+  text: string;
+  variant: ToastVariant;
+};
+
+export type ShowToast = (text: string, variant?: ToastVariant) => void;
+
+export const TOAST_MS = 3200;
+export const MAX_TOASTS = 5;
+
+/** Append a toast to the stack (newest at the bottom). */
+export function pushToast(
+  toasts: ToastItem[],
+  text: string,
+  variant: ToastVariant = "success",
+): ToastItem[] {
+  const next: ToastItem = {
+    id: crypto.randomUUID(),
+    text,
+    variant,
+  };
+  return [...toasts, next].slice(-MAX_TOASTS);
+}

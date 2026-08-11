@@ -1,0 +1,5 @@
+(sym_lib_table
+  (version 7)
+  (lib (name "chaya2mqtt")(type "KiCad")(uri "${KIPRJMOD}/../lib/chaya2mqtt.kicad_sym")(options "")(descr "Shared chaya2mqtt custom symbols"))
+  (lib (name "chaya2mqtt_s2")(type "KiCad")(uri "${KIPRJMOD}/chaya2mqtt-s2.kicad_sym")(options "")(descr "Generated Rev A2 symbols"))
+)

@@ -1,0 +1,646 @@
+import { randomBytes } from "node:crypto";
+
+export type MockMode = "ap" | "sta";
+
+export const MOCK_SCENARIOS = [
+  "sta-connected",
+  "offline",
+  "sta-mqtt-offline",
+  "sta-mqtt-unconfigured",
+  "sta-mqtt-unpaired",
+  "ap-setup",
+  "ap-test-idle",
+  "ap-test-testing",
+  "ap-test-ok",
+  "ap-test-failed",
+  "wifi-scan-empty",
+  "wifi-scan-fail",
+  "boot-unreachable",
+  "boot-slow",
+  "sse-disconnected",
+  "update-available",
+  "update-checking",
+  "update-busy",
+  "update-verifying",
+  "update-rebooting",
+  "update-error",
+] as const;
+
+export type MockScenario = (typeof MOCK_SCENARIOS)[number];
+
+export const MOCK_FAULT_KEYS = [
+  "device",
+  "chaya",
+  "wifi-status",
+  "wifi-config",
+  "wifi-scan",
+  "wifi-connect",
+  "wifi-connect-status",
+  "wifi-commit",
+  "wifi-abort",
+  "mqtt",
+  "mqtt-status",
+  "mqtt-save",
+  "settings",
+  "settings-save",
+  "reboot",
+  "factory-reset",
+  "update-status",
+  "update-check",
+  "update-install",
+  "heart",
+  "sse",
+] as const;
+
+export type MockFaultKey = (typeof MOCK_FAULT_KEYS)[number];
+
+export type MockScanMode = "normal" | "empty" | "fail";
+
+export type MockFaults = Record<MockFaultKey, boolean>;
+
+export interface MockState {
+  scenario: MockScenario;
+  mode: MockMode;
+  version: string;
+  hostname: string;
+  deviceId: string;
+  csrf: string;
+  rx: number;
+  tx: number;
+  mqttConnected: boolean;
+  wifiConnected: boolean;
+  wifiSsid: string;
+  wifiIp: string;
+  wifiGateway: string;
+  wifiNetmask: string;
+  wifiDns1: string;
+  wifiDns2: string;
+  wifiRssi: number;
+  wifiConfig: {
+    mode: "dhcp" | "static";
+    ip: string;
+    gateway: string;
+    netmask: string;
+    dns1: string;
+    dns2: string;
+    ntp1: string;
+    ntp2: string;
+  };
+  wifiConnect: {
+    state: "idle" | "testing" | "ok" | "fail";
+    ssid: string;
+    password: string;
+    startedAt: number;
+    freeze: boolean;
+    mode: "dhcp" | "static";
+    ip: string;
+    gateway: string;
+    netmask: string;
+    dns1: string;
+    dns2: string;
+    ntp1: string;
+    ntp2: string;
+  };
+  mqtt: {
+    server: string;
+    port: number;
+    username: string;
+    password: string;
+    topicPub: string;
+    topicSub: string;
+    partnerId: string;
+  };
+  resetDays: number;
+  lang: "de" | "en";
+  theme: "dark" | "light";
+  displayDark: boolean;
+  scanReadyAt: number;
+  scanMode: MockScanMode;
+  deviceDelayMs: number;
+  faults: MockFaults;
+  ota: {
+    phase: "idle" | "checking" | "available" | "downloading" | "verifying" | "rebooting" | "error";
+    channel: "stable" | "beta";
+    localVersion: string;
+    availableVersion: string;
+    bytesDone: number;
+    bytesTotal: number;
+    error: string;
+    generation: number;
+  };
+}
+
+const listeners = new Set<(event: string, data: unknown) => void>();
+
+function newToken(): string {
+  return randomBytes(16).toString("hex");
+}
+
+export function emptyFaults(): MockFaults {
+  return Object.fromEntries(MOCK_FAULT_KEYS.map((key) => [key, false])) as MockFaults;
+}
+
+export function parseScenario(raw: string | null | undefined): MockScenario | null {
+  if (!raw) return null;
+  return (MOCK_SCENARIOS as readonly string[]).includes(raw) ? (raw as MockScenario) : null;
+}
+
+export function parseFaultKey(raw: string | null | undefined): MockFaultKey | null {
+  if (!raw) return null;
+  return (MOCK_FAULT_KEYS as readonly string[]).includes(raw) ? (raw as MockFaultKey) : null;
+}
+
+export function otaBlocksDestructiveAction(target: MockState = state): boolean {
+  return (
+    target.ota.phase === "checking" ||
+    target.ota.phase === "downloading" ||
+    target.ota.phase === "verifying" ||
+    target.ota.phase === "rebooting"
+  );
+}
+
+function idleWifiConnect(): MockState["wifiConnect"] {
+  return {
+    state: "idle",
+    ssid: "",
+    password: "",
+    startedAt: 0,
+    freeze: false,
+    mode: "dhcp",
+    ip: "",
+    gateway: "",
+    netmask: "",
+    dns1: "",
+    dns2: "",
+    ntp1: "",
+    ntp2: "",
+  };
+}
+
+function defaultMqtt(deviceId: string) {
+  return {
+    server: "mqtt.example.com",
+    port: 8883,
+    username: "chaya",
+    password: "secret",
+    topicPub: `chaya2mqtt/${deviceId}`,
+    topicSub: "chaya2mqtt/f5e6d7",
+    partnerId: "f5e6d7",
+  };
+}
+
+function applyStaOnlineDefaults(target: MockState): void {
+  target.mode = "sta";
+  target.wifiConnected = true;
+  target.wifiSsid = "MockNet";
+  target.wifiIp = "192.168.1.42";
+  target.wifiGateway = "192.168.1.1";
+  target.wifiNetmask = "255.255.255.0";
+  target.wifiDns1 = "1.1.1.1";
+  target.wifiDns2 = "1.0.0.1";
+  target.wifiRssi = -55;
+  target.wifiConnect = idleWifiConnect();
+}
+
+function clearWifiLink(target: MockState): void {
+  target.wifiConnected = false;
+  target.wifiSsid = "";
+  target.wifiIp = "";
+  target.wifiGateway = "";
+  target.wifiNetmask = "";
+  target.wifiDns1 = "";
+  target.wifiDns2 = "";
+  target.wifiRssi = 0;
+}
+
+function setOtaIdle(state: MockState): void {
+  state.ota = {
+    ...state.ota,
+    phase: "idle",
+    localVersion: state.version,
+    availableVersion: "",
+    bytesDone: 0,
+    bytesTotal: 0,
+    error: "",
+    generation: state.ota.generation + 1,
+  };
+}
+
+function setOtaPhase(
+  state: MockState,
+  phase: MockState["ota"]["phase"],
+  extra: Partial<MockState["ota"]> = {},
+): void {
+  state.ota = {
+    ...state.ota,
+    phase,
+    channel: "stable",
+    localVersion: state.version,
+    availableVersion: "2026.8.2",
+    bytesDone: 0,
+    bytesTotal: 0,
+    error: "",
+    generation: state.ota.generation + 1,
+    ...extra,
+  };
+}
+
+function clearSimulatorControls(target: MockState): void {
+  target.faults = emptyFaults();
+  target.deviceDelayMs = 0;
+  target.scanMode = "normal";
+  target.scanReadyAt = 0;
+}
+
+export function createInitialState(scenario: MockScenario = "sta-connected"): MockState {
+  const deviceId = "a1b2c3";
+  const state: MockState = {
+    scenario,
+    mode: "sta",
+    version: "dev-sim",
+    hostname: "chaya2mqtt",
+    deviceId,
+    csrf: newToken(),
+    rx: 3,
+    tx: 7,
+    mqttConnected: true,
+    wifiConnected: true,
+    wifiSsid: "MockNet",
+    wifiIp: "192.168.1.42",
+    wifiGateway: "192.168.1.1",
+    wifiNetmask: "255.255.255.0",
+    wifiDns1: "1.1.1.1",
+    wifiDns2: "1.0.0.1",
+    wifiRssi: -55,
+    wifiConfig: {
+      mode: "dhcp",
+      ip: "",
+      gateway: "",
+      netmask: "255.255.255.0",
+      dns1: "",
+      dns2: "",
+      ntp1: "",
+      ntp2: "",
+    },
+    mqtt: defaultMqtt(deviceId),
+    resetDays: 7,
+    lang: "en",
+    theme: "light",
+    displayDark: false,
+    wifiConnect: idleWifiConnect(),
+    scanReadyAt: 0,
+    scanMode: "normal",
+    deviceDelayMs: 0,
+    faults: emptyFaults(),
+    ota: {
+      phase: "idle",
+      channel: "stable",
+      localVersion: "dev-sim",
+      availableVersion: "",
+      bytesDone: 0,
+      bytesTotal: 0,
+      error: "",
+      generation: 1,
+    },
+  };
+  applyScenario(state, scenario);
+  return state;
+}
+
+export function applyScenario(state: MockState, scenario: MockScenario): void {
+  state.scenario = scenario;
+  state.mqtt = defaultMqtt(state.deviceId);
+  state.wifiConfig = {
+    mode: "dhcp",
+    ip: "",
+    gateway: "",
+    netmask: "255.255.255.0",
+    dns1: "",
+    dns2: "",
+    ntp1: "",
+    ntp2: "",
+  };
+  state.wifiConnect = idleWifiConnect();
+  clearSimulatorControls(state);
+
+  switch (scenario) {
+    case "ap-setup":
+      state.mode = "ap";
+      clearWifiLink(state);
+      state.mqttConnected = false;
+      setOtaIdle(state);
+      break;
+    case "ap-test-idle":
+      state.mode = "ap";
+      clearWifiLink(state);
+      state.mqttConnected = false;
+      state.wifiConnect = {
+        ...idleWifiConnect(),
+        state: "idle",
+        ssid: "MockNet",
+      };
+      setOtaIdle(state);
+      break;
+    case "ap-test-testing":
+      state.mode = "ap";
+      clearWifiLink(state);
+      state.mqttConnected = false;
+      state.wifiConnect = {
+        ...idleWifiConnect(),
+        state: "testing",
+        ssid: "MockNet",
+        password: "secret",
+        startedAt: Date.now(),
+        freeze: true,
+      };
+      setOtaIdle(state);
+      break;
+    case "ap-test-ok":
+      state.mode = "ap";
+      clearWifiLink(state);
+      state.mqttConnected = false;
+      state.wifiConnect = {
+        ...idleWifiConnect(),
+        state: "ok",
+        ssid: "MockNet",
+        password: "secret",
+        startedAt: Date.now() - 3000,
+      };
+      state.wifiSsid = "MockNet";
+      state.wifiIp = "192.168.1.77";
+      state.wifiGateway = "192.168.1.1";
+      state.wifiNetmask = "255.255.255.0";
+      state.wifiDns1 = "1.1.1.1";
+      state.wifiDns2 = "1.0.0.1";
+      state.wifiRssi = -48;
+      setOtaIdle(state);
+      break;
+    case "ap-test-failed":
+      state.mode = "ap";
+      clearWifiLink(state);
+      state.mqttConnected = false;
+      state.wifiConnect = {
+        ...idleWifiConnect(),
+        state: "fail",
+        ssid: "MockNet",
+        password: "fail",
+        startedAt: Date.now() - 3000,
+      };
+      setOtaIdle(state);
+      break;
+    case "wifi-scan-empty":
+      state.mode = "ap";
+      clearWifiLink(state);
+      state.mqttConnected = false;
+      state.scanMode = "empty";
+      setOtaIdle(state);
+      break;
+    case "wifi-scan-fail":
+      state.mode = "ap";
+      clearWifiLink(state);
+      state.mqttConnected = false;
+      state.scanMode = "fail";
+      setOtaIdle(state);
+      break;
+    case "boot-unreachable":
+      applyStaOnlineDefaults(state);
+      state.mqttConnected = true;
+      state.faults.device = true;
+      setOtaIdle(state);
+      break;
+    case "boot-slow":
+      applyStaOnlineDefaults(state);
+      state.mqttConnected = true;
+      state.deviceDelayMs = 3000;
+      setOtaIdle(state);
+      break;
+    case "sse-disconnected":
+      applyStaOnlineDefaults(state);
+      state.mqttConnected = true;
+      state.faults.sse = true;
+      setOtaIdle(state);
+      break;
+    case "offline":
+      applyStaOnlineDefaults(state);
+      clearWifiLink(state);
+      state.mqttConnected = false;
+      setOtaIdle(state);
+      break;
+    case "sta-mqtt-offline":
+      applyStaOnlineDefaults(state);
+      state.mqttConnected = false;
+      setOtaIdle(state);
+      break;
+    case "sta-mqtt-unconfigured":
+      applyStaOnlineDefaults(state);
+      state.mqtt = {
+        server: "",
+        port: 8883,
+        username: "",
+        password: "",
+        topicPub: `chaya2mqtt/${state.deviceId}`,
+        topicSub: "",
+        partnerId: "",
+      };
+      state.mqttConnected = false;
+      setOtaIdle(state);
+      break;
+    case "sta-mqtt-unpaired":
+      applyStaOnlineDefaults(state);
+      state.mqtt.partnerId = "";
+      state.mqtt.topicSub = "";
+      state.mqttConnected = true;
+      setOtaIdle(state);
+      break;
+    case "update-available":
+      applyStaOnlineDefaults(state);
+      state.mqttConnected = true;
+      setOtaPhase(state, "available");
+      break;
+    case "update-checking":
+      applyStaOnlineDefaults(state);
+      state.mqttConnected = true;
+      setOtaPhase(state, "checking", { availableVersion: "" });
+      break;
+    case "update-error":
+      applyStaOnlineDefaults(state);
+      state.mqttConnected = true;
+      setOtaPhase(state, "error", { error: "install_failed" });
+      break;
+    case "update-busy":
+      applyStaOnlineDefaults(state);
+      state.mqttConnected = true;
+      setOtaPhase(state, "downloading", {
+        bytesDone: 400000,
+        bytesTotal: 1000000,
+      });
+      break;
+    case "update-verifying":
+      applyStaOnlineDefaults(state);
+      state.mqttConnected = true;
+      setOtaPhase(state, "verifying", {
+        bytesDone: 1000000,
+        bytesTotal: 1000000,
+      });
+      break;
+    case "update-rebooting":
+      applyStaOnlineDefaults(state);
+      state.mqttConnected = true;
+      setOtaPhase(state, "rebooting", {
+        bytesDone: 1000000,
+        bytesTotal: 1000000,
+      });
+      break;
+    case "sta-connected":
+    default:
+      applyStaOnlineDefaults(state);
+      state.mqttConnected = true;
+      setOtaIdle(state);
+      break;
+  }
+  state.csrf = newToken();
+}
+
+let state = createInitialState("sta-connected");
+
+export function getState(): MockState {
+  return state;
+}
+
+export function resetState(scenario?: MockScenario): MockState {
+  state = createInitialState(scenario ?? state.scenario);
+  broadcastAll();
+  return state;
+}
+
+export function setFault(key: MockFaultKey, enabled: boolean): MockFaults {
+  state.faults[key] = enabled;
+  return { ...state.faults };
+}
+
+export function clearFaults(): MockFaults {
+  state.faults = emptyFaults();
+  return { ...state.faults };
+}
+
+export function hasFault(key: MockFaultKey, target: MockState = state): boolean {
+  return target.faults[key];
+}
+
+export function subscribe(fn: (event: string, data: unknown) => void): () => void {
+  listeners.add(fn);
+  return () => listeners.delete(fn);
+}
+
+export function emit(event: string, data: unknown): void {
+  for (const fn of listeners) fn(event, data);
+}
+
+export function chayaPayload() {
+  return { rx: state.rx, tx: state.tx, connected: state.mqttConnected };
+}
+
+export function wifiPayload() {
+  if (!state.wifiConnected) return { connected: false as const };
+  return {
+    connected: true as const,
+    ssid: state.wifiSsid,
+    ip: state.wifiIp,
+    gateway: state.wifiGateway,
+    netmask: state.wifiNetmask,
+    dns1: state.wifiDns1,
+    dns2: state.wifiDns2,
+    rssi: state.wifiRssi,
+  };
+}
+
+export function wifiConfigPayload() {
+  return {
+    ssid: state.wifiSsid,
+    mode: state.wifiConfig.mode,
+    ip: state.wifiConfig.ip,
+    gateway: state.wifiConfig.gateway,
+    netmask: state.wifiConfig.netmask,
+    dns1: state.wifiConfig.dns1,
+    dns2: state.wifiConfig.dns2,
+    ntp1: state.wifiConfig.ntp1,
+    ntp2: state.wifiConfig.ntp2,
+  };
+}
+
+export function mqttPayload() {
+  return { connected: state.mqttConnected };
+}
+
+export function otaPayload() {
+  return { ...state.ota, localVersion: state.version };
+}
+
+export function bumpOta(partial: Partial<MockState["ota"]>): void {
+  state.ota = {
+    ...state.ota,
+    ...partial,
+    localVersion: state.version,
+    generation: state.ota.generation + 1,
+  };
+  emit("ota", otaPayload());
+}
+
+export function broadcastAll(): void {
+  emit("chaya", chayaPayload());
+  emit("wifi", wifiPayload());
+  emit("mqtt", mqttPayload());
+  emit("ota", otaPayload());
+}
+
+export function tickWifiConnect(): void {
+  if (state.wifiConnect.state !== "testing") return;
+  if (state.wifiConnect.freeze) return;
+  if (Date.now() - state.wifiConnect.startedAt < 2500) return;
+  const ok = state.wifiConnect.password !== "fail";
+  state.wifiConnect.state = ok ? "ok" : "fail";
+  if (ok) {
+    state.wifiSsid = state.wifiConnect.ssid;
+    if (state.wifiConnect.mode === "static" && state.wifiConnect.ip) {
+      state.wifiIp = state.wifiConnect.ip;
+      state.wifiGateway = state.wifiConnect.gateway;
+      state.wifiNetmask = state.wifiConnect.netmask;
+      state.wifiDns1 = state.wifiConnect.dns1;
+      state.wifiDns2 = state.wifiConnect.dns2;
+    } else {
+      state.wifiIp = "192.168.1.77";
+      state.wifiGateway = "192.168.1.1";
+      state.wifiNetmask = "255.255.255.0";
+      state.wifiDns1 = "1.1.1.1";
+      state.wifiDns2 = "1.0.0.1";
+    }
+    state.wifiRssi = -48;
+  }
+}
+
+export function devicePayload() {
+  const base = {
+    hostname: state.hostname,
+    version: state.version,
+    mode: state.mode,
+    deviceId: state.deviceId,
+  };
+  if (state.mode !== "ap") {
+    return base;
+  }
+  return {
+    ...base,
+    apSsid: "Chaya2MQTT",
+    apIp: "4.3.2.1",
+  };
+}
+
+export function mockControlPayload() {
+  return {
+    scenario: state.scenario,
+    mode: state.mode,
+    deviceDelayMs: state.deviceDelayMs,
+    scanMode: state.scanMode,
+    faults: { ...state.faults },
+  };
+}
