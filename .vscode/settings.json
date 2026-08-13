@@ -1,0 +1,7 @@
+{
+  "C_Cpp.intelliSenseEngine": "disabled",
+  "clangd.arguments": [
+    "--query-driver=**/.platformio/packages/toolchain-*/bin/*",
+    "--header-insertion=never"
+  ]
+}

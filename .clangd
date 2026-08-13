@@ -1,14 +1,13 @@
 CompileFlags:
   CompilationDatabase: .
   Remove:
-    # Xtensa-specific flags not recognized by macOS Clang
+    # Xtensa/GCC flags that host clangd does not accept
     - -mlongcalls
     - -mdisable-hardware-atomics
     - -mfix-esp32-psram-cache-issue
     - -mfix-esp32-psram-cache-strategy=*
     - -mtext-section-literals
     - -mno-serialize-volatile
-    # GCC-specific flags
     - -fno-tree-switch-conversion
     - -fstrict-volatile-bitfields
     - -fno-jump-tables
@@ -29,3 +28,10 @@ Diagnostics:
 
 Index:
   Background: Build
+
+---
+
+If:
+  PathMatch: /Library/.*
+Diagnostics:
+  Suppress: "*"

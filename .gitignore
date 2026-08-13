@@ -3,7 +3,8 @@
 __pycache__/
 .DS_Store
 .cache
-.vscode
+.vscode/*
+!.vscode/settings.json
 .env
 .env.local
 .env.*.local
