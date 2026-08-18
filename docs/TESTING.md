@@ -6,7 +6,7 @@ Local test pyramid for chaya2mqtt based on this **principle**: real firmware log
 
 ```text
                  ┌────────────────────────────┐
-                 │ Manual hardware acceptance │  ESP32 + broker + display
+                 │ Manual hardware acceptance │  ESP32-S3 1.54G + broker + display
                  │ scripts/simulator.py       │
                  └─────────────┬──────────────┘
                                │
@@ -94,7 +94,7 @@ Additional native pure helpers: WiFi recovery decisions and captive portal path 
 
 ## Hardware acceptance (manual)
 
-Requires a flashed ESP32, WiFi, and a reachable TLS broker. The local MQTT configuration is at the beginning of `scripts/simulator.py`; real credentials must not be committed.
+Requires a flashed ESP32-S3-ePaper-1.54G, WiFi, and a reachable TLS broker. The local MQTT configuration is at the beginning of `scripts/simulator.py`; real credentials must not be committed.
 
 ```bash
 python3 scripts/simulator.py --smoke
@@ -114,7 +114,6 @@ Alternatively, all values can be passed through `--host`, `--port`, `--user`, `-
 8. **Restart/persistence**—power cycle retains WiFi, MQTT, and counters.
 9. **OTA**—check; error path without network shows error phase; no factory reset during download; after OTA boot, **≥30 s** settled without panic → no rollback (MQTT not required).
 10. **USB recovery**—erase flash with PlatformIO if needed and reflash the release; optionally analyze a core dump with `scripts/analyze_coredump.py`.
-11. **PCB gate**—`scripts/pcb_erc_drc.sh`; manually approve BOM `VERIFY` lines (EPD HV) before ordering.
 
 ## Definition of Done
 

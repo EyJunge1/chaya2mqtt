@@ -141,13 +141,13 @@ SPI is disabled between draws:
 
 ## EPD driver
 
-[GxEPD2](https://github.com/ZinggJM/GxEPD2) as a PlatformIO library (`ZinggJM/GxEPD2`):
-- Panel: `GxEPD2_154_Z90c` (200×200, 3-color BWR)
-- Wrapper: `GxEPD2_3C<…>` for paging (`firstPage()` / `nextPage()`)
-- Alias: `ChayaEpdPanel` in `src/display/internal.h`
-- Full-Window-Refresh only (~8–14 s)
+Target hardware is the onboard 1.54G panel (200×200, black/white/red/yellow, full ~20 s / fast ~15 s). See [HARDWARE.md](HARDWARE.md).
 
-Details: [HARDWARE.md](HARDWARE.md)
+The tree still compiles the previous driver until the S3 port:
+
+[GxEPD2](https://github.com/ZinggJM/GxEPD2) (`ZinggJM/GxEPD2`):
+- Current code: `GxEPD2_154_Z90c` + `GxEPD2_3C<…>` (`display/internal.h`)
+- Target: 4-color GxEPD2 panel class for the 1.54G
 
 ## Further documentation
 

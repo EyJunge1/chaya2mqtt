@@ -1,6 +1,6 @@
 # Chaya2MQTT – E-Ink Heart with MQTT
 
-Two ESP32 devices, each with a **3-color e-paper display**, show a **red heart** with **counters**. When the button on **device A** is pressed, it publishes the next sent counter as a **retained MQTT message** to its **publish topic**; **device B** receives it on its **subscribe topic**, sets its counter to the received value, and updates the display. The same applies in reverse—each device has separate publish and subscribe topics, so that only the counter on the **other** device changes.
+Two ESP32-S3 devices, each with a **4-color e-paper display**, show a **red heart** with **counters**. When the button on **device A** is pressed, it publishes the next sent counter as a **retained MQTT message** to its **publish topic**; **device B** receives it on its **subscribe topic**, sets its counter to the received value, and updates the display. The same applies in reverse—each device has separate publish and subscribe topics, so that only the counter on the **other** device changes.
 
 Thanks to **retained messages**, a device automatically retrieves the current counter after an offline period as soon as it reconnects.
 
@@ -8,19 +8,19 @@ Thanks to **retained messages**, a device automatically retrieves the current co
 
 | Area | Description |
 |------|-------------|
-| **E-Ink display** | Red heart with RX/TX counters (delta display), Waveshare 1.54" e-Paper (B), 200×200, 3-color |
+| **E-Ink display** | Red heart with RX/TX counters (delta display), Waveshare 1.54G, 200×200, black/white/red/yellow |
 | **MQTT sync** | Publish on button press or via the web UI; subscribe sets the counter to the received value |
 | **TLS** | Broker connection via `mqtts://` with the **Mozilla CA bundle** (port **8883**) |
 | **Web admin** | Captive portal in AP mode, then `http://chaya2mqtt.local` |
 | **Pairing** | Device ID derived from MAC → automatic topics `chaya2mqtt/<id>` |
-| **Button + LED** | Short press → send via MQTT; hold for 10 s → factory reset |
+| **Button** | BOOT: short press → send via MQTT; hold for 10 s → factory reset |
 | **OTA** | Automatic daily GitHub release check + manual trigger |
 
 ## Target hardware
 
-- **Board:** Waveshare e-Paper ESP32 Driver Board (SKU 15823)
-- **Display:** Waveshare 1.54" e-Paper (B), 200×200, black/white/red
-- **Button + LED:** GPIO 2 (button), GPIO 4 (LED)
+- **Board:** Waveshare ESP32-S3-ePaper-1.54G, SKU **34586** (with battery)
+- **Display:** 1.54", 200×200, black/white/red/yellow (onboard)
+- **Button:** BOOT (GPIO0); PWR (GPIO18) is the battery power latch
 
 Details: [HARDWARE.md](HARDWARE.md)
 
@@ -93,7 +93,6 @@ chaya2mqtt/
 ├── huge_app.csv              # Dual-OTA (Waveshare / 4 MB)
 ├── Makefile                  # pio-Wrapper
 ├── docs/                     # This documentation
-├── pcb/                      # Current hardware reference and future designs
 └── src/
     ├── main.cpp              # Bootstrap, task startup
     ├── constants.h           # Device-wide identity, NTP, syntax validation
@@ -102,7 +101,7 @@ chaya2mqtt/
     ├── diag/                 # Stack monitor, task WDT
     ├── display/              # EPD (GxEPD2) + drawing + display task
     ├── heart/                # Counters, baselines, NVS
-    ├── hw/                   # Button and Waveshare hardware pins
+    ├── hw/                   # Button and 1.54G pins
     ├── mqtt/                 # Config + client/events/publish/reconnect
     ├── network/              # network_task (WiFi + MQTT loop)
     ├── ota/                  # GitHub check, flash installation, health gate
@@ -117,8 +116,8 @@ frontend/                     # React 19 SPA (Vite, Tailwind, Lucide) + mock dev
 
 | Environment | Purpose | Debug level | Optimization |
 |-------------|---------|-------------|--------------|
-| `esp32dev` | Waveshare development | `CORE_DEBUG_LEVEL=3` | Default |
-| `esp32dev-release` | Waveshare production (default) | `CORE_DEBUG_LEVEL=0` | `-Os`, `-DNDEBUG` |
+| `esp32dev` | Development (legacy `esp32dev` env until the S3 port) | `CORE_DEBUG_LEVEL=3` | Default |
+| `esp32dev-release` | Production (default; same caveat) | `CORE_DEBUG_LEVEL=0` | `-Os`, `-DNDEBUG` |
 
 Waveshare partition layout: **dual OTA** (`huge_app.csv`)—approximately 1.875 MB per slot.
 
@@ -141,7 +140,8 @@ Waveshare partition layout: **dual OTA** (`huge_app.csv`)—approximately 1.875 
 | [WEB_ADMIN.md](WEB_ADMIN.md) | HTTP routes, CSRF, SSE |
 | [openapi.yaml](openapi.yaml) | REST-API (OpenAPI 3.1) |
 | [asyncapi.yaml](asyncapi.yaml) | SSE-Events (AsyncAPI 3) |
-| [HARDWARE.md](HARDWARE.md) | Board, display, pinout |
+| [HARDWARE.md](HARDWARE.md) | Only supported board (1.54G SKU 34586), pinout |
+| [EINK-ESP-BOARDS.md](EINK-ESP-BOARDS.md) | Hardware scope (this board only) |
 | [OTA.md](OTA.md) | Firmware updates via GitHub |
 | [CONFIGURATION.md](CONFIGURATION.md) | NVS namespaces, defaults |
 | [DISPLAY.md](DISPLAY.md) | Display task, heart geometry, delta logic |

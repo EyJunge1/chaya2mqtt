@@ -1,6 +1,7 @@
 #pragma once
 
-/** Waveshare ESP32 e-Paper Driver Board + 1.54" BWR panel (current COTS hardware). */
+/** Pin map still matches the previous ESP32 driver board. Target hardware is the
+ *  Waveshare ESP32-S3-ePaper-1.54G (SKU 34586); see docs/HARDWARE.md. */
 namespace pins {
 
 constexpr int kButton    = 2;

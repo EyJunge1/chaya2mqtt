@@ -1,6 +1,0 @@
-"Reference","Value","Footprint","Manufacturer","MPN","Qty"
-"DISP1","GDEH0154Z90 SSD1681","","","","1"
-"LED1","RED","","","","1"
-"R1","330R","","","","1"
-"SW1","BTN illuminated","","","","1"
-"U1","Waveshare ESP32 e-Paper Driver SKU15823","","Waveshare","15823","1"

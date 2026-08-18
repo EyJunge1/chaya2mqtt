@@ -21,7 +21,7 @@ body:
         - Wi-Fi / Setup
         - OTA
         - Display
-        - Hardware / PCB
+        - Hardware
         - Documentation
         - CI / Tests
         - Other

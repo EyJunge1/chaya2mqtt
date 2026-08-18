@@ -219,11 +219,11 @@ Geometry details: [DISPLAY.md](DISPLAY.md)
 
 **Dependency:** `ZinggJM/GxEPD2` in `platformio.ini`
 
-**Type in firmware:** `ChayaEpdPanel` = `GxEPD2_3C<GxEPD2_154_Z90c, GxEPD2_154_Z90c::HEIGHT>` (`display/internal.h`)
+**Type in firmware:** `ChayaEpdPanel` = `GxEPD2_3C<GxEPD2_154_Z90c, GxEPD2_154_Z90c::HEIGHT>` (`display/internal.h`) — still the previous BWR panel class until the 1.54G 4-color port.
 
-- Panel: SSD1682 / GDEH0154Z90, 200×200, 3-color (BWR)
-- Full-Window-Refresh only (~8–14 s)
-- No partial refresh
+- Target hardware: Waveshare 1.54G, 200×200, black/white/red/yellow ([HARDWARE.md](HARDWARE.md))
+- Current code: SSD1682 / GDEH0154Z90, 200×200, 3-color (BWR)
+- Full-Window-Refresh only
 
 ---
 

@@ -27,7 +27,7 @@ body:
         - Wi-Fi / Setup
         - OTA
         - Display
-        - Hardware / PCB
+        - Hardware
         - Documentation
     validations:
       required: true
@@ -63,7 +63,7 @@ body:
       label: Environment / Hardware
       description: Optional, but helpful. Examples depend on the affected area.
       placeholder: |
-        Hardware: Waveshare ESP32 + 1.54″ BWR / custom PCB
+        Hardware: Waveshare ESP32-S3-ePaper-1.54G (SKU 34586)
         Build: esp32dev or esp32dev-release
         MQTT broker: type and TLS yes/no (without credentials)
         Browser/OS: only for the web interface
