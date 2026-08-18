@@ -28,7 +28,7 @@ make check
 - Do not commit credentials, `.env` files, or generated build artifacts.
 - Run `make check` successfully in full before pushing.
 
-The complete quality gates and manual hardware checks are documented in [docs/TESTING.md](docs/TESTING.md).
+The complete quality gates and manual hardware checks are documented in [docs/TESTING.md](docs/TESTING.md). Target hardware is only the Waveshare ESP32-S3-ePaper-1.54G (SKU 34586); see [docs/HARDWARE.md](docs/HARDWARE.md).
 
 ## Style
 

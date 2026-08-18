@@ -1,6 +1,6 @@
 # Configuration & NVS
 
-All persistent settings are stored in the ESP32's **NVS** (Non-Volatile Storage). The firmware uses four namespaces through `Preferences` (thread-safe via `g_nvsMutex` in `config/nvs_utils`).
+All persistent settings are stored in the ESP32-S3 **NVS** (Non-Volatile Storage). The firmware uses four namespaces through `Preferences` (thread-safe via `g_nvsMutex` in `config/nvs_utils`).
 
 ## NVS namespaces
 
@@ -118,7 +118,7 @@ The active MQTT configuration (`mqttCfg`) exists only in `mqtt/config.cpp`—acc
 
 ## Factory reset
 
-Trigger: hold the button for **10 s** → `resetAllSettings()` in `wifi/wlan.cpp`
+Trigger: hold **BOOT** for **10 s** → `resetAllSettings()` in `wifi/wlan.cpp`
 
 Sequence:
 1. `g_systemShutdownInProgress = true`

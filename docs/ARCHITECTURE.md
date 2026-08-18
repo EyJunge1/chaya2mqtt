@@ -2,7 +2,7 @@
 
 ## Overview
 
-Chaya2MQTT is **FreeRTOS multitasking firmware** for the ESP32. The traditional Arduino `loop()` is not used—`main.cpp` starts all tasks in `setup()` and immediately terminates `loop()` with `vTaskDelete(nullptr)`.
+Chaya2MQTT is **FreeRTOS multitasking firmware** for the **ESP32-S3** on the Waveshare 1.54G. The traditional Arduino `loop()` is not used—`main.cpp` starts all tasks in `setup()` and immediately terminates `loop()` with `vTaskDelete(nullptr)`.
 
 ```mermaid
 flowchart TB
@@ -35,12 +35,12 @@ flowchart TB
 | Task | Stack | Priority | Core | File | Responsibility |
 |------|-------|----------|------|------|----------------|
 | **network** | 7168 | 5 | 1 | `network/network_task.cpp` | `wlanLoop()` (including recovery), `mqttLoop()`, `NetCmd` queue |
-| **button** | 4096 | 8 | 1 | `hw/button_input.cpp`, `hw/button_led.cpp` | Debouncing, LED sequence, factory reset, MQTT sending |
+| **button** | 4096 | 8 | 1 | `hw/button_input.cpp`, `hw/button_led.cpp` | BOOT debounce, optional LED, factory reset, MQTT send |
 | **app** | 4096 | 4 | 1 | `async/app_task.cpp` | `webAdminLoop()`, counter resets, NVS saves |
 | **ota** | 8192 | 4 | 1 | `ota/ota_task.cpp` | `otaLoop()` (GitHub + Download) |
 | **display** | 4096 | 3 | 1 | `display/display.cpp` | Exclusive SPI/EPD access |
 
-**Task watchdog:** Network, app, OTA, and button are registered with the ESP task WDT. The **display task is intentionally excluded** because a full E-Ink refresh can take up to ~14 s.
+**Task watchdog:** Network, app, OTA, and button are registered with the ESP task WDT. The **display task is intentionally excluded** because a full 1.54G refresh can take up to ~20 s.
 
 ## CPU & power
 
@@ -93,7 +93,7 @@ At startup, `asyncInfraInit()` (in `async/task_handles.cpp`) creates:
 | **WiFi** | `src/wifi/wlan*.cpp` | STA/AP, captive DNS, mDNS, NTP, reconnect |
 | **Network task** | `src/network/network_task.*` | Orchestrates WiFi + MQTT + NetCmd |
 | **Display** | `src/display/*` | E-paper, dedicated drawing task |
-| **Button** | `src/hw/button_*.cpp` | Button + LED, dedicated task |
+| **Button** | `src/hw/button_*.cpp` | BOOT (GPIO0) + optional LED, dedicated task |
 | **Web admin** | `src/web/*` | HTTP routes, CSRF, SSE, SPA |
 | **OTA** | `src/ota/*` | GitHub stable/beta check, HTTPUpdate + MD5, status/SSE |
 | **App configuration** | `src/config/app_config.*` | Reset period |
@@ -117,7 +117,7 @@ sequenceDiagram
     participant T as tasks
 
     M->>A: asyncInfraInit
-    M->>M: CPU 240MHz, BT off, DFS
+    M->>M: GPIO17 battery latch, CPU 240MHz, BT off, DFS
     M->>D: displayInit + displayStartTask
     M->>B: buttonInit
     M->>C: loadMQTTConfig
@@ -133,16 +133,17 @@ sequenceDiagram
 ```
 
 1. **Async infrastructure:** Create queues and mutexes (including the TLS CA bundle mutex)
-2. **CPU:** 240 MHz, BT off, DFS (80–240 MHz, no light sleep; `CONFIG_PM_ENABLE`)
-3. **Display:** Initialize hardware (`initial_full_refresh=false`) + start display task
-4. **Button:** Initialize GPIO
-5. **Serial:** 115200 in debug builds only (`CORE_DEBUG_LEVEL > 0`)
-6. **Load NVS:** MQTT configuration, counters, reset period
-7. **WiFi:** STA with stored credentials or `Chaya2MQTT` SoftAP + captive DNS
-8. **MQTT:** Configure client (do not connect yet)
-9. **Start tasks:** Button, network, OTA, app
-10. **First drawing:** Heart (if a broker is configured) or splash screen (AP mode)
-11. **OTA verification (deferred):** In the app task, only after 30 s of stable runtime since WiFi boot settlement (`ota_health.h` → `otaTryMarkValidAfterHealthCheck()`; no immediate marking in `setup()`)
+2. **Power:** Drive GPIO17 (`BAT_Control`) HIGH before anything else when running from the LiPo
+3. **CPU:** 240 MHz, BT off, DFS (80–240 MHz, no light sleep; `CONFIG_PM_ENABLE`)
+4. **Display:** Enable GPIO6, init SPI/EPD (`initial_full_refresh=false`) + start display task
+5. **Button:** Initialize BOOT (GPIO0)
+6. **Serial:** 115200 in debug builds only (`CORE_DEBUG_LEVEL > 0`)
+7. **Load NVS:** MQTT configuration, counters, reset period
+8. **WiFi:** STA with stored credentials or `Chaya2MQTT` SoftAP + captive DNS
+9. **MQTT:** Configure client (do not connect yet)
+10. **Start tasks:** Button, network, OTA, app
+11. **First drawing:** Heart (if a broker is configured) or splash screen (AP mode)
+12. **OTA verification (deferred):** In the app task, only after 30 s of stable runtime since WiFi boot settlement (`ota_health.h` → `otaTryMarkValidAfterHealthCheck()`; no immediate marking in `setup()`)
 
 ## NetCmd – network command queue
 

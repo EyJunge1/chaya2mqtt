@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """
-ESP32 core-dump analyzer for chaya2mqtt (PlatformIO).
+ESP32-S3 core-dump analyzer for chaya2mqtt (PlatformIO).
 
 Reads a raw core-dump image (from the `coredump` partition or a support dump),
-locates the matching firmware ELF, and runs xtensa-esp32-elf-gdb for a
+locates the matching firmware ELF, and runs xtensa-esp32s3-elf-gdb for a
 backtrace. Does not expose dumps over HTTP — pull the partition locally.
 
 Usage:
@@ -13,7 +13,7 @@ Usage:
     python3 scripts/analyze_coredump.py /tmp/coredump.bin .pio/build/esp32dev/firmware.elf
 
 How to obtain a dump (esptool):
-    esptool.py --chip esp32 --port /dev/ttyUSB0 read_flash 0x3D0000 0x10000 coredump.bin
+    esptool.py --chip esp32s3 --port /dev/tty.usbmodem* read_flash 0x3D0000 0x10000 coredump.bin
 
 Partition offsets follow huge_app.csv (coredump @ 0x3D0000, 64 KiB). Verify with:
     pio run -e esp32dev-release -t partitionmap

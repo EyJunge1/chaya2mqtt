@@ -9,7 +9,7 @@ The E-Ink display shows a **red heart** with **RX and TX counters** (delta displ
 | Stack | 4096 Bytes |
 | Priority | 3 |
 | Core | 1 |
-| WDT | **Not registered** (a full refresh can take >5 s) |
+| WDT | **Not registered** (a 1.54G full refresh can take ~20 s) |
 | Boot initialization | `displayInit()` with `initial_full_refresh=false`—the first full refresh occurs with the first draw command |
 
 ### Commands (`DisplayMsg`)
@@ -115,14 +115,14 @@ sequenceDiagram
     T->>E: firstPage
     loop nextPage
         T->>E: Draw (heart, arrows, text)
-        T->>E: nextPage (Full Refresh ~14s)
+        T->>E: nextPage (full refresh ~20s)
     end
     T->>E: hibernate
     T->>S: displaySuspendSpiLowPower
 ```
 
 1. Enable SPI (`displayResumeSpiForDraw`)
-2. `firstPage()` → draw → `nextPage()` (full refresh, ~8–14 s)
+2. `firstPage()` → draw → `nextPage()` (full refresh ~20 s; fast ~15 s)
 3. `hibernate()`—controller deep sleep; the image remains bistable
 4. Put SPI into low-power mode (`displaySuspendSpiLowPower`, `gpio_hold` on CS)
 
@@ -141,13 +141,15 @@ SPI is disabled between draws:
 
 ## EPD driver
 
-Target hardware is the onboard 1.54G panel (200×200, black/white/red/yellow, full ~20 s / fast ~15 s). See [HARDWARE.md](HARDWARE.md).
-
-The tree still compiles the previous driver until the S3 port:
+Onboard Waveshare 1.54G panel. See [HARDWARE.md](HARDWARE.md).
 
 [GxEPD2](https://github.com/ZinggJM/GxEPD2) (`ZinggJM/GxEPD2`):
-- Current code: `GxEPD2_154_Z90c` + `GxEPD2_3C<…>` (`display/internal.h`)
-- Target: 4-color GxEPD2 panel class for the 1.54G
+- 200 × 200, black / white / **red** / yellow
+- `GxEPD2_4C` paging (`firstPage()` / `nextPage()`)
+- Alias: `ChayaEpdPanel` in `src/display/internal.h`
+- Full-window refresh (~20 s); fast mode ~15 s
+- Enable panel power on GPIO6 before drawing
+- Colors: `GxEPD_BLACK`, `GxEPD_WHITE`, `GxEPD_RED`, `GxEPD_YELLOW` — the heart uses red
 
 ## Further documentation
 

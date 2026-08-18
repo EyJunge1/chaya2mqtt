@@ -65,7 +65,7 @@ Generated artifacts (`frontend/coverage/`, `frontend/test-results/`, `playwright
 
 ### `make check` (complete)
 
-Frontend linting and formatting, coverage thresholds, frontend build, SPA embedding + Python embedding tests, native Unity, ASan/UBSan, cppcheck, Playwright E2E, and the ESP32 release build.
+Frontend linting and formatting, coverage thresholds, frontend build, SPA embedding + Python embedding tests, native Unity, ASan/UBSan, cppcheck, Playwright E2E, and the ESP32-S3 release build.
 
 The expensive check workflow is intentionally disabled in the private repository; all quality gates run locally. Only the infrequent tag-based release workflow remains active.
 
@@ -104,14 +104,14 @@ Alternatively, all values can be passed through `--host`, `--port`, `--user`, `-
 
 ### Checklist
 
-1. **Flash/boot**—flash the release; serial output shows a boot without panic; display updates.
+1. **Flash/boot**—flash the release over USB-C; on battery press PWR and confirm GPIO17 stays latched; display updates (~20 s). Do not hold BOOT except for download.
 2. **AP setup**—open `Chaya2MQTT` SoftAP; captive portal (`/generate_204`, etc.); SSID scan; test & connect; commit.
 3. **WiFi change/recovery**—wrong password → error; correct password → STA; reboot retains configuration; repeated disconnects → soft reconnect, then forced reassociation; longer outage → controlled restart (no restart during OTA); LOST_IP triggers the same reconnect path.
 4. **MQTT pairing/telemetry**—broker + partner; LWT online; send/receive heart; while MQTT is down, modem power saving is off (`WIFI_PS_NONE`), and after connection it returns to `MIN_MODEM`.
 5. **Broker outage**—restart broker with stable WiFi → MQTT backoff/reconnect without factory reset; LWT offline → online.
 6. **WiFi interruption**—briefly turn off the access point → STA reconnect → MQTT online again.
-7. **Display**—RX/TX change visible; AP splash shows SSID and setup URL/IP.
-8. **Restart/persistence**—power cycle retains WiFi, MQTT, and counters.
+7. **Display**—RX/TX change visible on the 1.54G (red heart); AP splash shows SSID and setup URL/IP; refresh ~20 s.
+8. **Restart/persistence**—USB or battery power cycle retains WiFi, MQTT, and counters; PWR+GPIO17 latch still holds on LiPo.
 9. **OTA**—check; error path without network shows error phase; no factory reset during download; after OTA boot, **≥30 s** settled without panic → no rollback (MQTT not required).
 10. **USB recovery**—erase flash with PlatformIO if needed and reflash the release; optionally analyze a core dump with `scripts/analyze_coredump.py`.
 

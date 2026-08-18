@@ -1,6 +1,6 @@
 # Chaya2MQTT
 
-Firmware for **Chaya2MQTT**: an ESP32 with an e-ink display and MQTT—two paired heart devices exchange counter values through an MQTT broker.
+Firmware for **Chaya2MQTT**: two paired [Waveshare ESP32-S3-ePaper-1.54G](https://docs.waveshare.com/ESP32-S3-ePaper-1.54G) (SKU 34586) hearts exchange counter values through an MQTT broker.
 
 ## Documentation
 
@@ -11,7 +11,7 @@ Firmware for **Chaya2MQTT**: an ESP32 with an e-ink display and MQTT—two paire
 | [docs/MODULES.md](docs/MODULES.md) | Code reference for all modules |
 | [docs/MQTT.md](docs/MQTT.md) | MQTT protocol, topics, TLS, pairing |
 | [docs/WEB_ADMIN.md](docs/WEB_ADMIN.md) | HTTP routes, authentication flow, SSE |
-| [docs/HARDWARE.md](docs/HARDWARE.md) | Board, display, pin assignment |
+| [docs/HARDWARE.md](docs/HARDWARE.md) | Waveshare 1.54G (SKU 34586): pins, battery, buttons |
 | [docs/OTA.md](docs/OTA.md) | Firmware updates through GitHub |
 | [docs/CONFIGURATION.md](docs/CONFIGURATION.md) | NVS namespaces, defaults, factory reset |
 | [docs/DISPLAY.md](docs/DISPLAY.md) | Display task, heart geometry, delta logic |

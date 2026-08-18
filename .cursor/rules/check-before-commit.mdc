@@ -7,7 +7,7 @@ alwaysApply: true
 
 Before **every** commit in this repository:
 
-1. Run `make check` (frontend lint/coverage/build, native Unity + ASan, cppcheck, Playwright, ESP32 release build). Details: `docs/TESTING.md`.
+1. Run `make check` (frontend lint/coverage/build, native Unity + ASan, cppcheck, Playwright, ESP32-S3 release build). Details: `docs/TESTING.md`.
 2. If it fails, **do not** commit; fix the error first and run the checks again.
 3. Create the commit only after `make check` succeeds.
 

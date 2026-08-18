@@ -219,34 +219,36 @@ Geometry details: [DISPLAY.md](DISPLAY.md)
 
 **Dependency:** `ZinggJM/GxEPD2` in `platformio.ini`
 
-**Type in firmware:** `ChayaEpdPanel` = `GxEPD2_3C<GxEPD2_154_Z90c, GxEPD2_154_Z90c::HEIGHT>` (`display/internal.h`) — still the previous BWR panel class until the 1.54G 4-color port.
+**Type:** `ChayaEpdPanel` via `GxEPD2_4C` (`display/internal.h`) for the onboard 1.54G panel.
 
-- Target hardware: Waveshare 1.54G, 200×200, black/white/red/yellow ([HARDWARE.md](HARDWARE.md))
-- Current code: SSD1682 / GDEH0154Z90, 200×200, 3-color (BWR)
-- Full-Window-Refresh only
+- Hardware: Waveshare 1.54G, 200×200, black/white/red/yellow ([HARDWARE.md](HARDWARE.md))
+- SPI: SCLK 12, MOSI 13, CS 11, DC 10, RST 9, BUSY 8; panel power GPIO6
+- Full-window refresh (~20 s)
 
 ---
 
-## `hw/button` – button & LED
+## `hw/button` – BOOT, PWR latch, optional LED
 
 **Files:** `hw/button.h`, `hw/button_config.h`, `hw/button_internal.h`, `hw/button_input.cpp`, `hw/button_led.cpp`, `hw/pins.h`
 
 | File | Responsibility |
 |------|----------------|
-| `button_input.cpp` | GPIO/ISR, debounce, factory reset → `NetCmd` |
-| `button_led.cpp` | LED sequence, MQTT publish after blinking |
+| `button_input.cpp` | BOOT GPIO/ISR, debounce, factory reset → `NetCmd` |
+| `button_led.cpp` | Optional LED sequence, MQTT publish after blinking |
 
 | Constant | Value | Meaning |
 |----------|-------|---------|
-| `kButtonGpio` | GPIO 2 | Button (`INPUT_PULLDOWN`) |
-| `kButtonLedPin` | GPIO 4 | LED |
-| `kFactoryResetHoldMs` | 10000 | Factory reset (hold for 10 s) |
+| Heart button | GPIO 0 (BOOT) | After boot; do not hold during flash |
+| `BAT_Control` | GPIO 17 | Drive HIGH at boot on battery |
+| `BAT_KEY` / PWR | GPIO 18 | Battery power button |
+| Optional LED | GPIO 3 | Header / user LED if present |
+| `kFactoryResetHoldMs` | 10000 | Factory reset (hold BOOT 10 s) |
 | `kShortPressMinMs` | 50 | Minimum short-press duration |
 
 Button task (4096 stack, priority 8, core 1):
 - Debounce (~20 ms)
-- Short press → MQTT send LED sequence (2× blink → publish → 2× blink)
-- Hold for 10 s → `NetCmd::FactoryResetRequested` in the network task (`resetAllSettings()` is WDT-safe there)
+- Short BOOT press → MQTT send (optional LED blink → publish → blink)
+- Hold BOOT 10 s → `NetCmd::FactoryResetRequested` in the network task (`resetAllSettings()` is WDT-safe there)
 
 | Function | Description |
 |----------|-------------|

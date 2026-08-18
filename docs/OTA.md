@@ -178,7 +178,7 @@ Local checks before commits: `make check` (Cursor rule: `.cursor/rules/check-bef
 
 ### Device no longer reachable (“brick”)
 
-1. Connect USB
+1. Connect USB-C on the 1.54G (hold **BOOT** only if the port does not enumerate)
 2. `pio run -e esp32dev-release -t erase` (optional; deletes NVS including WiFi)
 3. `make upload ENV=esp32dev-release`
 4. The open `Chaya2MQTT` SoftAP appears without credentials; the display shows the SSID and setup URL/IP
@@ -191,7 +191,7 @@ The `coredump` partition (64 KiB @ `0x3D0000` in `huge_app.csv`):
 
 ```bash
 # Read dump from flash (adjust port)
-esptool.py --chip esp32 --port /dev/tty.usbserial-* read_flash 0x3D0000 0x10000 /tmp/coredump.bin
+esptool.py --chip esp32s3 --port /dev/tty.usbmodem* read_flash 0x3D0000 0x10000 /tmp/coredump.bin
 
 # Analyze against the matching ELF
 pio run -e esp32dev-release   # creates .pio/build/esp32dev-release/firmware.elf

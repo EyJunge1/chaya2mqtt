@@ -18,11 +18,7 @@ Thanks to **retained messages**, a device automatically retrieves the current co
 
 ## Target hardware
 
-- **Board:** Waveshare ESP32-S3-ePaper-1.54G, SKU **34586** (with battery)
-- **Display:** 1.54", 200×200, black/white/red/yellow (onboard)
-- **Button:** BOOT (GPIO0); PWR (GPIO18) is the battery power latch
-
-Details: [HARDWARE.md](HARDWARE.md)
+Only [Waveshare ESP32-S3-ePaper-1.54G](https://docs.waveshare.com/ESP32-S3-ePaper-1.54G) SKU **34586**. Pins, battery, buttons: [HARDWARE.md](HARDWARE.md).
 
 Tests and quality gates: [TESTING.md](TESTING.md)
 
@@ -30,7 +26,7 @@ Tests and quality gates: [TESTING.md](TESTING.md)
 
 - [PlatformIO](https://platformio.org/) (CLI or IDE)
 - MQTT broker with TLS and a valid server certificate from a **public CA** (Let's Encrypt, DigiCert, etc.)
-- Illuminated button with a series resistor for the LED
+- Waveshare ESP32-S3-ePaper-1.54G SKU 34586 (USB-C and/or included LiPo)
 
 ## Quick start
 
@@ -55,7 +51,7 @@ If `pio: command not found` appears, PlatformIO is located at `~/.platformio/pen
 ## Initial setup (WiFi & MQTT)
 
 1. Power the device or restart it after flashing.
-2. If no WiFi configuration is stored, the ESP32 opens the **`Chaya2MQTT`** access point without authentication. The E-Ink display shows the SSID and setup URL.
+2. If no WiFi configuration is stored, the ESP32-S3 opens the **`Chaya2MQTT`** access point without authentication. The E-Ink display shows the SSID and setup URL. On battery, press **PWR** to start (firmware must hold GPIO17 HIGH).
 3. Connect with a phone or PC and open the captive portal or a browser (typically `http://4.3.2.1`).
 4. Enter the **WiFi** SSID and password. After switching to STA mode, configure MQTT under **MQTT**:
    - **MQTT server** (hostname or IP)
@@ -82,7 +78,7 @@ Details: [MQTT.md](MQTT.md)
 
 ## Factory reset
 
-Hold the button for **at least 10 seconds** → all NVS namespaces (`wifi`, `mqtt`, `cfg`, `chaya`) are deleted and the device restarts. The open **`Chaya2MQTT`** SoftAP is then available again.
+Hold **BOOT** for **at least 10 seconds** → all NVS namespaces (`wifi`, `mqtt`, `cfg`, `chaya`) are deleted and the device restarts. The open **`Chaya2MQTT`** SoftAP is then available again. Do not hold BOOT while resetting if you only want to flash.
 
 ## Project structure
 
@@ -90,7 +86,7 @@ Hold the button for **at least 10 seconds** → all NVS namespaces (`wifi`, `mqt
 chaya2mqtt/
 ├── README.md                 # Brief introduction
 ├── platformio.ini            # Build configuration
-├── huge_app.csv              # Dual-OTA (Waveshare / 4 MB)
+├── huge_app.csv              # Dual-OTA table (chip is 8 MB; table still 4 MB-sized until S3 env)
 ├── Makefile                  # pio-Wrapper
 ├── docs/                     # This documentation
 └── src/
@@ -119,13 +115,13 @@ frontend/                     # React 19 SPA (Vite, Tailwind, Lucide) + mock dev
 | `esp32dev` | Development (legacy `esp32dev` env until the S3 port) | `CORE_DEBUG_LEVEL=3` | Default |
 | `esp32dev-release` | Production (default; same caveat) | `CORE_DEBUG_LEVEL=0` | `-Os`, `-DNDEBUG` |
 
-Waveshare partition layout: **dual OTA** (`huge_app.csv`)—approximately 1.875 MB per slot.
+The 1.54G has **8 MB** flash. `huge_app.csv` is still a **4 MB-sized** dual-OTA map (~1.875 MB per slot) until the S3 environment lands.
 
 ## Dependencies (PlatformIO)
 
 | Library | Purpose |
 |---------|---------|
-| **GxEPD2** | E-paper driver (`GxEPD2_154_Z90c`, 3-color paging) |
+| **GxEPD2** | E-paper driver (1.54G 4-color / `GxEPD2_4C`) |
 | **Adafruit GFX / BusIO** | Graphics primitives for e-paper |
 | **ESP-IDF MQTT** (`esp_mqtt_client`) | MQTT over TLS (not PubSubClient) |
 | **ESPAsyncWebServer** | HTTP admin + captive portal |
@@ -140,8 +136,7 @@ Waveshare partition layout: **dual OTA** (`huge_app.csv`)—approximately 1.875 
 | [WEB_ADMIN.md](WEB_ADMIN.md) | HTTP routes, CSRF, SSE |
 | [openapi.yaml](openapi.yaml) | REST-API (OpenAPI 3.1) |
 | [asyncapi.yaml](asyncapi.yaml) | SSE-Events (AsyncAPI 3) |
-| [HARDWARE.md](HARDWARE.md) | Only supported board (1.54G SKU 34586), pinout |
-| [EINK-ESP-BOARDS.md](EINK-ESP-BOARDS.md) | Hardware scope (this board only) |
+| [HARDWARE.md](HARDWARE.md) | The only board: 1.54G SKU 34586, pins, battery |
 | [OTA.md](OTA.md) | Firmware updates via GitHub |
 | [CONFIGURATION.md](CONFIGURATION.md) | NVS namespaces, defaults |
 | [DISPLAY.md](DISPLAY.md) | Display task, heart geometry, delta logic |

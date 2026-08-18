@@ -2,7 +2,7 @@
 
 React 19 + Vite + Tailwind CSS + Lucide Icons.
 
-## Development without an ESP32
+## Development without the ESP32-S3
 
 ```bash
 npm ci

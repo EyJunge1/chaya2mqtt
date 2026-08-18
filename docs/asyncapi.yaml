@@ -5,12 +5,15 @@ info:
   description: |
     Live updates from the device via SSE at `/events`.
     Maximum 6 concurrent clients. Status events are dirty-diffed about every 500 ms.
+    There is no login; access is limited by Host/Origin allowlists on the LAN.
 servers:
   device:
     host: chaya2mqtt.local
     pathname: /events
     protocol: http
     description: STA mode mDNS host (EventSource uses http://host/events)
+    security:
+      - $ref: "#/components/securitySchemes/lanHostAllowlist"
 channels:
   events:
     address: /events
@@ -49,6 +52,14 @@ operations:
     messages:
       - $ref: "#/channels/events/messages/ota"
 components:
+  securitySchemes:
+    lanHostAllowlist:
+      type: httpApiKey
+      in: header
+      name: Host
+      description: |
+        No login. The firmware accepts only Host (and Origin, when sent) values
+        from the LAN allowlist, same as the REST admin API.
   messages:
     ChayaEvent:
       name: chaya
