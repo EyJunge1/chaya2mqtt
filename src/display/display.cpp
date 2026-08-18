@@ -25,9 +25,9 @@ DEFINE_LOG_TAG("DISP");
 
 // Only this task uses SPI/EPD; everyone else posts DisplayMsg.
 
-static ChayaEpdPanel display(GxEPD2_154_Z90c(/*CS=*/ pins::kSpiCs, /*DC=*/ pins::kDisplayDc,
-                                               /*RST=*/ pins::kDisplayRst,
-                                               /*BUSY=*/ pins::kDisplayBusy));
+static ChayaEpdPanel display(GxEPD2_154c_GDEM0154F51H(/*CS=*/ pins::kSpiCs, /*DC=*/ pins::kDisplayDc,
+                                                        /*RST=*/ pins::kDisplayRst,
+                                                        /*BUSY=*/ pins::kDisplayBusy));
 
 static bool g_displaySpiSuspendedLowPower = false;
 static std::atomic<bool> s_heartDrawQueued{false};
@@ -66,10 +66,12 @@ ChayaEpdPanel& displayPanel() {
 }
 
 void displayHwInitPins() {
+    // EPD3V3_EN is active-low: drive LOW before any SPI/EPD traffic.
+    pinMode(pins::kDisplayPwrEn, OUTPUT);
+    digitalWrite(pins::kDisplayPwrEn, LOW);
     pinMode(pins::kDisplayBusy, INPUT);
     pinMode(pins::kDisplayRst, OUTPUT);
     pinMode(pins::kDisplayDc, OUTPUT);
-    pinMode(pins::kSpiMiso, INPUT);
     pinMode(pins::kSpiSck, OUTPUT);
     pinMode(pins::kSpiMosi, OUTPUT);
     pinMode(pins::kSpiCs, OUTPUT);
@@ -81,6 +83,7 @@ void displayResumeSpiForDraw() {
         gpio_hold_dis(static_cast<gpio_num_t>(pins::kSpiCs));
         g_displaySpiSuspendedLowPower = false;
     }
+    digitalWrite(pins::kDisplayPwrEn, LOW);
     SPI.begin(/*SCK=*/ pins::kSpiSck, /*MISO=*/ pins::kSpiMiso, /*MOSI=*/ pins::kSpiMosi,
               /*SS=*/ pins::kSpiCs);
 }
@@ -89,7 +92,6 @@ void displaySuspendSpiLowPower() {
     SPI.end();
     pinMode(pins::kSpiSck, INPUT_PULLDOWN);
     pinMode(pins::kSpiMosi, INPUT_PULLDOWN);
-    pinMode(pins::kSpiMiso, INPUT_PULLDOWN);
     pinMode(pins::kSpiCs, OUTPUT);
     digitalWrite(pins::kSpiCs, HIGH);
     gpio_hold_en(static_cast<gpio_num_t>(pins::kSpiCs));
@@ -158,8 +160,8 @@ void displayInit() {
               /*SS=*/ pins::kSpiCs);
     /*
      * GxEPD2-style: serial_diag_bitrate, initial_full_refresh, reset_duration_ms, pulldown_rst_mode.
-     * Do not register loopTask with esp_task_wdt: full-window 3C e-paper refresh can block >5s inside
-     * nextPage(), which would trigger a task WDT abort. Long draws are expected on this device.
+     * Do not register loopTask with esp_task_wdt: full-window 4C e-paper refresh can block ~20s
+     * inside nextPage(), which would trigger a task WDT abort. Long draws are expected on this device.
      */
     static constexpr uint32_t  kEpdSerialDiagOff    = 0;
     static constexpr bool      kEpdInitialFull      = false;

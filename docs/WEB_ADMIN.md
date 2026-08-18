@@ -110,7 +110,7 @@ Maximum **6** SSE clients. Tick every 500 ms in the app task.
    - `src/web/assets/web_ui_blob.S` (`.incbin` in flash read-only data)
    - `src/web/assets/web_ui_manifest.h` (path, offset, length, MIME, cache class)
 3. PlatformIO `pre:scripts/pio_pre_frontend.py` runs this before every firmware build
-4. Soft limit: compressed SPA ≤ 350 KiB; OTA slot 1.875 MB
+4. Soft limit: compressed SPA ≤ 350 KiB; OTA slot ~3.75 MB
 5. Generated blob artifacts are gitignored and regenerated during the build
 
 ## Deferred Work

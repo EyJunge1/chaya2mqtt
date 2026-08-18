@@ -145,10 +145,10 @@ Onboard Waveshare 1.54G panel. See [HARDWARE.md](HARDWARE.md).
 
 [GxEPD2](https://github.com/ZinggJM/GxEPD2) (`ZinggJM/GxEPD2`):
 - 200 × 200, black / white / **red** / yellow
-- `GxEPD2_4C` paging (`firstPage()` / `nextPage()`)
+- `GxEPD2_4C` / `GxEPD2_154c_GDEM0154F51H` paging (`firstPage()` / `nextPage()`)
 - Alias: `ChayaEpdPanel` in `src/display/internal.h`
 - Full-window refresh (~20 s); fast mode ~15 s
-- Enable panel power on GPIO6 before drawing
+- Enable panel power on GPIO6 **LOW** before drawing (active-low `EPD3V3_EN`)
 - Colors: `GxEPD_BLACK`, `GxEPD_WHITE`, `GxEPD_RED`, `GxEPD_YELLOW` — the heart uses red
 
 ## Further documentation

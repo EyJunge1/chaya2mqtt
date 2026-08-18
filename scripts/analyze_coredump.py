@@ -9,14 +9,14 @@ backtrace. Does not expose dumps over HTTP — pull the partition locally.
 Usage:
     python3 scripts/analyze_coredump.py <coredump.bin> [environment_or_elf]
     python3 scripts/analyze_coredump.py /tmp/coredump.bin
-    python3 scripts/analyze_coredump.py /tmp/coredump.bin esp32dev-release
-    python3 scripts/analyze_coredump.py /tmp/coredump.bin .pio/build/esp32dev/firmware.elf
+    python3 scripts/analyze_coredump.py /tmp/coredump.bin esp32s3-release
+    python3 scripts/analyze_coredump.py /tmp/coredump.bin .pio/build/esp32s3/firmware.elf
 
 How to obtain a dump (esptool):
-    esptool.py --chip esp32s3 --port /dev/tty.usbmodem* read_flash 0x3D0000 0x10000 coredump.bin
+    esptool.py --chip esp32s3 --port /dev/tty.usbmodem* read_flash 0x790000 0x10000 coredump.bin
 
-Partition offsets follow huge_app.csv (coredump @ 0x3D0000, 64 KiB). Verify with:
-    pio run -e esp32dev-release -t partitionmap
+Partition offsets follow partitions_chaya_8mb.csv (coredump @ 0x790000, 64 KiB). Verify with:
+    pio run -e esp32s3-release -t partitionmap
 """
 
 from __future__ import annotations
@@ -30,7 +30,7 @@ import tempfile
 from pathlib import Path
 
 
-DEFAULT_ENV = "esp32dev-release"
+DEFAULT_ENV = "esp32s3-release"
 ELF_MAGIC = b"\x7fELF"
 # ESP-IDF core dump may be wrapped; scan for ELF header.
 SCAN_WINDOW = 256 * 1024
@@ -47,7 +47,7 @@ def find_build_dir(environment: str) -> Path | None:
         if envs:
             print(f"Available: {', '.join(envs)}", file=sys.stderr)
     else:
-        print("No .pio/build — run: pio run -e esp32dev-release", file=sys.stderr)
+        print("No .pio/build — run: pio run -e esp32s3-release", file=sys.stderr)
     return None
 
 
@@ -61,8 +61,11 @@ def find_firmware_elf(build_dir: Path) -> Path | None:
 
 def find_gdb() -> str | None:
     candidates = [
-        "xtensa-esp32-elf-gdb",
+        "xtensa-esp32s3-elf-gdb",
         "xtensa-esp-elf-gdb",
+        "xtensa-esp32-elf-gdb",
+        str(Path.home() / ".platformio/packages/toolchain-xtensa-esp-elf/bin/xtensa-esp32s3-elf-gdb"),
+        str(Path.home() / ".platformio/packages/toolchain-xtensa-esp32s3/bin/xtensa-esp32s3-elf-gdb"),
         str(Path.home() / ".platformio/packages/toolchain-xtensa-esp32/bin/xtensa-esp32-elf-gdb"),
     ]
     candidates.extend(
@@ -70,6 +73,14 @@ def find_gdb() -> str | None:
             str(
                 Path.home()
                 / ".platformio/packages/toolchain-xtensa-esp*/bin/xtensa-esp*-elf-gdb"
+            )
+        )
+    )
+    candidates.extend(
+        glob.glob(
+            str(
+                Path.home()
+                / ".espressif/tools/xtensa-esp-elf-gdb/*/xtensa-esp-elf-gdb/bin/xtensa-esp32s3-elf-gdb"
             )
         )
     )
@@ -87,7 +98,7 @@ def find_gdb() -> str | None:
         resolved = shutil.which(path) if os.path.sep not in path else path
         if resolved and os.path.isfile(resolved) and os.access(resolved, os.X_OK):
             return resolved
-    print("xtensa-esp32-elf-gdb not found (install PlatformIO esp32 toolchain)", file=sys.stderr)
+    print("xtensa-esp32s3-elf-gdb not found (install PlatformIO esp32s3 toolchain)", file=sys.stderr)
     return None
 
 

@@ -26,8 +26,9 @@ void armLedPhase(unsigned long durationMs) {
 }
 
 void ledOutput(int level) {
+    // Header user LED is active-low: HIGH in the state machine means "on".
     gpio_hold_dis(static_cast<gpio_num_t>(kButtonLedPin));
-    digitalWrite(kButtonLedPin, level);
+    digitalWrite(kButtonLedPin, level == HIGH ? LOW : HIGH);
 }
 
 void ledHoldWhenIdle() {

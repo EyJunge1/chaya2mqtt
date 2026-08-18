@@ -12,6 +12,7 @@
 
 #include "config/app_config.h"
 #include "hw/button.h"
+#include "hw/pins.h"
 #include "heart/counter.h"
 #include "display/display.h"
 #include "mqtt/mqtt.h"
@@ -23,10 +24,14 @@
 DEFINE_LOG_TAG("MAIN");
 
 void setup() {
+    // Battery latch: must be HIGH before PWR is released or LiPo power cuts.
+    pinMode(pins::kBatControl, OUTPUT);
+    digitalWrite(pins::kBatControl, HIGH);
+
     asyncInfraInit();
     setCpuFrequencyMhz(240);
     btStop();
-    esp_bt_controller_mem_release(ESP_BT_MODE_BTDM);
+    esp_bt_controller_mem_release(ESP_BT_MODE_BLE);
 
     // DFS: idle min 80 MHz (WiFi). No light sleep (keep web + MQTT responsive).
     {

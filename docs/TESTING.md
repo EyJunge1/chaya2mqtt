@@ -120,7 +120,7 @@ Alternatively, all values can be passed through `--host`, `--port`, `--user`, `-
 - Bug fix → regression test (native or Vitest/E2E)
 - New business logic → host-testable pure header/helper + Unity case
 - REST/SSE change → update `contract.test.ts` + OpenAPI/AsyncAPI + mock
-- Hardware adapter → at least a successful `esp32dev-release` build
+- Hardware adapter → at least a successful `esp32s3-release` build
 - Before committing: `make check` (Cursor rule)
 
 ## Limitations

@@ -33,7 +33,7 @@ Tests and quality gates: [TESTING.md](TESTING.md)
 ```bash
 # In the project directory
 pio run                        # Build (debug: CORE_DEBUG_LEVEL=3)
-pio run -e esp32dev-release    # Production without serial debug
+pio run -e esp32s3-release    # Production without serial debug
 pio run -t upload              # Flash
 pio device monitor             # Serial monitor (115200 baud)
 ```
@@ -42,7 +42,7 @@ Alternatively, use the Makefile:
 
 ```bash
 make build                         # Build debug version
-make upload ENV=esp32dev-release   # Build and flash release
+make upload ENV=esp32s3-release   # Build and flash release
 make monitor                       # Serial monitor
 ```
 
@@ -86,7 +86,7 @@ Hold **BOOT** for **at least 10 seconds** → all NVS namespaces (`wifi`, `mqtt`
 chaya2mqtt/
 ├── README.md                 # Brief introduction
 ├── platformio.ini            # Build configuration
-├── huge_app.csv              # Dual-OTA table (chip is 8 MB; table still 4 MB-sized until S3 env)
+├── partitions_chaya_8mb.csv  # Dual-OTA table (8 MB flash; ~3.75 MB per slot)
 ├── Makefile                  # pio-Wrapper
 ├── docs/                     # This documentation
 └── src/
@@ -112,10 +112,10 @@ frontend/                     # Svelte 5 SPA (Vite, Tailwind, Lucide) + mock dev
 
 | Environment | Purpose | Debug level | Optimization |
 |-------------|---------|-------------|--------------|
-| `esp32dev` | Development (legacy `esp32dev` env until the S3 port) | `CORE_DEBUG_LEVEL=3` | Default |
-| `esp32dev-release` | Production (default; same caveat) | `CORE_DEBUG_LEVEL=0` | `-Os`, `-DNDEBUG` |
+| `esp32s3` | Development (ESP32-S3 1.54G) | `CORE_DEBUG_LEVEL=3` | Default |
+| `esp32s3-release` | Production (default) | `CORE_DEBUG_LEVEL=0` | `-Os`, `-DNDEBUG` |
 
-The 1.54G has **8 MB** flash. `huge_app.csv` is still a **4 MB-sized** dual-OTA map (~1.875 MB per slot) until the S3 environment lands.
+The 1.54G has **8 MB** flash. `partitions_chaya_8mb.csv` is a dual-OTA map (~3.75 MB per slot).
 
 ## Dependencies (PlatformIO)
 

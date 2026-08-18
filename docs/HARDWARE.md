@@ -63,8 +63,8 @@ I2C bus **GPIO47 (SDA) / GPIO48 (SCL)** is shared by RTC, SHTC3, ES8311, and res
 | **Full refresh** | ~20 s |
 | **Fast refresh** | ~15 s |
 | **Interface** | SPI |
-| **Power enable** | GPIO6 (`EPD3V3_EN`) — confirm on/off polarity in the [schematic](https://docs.waveshare.com/ESP32-S3-ePaper-1.54G/Resources-And-Documents) when porting |
-| **Driver** | [GxEPD2](https://github.com/ZinggJM/GxEPD2) `GxEPD2_4C` |
+| **Power enable** | GPIO6 (`EPD3V3_EN`) — **active-low** (drive LOW to power the panel) |
+| **Driver** | [GxEPD2](https://github.com/ZinggJM/GxEPD2) `GxEPD2_4C` / `GxEPD2_154c_GDEM0154F51H` |
 
 | Signal | GPIO |
 |--------|------|
@@ -155,11 +155,10 @@ PCB outline: Waveshare [dimensions drawing](https://docs.waveshare.com/ESP32-S3-
 - Bundled cell **mAh**
 - Exact case outer size in text (drawing only)
 - Audio amp IC part number (only `PA_EN` / `PA_CTRL`)
-- GPIO6 / BUSY polarity in prose (use the schematic)
 
 ## Flash / OTA
 
-The chip has **8 MB** flash. The repo still uses `huge_app.csv` (4 MB-sized dual OTA, ~1.875 MB per slot) until the S3 PlatformIO environment lands. Core dump read-back must use `--chip esp32s3`.
+The chip has **8 MB** flash. Dual OTA uses `partitions_chaya_8mb.csv` (~3.75 MB per slot). Core dump read-back must use `--chip esp32s3`.
 
 ## Operating conditions
 
@@ -175,20 +174,21 @@ The chip has **8 MB** flash. The repo still uses `huge_app.csv` (4 MB-sized 
 If OTA/boot fails and the device is unreachable:
 
 1. Connect USB-C (hold **BOOT** only if the port will not enumerate)
-2. Optionally erase: `pio run -e esp32dev-release -t erase`
-3. Flash: `make upload ENV=esp32dev-release`
+2. Optionally erase: `pio run -e esp32s3-release -t erase`
+3. Flash: `make upload ENV=esp32s3-release`
 4. Without Wi-Fi credentials the open `Chaya2MQTT` SoftAP returns; the display shows the SSID and setup URL
 
 On battery, press **PWR** to start; firmware must keep GPIO17 HIGH.
 
 ## Firmware implementation
 
-`src/hw/pins_esp32_waveshare.h` and the `esp32dev` environments still match the **previous** ESP32 driver board. The S3 + 4-color + GPIO17 latch port is outstanding. Product hardware is this 1.54G only.
+`src/hw/pins_esp32_waveshare.h` and the `esp32s3` / `esp32s3-release` environments target this 1.54G only (`board = esp32-s3-devkitc1-n8r8`, OPI PSRAM, USB CDC). Product hardware is this board only.
 
 ## Further documentation
 
 - Display geometry: [DISPLAY.md](DISPLAY.md)
 - Architecture: [ARCHITECTURE.md](ARCHITECTURE.md)
 - OTA / recovery: [OTA.md](OTA.md)
-- Waveshare schematic / datasheets: [Resources](https://docs.waveshare.com/ESP32-S3-ePaper-1.54G/Resources-And-Documents)
-- Vendor examples: [waveshareteam/ESP32-S3-ePaper-1.54G](https://github.com/waveshareteam/ESP32-S3-ePaper-1.54G) (factory image is XiaoZhi voice, not Chaya)
+- Waveshare FAQ / datasheets / design files: [Resources](https://docs.waveshare.com/ESP32-S3-ePaper-1.54G/Resources-And-Documents)
+- Schematic PDF: [Hardware/schematics](https://github.com/waveshareteam/ESP32-S3-ePaper-1.54G/tree/main/Hardware/schematics) (Waveshare names the file Touch; this SKU has no touch glass)
+- Vendor examples / factory firmware (XiaoZhi, not Chaya): [waveshareteam/ESP32-S3-ePaper-1.54G](https://github.com/waveshareteam/ESP32-S3-ePaper-1.54G)

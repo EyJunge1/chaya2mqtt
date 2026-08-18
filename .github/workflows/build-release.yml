@@ -76,19 +76,19 @@ jobs:
           python3 scripts/embed_web_assets.py
 
       - name: Build release firmware
-        run: pio run -e esp32dev-release
+        run: pio run -e esp32s3-release
 
       - name: Check firmware fits OTA slot
         run: |
-          SIZE=$(stat -c%s .pio/build/esp32dev-release/firmware.bin)
-          MAX=$((0x1E0000))
+          SIZE=$(stat -c%s .pio/build/esp32s3-release/firmware.bin)
+          MAX=$((0x3C0000))
           echo "firmware.bin=$SIZE bytes (limit $MAX)"
           test "$SIZE" -le "$MAX"
 
       - name: Compute firmware MD5
         id: hashes
         run: |
-          cd .pio/build/esp32dev-release
+          cd .pio/build/esp32s3-release
           md5sum firmware.bin | awk '{print $1}' > firmware.md5
           echo "md5=$(cat firmware.md5)" >> "$GITHUB_OUTPUT"
 
@@ -106,5 +106,5 @@ jobs:
             |-------------|------|
             | MD5         | `${{ steps.hashes.outputs.md5 }}` |
           files: |
-            .pio/build/esp32dev-release/firmware.bin
-            .pio/build/esp32dev-release/firmware.md5
+            .pio/build/esp32s3-release/firmware.bin
+            .pio/build/esp32s3-release/firmware.md5

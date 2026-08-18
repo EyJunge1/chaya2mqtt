@@ -19,11 +19,11 @@ Firmware for **Chaya2MQTT**: two paired [Waveshare ESP32-S3-ePaper-1.54G](https:
 ## Quick start
 
 ```bash
-pio run -e esp32dev-release -t upload   # Release build (recommended for deployed devices)
+pio run -e esp32s3-release -t upload   # Release build (recommended for deployed devices)
 pio device monitor                       # Serial monitor (115200 baud)
 ```
 
-For development with debug logs: `pio run -e esp32dev -t upload`
+For development with debug logs: `pio run -e esp32s3 -t upload`
 
 Alternatively: `make upload` / `make monitor`
 

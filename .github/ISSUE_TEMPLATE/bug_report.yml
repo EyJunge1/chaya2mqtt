@@ -64,7 +64,7 @@ body:
       description: Optional, but helpful. Examples depend on the affected area.
       placeholder: |
         Hardware: Waveshare ESP32-S3-ePaper-1.54G (SKU 34586)
-        Build: esp32dev or esp32dev-release
+        Build: esp32s3 or esp32s3-release
         MQTT broker: type and TLS yes/no (without credentials)
         Browser/OS: only for the web interface
   - type: textarea

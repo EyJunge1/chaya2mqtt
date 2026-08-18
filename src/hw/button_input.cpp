@@ -61,9 +61,10 @@ void buttonPollAndProcess() {
     if (nowMs - btn.lastDebounceChangeMs >= kDebounceStableMs) {
         btn.debouncedLevel = btn.lastRawReading;
     }
-    const int reading = btn.debouncedLevel;
+    // BOOT / Key1 is active-low (pressed = LOW).
+    const bool pressed = (btn.debouncedLevel == LOW);
 
-    if (reading == HIGH) {
+    if (pressed) {
         if (!btn.heldDown) {
             btn.heldDown              = true;
             btn.pressStartMs          = nowMs;
@@ -112,12 +113,12 @@ static void buttonTaskFn(void*) {
 }
 
 void buttonInit() {
-    pinMode(kButtonGpio, INPUT_PULLDOWN);
+    pinMode(kButtonGpio, INPUT_PULLUP);
     pinMode(kButtonLedPin, OUTPUT);
+    ledOutput(LOW);  // active-low LED off
     btn.lastRawReading       = digitalRead(kButtonGpio);
     btn.debouncedLevel       = btn.lastRawReading;
     btn.lastDebounceChangeMs = millis();
-
 }
 
 void buttonStartTask() {

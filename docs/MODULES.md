@@ -219,10 +219,10 @@ Geometry details: [DISPLAY.md](DISPLAY.md)
 
 **Dependency:** `ZinggJM/GxEPD2` in `platformio.ini`
 
-**Type:** `ChayaEpdPanel` via `GxEPD2_4C` (`display/internal.h`) for the onboard 1.54G panel.
+**Type:** `ChayaEpdPanel` via `GxEPD2_4C` / `GxEPD2_154c_GDEM0154F51H` (`display/internal.h`) for the onboard 1.54G panel.
 
 - Hardware: Waveshare 1.54G, 200×200, black/white/red/yellow ([HARDWARE.md](HARDWARE.md))
-- SPI: SCLK 12, MOSI 13, CS 11, DC 10, RST 9, BUSY 8; panel power GPIO6
+- SPI: SCLK 12, MOSI 13, CS 11, DC 10, RST 9, BUSY 8; panel power GPIO6 (active-low)
 - Full-window refresh (~20 s)
 
 ---
