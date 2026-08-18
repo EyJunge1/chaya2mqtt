@@ -271,7 +271,7 @@ Button task (4096 stack, priority 8, core 1):
 | `web_middleware.h` / `web_middleware.cpp` | Host/CSRF middleware for API routes |
 | `csrf.h` / `csrf.cpp` | Generate and validate CSRF tokens |
 | `web_events.h` / `web_events.cpp` | SSE `/events` |
-| `routes/admin_routes_api.cpp` | JSON API `/api/*` for the React SPA |
+| `routes/admin_routes_api.cpp` | JSON API `/api/*` for the Svelte SPA |
 | `routes/admin_routes_spa.cpp` | Generic SPA blob lookup + SPA fallback |
 | `spa_asset_lookup.h` | Path/MIME/cache helpers (natively testable) |
 | `assets/web_ui.*` | Generated gzip blob, `.incbin` stub, and manifest |

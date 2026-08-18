@@ -19,5 +19,5 @@
     "erasableSyntaxOnly": true,
     "noFallthroughCasesInSwitch": true
   },
-  "include": ["vite.config.ts", "mock/**/*.ts"]
+  "include": ["vite.config.ts", "svelte.config.js", "mock/**/*.ts"]
 }

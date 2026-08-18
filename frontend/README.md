@@ -1,6 +1,6 @@
 # Chaya2MQTT Web-UI
 
-React 19 + Vite + Tailwind CSS + Lucide Icons.
+Svelte 5 + Vite + Tailwind CSS + Lucide Icons.
 
 ## Development without the ESP32-S3
 

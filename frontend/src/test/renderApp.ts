@@ -1,27 +1,20 @@
-import { render, type RenderOptions } from "@testing-library/react";
-import { createElement, type ReactElement, type ReactNode } from "react";
-import { MemoryRouter } from "react-router-dom";
-import { I18nProvider } from "../i18n/I18nProvider";
-import { setLanguage } from "../i18n/store";
+import { render, type RenderOptions } from "@testing-library/svelte";
+import type { Component, ComponentProps } from "svelte";
+import { setLanguage } from "../i18n/store.ts";
+import { router } from "../nav/router.svelte.ts";
 
-type Options = {
+type Options<T extends Component<Record<string, unknown>>> = {
   route?: string;
   language?: "de" | "en";
-} & Omit<RenderOptions, "wrapper">;
+  props?: ComponentProps<T>;
+} & Omit<RenderOptions<T>, "props">;
 
-function wrap(route: string, children: ReactNode) {
-  return createElement(
-    MemoryRouter,
-    { initialEntries: [route] },
-    createElement(I18nProvider, null, children),
-  );
-}
-
-export function renderApp(ui: ReactElement, options: Options = {}) {
-  const { route = "/", language = "de", ...rest } = options;
+export function renderApp<T extends Component<Record<string, unknown>>>(
+  component: T,
+  options: Options<T> = {},
+) {
+  const { route = "/", language = "de", props, ...rest } = options;
   setLanguage(language);
-  return render(ui, {
-    wrapper: ({ children }) => wrap(route, children),
-    ...rest,
-  });
+  router.replace(route);
+  return render(component, { props, ...rest } as RenderOptions<T>);
 }

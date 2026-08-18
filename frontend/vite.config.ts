@@ -1,7 +1,7 @@
 /// <reference types="vitest/config" />
 import type { Plugin } from "vite";
 import { defineConfig } from "vite";
-import react from "@vitejs/plugin-react";
+import { svelte } from "@sveltejs/vite-plugin-svelte";
 import tailwindcss from "@tailwindcss/vite";
 import { mockDevicePlugin } from "./mock/mockPlugin.ts";
 
@@ -36,7 +36,7 @@ function fixFirefoxTextSizeAdjust(): Plugin {
 }
 
 export default defineConfig({
-  plugins: [react(), tailwindcss(), fixFirefoxTextSizeAdjust(), mockDevicePlugin()],
+  plugins: [svelte(), tailwindcss(), fixFirefoxTextSizeAdjust(), mockDevicePlugin()],
   server: {
     host: "127.0.0.1",
     port: 5173,
@@ -55,19 +55,25 @@ export default defineConfig({
       },
     },
   },
+  resolve: process.env.VITEST
+    ? {
+        conditions: ["browser"],
+      }
+    : undefined,
   test: {
     environment: "jsdom",
     globals: true,
     setupFiles: "./src/test/setup.ts",
-    include: ["src/**/*.test.{ts,tsx}", "mock/**/*.test.ts"],
+    include: ["src/**/*.test.ts", "mock/**/*.test.ts"],
     coverage: {
       provider: "v8",
       reporter: ["text", "html", "lcov"],
       reportsDirectory: "./coverage",
-      include: ["src/**/*.{ts,tsx}"],
+      include: ["src/**/*.{ts,svelte}"],
       exclude: [
-        "src/main.tsx",
-        "src/**/*.test.{ts,tsx}",
+        "src/main.ts",
+        "src/**/*.test.ts",
+        "src/**/*.test.svelte",
         "src/test/**",
         "src/api/types.ts",
         "src/**/*.d.ts",

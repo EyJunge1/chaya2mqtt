@@ -1,6 +1,6 @@
 # Web Administration
 
-The web interface is a **React 19 SPA** (Vite, Tailwind CSS, Lucide) stored in the firmware as a gzip-compressed asset blob. The ESP32-S3 serves HTML/JS/CSS using a manifest lookup and communicates via JSON + SSE; the UI runs in the browser.
+The web interface is a **Svelte 5 SPA** (Vite, Tailwind CSS, Lucide) stored in the firmware as a gzip-compressed asset blob. The ESP32-S3 serves HTML/JS/CSS using a manifest lookup and communicates via JSON + SSE; the UI runs in the browser.
 
 ## Access
 

@@ -1,11 +1,18 @@
-import { Radio, SlidersHorizontal, Upload, Wifi, type LucideIcon } from "lucide-react";
-import type { TranslationKey } from "../i18n/translations";
+import { Radio, SlidersHorizontal, Upload, Wifi } from "@lucide/svelte";
+import type { Component } from "svelte";
+import type { TranslationKey } from "../i18n/translations.ts";
+
+export type IconComponent = Component<{
+  size?: number;
+  class?: string;
+  "aria-hidden"?: boolean | "true" | "false";
+}>;
 
 export type SettingsNavItem = {
   to: string;
   labelKey: TranslationKey;
   subtitleKey: TranslationKey;
-  icon: LucideIcon;
+  icon: IconComponent;
 };
 
 export const settingsNavItems: SettingsNavItem[] = [

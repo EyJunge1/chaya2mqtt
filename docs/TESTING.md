@@ -1,6 +1,6 @@
 # Testing
 
-Local test pyramid for chaya2mqtt based on this **principle**: real firmware logic runs natively with host fakes; the React GUI is tested with Vitest and Playwright against the device mock. There are no automated on-device/HIL tests.
+Local test pyramid for chaya2mqtt based on this **principle**: real firmware logic runs natively with host fakes; the Svelte GUI is tested with Vitest and Playwright against the device mock. There are no automated on-device/HIL tests.
 
 ## Test pyramid
 
@@ -71,7 +71,7 @@ The expensive check workflow is intentionally disabled in the private repository
 
 ## Frontend
 
-- **Unit/integration:** Vitest + Testing Library (`frontend/src/**/*.test.*`, `frontend/mock/**/*.test.ts`)
+- **Unit/integration:** Vitest + Testing Library (`frontend/src/**/*.test.ts`, `frontend/mock/**/*.test.ts`)
 - **Coverage:** `npm run test:coverage`—thresholds in `frontend/vite.config.ts` (70% lines/functions/statements, 60% branches)
 - **Contract:** `frontend/src/api/contract.test.ts` keeps the mock, firmware routes, OpenAPI/AsyncAPI, and MQTT fields synchronized
 - **E2E:** `frontend/e2e/` with scenario reset through `/api/_mock/scenario`

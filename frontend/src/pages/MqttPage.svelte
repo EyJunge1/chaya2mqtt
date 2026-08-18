@@ -1,0 +1,192 @@
+<script lang="ts">
+  import { untrack } from "svelte";
+  import { api } from "../api/client.ts";
+  import type { MqttConfigView, MqttStatus } from "../api/types.ts";
+  import ActionRow from "../components/ActionRow.svelte";
+  import ErrorBlock from "../components/ErrorBlock.svelte";
+  import Field from "../components/Field.svelte";
+  import KeyValueGrid from "../components/KeyValueGrid.svelte";
+  import LoadingBlock from "../components/LoadingBlock.svelte";
+  import Panel from "../components/Panel.svelte";
+  import PrimaryButton from "../components/PrimaryButton.svelte";
+  import SecondaryButton from "../components/SecondaryButton.svelte";
+  import StatusBadge from "../components/StatusBadge.svelte";
+  import TextInput from "../components/TextInput.svelte";
+  import type { ShowToast } from "../components/toastStack.ts";
+  import { i18n } from "../i18n/i18n.svelte.ts";
+  import { dash } from "../ui/styles.ts";
+
+  let {
+    mqtt,
+    refreshSeq = 0,
+    onToast,
+    onDeviceRefresh,
+  }: {
+    mqtt: MqttStatus;
+    refreshSeq?: number;
+    onToast: ShowToast;
+    onDeviceRefresh?: () => Promise<void>;
+  } = $props();
+
+  let cfg = $state<MqttConfigView | null>(null);
+  let password = $state("");
+  let partner = $state("");
+  let busy = $state(false);
+  let loadError = $state(false);
+
+  async function load() {
+    loadError = false;
+    try {
+      const next = await api.getMqttConfig();
+      cfg = next;
+      partner = next.partnerId;
+    } catch {
+      cfg = null;
+      loadError = true;
+      onToast(i18n.t("toast.mqtt-load-failed"), "error");
+    }
+  }
+
+  $effect(() => {
+    void refreshSeq;
+    untrack(() => {
+      void load();
+    });
+  });
+
+  async function persist(nextPartner: string) {
+    if (!cfg) return;
+    busy = true;
+    try {
+      const res = await api.saveMqtt({
+        mqtt_server: cfg.server,
+        mqtt_port: cfg.port,
+        mqtt_user: cfg.username,
+        mqtt_pass: password || undefined,
+        partner_id: nextPartner.trim().toLowerCase(),
+      });
+      if (!res.ok) {
+        onToast(
+          res.error === "partner" ? i18n.t("toast.partner-invalid") : i18n.t("toast.save-failed"),
+          "error",
+        );
+        return;
+      }
+      onToast(i18n.t("toast.mqtt-saved"), "success");
+      password = "";
+      const next = await api.getMqttConfig();
+      cfg = next;
+      partner = next.partnerId;
+      await onDeviceRefresh?.();
+    } catch {
+      onToast(i18n.t("toast.save-failed"), "error");
+    } finally {
+      busy = false;
+    }
+  }
+
+  async function save(e: SubmitEvent) {
+    e.preventDefault();
+    await persist(partner);
+  }
+
+  async function unpair() {
+    partner = "";
+    await persist("");
+  }
+
+  const brokerConfigured = $derived(Boolean(cfg?.server.trim()));
+  const paired = $derived(Boolean(cfg?.partnerId));
+</script>
+
+{#if loadError}
+  <ErrorBlock
+    title={i18n.t("mqtt.load-error-title")}
+    message={i18n.t("mqtt.load-error")}
+    retryLabel={i18n.t("common.retry")}
+    onRetry={() => void load()}
+  />
+{:else if !cfg}
+  <LoadingBlock label={i18n.t("mqtt.loading")} />
+{:else}
+  <div class="space-y-4">
+    <Panel>
+      {#snippet title()}
+        <StatusBadge
+          ok={mqtt.connected}
+          label={i18n.t("mqtt.status")}
+          detailOk={i18n.t("status.mqtt-ok")}
+          detailBad={i18n.t("status.mqtt-bad")}
+        />
+      {/snippet}
+      <KeyValueGrid
+        items={[
+          {
+            label: i18n.t("mqtt.device-id"),
+            value: dash(cfg.deviceId),
+            valueClass: "tracking-widest",
+          },
+          { label: i18n.t("mqtt.partner-id"), value: dash(cfg.partnerId) },
+          {
+            label: i18n.t("mqtt.server"),
+            value: brokerConfigured ? `${cfg.server}:${cfg.port}` : "-",
+          },
+          { label: i18n.t("mqtt.user"), value: dash(cfg.username) },
+          { label: i18n.t("mqtt.topic-pub"), value: dash(cfg.topicPub) },
+          { label: i18n.t("mqtt.topic-sub"), value: dash(cfg.topicSub) },
+        ]}
+      />
+    </Panel>
+
+    <Panel>
+      <form class="space-y-3" onsubmit={(e) => void save(e)}>
+        <Field label={i18n.t("mqtt.server")} hint={i18n.t("mqtt.server-hint")}>
+          <TextInput bind:value={cfg.server} maxlength={127} required />
+        </Field>
+        <Field label={i18n.t("mqtt.port")} hint={i18n.t("mqtt.port-hint")}>
+          <TextInput type="number" min={1} max={65535} bind:value={cfg.port} required />
+        </Field>
+        <Field label={i18n.t("mqtt.user")} hint={i18n.t("mqtt.user-hint")}>
+          <TextInput bind:value={cfg.username} maxlength={63} />
+        </Field>
+        <Field
+          label={i18n.t("mqtt.pass")}
+          hint={cfg.hasPassword ? i18n.t("mqtt.pass-hint") : i18n.t("mqtt.pass-hint-empty")}
+        >
+          <TextInput
+            type="password"
+            bind:value={password}
+            maxlength={63}
+            autocomplete="current-password"
+            placeholder={cfg.hasPassword ? i18n.t("mqtt.pass-placeholder") : ""}
+          />
+        </Field>
+
+        <Field label={i18n.t("mqtt.partner-id")} hint={i18n.t("mqtt.partner-hint")}>
+          <TextInput
+            bind:value={partner}
+            maxlength={6}
+            pattern={"[0-9a-fA-F]{0,6}"}
+            placeholder="f5e6d7"
+          />
+        </Field>
+
+        <ActionRow>
+          <PrimaryButton type="submit" loading={busy} class="sm:flex-1">
+            {i18n.t("common.save")}
+          </PrimaryButton>
+          {#if paired}
+            <SecondaryButton
+              type="button"
+              loading={busy}
+              onclick={() => void unpair()}
+              class="sm:flex-1"
+            >
+              {i18n.t("mqtt.unpair")}
+            </SecondaryButton>
+          {/if}
+        </ActionRow>
+      </form>
+    </Panel>
+  </div>
+{/if}

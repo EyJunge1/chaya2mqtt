@@ -105,7 +105,7 @@ chaya2mqtt/
     ├── util/                 # Time helpers, logging, IP formatting
     ├── web/                  # Admin API + SPA serving (routes/, assets/, csrf)
     └── wifi/                 # WiFi, captive portal, recovery, connection test
-frontend/                     # React 19 SPA (Vite, Tailwind, Lucide) + mock device
+frontend/                     # Svelte 5 SPA (Vite, Tailwind, Lucide) + mock device
 ```
 
 ## Build environments
