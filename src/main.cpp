@@ -16,6 +16,7 @@
 #include "hw/battery.h"
 #include "hw/button.h"
 #include "hw/pins.h"
+#include "hw/sd_hold.h"
 #include "heart/counter.h"
 #include "display/display.h"
 #include "mqtt/mqtt.h"
@@ -30,6 +31,9 @@ void setup() {
     // Battery latch: must be HIGH before PWR is released or LiPo power cuts.
     pinMode(pins::kBatControl, OUTPUT);
     digitalWrite(pins::kBatControl, HIGH);
+
+    // microSD: no driver / mount; hold CLK/DAT0/CMD LOW so the slot cannot float-draw.
+    sdHoldOff();
 
     asyncInfraInit();
     setCpuFrequencyMhz(240);

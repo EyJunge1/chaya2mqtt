@@ -38,7 +38,7 @@ What the PCB actually has. **Chaya** is the firmware use today.
 | **Battery ADC** | GPIO4, divider; VBAT = VADC × 2 | Polled ~30 s; `GET /api/device` + SSE `device` + E-Ink icon |
 | **3.3 V rail** | MP1605 DC-DC | Hardware only |
 | **User LED** | GPIO3 on header, active-low | TX sequence + pulse during E-Ink refresh / RX ack |
-| **TF / microSD** | Slot, **1-bit** SDIO (CLK/CMD/DAT0), **FAT32** | Unused |
+| **TF / microSD** | Slot, **1-bit** SDIO (CLK/CMD/DAT0), **FAT32** | Permanently off (GPIO 39/40/41 held LOW; no SDIO/FAT) |
 | **UART0** | GPIO43 TX / GPIO44 RX on header | Unused (debug if needed) |
 | **Audio codec** | ES8311 (I2C `0x18`) | Playback only (synthetic TX/RX click). Capture path off at boot. |
 | **Microphone** | Onboard, via ES8311 | Permanently off (ADC/mic-bias disabled; no I2S-RX) |
@@ -104,7 +104,7 @@ Onboard **TF slot**, **1-bit** SDIO (three GPIOs only). Waveshare: format as **F
 | SD_MISO | 40 |
 | SD_MOSI | 41 |
 
-Unused by Chaya.
+Permanently off at boot (same idea as the microphone): no SDMMC/SDIO driver, no FAT mount. `sdHoldOff()` drives CLK / DAT0 / CMD **OUTPUT LOW** so the lines do not float or leave a card controller waiting. Pins: `src/hw/pins_esp32_waveshare.h`.
 
 ## Sensors and clock
 

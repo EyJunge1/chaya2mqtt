@@ -32,6 +32,14 @@ constexpr int kI2sDsdin  = 45;
 constexpr int kPaEn      = 42;
 constexpr int kPaCtrl    = 46;
 
+/**
+ * TF / microSD 1-bit SDIO (Waveshare labels CLK / MISO / MOSI = CLK / DAT0 / CMD).
+ * Never started as SDMMC; held OUTPUT LOW at boot via sdHoldOff() so lines do not float.
+ */
+constexpr int kSdClk  = 39;
+constexpr int kSdMiso = 40;
+constexpr int kSdMosi = 41;
+
 /** Board identity for compile-time diagnostics. */
 constexpr const char* kBoardId = "esp32s3-epaper-154g";
 
