@@ -30,6 +30,10 @@ describe("SettingsPage", () => {
       lang: "en",
       theme: "light",
       displayDark: false,
+      audioMuted: false,
+      audioVolume: 70,
+      quietHourStart: 23,
+      quietHourEnd: 8,
     });
     saveSettings.mockResolvedValue({ ok: true, message: "saved" });
   });
@@ -39,7 +43,9 @@ describe("SettingsPage", () => {
     const onDeviceRefresh = vi.fn().mockResolvedValue(undefined);
     render(SettingsPage, { props: { onToast, onDeviceRefresh } });
 
-    await waitFor(() => expect(screen.getByRole("switch")).toBeInTheDocument());
+    await waitFor(() =>
+      expect(screen.getByRole("switch", { name: "E-Ink dark mode" })).toBeInTheDocument(),
+    );
     const toggle = screen.getByRole("switch", { name: "E-Ink dark mode" });
     expect(toggle).toHaveAttribute("aria-checked", "false");
 
@@ -51,6 +57,10 @@ describe("SettingsPage", () => {
       expect(saveSettings).toHaveBeenCalledWith({
         reset_days: 7,
         display_dark: 1,
+        audio_muted: 0,
+        audio_volume: 70,
+        quiet_hour_start: 23,
+        quiet_hour_end: 8,
       }),
     );
     expect(onToast).toHaveBeenCalledWith("Saved", "success");

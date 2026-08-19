@@ -16,7 +16,10 @@ void drawSplashScreen();
 void requestHeartRedraw();
 
 /** Same as requestHeartRedraw but never blocks (e.g. MQTT client callback). */
-void requestHeartRedrawNonBlocking();
+bool requestHeartRedrawNonBlocking();
+
+/** Yellow RX dots on the next heart draw (consumed when drawn). */
+void displayMarkFreshRx();
 
 /**
  * Defer E-Ink drawing to display task (never call draw* from AsyncWebServer handlers).

@@ -4,6 +4,7 @@
 
 #include "async/task_handles.h"
 #include "config.h"
+#include "audio/audio.h"
 #include "display/display.h"
 #include "heart/counter.h"
 
@@ -89,6 +90,7 @@ bool mqttPublishChayaAndApplySentCounters() {
     }
     heartSentCounterApplyAfterSuccessfulPublish();
     maybeSaveHeartSentCounter();
+    audioRequest(AudioMsg::Kind::Tx);
     requestHeartRedraw();
     xSemaphoreGive(g_chayaPublishMutex);
     return true;

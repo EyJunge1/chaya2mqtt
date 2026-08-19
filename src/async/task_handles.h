@@ -6,6 +6,7 @@
 
 extern QueueHandle_t      g_netCmdQueue;
 extern QueueHandle_t      g_displayCmdQueue;
+extern QueueHandle_t      g_audioCmdQueue;
 extern SemaphoreHandle_t  g_mqttClientMutex;
 /** Chaya publish path (button/web vs MQTT). */
 extern SemaphoreHandle_t  g_chayaPublishMutex;

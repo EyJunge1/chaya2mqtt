@@ -340,6 +340,10 @@ paths:
                     lang: { type: string, enum: [de, en] }
                     theme: { type: string, enum: [dark, light] }
                     display_dark: { type: integer, enum: [0, 1], description: E-Ink dark mode }
+                    audio_muted: { type: integer, enum: [0, 1], description: Mute heart-click audio }
+                    audio_volume: { type: integer, minimum: 0, maximum: 100 }
+                    quiet_hour_start: { type: integer, minimum: 0, maximum: 23 }
+                    quiet_hour_end: { type: integer, minimum: 0, maximum: 23 }
       responses:
         "200":
           description: Saved
@@ -487,12 +491,20 @@ components:
           type: string
     DeviceInfo:
       type: object
-      required: [hostname, version, mode, deviceId]
+      required: [hostname, version, mode, deviceId, batteryMv, batteryPct]
       properties:
         hostname: { type: string }
         version: { type: string }
         mode: { type: string, enum: [ap, sta] }
         deviceId: { type: string }
+        batteryMv:
+          type: integer
+          description: LiPo pack millivolts (GPIO4 ADC × 2)
+        batteryPct:
+          type: integer
+          minimum: 0
+          maximum: 100
+          description: Coarse LiPo estimate
         apSsid:
           type: string
           description: SoftAP SSID (AP/setup mode only)
@@ -563,7 +575,8 @@ components:
         partnerId: { type: string }
     SettingsInfo:
       type: object
-      required: [resetDays, lang, theme, displayDark]
+      required:
+        [resetDays, lang, theme, displayDark, audioMuted, audioVolume, quietHourStart, quietHourEnd]
       properties:
         resetDays: { type: integer, minimum: 0, maximum: 30 }
         lang: { type: string, enum: [de, en] }
@@ -571,6 +584,22 @@ components:
         displayDark:
           type: boolean
           description: E-Ink dark mode (black background, white counters, red heart)
+        audioMuted:
+          type: boolean
+          description: Mute TX/RX click
+        audioVolume:
+          type: integer
+          minimum: 0
+          maximum: 100
+        quietHourStart:
+          type: integer
+          minimum: 0
+          maximum: 23
+          description: Quiet hours start (local, after NTP). Equal to quietHourEnd = off
+        quietHourEnd:
+          type: integer
+          minimum: 0
+          maximum: 23
     OtaStatus:
       type: object
       required:

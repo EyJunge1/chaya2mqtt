@@ -119,6 +119,10 @@ export const api = {
     lang?: string;
     theme?: string;
     display_dark?: boolean | number;
+    audio_muted?: boolean | number;
+    audio_volume?: number;
+    quiet_hour_start?: number;
+    quiet_hour_end?: number;
   }) => apiPost("/api/settings", fields),
   reboot: () => apiPost("/api/reboot"),
   factoryReset: () => apiPost("/api/factory-reset"),

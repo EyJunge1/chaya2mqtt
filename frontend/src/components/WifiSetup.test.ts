@@ -65,7 +65,14 @@ describe("WifiSetup", () => {
     const onToast = vi.fn();
     render(WifiSetup, {
       props: {
-        device: { hostname: "chaya2mqtt", version: "dev", mode: "sta", deviceId: "a1b2c3" },
+        device: {
+          hostname: "chaya2mqtt",
+          version: "dev",
+          mode: "sta",
+          deviceId: "a1b2c3",
+          batteryMv: 3900,
+          batteryPct: 55,
+        },
         wifi: wifiConnected,
         onToast,
       },
@@ -86,7 +93,14 @@ describe("WifiSetup", () => {
     const onToast = vi.fn();
     render(WifiSetup, {
       props: {
-        device: { hostname: "chaya2mqtt", version: "dev", mode: "sta", deviceId: "a1b2c3" },
+        device: {
+          hostname: "chaya2mqtt",
+          version: "dev",
+          mode: "sta",
+          deviceId: "a1b2c3",
+          batteryMv: 3900,
+          batteryPct: 55,
+        },
         wifi: wifiConnected,
         onToast,
       },
@@ -121,7 +135,14 @@ describe("WifiSetup", () => {
     const onToast = vi.fn();
     render(WifiSetup, {
       props: {
-        device: { hostname: "chaya2mqtt", version: "dev", mode: "sta", deviceId: "a1b2c3" },
+        device: {
+          hostname: "chaya2mqtt",
+          version: "dev",
+          mode: "sta",
+          deviceId: "a1b2c3",
+          batteryMv: 3900,
+          batteryPct: 55,
+        },
         wifi: wifiConnected,
         onToast,
       },
@@ -150,7 +171,14 @@ describe("WifiSetup", () => {
     const onToast = vi.fn();
     render(WifiSetup, {
       props: {
-        device: { hostname: "chaya2mqtt", version: "dev", mode: "sta", deviceId: "a1b2c3" },
+        device: {
+          hostname: "chaya2mqtt",
+          version: "dev",
+          mode: "sta",
+          deviceId: "a1b2c3",
+          batteryMv: 3900,
+          batteryPct: 55,
+        },
         wifi: wifiConnected,
         onToast,
       },
@@ -168,7 +196,14 @@ describe("WifiSetup", () => {
     const onToast = vi.fn();
     render(WifiSetup, {
       props: {
-        device: { hostname: "chaya2mqtt", version: "dev", mode: "sta", deviceId: "a1b2c3" },
+        device: {
+          hostname: "chaya2mqtt",
+          version: "dev",
+          mode: "sta",
+          deviceId: "a1b2c3",
+          batteryMv: 3900,
+          batteryPct: 55,
+        },
         wifi: { connected: false },
         onToast,
       },

@@ -1,6 +1,7 @@
 #include "web_events.h"
 
 #include "heart/counter.h"
+#include "hw/battery.h"
 #include "mqtt/config.h"
 #include "mqtt/mqtt.h"
 #include "ota/ota.h"
@@ -51,6 +52,8 @@ bool     s_haveLastMqttStatus = false;
 bool     s_lastMqttPageConn   = false;
 bool     s_haveLastOta        = false;
 uint32_t s_lastOtaGeneration  = 0;
+bool     s_haveLastDevice     = false;
+int      s_lastBatteryPct     = INT_MIN;
 
 portMUX_TYPE s_esCacheMux = portMUX_INITIALIZER_UNLOCKED;
 
@@ -99,6 +102,11 @@ static size_t buildWifiStatusPayload(bool connected, const char* ssid, const cha
 static size_t buildMqttStatusPayload(bool connected, char* buf, size_t bufLen) {
     return static_cast<size_t>(
         snprintf(buf, bufLen, "{\"connected\":%s}", connected ? "true" : "false"));
+}
+
+static size_t buildDeviceBatteryPayload(int mv, int pct, char* buf, size_t bufLen) {
+    return static_cast<size_t>(
+        snprintf(buf, bufLen, "{\"batteryMv\":%d,\"batteryPct\":%d}", mv, pct));
 }
 
 } // namespace
@@ -189,10 +197,14 @@ void webEventsTick() {
     OtaStatus otaSt{};
     otaCopyStatus(&otaSt);
 
+    const int batteryMv  = batteryMilliVolts();
+    const int batteryPct = batteryPercent();
+
     bool chayaDirty      = false;
     bool wifiDirty       = false;
     bool mqttStatusDirty = force;
     bool otaDirty        = force;
+    bool deviceDirty     = force;
     portENTER_CRITICAL(&s_esCacheMux);
     chayaDirty =
         force || !s_haveLastChaya || s_lastRx != rx || s_lastTx != tx || s_lastMqttConn != mqttLineOk;
@@ -236,6 +248,13 @@ void webEventsTick() {
         s_haveLastOta       = true;
         s_lastOtaGeneration = otaSt.generation;
     }
+    if (!s_haveLastDevice || s_lastBatteryPct != batteryPct) {
+        deviceDirty = true;
+    }
+    if (deviceDirty) {
+        s_haveLastDevice = true;
+        s_lastBatteryPct = batteryPct;
+    }
     portEXIT_CRITICAL(&s_esCacheMux);
 
     char buf[640];
@@ -272,6 +291,13 @@ void webEventsTick() {
         const size_t plen = otaFormatStatusJson(buf, sizeof(buf));
         if (plen > 0U && plen < sizeof(buf)) {
             s_events.send(buf, "ota");
+        }
+    }
+
+    if (deviceDirty) {
+        const size_t plen = buildDeviceBatteryPayload(batteryMv, batteryPct, buf, sizeof(buf));
+        if (plen > 0U && plen < sizeof(buf)) {
+            s_events.send(buf, "device");
         }
     }
 }

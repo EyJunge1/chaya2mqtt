@@ -26,6 +26,8 @@ channels:
         $ref: "#/components/messages/MqttEvent"
       ota:
         $ref: "#/components/messages/OtaEvent"
+      device:
+        $ref: "#/components/messages/DeviceEvent"
 operations:
   receiveChaya:
     action: receive
@@ -51,6 +53,12 @@ operations:
       $ref: "#/channels/events"
     messages:
       - $ref: "#/channels/events/messages/ota"
+  receiveDevice:
+    action: receive
+    channel:
+      $ref: "#/channels/events"
+    messages:
+      - $ref: "#/channels/events/messages/device"
 components:
   securitySchemes:
     lanHostAllowlist:
@@ -89,7 +97,19 @@ components:
       contentType: application/json
       payload:
         $ref: "#/components/schemas/OtaStatus"
+    DeviceEvent:
+      name: device
+      title: Battery status
+      contentType: application/json
+      payload:
+        $ref: "#/components/schemas/DeviceBattery"
   schemas:
+    DeviceBattery:
+      type: object
+      required: [batteryMv, batteryPct]
+      properties:
+        batteryMv: { type: integer }
+        batteryPct: { type: integer, minimum: 0, maximum: 100 }
     ChayaStatus:
       type: object
       required: [rx, tx, connected]

@@ -64,11 +64,15 @@ Legacy keys `topic_pub` / `topic_sub` are removed when saving. Topics now exist 
 | `ui_lang` | String | `en` | UI language (`en` / `de`) |
 | `ui_theme` | String | `light` | Web UI theme (`light` / `dark`) |
 | `disp_dark` | UChar | `0` | E-Ink dark mode (`0`=light, `1`=black/white inverted; heart remains red) |
+| `snd_mute` | UChar | `0` | Mute TX/RX click (`1` = no sound) |
+| `snd_vol` | UChar | `70` | Click volume 0–100 |
+| `snd_q0` | UChar | `23` | Quiet-hours start (local hour after NTP) |
+| `snd_q1` | UChar | `8` | Quiet-hours end (equal to `snd_q0` = off; wraps midnight) |
 | `upd_day` | UInt | `0` | Last automatic OTA check (UTC calendar day) |
 | `upd_chan` | String | `stable` | OTA channel (`stable` or `beta`) |
 
 **Written by:**
-- `rstPeriod` / `ui_lang` / `ui_theme` / `disp_dark`: web POST `/api/settings` (deferred via the app task)
+- `rstPeriod` / `ui_lang` / `ui_theme` / `disp_dark` / `snd_mute` / `snd_vol` / `snd_q0` / `snd_q1`: web POST `/api/settings` (deferred via the app task)
 - `upd_day`: automatically after an OTA check
 - `upd_chan`: when selecting a channel during the update check
 
@@ -113,6 +117,7 @@ Some values are additionally cached in RAM (atomics):
 | `sentCountBaseline` | `chaya/sntBase` | counter |
 | `s_resetPeriodDaysCached` | `cfg/rstPeriod` | app_config |
 | `s_displayDarkCached` | `cfg/disp_dark` | app_config |
+| `s_audioMutedCached` / volume / quiet hours | `cfg/snd_*` | app_config |
 
 The active MQTT configuration (`mqttCfg`) exists only in `mqtt/config.cpp`—access is through the snapshot/pending API.
 
@@ -136,7 +141,7 @@ Sequence:
 |---------|-------|------------|
 | WiFi | POST `/api/wifi/connect` | Directly to NVS (STA) or test → commit (AP); fields: SSID/password, mode, optional IPv4/DNS/NTP |
 | MQTT + pairing | POST `/api/mqtt` | Pending → app task → network task → NVS |
-| Reset period | POST `/settings` | Pending → app task → NVS |
+| Reset period / display / sound | POST `/api/settings` | Pending → app task → NVS |
 
 MQTT and settings changes are processed **as deferred work** (not in the HTTP handler) to avoid blocking.
 

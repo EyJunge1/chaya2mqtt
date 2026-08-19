@@ -5,10 +5,19 @@ export interface DeviceInfo {
   version: string;
   mode: DeviceMode;
   deviceId: string;
+  /** Pack millivolts (GPIO4 × 2). Always present. */
+  batteryMv: number;
+  /** Coarse LiPo estimate 0–100. Always present. */
+  batteryPct: number;
   /** SoftAP SSID — only present in AP/setup mode. */
   apSsid?: string;
   /** SoftAP IPv4 — only present in AP/setup mode. */
   apIp?: string;
+}
+
+export interface DeviceBatteryEvent {
+  batteryMv: number;
+  batteryPct: number;
 }
 
 export interface ChayaStatus {
@@ -97,6 +106,10 @@ export interface SettingsInfo {
   lang: UiLang;
   theme: UiTheme;
   displayDark: boolean;
+  audioMuted: boolean;
+  audioVolume: number;
+  quietHourStart: number;
+  quietHourEnd: number;
 }
 
 export interface ApiOk {

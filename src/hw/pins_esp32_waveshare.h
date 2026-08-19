@@ -18,6 +18,19 @@ constexpr int kSpiCs   = 11;  // EPD_CS
 constexpr int kSpiMiso = -1;
 
 constexpr int kBatControl = 17;  // Drive HIGH early or LiPo power cuts on PWR release
+constexpr int kBatAdc     = 4;   // Divider; VBAT = VADC × 2
+constexpr int kPwrButton  = 18;  // PWR / BAT_KEY (soft-off long press)
+
+constexpr int kI2cSda = 47;
+constexpr int kI2cScl = 48;
+
+constexpr int kI2sMclk   = 14;
+constexpr int kI2sSclk   = 15;
+constexpr int kI2sAsdout = 16;  // Codec capture — unused (mic stays off)
+constexpr int kI2sLrck   = 38;
+constexpr int kI2sDsdin  = 45;
+constexpr int kPaEn      = 42;
+constexpr int kPaCtrl    = 46;
 
 /** Board identity for compile-time diagnostics. */
 constexpr const char* kBoardId = "esp32s3-epaper-154g";

@@ -6,8 +6,11 @@
 #include "async/event_types.h"
 #include "async/task_handles.h"
 #include "config.h"
+#include "audio/audio.h"
 #include "display/display.h"
 #include "heart/counter.h"
+#include "hw/button.h"
+#include "hw/button_config.h"
 #include "wifi/wlan.h"
 
 #include <Arduino.h>
@@ -85,14 +88,20 @@ static void handleCounterPayload(const char* payload, unsigned int length) {
 
     ESP_LOGI(TAG, "Heart counter from MQTT (remote): %d", newCounter);
     heartCounterStoreFromRemote(newCounter);
+    displayMarkFreshRx();
+    audioRequest(AudioMsg::Kind::Rx);
+    ledRefreshPulseBegin();
 
     const unsigned long nowMs  = millis();
     const unsigned long lastMs = s_lastBrokerRedrawMs.load(std::memory_order_relaxed);
     if (lastMs != 0UL && (nowMs - lastMs) < kMqttBrokerRedrawMinIntervalMs) {
+        ledRefreshPulseEndAfter(kLedRefreshAckMs);
         return;
     }
     s_lastBrokerRedrawMs.store(nowMs, std::memory_order_relaxed);
-    requestHeartRedrawNonBlocking();
+    if (!requestHeartRedrawNonBlocking()) {
+        ledRefreshPulseEndAfter(kLedRefreshAckMs);
+    }
 }
 
 static bool feedFragmentedPayload(esp_mqtt_event_handle_t ev) {

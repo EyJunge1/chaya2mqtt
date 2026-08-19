@@ -21,6 +21,8 @@ const device: DeviceInfo = {
   deviceId: "a1b2c3",
   version: "2026.8.1",
   hostname: "chaya2mqtt",
+  batteryMv: 3900,
+  batteryPct: 55,
 };
 
 const wifi: WifiStatus = {
@@ -88,6 +90,8 @@ describe("DashboardPage", () => {
 
     expect(screen.getByText("3")).toBeInTheDocument();
     expect(screen.getByText("1")).toBeInTheDocument();
+    expect(screen.getByText(/Battery/i)).toBeInTheDocument();
+    expect(screen.getByText(/55%/)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Send heart/i })).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: /Send heart/i }));

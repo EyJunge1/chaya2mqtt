@@ -27,6 +27,8 @@ enum class LedTxPhase : uint8_t {
     FailOff2,
     FailOn3,
     FailOff3,
+    RefreshOn,
+    RefreshOff,
 };
 
 extern std::atomic<TaskHandle_t> s_buttonTaskHandle;
@@ -44,7 +46,17 @@ struct ButtonState {
     int           debouncedLevel        = 0;
 };
 
-extern ButtonState btn;
+struct PwrButtonState {
+    bool          seenRelease           = false;
+    bool          heldDown              = false;
+    unsigned long pressStartMs          = 0;
+    int           lastRawReading        = 0;
+    unsigned long lastDebounceChangeMs  = 0;
+    int           debouncedLevel        = 0;
+};
+
+extern ButtonState    btn;
+extern PwrButtonState pwr;
 
 void armLedPhase(unsigned long durationMs);
 void ledOutput(int level);
@@ -53,5 +65,8 @@ void ledHoldWhenIdle();
 void advanceLedSequence();
 void startMqttSendLedSequence();
 bool ledSendSequenceActive();
+bool ledTxBusy();
+bool ledActivityActive();
 
 void buttonPollAndProcess();
+void pwrPollAndProcess();

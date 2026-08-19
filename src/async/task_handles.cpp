@@ -13,6 +13,7 @@ DEFINE_LOG_TAG("ASYNC");
 
 QueueHandle_t      g_netCmdQueue     = nullptr;
 QueueHandle_t      g_displayCmdQueue = nullptr;
+QueueHandle_t      g_audioCmdQueue   = nullptr;
 SemaphoreHandle_t  g_mqttClientMutex      = nullptr;
 SemaphoreHandle_t  g_chayaPublishMutex    = nullptr;
 SemaphoreHandle_t  g_heartDebounceMutex  = nullptr;
@@ -25,6 +26,7 @@ void asyncInfraInit() {
     chayaTlsInfraInit();
     g_netCmdQueue     = xQueueCreate(kNetCmdQueueDepth, sizeof(NetCmd));
     g_displayCmdQueue = xQueueCreate(kDisplayCmdQueueDepth, sizeof(DisplayMsg));
+    g_audioCmdQueue   = xQueueCreate(kAudioCmdQueueDepth, sizeof(AudioMsg));
     g_mqttClientMutex   = xSemaphoreCreateMutex();
     g_chayaPublishMutex   = xSemaphoreCreateMutex();
     g_heartDebounceMutex  = xSemaphoreCreateMutex();
@@ -32,7 +34,7 @@ void asyncInfraInit() {
     g_wifiTestMutex     = xSemaphoreCreateMutex();
     g_wifiApiMutex      = xSemaphoreCreateMutex();
 
-    if (g_netCmdQueue == nullptr || g_displayCmdQueue == nullptr
+    if (g_netCmdQueue == nullptr || g_displayCmdQueue == nullptr || g_audioCmdQueue == nullptr
         || g_mqttClientMutex == nullptr || g_chayaPublishMutex == nullptr
         || g_heartDebounceMutex == nullptr || g_nvsMutex == nullptr
         || g_wifiTestMutex == nullptr || g_wifiApiMutex == nullptr) {

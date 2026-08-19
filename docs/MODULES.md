@@ -12,13 +12,13 @@ Overview of all source modules under `src/`, with correct paths, responsibilitie
 1. `asyncInfraInit()`—queues + mutexes
 2. CPU 240 MHz, BT off, DFS (no light sleep)
 3. `displayInit()` + `displayStartTask()`
-5. `buttonInit()`
-6. Load NVS: MQTT, counters, reset period
-7. `setupWiFi()`—STA or AP
-8. `mqttSetup()`
-9. `buttonStartupBlink()` (before the button task!)
-10. `buttonStartTask()`, `networkTaskStart()`, `otaTaskStart()`, `appTaskStart()`
-11. Deferred draw: heart or splash
+4. `buttonInit()`, `batteryInit()`, `audioInit()` (mic/capture off)
+5. Load NVS: MQTT, counters, reset period, audio prefs
+6. `setupWiFi()`—STA or AP
+7. `mqttSetup()`
+8. `buttonStartupBlink()` (before the button task!)
+9. `audioStartTask()`, `buttonStartTask()`, `networkTaskStart()`, `otaTaskStart()`, `appTaskStart()`
+10. Deferred draw: heart or splash
 
 **`loop()`:** `vTaskDelete(nullptr)`—terminates immediately.
 
@@ -39,6 +39,11 @@ struct DisplayMsg {
     Cmd cmd;
     uint32_t payload;
 };
+
+struct AudioMsg {
+    enum class Kind : uint8_t { Tx, Rx };
+    Kind kind;
+};
 ```
 
 ### `async/task_handles.h` / `task_handles.cpp`
@@ -46,6 +51,7 @@ struct DisplayMsg {
 Global queues and mutexes. `asyncInfraInit()` creates:
 - `g_netCmdQueue` (32 × `NetCmd`)
 - `g_displayCmdQueue` (32 × `DisplayMsg`)
+- `g_audioCmdQueue` (4 × `AudioMsg`)
 - 6 mutexes (see [ARCHITECTURE.md](ARCHITECTURE.md))
 
 ### `async/app_task.cpp`
@@ -141,7 +147,7 @@ ESP-IDF `esp_mqtt_client` over `mqtts://` with a TLS bundle (`tls/`).
 | `mqttPublishBlocked()` | True while applying settings |
 | `mqttBeginSettingsApply()` / `mqttEndSettingsApply()` | Publishing lock |
 
-Event handler (`MQTT_EVENT_DATA`): parse payload → `heartCounterStoreFromRemote()` → redraw display.
+Event handler (`MQTT_EVENT_DATA`): parse payload → `heartCounterStoreFromRemote()` → RX click + LED pulse → redraw display. Successful publish also queues a TX click.
 
 ---
 
@@ -227,14 +233,26 @@ Geometry details: [DISPLAY.md](DISPLAY.md)
 
 ---
 
+## `hw/battery` – ADC + soft-off
+
+**Files:** `hw/battery.h`, `hw/battery.cpp`, `hw/battery_pure.h`, `hw/battery_config.h`
+
+GPIO4 ADC, `VBAT = VADC × 2`, averaged in the app task about every 30 s. Always treated as a LiPo. Soft-off: `batterySoftOff()` drives `kBatControl` LOW.
+
+## `audio/` – ES8311 playback
+
+**Files:** `audio/audio.h`, `audio/audio.cpp`, `audio/audio_pure.h`, `audio/audio_config.h`
+
+Dedicated task + `g_audioCmdQueue`. Capture/mic path is disabled at boot. Playback only on TX/RX heart events (mute, volume, quiet hours).
+
 ## `hw/button` – BOOT, PWR latch, optional LED
 
 **Files:** `hw/button.h`, `hw/button_config.h`, `hw/button_internal.h`, `hw/button_input.cpp`, `hw/button_led.cpp`, `hw/pins.h`
 
 | File | Responsibility |
 |------|----------------|
-| `button_input.cpp` | BOOT GPIO/ISR, debounce, factory reset → `NetCmd` |
-| `button_led.cpp` | Optional LED sequence, MQTT publish after blinking |
+| `button_input.cpp` | BOOT GPIO/ISR, debounce, factory reset → `NetCmd`; PWR long-press soft-off |
+| `button_led.cpp` | TX LED sequence + refresh pulse (`ledRefreshPulseBegin/End`) |
 
 | Constant | Value | Meaning |
 |----------|-------|---------|
@@ -255,7 +273,8 @@ Button task (4096 stack, priority 8, core 1):
 | `buttonInit()` | Initialize GPIO |
 | `buttonStartTask()` | Start FreeRTOS task |
 | `buttonStartupBlink()` | Blink 3× for 200 ms (blocking, setup only) |
-| `buttonIsLedTxSequenceActive()` | Is the MQTT send sequence running? |
+| `buttonIsLedTxSequenceActive()` | TX sequence or refresh pulse running? |
+| `ledRefreshPulseBegin/End` | Pulse GPIO3 during E-Ink refresh / RX ack |
 
 ---
 
@@ -309,6 +328,7 @@ Details: [OTA.md](OTA.md)
 | `configGetResetPeriodDays()` | 0=off, 1–30 days (default 7) |
 | `configSetResetPeriodDays(uint8_t)` | NVS `cfg/rstPeriod` |
 | `configGetDisplayDark()` / `configSetDisplayDark(bool)` | E-Ink dark mode, NVS `cfg/disp_dark` |
+| `configGetAudioMuted()` / volume / quiet hours | NVS `cfg/snd_*` |
 
 ### `config/nvs_utils`
 

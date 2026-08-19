@@ -53,6 +53,8 @@ describe("DeviceRoot", () => {
       deviceId: "a1b2c3",
       version: "2026.8.1",
       hostname: "chaya2mqtt",
+      batteryMv: 3900,
+      batteryPct: 55,
     });
     getChaya.mockResolvedValue({ rx: 3, tx: 1, connected: true });
     getWifiStatus.mockResolvedValue({ connected: false });
@@ -78,6 +80,8 @@ describe("DeviceRoot", () => {
       deviceId: "a1b2c3",
       version: "2026.8.1",
       hostname: "chaya2mqtt",
+      batteryMv: 3900,
+      batteryPct: 55,
     });
 
     renderApp(DeviceRootHarness, { props: { showChrome: true } });

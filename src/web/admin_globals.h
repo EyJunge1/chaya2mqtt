@@ -20,6 +20,10 @@ extern uint8_t      g_webAdminPendingResetDays;
 extern char         g_webAdminPendingUiLang[3];
 extern char         g_webAdminPendingUiTheme[6];
 extern bool         g_webAdminPendingDisplayDark;
+extern bool         g_webAdminPendingAudioMuted;
+extern uint8_t      g_webAdminPendingAudioVolume;
+extern uint8_t      g_webAdminPendingQuiet0;
+extern uint8_t      g_webAdminPendingQuiet1;
 extern portMUX_TYPE g_webAdminSettingsPendingMux;
 
 bool adminParseBodyParam(AsyncWebServerRequest* req, const char* name, char* out,

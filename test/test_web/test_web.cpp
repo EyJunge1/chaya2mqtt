@@ -29,6 +29,13 @@ void test_display_dark_syntax() {
     TEST_ASSERT_TRUE(displayDarkFromForm("true"));
     TEST_ASSERT_FALSE(displayDarkFromForm("0"));
     TEST_ASSERT_FALSE(displayDarkFromForm("false"));
+    TEST_ASSERT_TRUE(formBoolSyntaxOk("1"));
+    TEST_ASSERT_TRUE(formBoolFromForm("true"));
+    TEST_ASSERT_TRUE(audioVolumeInRange(0));
+    TEST_ASSERT_TRUE(audioVolumeInRange(100));
+    TEST_ASSERT_FALSE(audioVolumeInRange(101));
+    TEST_ASSERT_TRUE(quietHourInRange(23));
+    TEST_ASSERT_FALSE(quietHourInRange(24));
 }
 
 void test_hex_codec_roundtrip() {

@@ -1,6 +1,6 @@
 # Display
 
-The E-Ink display shows a **red heart** with **RX and TX counters** (delta display). All drawing takes place exclusively in the **display task**—other tasks send commands via `g_displayCmdQueue`.
+The E-Ink display shows a **red heart** with **RX and TX counters** (delta display), plus yellow accents for a fresh receive and a low battery. All drawing takes place exclusively in the **display task**—other tasks send commands via `g_displayCmdQueue`. The user LED pulses for the duration of a heart/splash refresh.
 
 ## Display task
 
@@ -80,6 +80,8 @@ Structure:
 3. A red rectangle connecting them
 4. Arrows (RX at bottom left ↓, TX at top right ↑) in the foreground color
 5. Counters at the bottom (RX on the left, TX on the right) in the foreground color
+6. Three small **yellow** dots to the right of the heart when RX changed since the last draw (`freshRx`)
+7. Battery icon at the bottom centre; **yellow** when the pack is under 20 %
 
 ### Dark Mode
 
@@ -149,7 +151,7 @@ Onboard Waveshare 1.54G panel. See [HARDWARE.md](HARDWARE.md).
 - Alias: `ChayaEpdPanel` in `src/display/internal.h`
 - Full-window refresh (~20 s); fast mode ~15 s
 - Enable panel power on GPIO6 **LOW** before drawing (active-low `EPD3V3_EN`)
-- Colors: `GxEPD_BLACK`, `GxEPD_WHITE`, `GxEPD_RED`, `GxEPD_YELLOW` — the heart uses red
+- Colors: `GxEPD_BLACK`, `GxEPD_WHITE`, `GxEPD_RED`, `GxEPD_YELLOW` — the heart uses red; yellow is reserved for fresh-RX dots and a low-battery icon
 
 ## Further documentation
 

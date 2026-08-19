@@ -4,6 +4,8 @@
 #include "config/app_config.h"
 #include "heart/counter.h"
 #include "display/display.h"
+#include "hw/battery.h"
+#include "hw/battery_config.h"
 #include "web/admin.h"
 #include "ota/ota.h"
 #include "ota/ota_health.h"
@@ -39,6 +41,7 @@ static void appTaskFn(void*) {
     chayaTaskWatchdogSubscribe(TAG);
     static uint32_t s_stackLogCounter = 0;
     static uint32_t s_heapLogCounter  = 0;
+    static uint32_t s_batterySkip     = 60U;
     for (;;) {
         (void)ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(500));
 
@@ -55,6 +58,12 @@ static void appTaskFn(void*) {
         }
         maybeSaveHeartCounter();
         maybeSaveHeartSentCounter();
+
+        ++s_batterySkip;
+        if (s_batterySkip >= (kBatteryPollMs / 500UL)) {
+            s_batterySkip = 0U;
+            batteryPoll();
+        }
 
         ++s_heapLogCounter;
         if (s_heapLogCounter >= 120U) {

@@ -2,6 +2,7 @@
 
 #include "nvs_utils.h"
 #include "nvs_keys.h"
+#include "audio/audio_config.h"
 #include "constants.h"
 
 #include <atomic>
@@ -19,6 +20,10 @@ static std::atomic<uint8_t> s_resetPeriodDaysCached{7};
 static char s_uiLangCached[3] = "en";
 static char s_uiThemeCached[6] = "light";
 static std::atomic<bool> s_displayDarkCached{false};
+static std::atomic<bool> s_audioMutedCached{false};
+static std::atomic<uint8_t> s_audioVolumeCached{kAudioDefaultVolume};
+static std::atomic<uint8_t> s_audioQuiet0Cached{kAudioDefaultQuiet0};
+static std::atomic<uint8_t> s_audioQuiet1Cached{kAudioDefaultQuiet1};
 static portMUX_TYPE s_uiPrefsMux = portMUX_INITIALIZER_UNLOCKED;
 
 void configLoadResetPeriodFromNvs() {
@@ -142,9 +147,96 @@ bool configSetDisplayDark(bool dark) {
     return true;
 }
 
+void configLoadAudioFromNvs() {
+    const uint8_t mute = app_nvs::readUChar(kNvsNsCfg, kNvsKeyCfgSndMute, 0);
+    uint8_t vol        = app_nvs::readUChar(kNvsNsCfg, kNvsKeyCfgSndVol, kAudioDefaultVolume);
+    uint8_t q0         = app_nvs::readUChar(kNvsNsCfg, kNvsKeyCfgSndQ0, kAudioDefaultQuiet0);
+    uint8_t q1         = app_nvs::readUChar(kNvsNsCfg, kNvsKeyCfgSndQ1, kAudioDefaultQuiet1);
+    if (vol > kAudioVolumeMax) {
+        vol = kAudioDefaultVolume;
+    }
+    if (q0 > kAudioHourMax) {
+        q0 = kAudioDefaultQuiet0;
+    }
+    if (q1 > kAudioHourMax) {
+        q1 = kAudioDefaultQuiet1;
+    }
+    s_audioMutedCached.store(mute != 0U, std::memory_order_relaxed);
+    s_audioVolumeCached.store(vol, std::memory_order_relaxed);
+    s_audioQuiet0Cached.store(q0, std::memory_order_relaxed);
+    s_audioQuiet1Cached.store(q1, std::memory_order_relaxed);
+}
+
+bool configGetAudioMuted() {
+    return s_audioMutedCached.load(std::memory_order_relaxed);
+}
+
+bool configSetAudioMuted(bool muted) {
+    if (configGetAudioMuted() == muted) {
+        return true;
+    }
+    if (!app_nvs::writeUChar(kNvsNsCfg, kNvsKeyCfgSndMute, muted ? 1U : 0U)) {
+        ESP_LOGE(TAG, "NVS cfg: failed to persist snd_mute");
+        return false;
+    }
+    s_audioMutedCached.store(muted, std::memory_order_relaxed);
+    return true;
+}
+
+uint8_t configGetAudioVolume() {
+    return s_audioVolumeCached.load(std::memory_order_relaxed);
+}
+
+bool configSetAudioVolume(uint8_t volume) {
+    if (volume > kAudioVolumeMax) {
+        volume = kAudioVolumeMax;
+    }
+    if (configGetAudioVolume() == volume) {
+        return true;
+    }
+    if (!app_nvs::writeUChar(kNvsNsCfg, kNvsKeyCfgSndVol, volume)) {
+        ESP_LOGE(TAG, "NVS cfg: failed to persist snd_vol");
+        return false;
+    }
+    s_audioVolumeCached.store(volume, std::memory_order_relaxed);
+    return true;
+}
+
+uint8_t configGetAudioQuietStart() {
+    return s_audioQuiet0Cached.load(std::memory_order_relaxed);
+}
+
+uint8_t configGetAudioQuietEnd() {
+    return s_audioQuiet1Cached.load(std::memory_order_relaxed);
+}
+
+bool configSetAudioQuietHours(uint8_t startHour, uint8_t endHour) {
+    if (startHour > kAudioHourMax) {
+        startHour = kAudioHourMax;
+    }
+    if (endHour > kAudioHourMax) {
+        endHour = kAudioHourMax;
+    }
+    if (configGetAudioQuietStart() == startHour && configGetAudioQuietEnd() == endHour) {
+        return true;
+    }
+    if (!app_nvs::writeUChar(kNvsNsCfg, kNvsKeyCfgSndQ0, startHour)
+        || !app_nvs::writeUChar(kNvsNsCfg, kNvsKeyCfgSndQ1, endHour)) {
+        ESP_LOGE(TAG, "NVS cfg: failed to persist snd_q0/snd_q1");
+        return false;
+    }
+    s_audioQuiet0Cached.store(startHour, std::memory_order_relaxed);
+    s_audioQuiet1Cached.store(endHour, std::memory_order_relaxed);
+    return true;
+}
+
 void app_configResetRamAfterFactoryClear() {
     s_resetPeriodDaysCached.store(7, std::memory_order_relaxed);
     s_displayDarkCached.store(false, std::memory_order_relaxed);
+    s_audioMutedCached.store(false, std::memory_order_relaxed);
+    s_audioVolumeCached.store(kAudioDefaultVolume, std::memory_order_relaxed);
+    s_audioQuiet0Cached.store(kAudioDefaultQuiet0, std::memory_order_relaxed);
+    s_audioQuiet1Cached.store(kAudioDefaultQuiet1, std::memory_order_relaxed);
     portENTER_CRITICAL(&s_uiPrefsMux);
     strlcpy(s_uiLangCached, "en", sizeof(s_uiLangCached));
     strlcpy(s_uiThemeCached, "light", sizeof(s_uiThemeCached));

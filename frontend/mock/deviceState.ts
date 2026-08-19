@@ -114,6 +114,12 @@ export interface MockState {
   lang: "de" | "en";
   theme: "dark" | "light";
   displayDark: boolean;
+  audioMuted: boolean;
+  audioVolume: number;
+  quietHourStart: number;
+  quietHourEnd: number;
+  batteryMv: number;
+  batteryPct: number;
   scanReadyAt: number;
   scanMode: MockScanMode;
   deviceDelayMs: number;
@@ -287,6 +293,12 @@ export function createInitialState(scenario: MockScenario = "sta-connected"): Mo
     lang: "en",
     theme: "light",
     displayDark: false,
+    audioMuted: false,
+    audioVolume: 70,
+    quietHourStart: 23,
+    quietHourEnd: 8,
+    batteryMv: 3900,
+    batteryPct: 55,
     wifiConnect: idleWifiConnect(),
     scanReadyAt: 0,
     scanMode: "normal",
@@ -591,6 +603,7 @@ export function broadcastAll(): void {
   emit("wifi", wifiPayload());
   emit("mqtt", mqttPayload());
   emit("ota", otaPayload());
+  emit("device", deviceBatteryPayload());
 }
 
 export function tickWifiConnect(): void {
@@ -618,12 +631,18 @@ export function tickWifiConnect(): void {
   }
 }
 
+export function deviceBatteryPayload() {
+  return { batteryMv: state.batteryMv, batteryPct: state.batteryPct };
+}
+
 export function devicePayload() {
   const base = {
     hostname: state.hostname,
     version: state.version,
     mode: state.mode,
     deviceId: state.deviceId,
+    batteryMv: state.batteryMv,
+    batteryPct: state.batteryPct,
   };
   if (state.mode !== "ap") {
     return base;

@@ -164,7 +164,16 @@ describe("api client", () => {
       text: async () => JSON.stringify({ ok: true, message: "saved" }),
     });
     vi.stubGlobal("fetch", fetchMock);
-    await expect(api.saveSettings({ reset_days: 7, display_dark: 1 })).resolves.toEqual({
+    await expect(
+      api.saveSettings({
+        reset_days: 7,
+        display_dark: 1,
+        audio_muted: 0,
+        audio_volume: 70,
+        quiet_hour_start: 23,
+        quiet_hour_end: 8,
+      }),
+    ).resolves.toEqual({
       ok: true,
       message: "saved",
     });
@@ -172,7 +181,7 @@ describe("api client", () => {
       "/api/settings",
       expect.objectContaining({
         method: "POST",
-        body: "csrf_token=abc123&reset_days=7&display_dark=1",
+        body: "csrf_token=abc123&reset_days=7&display_dark=1&audio_muted=0&audio_volume=70&quiet_hour_start=23&quiet_hour_end=8",
       }),
     );
     await expect(api.saveSettings({ display_dark: 0 })).resolves.toEqual({

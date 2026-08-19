@@ -12,12 +12,14 @@ flowchart TB
     ota[ota task]
     disp[display task]
     btn[button task]
+    aud[audio task]
 
     setup --> net
     setup --> app
     setup --> ota
     setup --> disp
     setup --> btn
+    setup --> aud
 
     net --> wlanLoop
     net --> mqttLoop
@@ -39,6 +41,7 @@ flowchart TB
 | **app** | 4096 | 4 | 1 | `async/app_task.cpp` | `webAdminLoop()`, counter resets, NVS saves |
 | **ota** | 8192 | 4 | 1 | `ota/ota_task.cpp` | `otaLoop()` (GitHub + Download) |
 | **display** | 4096 | 3 | 1 | `display/display.cpp` | Exclusive SPI/EPD access |
+| **audio** | 6144 | 3 | 1 | `audio/audio.cpp` | ES8311 playback queue (mic stays off) |
 
 **Task watchdog:** Network, app, OTA, and button are registered with the ESP task WDT. The **display task is intentionally excluded** because a full 1.54G refresh can take up to ~20 s.
 
@@ -64,6 +67,7 @@ At startup, `asyncInfraInit()` (in `async/task_handles.cpp`) creates:
 |-------|------|---------|---------|
 | `g_netCmdQueue` | 32 | `NetCmd` | Network commands (apply MQTT settings, reconnect, Chaya send) |
 | `g_displayCmdQueue` | 32 | `DisplayMsg` | Display drawing commands |
+| `g_audioCmdQueue` | 4 | `AudioMsg` | TX/RX click (non-blocking) |
 
 ### Mutexes
 
@@ -93,7 +97,9 @@ At startup, `asyncInfraInit()` (in `async/task_handles.cpp`) creates:
 | **WiFi** | `src/wifi/wlan*.cpp` | STA/AP, captive DNS, mDNS, NTP, reconnect |
 | **Network task** | `src/network/network_task.*` | Orchestrates WiFi + MQTT + NetCmd |
 | **Display** | `src/display/*` | E-paper, dedicated drawing task |
-| **Button** | `src/hw/button_*.cpp` | BOOT (GPIO0) + optional LED, dedicated task |
+| **Button** | `src/hw/button_*.cpp` | BOOT (GPIO0), PWR soft-off, LED TX + refresh pulse |
+| **Battery** | `src/hw/battery.*` | GPIO4 ADC, percent, soft-off latch |
+| **Audio** | `src/audio/*` | ES8311 DAC click; capture disabled |
 | **Web admin** | `src/web/*` | HTTP routes, CSRF, SSE, SPA |
 | **OTA** | `src/ota/*` | GitHub stable/beta check, HTTPUpdate + MD5, status/SSE |
 | **App configuration** | `src/config/app_config.*` | Reset period |
@@ -119,13 +125,13 @@ sequenceDiagram
     M->>A: asyncInfraInit
     M->>M: GPIO17 battery latch, CPU 240MHz, BT off, DFS
     M->>D: displayInit + displayStartTask
-    M->>B: buttonInit
+    M->>B: buttonInit + batteryInit + audioInit
     M->>C: loadMQTTConfig
     M->>N: loadHeartCounter + configLoad*
     M->>W: setupWiFi
     M->>Q: mqttSetup
     M->>B: buttonStartupBlink
-    M->>B: buttonStartTask
+    M->>B: audioStartTask + buttonStartTask
     M->>T: networkTaskStart
     M->>T: otaTaskStart
     M->>T: appTaskStart
@@ -136,12 +142,12 @@ sequenceDiagram
 2. **Power:** Drive GPIO17 (`BAT_Control`) HIGH before anything else when running from the LiPo
 3. **CPU:** 240 MHz, BT off, DFS (80–240 MHz, no light sleep; `CONFIG_PM_ENABLE`)
 4. **Display:** Enable GPIO6, init SPI/EPD (`initial_full_refresh=false`) + start display task
-5. **Button:** Initialize BOOT (GPIO0)
+5. **Button / battery / audio:** BOOT + PWR, ADC sample, ES8311 mic off
 6. **Serial:** 115200 in debug builds only (`CORE_DEBUG_LEVEL > 0`)
-7. **Load NVS:** MQTT configuration, counters, reset period
+7. **Load NVS:** MQTT configuration, counters, reset period, audio prefs
 8. **WiFi:** STA with stored credentials or `Chaya2MQTT` SoftAP + captive DNS
 9. **MQTT:** Configure client (do not connect yet)
-10. **Start tasks:** Button, network, OTA, app
+10. **Start tasks:** Audio, button, network, OTA, app
 11. **First drawing:** Heart (if a broker is configured) or splash screen (AP mode)
 12. **OTA verification (deferred):** In the app task, only after 30 s of stable runtime since WiFi boot settlement (`ota_health.h` → `otaTryMarkValidAfterHealthCheck()`; no immediate marking in `setup()`)
 

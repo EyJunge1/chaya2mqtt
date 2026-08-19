@@ -66,15 +66,26 @@ void webAdminLoop() {
         char langApply[3];
         char themeApply[6];
         bool displayDarkApply;
+        bool audioMutedApply;
+        uint8_t audioVolumeApply;
+        uint8_t quiet0Apply;
+        uint8_t quiet1Apply;
         const bool displayDarkBefore = configGetDisplayDark();
         portENTER_CRITICAL(&g_webAdminSettingsPendingMux);
         daysApply = g_webAdminPendingResetDays;
         strlcpy(langApply, g_webAdminPendingUiLang, sizeof(langApply));
         strlcpy(themeApply, g_webAdminPendingUiTheme, sizeof(themeApply));
         displayDarkApply = g_webAdminPendingDisplayDark;
+        audioMutedApply  = g_webAdminPendingAudioMuted;
+        audioVolumeApply = g_webAdminPendingAudioVolume;
+        quiet0Apply      = g_webAdminPendingQuiet0;
+        quiet1Apply      = g_webAdminPendingQuiet1;
         portEXIT_CRITICAL(&g_webAdminSettingsPendingMux);
         const bool ok = configSetResetPeriodDays(daysApply) && configSetUiLang(langApply)
-                        && configSetUiTheme(themeApply) && configSetDisplayDark(displayDarkApply);
+                        && configSetUiTheme(themeApply) && configSetDisplayDark(displayDarkApply)
+                        && configSetAudioMuted(audioMutedApply)
+                        && configSetAudioVolume(audioVolumeApply)
+                        && configSetAudioQuietHours(quiet0Apply, quiet1Apply);
         g_webAdminSettingsNvsWriteFailed.store(!ok, std::memory_order_release);
         if (ok && displayDarkApply != displayDarkBefore) {
             // Bypass counter-throttle so theme changes redraw immediately.

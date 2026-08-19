@@ -64,7 +64,7 @@ Mutations expect `application/x-www-form-urlencoded`, including `csrf_token`.
 | Route | Method | Protection | Description |
 |-------|--------|------------|-------------|
 | `/api/csrf` | GET | Host | `{token}` |
-| `/api/device` | GET | Host | Mode, version, device ID; also `apSsid` / `apIp` in AP mode |
+| `/api/device` | GET | Host | Mode, version, device ID, `batteryMv` / `batteryPct`; also `apSsid` / `apIp` in AP mode |
 | `/api/chaya` | GET | Host + STA | `{rx,tx,connected}` |
 | `/api/chaya/send` | POST | CSRF + STA | Send heart (queued) |
 | `/api/wifi/status` | GET | Host | Link status including current IP/gateway/netmask/DNS |
@@ -76,7 +76,7 @@ Mutations expect `application/x-www-form-urlencoded`, including `csrf_token`.
 | `/api/wifi/connect-abort` | POST | AP + CSRF | Abort test |
 | `/api/mqtt` | GET/POST | Host/CSRF + STA | Broker + partner ID (topics derived; password never included in GET) |
 | `/api/mqtt/status` | GET | Host + STA | `{connected}` |
-| `/api/settings` | GET/POST | Host/CSRF + STA | Reset days, UI preferences, E-Ink dark mode (`displayDark` / `display_dark`) |
+| `/api/settings` | GET/POST | Host/CSRF + STA | Reset days, UI preferences, E-Ink dark mode, mute/volume/quiet hours |
 | `/api/reboot` | POST | CSRF + STA | Reboot (deferred) |
 | `/api/factory-reset` | POST | CSRF + STA | Delete all NVS data and restart in AP setup mode |
 | `/api/update/status` | GET | Host + STA | OTA status (phase, channel, versions, progress) |
@@ -92,7 +92,7 @@ Machine-readable contracts:
 
 | Route | Events |
 |-------|--------|
-| `/events` | `chaya`, `wifi`, `mqtt`, `ota` |
+| `/events` | `chaya`, `wifi`, `mqtt`, `ota`, `device` |
 
 Maximum **6** SSE clients. Tick every 500 ms in the app task.
 

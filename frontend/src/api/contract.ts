@@ -26,7 +26,7 @@ export const API_POST_PATHS = [
   "/api/update/install",
 ] as const;
 
-export const SSE_EVENT_TYPES = ["chaya", "wifi", "mqtt", "ota"] as const;
+export const SSE_EVENT_TYPES = ["chaya", "wifi", "mqtt", "ota", "device"] as const;
 
 export const SPA_UI_PATHS = [
   "/",

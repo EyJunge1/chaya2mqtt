@@ -73,6 +73,22 @@ inline bool displayDarkFromForm(const char* value) {
     return value != nullptr && (strcmp(value, "1") == 0 || strcmp(value, "true") == 0);
 }
 
+inline bool formBoolSyntaxOk(const char* value) {
+    return displayDarkSyntaxOk(value);
+}
+
+inline bool formBoolFromForm(const char* value) {
+    return displayDarkFromForm(value);
+}
+
+inline bool audioVolumeInRange(int v) {
+    return v >= 0 && v <= 100;
+}
+
+inline bool quietHourInRange(int v) {
+    return v >= 0 && v <= 23;
+}
+
 /** Six lowercase hex digits (a-f0-9), e.g. a1b2c3. */
 inline bool deviceIdSyntaxOk(const char* id) {
     if (id == nullptr) {

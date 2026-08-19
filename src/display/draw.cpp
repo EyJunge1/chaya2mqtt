@@ -4,8 +4,10 @@
 #include "config/app_config.h"
 #include "constants.h"
 #include "display_config.h"
+#include "draw_pure.h"
 #include "heart/counter.h"
 #include "heart/counter_pure.h"
+#include "hw/battery.h"
 #include "wifi/wlan.h"
 
 #include <Arduino.h>
@@ -97,6 +99,26 @@ static uint8_t footerTextSizeForDigitCount(size_t digitLen) {
     return digitLen <= 3 ? 4 : 3;
 }
 
+static void drawFreshRxDots(uint16_t color) {
+    auto& epd = displayPanel();
+    epd.fillCircle(184, 38, 3, color);
+    epd.fillCircle(191, 50, 3, color);
+    epd.fillCircle(184, 62, 3, color);
+}
+
+static void drawBatteryIcon(int16_t x, int16_t y, int pct, uint16_t color) {
+    auto& epd = displayPanel();
+    static constexpr int16_t kW = 14;
+    static constexpr int16_t kH = 8;
+    epd.drawRect(x, y, kW, kH, color);
+    epd.fillRect(static_cast<int16_t>(x + kW), static_cast<int16_t>(y + 2), 2, 4, color);
+    const int fillW = ((pct < 0 ? 0 : (pct > 100 ? 100 : pct)) * (kW - 2)) / 100;
+    if (fillW > 0) {
+        epd.fillRect(static_cast<int16_t>(x + 1), static_cast<int16_t>(y + 1),
+                     static_cast<int16_t>(fillW), static_cast<int16_t>(kH - 2), color);
+    }
+}
+
 static void formatCappedCounterForDisplay(int rawCounter, int baseline, char* buf, size_t buflen) {
     if (heartCounterShouldShowPlusPure(rawCounter, baseline)) {
         static_cast<void>(snprintf(buf, buflen, "%d+", kDisplayCounterMax));
@@ -144,6 +166,9 @@ void drawHeartWithNumber() {
 
     const uint8_t recvTextSize = footerTextSizeForDigitCount(recvLen);
     const uint8_t sentTextSize = footerTextSizeForDigitCount(sentLen);
+    const bool    freshRx      = displayFreshRxDots(displayTakeFreshRx());
+    const int     batPct       = batteryPercent();
+    const uint16_t batColor    = displayBatteryIconYellow(batPct) ? GxEPD_YELLOW : fg;
 
     static constexpr int       kFooterTextTop = 167;
     static constexpr int       kLeftMargin    = 4;
@@ -211,6 +236,11 @@ void drawHeartWithNumber() {
         epd.setCursor(static_cast<int16_t>(sentTextCursorX),
                       static_cast<int16_t>(kFooterTextTop));
         epd.print(sentBuf);
+
+        if (freshRx) {
+            drawFreshRxDots(GxEPD_YELLOW);
+        }
+        drawBatteryIcon(93, 188, batPct, batColor);
 
     } while (epd.nextPage());
 

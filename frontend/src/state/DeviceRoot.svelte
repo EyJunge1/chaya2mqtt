@@ -40,6 +40,12 @@
         device.live = "live";
         device.ota = data;
       },
+      device: (data) => {
+        device.live = "live";
+        if (device.device) {
+          device.device = { ...device.device, ...data };
+        }
+      },
       error: () => {
         device.live = "reconnecting";
       },

@@ -12,11 +12,15 @@ std::atomic<bool> g_webAdminMqttNvsWriteFailed{false};
 std::atomic<bool> g_webAdminSettingsNvsWriteFailed{false};
 std::atomic<bool> g_systemShutdownInProgress{false};
 
-uint8_t      g_webAdminPendingResetDays   = 7;
-char         g_webAdminPendingUiLang[3]   = "en";
-char         g_webAdminPendingUiTheme[6]  = "light";
-bool         g_webAdminPendingDisplayDark = false;
-portMUX_TYPE g_webAdminSettingsPendingMux = portMUX_INITIALIZER_UNLOCKED;
+uint8_t      g_webAdminPendingResetDays    = 7;
+char         g_webAdminPendingUiLang[3]    = "en";
+char         g_webAdminPendingUiTheme[6]   = "light";
+bool         g_webAdminPendingDisplayDark  = false;
+bool         g_webAdminPendingAudioMuted   = false;
+uint8_t      g_webAdminPendingAudioVolume  = 70;
+uint8_t      g_webAdminPendingQuiet0       = 23;
+uint8_t      g_webAdminPendingQuiet1       = 8;
+portMUX_TYPE g_webAdminSettingsPendingMux  = portMUX_INITIALIZER_UNLOCKED;
 
 bool adminParseBodyParam(AsyncWebServerRequest* req, const char* name, char* out,
                          size_t outLen) {

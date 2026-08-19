@@ -20,3 +20,9 @@ struct DisplayMsg {
     Cmd      cmd;
     uint32_t payload;
 };
+
+/** Playback request for the audio task (TX double-pulse / RX single tone). */
+struct AudioMsg {
+    enum class Kind : uint8_t { Tx, Rx };
+    Kind kind;
+};

@@ -5,6 +5,7 @@ import {
   bumpOta,
   chayaPayload,
   clearFaults,
+  deviceBatteryPayload,
   devicePayload,
   getState,
   hasFault,
@@ -398,6 +399,10 @@ export async function handleApi(req: IncomingMessage, res: ServerResponse): Prom
       lang: state.lang,
       theme: state.theme,
       displayDark: state.displayDark,
+      audioMuted: state.audioMuted,
+      audioVolume: state.audioVolume,
+      quietHourStart: state.quietHourStart,
+      quietHourEnd: state.quietHourEnd,
     });
     return true;
   }
@@ -427,6 +432,40 @@ export async function handleApi(req: IncomingMessage, res: ServerResponse): Prom
     else if (displayDark != null) {
       sendJson(res, 400, { ok: false, error: "display_dark" });
       return true;
+    }
+    const audioMuted = params.get("audio_muted");
+    if (audioMuted === "1" || audioMuted === "true") state.audioMuted = true;
+    else if (audioMuted === "0" || audioMuted === "false") state.audioMuted = false;
+    else if (audioMuted != null) {
+      sendJson(res, 400, { ok: false, error: "audio_muted" });
+      return true;
+    }
+    const audioVolume = params.get("audio_volume");
+    if (audioVolume != null) {
+      const v = Number(audioVolume);
+      if (!Number.isFinite(v) || v < 0 || v > 100) {
+        sendJson(res, 400, { ok: false, error: "audio_volume" });
+        return true;
+      }
+      state.audioVolume = v;
+    }
+    const quietStart = params.get("quiet_hour_start");
+    if (quietStart != null) {
+      const v = Number(quietStart);
+      if (!Number.isFinite(v) || v < 0 || v > 23) {
+        sendJson(res, 400, { ok: false, error: "quiet_hour_start" });
+        return true;
+      }
+      state.quietHourStart = v;
+    }
+    const quietEnd = params.get("quiet_hour_end");
+    if (quietEnd != null) {
+      const v = Number(quietEnd);
+      if (!Number.isFinite(v) || v < 0 || v > 23) {
+        sendJson(res, 400, { ok: false, error: "quiet_hour_end" });
+        return true;
+      }
+      state.quietHourEnd = v;
     }
     sendJson(res, 200, { ok: true, message: "saved" });
     return true;
@@ -580,6 +619,7 @@ function handleSse(req: IncomingMessage, res: ServerResponse): boolean {
   write("wifi", wifiPayload());
   write("mqtt", mqttPayload());
   write("ota", otaPayload());
+  write("device", deviceBatteryPayload());
 
   const unsub = subscribe((event: string, data: unknown) => write(event, data));
   const heartbeat = setInterval(() => res.write(": ping\n\n"), 15000);

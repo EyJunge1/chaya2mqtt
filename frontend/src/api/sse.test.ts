@@ -46,9 +46,10 @@ describe("connectEvents", () => {
     const wifi = vi.fn();
     const mqtt = vi.fn();
     const ota = vi.fn();
+    const device = vi.fn();
     const error = vi.fn();
 
-    const stop = connectEvents({ chaya, wifi, mqtt, ota, error });
+    const stop = connectEvents({ chaya, wifi, mqtt, ota, device, error });
     const es = FakeEventSource.instances[0]!;
     expect(es.url).toBe("/events");
 
@@ -65,12 +66,14 @@ describe("connectEvents", () => {
       error: "",
       generation: 0,
     });
+    es.emit("device", { batteryMv: 3900, batteryPct: 55 });
     es.onerror?.(new Event("error"));
 
     expect(chaya).toHaveBeenCalledWith({ rx: 1, tx: 2, connected: true });
     expect(wifi).toHaveBeenCalledWith({ connected: false });
     expect(mqtt).toHaveBeenCalledWith({ connected: true });
     expect(ota).toHaveBeenCalled();
+    expect(device).toHaveBeenCalledWith({ batteryMv: 3900, batteryPct: 55 });
     expect(error).toHaveBeenCalled();
 
     es.emitRaw("chaya", "{not-json");

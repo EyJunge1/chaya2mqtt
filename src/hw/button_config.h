@@ -20,3 +20,7 @@ constexpr unsigned long kButtonTaskPollActiveMs  = 10UL;
 constexpr unsigned long kButtonTaskPollIdleMs    = 50UL;
 constexpr unsigned long kButtonStartupBlinkMs    = 200UL;
 constexpr int           kButtonStartupBlinkCount = 3;
+
+constexpr unsigned long kSoftOffHoldMs      = 2000UL;
+constexpr unsigned long kLedRefreshPulseMs  = 280UL;
+constexpr unsigned long kLedRefreshAckMs    = 1500UL;

@@ -54,6 +54,10 @@
       const res = await api.saveSettings({
         reset_days: settings.resetDays,
         display_dark: settings.displayDark ? 1 : 0,
+        audio_muted: settings.audioMuted ? 1 : 0,
+        audio_volume: settings.audioVolume,
+        quiet_hour_start: settings.quietHourStart,
+        quiet_hour_end: settings.quietHourEnd,
       });
       if (!res.ok) {
         onToast(i18n.t("toast.save-failed"), "error");
@@ -126,6 +130,26 @@
               if (settings) settings = { ...settings, displayDark };
             }}
           />
+        </Field>
+        <h3 class="pt-1 text-sm font-semibold text-text-bright">{i18n.t("settings.sound")}</h3>
+        <Field label={i18n.t("settings.audio-mute")} hint={i18n.t("settings.audio-mute-hint")}>
+          <Switch
+            label={i18n.t("settings.audio-mute")}
+            checked={settings.audioMuted}
+            disabled={busy}
+            onChange={(audioMuted) => {
+              if (settings) settings = { ...settings, audioMuted };
+            }}
+          />
+        </Field>
+        <Field label={i18n.t("settings.audio-volume")} hint={i18n.t("settings.audio-volume-hint")}>
+          <TextInput type="number" min={0} max={100} bind:value={settings.audioVolume} />
+        </Field>
+        <Field label={i18n.t("settings.quiet-start")} hint={i18n.t("settings.quiet-hint")}>
+          <TextInput type="number" min={0} max={23} bind:value={settings.quietHourStart} />
+        </Field>
+        <Field label={i18n.t("settings.quiet-end")} hint={i18n.t("settings.quiet-hint")}>
+          <TextInput type="number" min={0} max={23} bind:value={settings.quietHourEnd} />
         </Field>
         <PrimaryButton type="submit" loading={busy}>
           {i18n.t("common.save")}

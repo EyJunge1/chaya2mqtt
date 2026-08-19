@@ -26,24 +26,24 @@ What the PCB actually has. **Chaya** is the firmware use today.
 
 | Part | Hardware | Chaya |
 |------|----------|-------|
-| **E-paper** | 1.54″, 200×200, **black / white / red / yellow** | Heart (red) + RX/TX counters. Yellow unused (accents later). |
+| **E-paper** | 1.54″, 200×200, **black / white / red / yellow** | Heart (red) + RX/TX counters. Yellow: fresh-RX dots, low-battery icon. |
 | **Antenna** | Onboard SMD / ceramic; Wi-Fi + BLE | Wi-Fi on; BLE unused (firmware may disable BT) |
 | **BOOT** (`Key1`) | GPIO0, side button | Short press = send; hold 10 s = factory reset |
 | **Reset** | `EN` / `CHIP_PU` only — **no** user RESET button | USB re-plug or chip EN |
 | **Li-ion cell** | 3.7 V, MX1.25 2-pin, in-case (SKU 34586) | Supported power source (with USB-C) |
-| **PWR** (`BAT_KEY`) | GPIO18, side button | Press to start on battery |
+| **PWR** (`BAT_KEY`) | GPIO18, side button | Press to start on battery; hold ~2 s = soft-off (latch LOW). Short press ignored. |
 | **Battery latch** | GPIO17 (`BAT_Control`) | Must drive HIGH early or power dies when PWR is released |
 | **Charge IC** | ETA6098 (USB-C → cell) | No firmware |
 | **Charge LED** | Onboard status LED | Hardware only |
-| **Battery ADC** | GPIO4, divider; VBAT = VADC × 2 | Unused (optional later) |
+| **Battery ADC** | GPIO4, divider; VBAT = VADC × 2 | Polled ~30 s; `GET /api/device` + SSE `device` + E-Ink icon |
 | **3.3 V rail** | MP1605 DC-DC | Hardware only |
-| **User LED** | GPIO3 on header, active-low | Unused; no dedicated heart LED |
+| **User LED** | GPIO3 on header, active-low | TX sequence + pulse during E-Ink refresh / RX ack |
 | **TF / microSD** | Slot, **1-bit** SDIO (CLK/CMD/DAT0), **FAT32** | Unused |
 | **UART0** | GPIO43 TX / GPIO44 RX on header | Unused (debug if needed) |
-| **Audio codec** | ES8311 (I2C `0x18`) | Unused |
-| **Microphone** | Onboard, via ES8311 | Unused (capture) |
-| **Speaker** | Onboard + MX1.25 2-pin header | Unused (playback) |
-| **Amp** | `PA_EN` GPIO42, `PA_CTRL` GPIO46 | Unused |
+| **Audio codec** | ES8311 (I2C `0x18`) | Playback only (synthetic TX/RX click). Capture path off at boot. |
+| **Microphone** | Onboard, via ES8311 | Permanently off (ADC/mic-bias disabled; no I2S-RX) |
+| **Speaker** | Onboard + MX1.25 2-pin header | Short click on send/receive |
+| **Amp** | `PA_EN` GPIO42, `PA_CTRL` GPIO46 | HIGH only while playing |
 | **Temp / humidity** | SHTC3 (I2C `0x70`) | Unused |
 | **RTC** | PCF85063 (I2C `0x51`, INT GPIO5), backside | Unused |
 | **Touch** | Pins reserved (`EPD_TP_RST` GPIO7, `EPD_TP_INT` GPIO21) | **No** touch panel on this SKU |
@@ -76,7 +76,7 @@ I2C bus **GPIO47 (SDA) / GPIO48 (SCL)** is shared by RTC, SHTC3, ES8311, and res
 | EPD_SCLK | **12** |
 | EPD_SDI | **13** |
 
-The heart stays **red**. Geometry and refresh logic: [DISPLAY.md](DISPLAY.md).
+The heart stays **red**. Yellow is used for fresh-RX dots and a low-battery icon. Geometry and refresh logic: [DISPLAY.md](DISPLAY.md).
 
 ## Audio (playback and capture)
 
@@ -92,7 +92,7 @@ Onboard **ES8311** (low-power codec): mic in, speaker out. Waveshare ships an on
 | PA_EN | 42 | Codec / PA power |
 | PA_CTRL | 46 | Amplifier enable |
 
-Chaya does not play sound or use the mic. Hardware is there if we add a click or voice later.
+Chaya plays a short synthetic click on heart send/receive (mute, volume, and quiet hours in settings). The microphone / capture path is disabled at boot and never used.
 
 ## TF / microSD
 
@@ -120,7 +120,7 @@ Shop text: both side buttons are programmable.
 | Part | GPIO | Chaya role |
 |------|------|------------|
 | **BOOT** / `Key1` | **0** | Heart: short = send; hold 10 s = factory reset. Do **not** hold at reset/flash (download mode). Strapping pin; usable as input after boot. |
-| **PWR** / `BAT_KEY` | **18** | Battery power button (see below). |
+| **PWR** / `BAT_KEY` | **18** | Start on battery; hold ~2 s = soft-off. Short press unused in this firmware. |
 
 ## Battery and power
 
@@ -134,9 +134,9 @@ SKU **34586** includes a **3.7 V** single-cell Li-ion on an **MX1.25 2-pin** h
 | **Charge LED** | Onboard | Hardware only |
 | **3.3 V** | MP1605 DC-DC (`VCC3V3`) | Hardware only |
 | **USB-C** | Power, charge, flash, serial | Same as desktop use |
-| **BAT_KEY** | GPIO**18** | Press PWR to start on battery |
-| **BAT_Control** | GPIO**17** | Drive **HIGH early in `setup()`** or the board cuts power when PWR is released. USB-only: latch unused. Battery: **required**. |
-| **BAT_ADC** | GPIO**4**, R21/R38 200 kΩ divider | Unused. `VBAT = VADC × 2` |
+| **BAT_KEY** | GPIO**18** | Press PWR to start on battery. Hold ~2 s after boot for soft-off. |
+| **BAT_Control** | GPIO**17** | Drive **HIGH early in `setup()`** or the board cuts power when PWR is released. Soft-off drives it LOW. |
+| **BAT_ADC** | GPIO**4**, R21/R38 200 kΩ divider | `VBAT = VADC × 2`; firmware always treats the pack as present. |
 
 On battery there is **no** hardware hold switch: PWR is sense, GPIO17 is the latch.
 

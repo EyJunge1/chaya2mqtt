@@ -6,6 +6,8 @@
 #include "async/event_types.h"
 #include "async/task_config.h"
 #include "async/task_handles.h"
+#include "heart/counter.h"
+#include "hw/battery.h"
 #include "mqtt/config.h"
 #include "ota/ota.h"
 #include "wifi/wlan.h"
@@ -29,6 +31,7 @@ DEFINE_LOG_TAG("BTN");
 
 std::atomic<TaskHandle_t> s_buttonTaskHandle{nullptr};
 ButtonState               btn{};
+PwrButtonState            pwr{};
 
 static void triggerFactoryReset() {
     if (otaBlocksDestructiveAction()) {
@@ -48,6 +51,38 @@ static void triggerFactoryReset() {
         }
     } else {
         ESP_LOGE(TAG, "Factory reset queue unavailable");
+    }
+}
+
+void pwrPollAndProcess() {
+    const int raw             = digitalRead(pins::kPwrButton);
+    const unsigned long nowMs = millis();
+    if (raw != pwr.lastRawReading) {
+        pwr.lastRawReading       = raw;
+        pwr.lastDebounceChangeMs = nowMs;
+    }
+    if (nowMs - pwr.lastDebounceChangeMs >= kDebounceStableMs) {
+        pwr.debouncedLevel = pwr.lastRawReading;
+    }
+    const bool pressed = (pwr.debouncedLevel == LOW);
+    if (!pwr.seenRelease) {
+        if (!pressed) {
+            pwr.seenRelease = true;
+        }
+        return;
+    }
+    if (pressed) {
+        if (!pwr.heldDown) {
+            pwr.heldDown     = true;
+            pwr.pressStartMs = nowMs;
+        } else if (nowMs - pwr.pressStartMs >= kSoftOffHoldMs) {
+            ESP_LOGI(TAG, "PWR long press: soft-off");
+            flushHeartCounterIfDirty();
+            flushHeartSentCounterIfDirty();
+            batterySoftOff();
+        }
+    } else {
+        pwr.heldDown = false;
     }
 }
 
@@ -77,7 +112,7 @@ void buttonPollAndProcess() {
         if (btn.heldDown) {
             const unsigned long held = nowMs - btn.pressStartMs;
             if (!btn.factoryResetTriggered && held >= kShortPressMinMs && held < kFactoryResetHoldMs) {
-                if (!ledSendSequenceActive() && !configIsApMode()) {
+                if (!ledTxBusy() && !configIsApMode()) {
                     if (mqttCfgIsBrokerConfigured()) {
                         startMqttSendLedSequence();
                     }
@@ -103,9 +138,10 @@ static void buttonTaskFn(void*) {
     static uint32_t s_stackLogCounter = 0;
     for (;;) {
         const unsigned long waitMs =
-            ledSendSequenceActive() ? kButtonTaskPollActiveMs : kButtonTaskPollIdleMs;
+            ledActivityActive() ? kButtonTaskPollActiveMs : kButtonTaskPollIdleMs;
         ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(waitMs));
         buttonPollAndProcess();
+        pwrPollAndProcess();
         advanceLedSequence();
         chayaTaskWatchdogReset();
         logTaskStackHighWaterPeriodic(TAG, s_stackLogCounter, 600);
@@ -114,11 +150,16 @@ static void buttonTaskFn(void*) {
 
 void buttonInit() {
     pinMode(kButtonGpio, INPUT_PULLUP);
+    pinMode(pins::kPwrButton, INPUT_PULLUP);
     pinMode(kButtonLedPin, OUTPUT);
     ledOutput(LOW);  // active-low LED off
     btn.lastRawReading       = digitalRead(kButtonGpio);
     btn.debouncedLevel       = btn.lastRawReading;
     btn.lastDebounceChangeMs = millis();
+    pwr.lastRawReading       = digitalRead(pins::kPwrButton);
+    pwr.debouncedLevel       = pwr.lastRawReading;
+    pwr.lastDebounceChangeMs = millis();
+    pwr.seenRelease          = (pwr.debouncedLevel != LOW);
 }
 
 void buttonStartTask() {

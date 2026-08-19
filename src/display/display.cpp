@@ -4,6 +4,7 @@
 #include "async/event_types.h"
 #include "async/task_handles.h"
 #include "heart/counter.h"
+#include "hw/button.h"
 #include "hw/pins.h"
 
 #include "async/task_config.h"
@@ -34,7 +35,16 @@ static std::atomic<bool> s_heartDrawQueued{false};
 static std::atomic<int> s_lastDrawnRx{INT32_MIN};
 static std::atomic<int> s_lastDrawnTx{INT32_MIN};
 static std::atomic<unsigned long> s_lastHeartRedrawEnqueueMs{0};
+static std::atomic<bool>          s_freshRx{false};
 static constexpr unsigned long    kHeartRedrawMinIntervalMs = 30000UL;
+
+void displayMarkFreshRx() {
+    s_freshRx.store(true, std::memory_order_release);
+}
+
+bool displayTakeFreshRx() {
+    return s_freshRx.exchange(false, std::memory_order_acq_rel);
+}
 
 static bool displayPostHeartRedraw(TickType_t waitTicks, bool bypassMinInterval = false) {
     const int rx = heartCounter.load(std::memory_order_relaxed);
@@ -109,7 +119,9 @@ static void displayTaskFn(void*) {
         }
         switch (msg.cmd) {
         case DisplayMsg::Cmd::DrawHeart: {
+            ledRefreshPulseBegin();
             drawHeartWithNumber();
+            ledRefreshPulseEnd();
             const int drawnRx = heartCounter.load(std::memory_order_relaxed);
             const int drawnTx = heartSentCounter.load(std::memory_order_relaxed);
             s_lastDrawnRx.store(drawnRx, std::memory_order_relaxed);
@@ -122,7 +134,9 @@ static void displayTaskFn(void*) {
             break;
         }
         case DisplayMsg::Cmd::DrawSplash:
+            ledRefreshPulseBegin();
             drawSplashScreen();
+            ledRefreshPulseEnd();
             break;
         }
         logTaskStackHighWaterPeriodic("DISP", s_stackLogCounter, 600);
@@ -142,8 +156,8 @@ void requestHeartRedraw() {
     (void)displayPostHeartRedraw(pdMS_TO_TICKS(100));
 }
 
-void requestHeartRedrawNonBlocking() {
-    (void)displayPostHeartRedraw(0);
+bool requestHeartRedrawNonBlocking() {
+    return displayPostHeartRedraw(0);
 }
 
 void requestDeferredDrawSplashScreen() {

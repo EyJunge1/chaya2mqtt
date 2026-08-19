@@ -10,6 +10,7 @@
 #include "config/version.h"
 #include "constants.h"
 #include "heart/counter.h"
+#include "hw/battery.h"
 #include "mqtt/config.h"
 #include "mqtt/mqtt.h"
 #include "ota/ota.h"
@@ -118,6 +119,13 @@ void handleApiDeviceGet(AsyncWebServerRequest* req) {
             return;
         }
     }
+    n = snprintf(body + pos, sizeof(body) - pos, ",\"batteryMv\":%d,\"batteryPct\":%d",
+                 batteryMilliVolts(), batteryPercent());
+    if (n < 0 || pos + static_cast<size_t>(n) >= sizeof(body)) {
+        webSendEmpty(req, 500);
+        return;
+    }
+    pos += static_cast<size_t>(n);
     if (pos + 2U > sizeof(body)) {
         webSendEmpty(req, 500);
         return;
@@ -606,11 +614,16 @@ void handleApiMqttPost(AsyncWebServerRequest* req) {
 }
 
 void handleApiSettingsGet(AsyncWebServerRequest* req) {
-    char body[128];
-    const int n = snprintf(body, sizeof(body),
-                           "{\"resetDays\":%u,\"lang\":\"%s\",\"theme\":\"%s\",\"displayDark\":%s}",
-                           static_cast<unsigned>(configGetResetPeriodDays()), configGetUiLang(),
-                           configGetUiTheme(), configGetDisplayDark() ? "true" : "false");
+    char body[256];
+    const int n = snprintf(
+        body, sizeof(body),
+        "{\"resetDays\":%u,\"lang\":\"%s\",\"theme\":\"%s\",\"displayDark\":%s,"
+        "\"audioMuted\":%s,\"audioVolume\":%u,\"quietHourStart\":%u,\"quietHourEnd\":%u}",
+        static_cast<unsigned>(configGetResetPeriodDays()), configGetUiLang(), configGetUiTheme(),
+        configGetDisplayDark() ? "true" : "false", configGetAudioMuted() ? "true" : "false",
+        static_cast<unsigned>(configGetAudioVolume()),
+        static_cast<unsigned>(configGetAudioQuietStart()),
+        static_cast<unsigned>(configGetAudioQuietEnd()));
     if (n < 0 || static_cast<size_t>(n) >= sizeof(body)) {
         webSendEmpty(req, 500);
         return;
@@ -627,6 +640,10 @@ void handleApiSettingsPost(AsyncWebServerRequest* req) {
     char lang[3];
     char theme[6];
     bool displayDark = configGetDisplayDark();
+    bool audioMuted  = configGetAudioMuted();
+    uint8_t audioVol = configGetAudioVolume();
+    uint8_t quiet0   = configGetAudioQuietStart();
+    uint8_t quiet1   = configGetAudioQuietEnd();
     strlcpy(lang, configGetUiLang(), sizeof(lang));
     strlcpy(theme, configGetUiTheme(), sizeof(theme));
 
@@ -672,12 +689,60 @@ void handleApiSettingsPost(AsyncWebServerRequest* req) {
             displayDark = displayDarkFromForm(v.c_str());
         }
     }
+    if (req->hasParam("audio_muted", true)) {
+        const AsyncWebParameter* p = req->getParam("audio_muted", true);
+        if (p != nullptr) {
+            const String v = p->value();
+            if (!formBoolSyntaxOk(v.c_str())) {
+                sendErr(req, 400, "audio_muted");
+                return;
+            }
+            audioMuted = formBoolFromForm(v.c_str());
+        }
+    }
+    if (req->hasParam("audio_volume", true)) {
+        const AsyncWebParameter* p = req->getParam("audio_volume", true);
+        if (p != nullptr) {
+            const int v = p->value().toInt();
+            if (!audioVolumeInRange(v)) {
+                sendErr(req, 400, "audio_volume");
+                return;
+            }
+            audioVol = static_cast<uint8_t>(v);
+        }
+    }
+    if (req->hasParam("quiet_hour_start", true)) {
+        const AsyncWebParameter* p = req->getParam("quiet_hour_start", true);
+        if (p != nullptr) {
+            const int v = p->value().toInt();
+            if (!quietHourInRange(v)) {
+                sendErr(req, 400, "quiet_hour_start");
+                return;
+            }
+            quiet0 = static_cast<uint8_t>(v);
+        }
+    }
+    if (req->hasParam("quiet_hour_end", true)) {
+        const AsyncWebParameter* p = req->getParam("quiet_hour_end", true);
+        if (p != nullptr) {
+            const int v = p->value().toInt();
+            if (!quietHourInRange(v)) {
+                sendErr(req, 400, "quiet_hour_end");
+                return;
+            }
+            quiet1 = static_cast<uint8_t>(v);
+        }
+    }
 
     portENTER_CRITICAL(&g_webAdminSettingsPendingMux);
     g_webAdminPendingResetDays = days;
     strlcpy(g_webAdminPendingUiLang, lang, sizeof(g_webAdminPendingUiLang));
     strlcpy(g_webAdminPendingUiTheme, theme, sizeof(g_webAdminPendingUiTheme));
-    g_webAdminPendingDisplayDark = displayDark;
+    g_webAdminPendingDisplayDark  = displayDark;
+    g_webAdminPendingAudioMuted   = audioMuted;
+    g_webAdminPendingAudioVolume  = audioVol;
+    g_webAdminPendingQuiet0       = quiet0;
+    g_webAdminPendingQuiet1       = quiet1;
     portEXIT_CRITICAL(&g_webAdminSettingsPendingMux);
     g_webAdminSettingsApplyPending.store(true, std::memory_order_release);
     sendOk(req, 200, "\"message\":\"saved\"");

@@ -4,6 +4,7 @@
   import { otaHasPendingUpdate } from "../api/ota.ts";
   import type { ChayaStatus, DeviceInfo, OtaStatus, WifiStatus } from "../api/types.ts";
   import Alert from "../components/Alert.svelte";
+  import Badge from "../components/Badge.svelte";
   import LinkButton from "../components/LinkButton.svelte";
   import Panel from "../components/Panel.svelte";
   import PrimaryButton from "../components/PrimaryButton.svelte";
@@ -87,6 +88,13 @@
         detailOk={i18n.t("status.mqtt-ok")}
         detailBad={i18n.t("status.mqtt-bad")}
       />
+      <Badge
+        tone={device.batteryPct < 20 ? "warning" : "neutral"}
+        aria-label={`${i18n.t("dashboard.battery")}: ${device.batteryPct}%`}
+      >
+        {i18n.t("dashboard.battery")}
+        {device.batteryPct}%
+      </Badge>
     </div>
 
     <Panel title={i18n.t("dashboard.hearts")} hint={i18n.t("dashboard.hearts-hint")}>

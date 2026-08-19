@@ -10,7 +10,10 @@
 #include "async/app_task.h"
 #include "async/task_handles.h"
 
+#include "audio/audio.h"
 #include "config/app_config.h"
+#include "config/version.h"
+#include "hw/battery.h"
 #include "hw/button.h"
 #include "hw/pins.h"
 #include "heart/counter.h"
@@ -50,6 +53,8 @@ void setup() {
     ESP_LOGI(TAG, "Display initialized");
 
     buttonInit();
+    batteryInit();
+    audioInit();
 
 #if defined(CORE_DEBUG_LEVEL) && CORE_DEBUG_LEVEL > 0
     Serial.begin(115200);
@@ -64,6 +69,7 @@ void setup() {
     configLoadResetPeriodFromNvs();
     configLoadUiPrefsFromNvs();
     configLoadDisplayDarkFromNvs();
+    configLoadAudioFromNvs();
     setupWiFi();
 
     mqttSetup();
@@ -71,6 +77,7 @@ void setup() {
     // Run startup blink before the button task touches the LED GPIO (otherwise both race on ledOutput).
     buttonStartupBlink();
 
+    audioStartTask();
     buttonStartTask();
     networkTaskStart();
     otaTaskStart();
