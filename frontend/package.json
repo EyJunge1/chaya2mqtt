@@ -19,8 +19,8 @@
     "test:e2e:smoke": "playwright test --grep @smoke"
   },
   "dependencies": {
-    "@lucide/svelte": "^1.32.0",
-    "svelte": "^5.53.0"
+    "@lucide/svelte": "^1.33.0",
+    "svelte": "^5.56.10"
   },
   "devDependencies": {
     "@playwright/test": "^1.62.1",
@@ -28,18 +28,18 @@
     "@tailwindcss/vite": "^4.3.3",
     "@testing-library/jest-dom": "^7.0.1",
     "@testing-library/svelte": "^5.3.1",
-    "@testing-library/user-event": "^14.6.4",
+    "@testing-library/user-event": "^14.6.5",
     "@types/node": "^26.2.0",
-    "@vitest/coverage-v8": "^4.1.10",
+    "@vitest/coverage-v8": "^4.1.11",
     "jsdom": "^30.0.1",
-    "oxlint": "^1.78.0",
+    "oxlint": "^1.79.0",
     "prettier": "^3.9.6",
     "prettier-plugin-svelte": "^3.5.0",
     "svelte-check": "^4.4.0",
     "tailwindcss": "^4.3.3",
     "typescript": "~7.0.2",
-    "vite": "^8.2.1",
-    "vitest": "^4.1.10"
+    "vite": "^8.2.2",
+    "vitest": "^4.1.11"
   },
   "allowScripts": {
     "fsevents@2.3.2": true,
