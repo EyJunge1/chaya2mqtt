@@ -20,6 +20,15 @@ The E-Ink display shows a **red heart** with **RX and TX counters** (delta displ
 | `DrawSplash` | `drawSplashScreen()` | SoftAP setup: full-screen WIFI QR (`T:WPA`) for phone camera join |
 | `DrawPowerOff` | `drawPowerOffScreen()` | Controlled shutdown: centered red `Chaya2MQTT` title |
 
+The last successfully painted view is cached in `cfg/disp_view`: unknown, heart, setup QR, or
+the centered product title. Boot/setup requests are skipped when that exact view is already on
+the bistable panel. Setup QR and product title are distinct views. Normal RX/TX heart redraws
+remain content-driven and are never suppressed solely because the heart view is active.
+
+On controlled shutdown, the product title is still painted after a heart or setup QR. If the
+product title is already visible, the refresh is skipped and shutdown continues immediately.
+The NVS value is written only after a completed refresh and only when the view changes.
+
 ### API for other tasks
 
 | Function | Blocking | Timeout |
@@ -116,10 +125,11 @@ sequenceDiagram
     T->>S: displaySuspendSpiLowPower
 ```
 
-1. `displayResumeSpiForDraw` — after `hibernate()`, GxEPD2 `init(0, true, 2, false)` (RST only; rail and SPI stay up)
-2. `setFullWindow()` → `firstPage()` → draw → `nextPage()` (full refresh ~20 s; fast ~15 s)
-3. `hibernate()` — controller deep sleep; the image remains bistable
-4. `displaySuspendSpiLowPower` — marks hibernate so the next draw re-inits
+1. Compare state-driven requests with `cfg/disp_view`; signal completion without touching the panel when the view is unchanged
+2. `displayResumeSpiForDraw` — after `hibernate()`, GxEPD2 `init(0, true, 2, false)` (RST only; rail and SPI stay up)
+3. `setFullWindow()` → `firstPage()` → draw → `nextPage()` (full refresh ~20 s; fast ~15 s)
+4. `hibernate()` — controller deep sleep; the image remains bistable
+5. Call `displaySuspendSpiLowPower` and persist the completed view
 
 ## Splash display
 

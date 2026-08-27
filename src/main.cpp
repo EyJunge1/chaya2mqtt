@@ -73,6 +73,7 @@ void setup() {
     configLoadUiPrefsFromNvs();
     configLoadLedFromNvs();
     configLoadAudioFromNvs();
+    configLoadDisplayViewFromNvs();
     // Waveshare 08_E_paper_test: paint the panel before bringing up Wi-Fi RF.
     WlanConfig bootWlan{};
     const bool haveSta = wlanLoadConfigFromNvs(&bootWlan) && bootWlan.ssid[0] != '\0';

@@ -14,7 +14,136 @@ permissions:
   contents: read
 
 jobs:
-  check:
+  changes:
+    name: Classify changes
+    runs-on: ubuntu-latest
+    outputs:
+      frontend: ${{ steps.classify.outputs.frontend }}
+      flasher: ${{ steps.classify.outputs.flasher }}
+      firmware_tests: ${{ steps.classify.outputs.firmware_tests }}
+      firmware_build: ${{ steps.classify.outputs.firmware_build }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Select affected quality jobs
+        id: classify
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+
+          frontend=false
+          flasher=false
+          firmware_tests=false
+          firmware_build=false
+          all=false
+
+          if [[ "$EVENT_NAME" != "pull_request" ]]; then
+            all=true
+          else
+            while IFS= read -r path; do
+              [[ -z "$path" ]] && continue
+              echo "changed: $path"
+
+              case "$path" in
+                docs/*|*.md|LICENSE|THIRD_PARTY_NOTICES.md|.github/ISSUE_TEMPLATE/*)
+                  ;;
+                frontend/*)
+                  frontend=true
+                  firmware_build=true
+                  ;;
+                flasher/*)
+                  flasher=true
+                  ;;
+                src/*|sim/*|test/*|platformio.ini|partitions_chaya_8mb.csv|sdkconfig.defaults)
+                  firmware_tests=true
+                  firmware_build=true
+                  ;;
+                scripts/embed_web_assets.py|scripts/test_embed_web_assets.py|scripts/pio_pre_frontend.py|scripts/prepare_release_artifacts.py)
+                  firmware_build=true
+                  ;;
+                scripts/fetch_flasher_releases.py|scripts/generate_flasher_site.py|scripts/test_flasher_site.py)
+                  flasher=true
+                  ;;
+                scripts/patch_gxepd2_busy_wait.py|scripts/test_patch_gxepd2_busy_wait.py|scripts/pio_native_asan.py)
+                  firmware_tests=true
+                  firmware_build=true
+                  ;;
+                *)
+                  echo "Central or unknown path; enabling the complete gate: $path"
+                  all=true
+                  ;;
+              esac
+            done < <(git diff --name-only --diff-filter=ACMR "$BASE_SHA" "$HEAD_SHA")
+          fi
+
+          if [[ "$all" == "true" ]]; then
+            frontend=true
+            flasher=true
+            firmware_tests=true
+            firmware_build=true
+          fi
+
+          {
+            echo "frontend=$frontend"
+            echo "flasher=$flasher"
+            echo "firmware_tests=$firmware_tests"
+            echo "firmware_build=$firmware_build"
+          } | tee -a "$GITHUB_OUTPUT"
+
+  frontend:
+    name: Frontend
+    needs: changes
+    if: needs.changes.outputs.frontend == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install frontend dependencies and Playwright
+        working-directory: frontend
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+
+      - name: Run frontend quality gate
+        run: "make check-frontend FRONTEND_NPM_CI=:"
+
+  flasher:
+    name: Web flasher
+    needs: changes
+    if: needs.changes.outputs.flasher == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: flasher/package-lock.json
+
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+
+      - name: Run web-flasher quality gate
+        run: make check-flasher
+
+  firmware_tests:
+    name: Firmware tests
+    needs: changes
+    if: needs.changes.outputs.firmware_tests == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -22,14 +151,6 @@ jobs:
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: "3.12"
-
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
-        with:
-          node-version: "22"
-          cache: npm
-          cache-dependency-path: |
-            frontend/package-lock.json
-            flasher/package-lock.json
 
       - name: Cache PlatformIO
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
@@ -42,11 +163,70 @@ jobs:
       - name: Install PlatformIO
         run: pip install platformio==6.1.19
 
-      - name: Install Playwright browser
-        working-directory: frontend
-        run: |
-          npm ci
-          npx playwright install --with-deps chromium
+      - name: Run native and static firmware checks
+        run: make check-firmware-tests PIO=pio
 
-      - name: Run complete quality gate
-        run: make check PIO=pio
+  firmware_build:
+    name: Firmware release build
+    needs: changes
+    if: needs.changes.outputs.firmware_build == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Cache PlatformIO
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.platformio
+          key: pio-${{ runner.os }}-${{ hashFiles('platformio.ini') }}
+          restore-keys: |
+            pio-${{ runner.os }}-
+
+      - name: Install PlatformIO
+        run: pip install platformio==6.1.19
+
+      - name: Build and validate release firmware
+        run: make check-firmware-build PIO=pio
+
+  check:
+    name: check
+    if: always()
+    needs:
+      - changes
+      - frontend
+      - flasher
+      - firmware_tests
+      - firmware_build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require all selected quality jobs
+        shell: bash
+        env:
+          CHANGES_RESULT: ${{ needs.changes.result }}
+          FRONTEND_RESULT: ${{ needs.frontend.result }}
+          FLASHER_RESULT: ${{ needs.flasher.result }}
+          FIRMWARE_TESTS_RESULT: ${{ needs.firmware_tests.result }}
+          FIRMWARE_BUILD_RESULT: ${{ needs.firmware_build.result }}
+        run: |
+          set -euo pipefail
+          for result in \
+            "$CHANGES_RESULT" \
+            "$FRONTEND_RESULT" \
+            "$FLASHER_RESULT" \
+            "$FIRMWARE_TESTS_RESULT" \
+            "$FIRMWARE_BUILD_RESULT"; do
+            case "$result" in
+              success|skipped) ;;
+              *) echo "Quality job did not pass: $result"; exit 1 ;;
+            esac
+          done

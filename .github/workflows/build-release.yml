@@ -74,7 +74,7 @@ jobs:
           npx playwright install --with-deps chromium
 
       - name: Run quality gate and build release firmware
-        run: make check PIO=pio
+        run: "make check PIO=pio FRONTEND_NPM_CI=:"
 
       - name: Prepare release artifacts
         id: hashes

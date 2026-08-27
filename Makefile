@@ -2,30 +2,47 @@
 
 ENV ?= esp32s3
 PIO ?= $(HOME)/.platformio/penv/bin/pio
+FRONTEND_NPM_CI ?= npm ci
+FLASHER_NPM_CI ?= npm ci
 
-.PHONY: help check upload upload-erase monitor dev clean flasher
+.PHONY: help check check-frontend check-flasher check-firmware check-firmware-tests check-firmware-build upload upload-erase monitor dev clean flasher
 
 help:
 	@echo "  make check    # run the full quality gate"
+	@echo "  make check-frontend  # run frontend lint, tests, build, and E2E"
+	@echo "  make check-flasher   # run web-flasher checks"
+	@echo "  make check-firmware  # run native/static tests and release build"
 	@echo "  make upload       # build and flash debug; keep saved settings"
 	@echo "  make upload-erase # erase all settings, then build and flash debug"
 	@echo "  make monitor  # open the serial monitor"
 	@echo "  make dev      # start the web interface locally"
 	@echo "  make flasher  # build local web-flasher site (needs RELEASES_DIR)"
 	@echo "  make clean    # remove build artifacts"
-check:
-	cd frontend && npm ci && npm run lint && npm run format:check && npm run test:coverage && npm run build
-	cd flasher && npm ci && npm run lint && npm run format:check && npm run check && npm run build
-	python3 scripts/embed_web_assets.py
-	python3 scripts/test_embed_web_assets.py
-	python3 scripts/test_patch_gxepd2_busy_wait.py
+
+check: check-frontend check-flasher check-firmware
+
+check-frontend:
+	cd frontend && $(FRONTEND_NPM_CI)
+	cd frontend && npm run lint && npm run format:check && npm run test:coverage && npm run build
+	cd frontend && npm run test:e2e
+
+check-flasher:
+	cd flasher && $(FLASHER_NPM_CI)
+	cd flasher && npm run lint && npm run format:check && npm run check && npm run build
 	python3 scripts/test_flasher_site.py
+
+check-firmware: check-firmware-tests check-firmware-build
+
+check-firmware-tests:
+	python3 scripts/test_patch_gxepd2_busy_wait.py
 	"$(PIO)" test -e native
 	"$(PIO)" test -e native-asan
 	"$(PIO)" pkg install -g -t tool-cppcheck
 	"$(PIO)" check -e esp32s3 --fail-on-defect=high -f "-<*>" -f "+<src/>"
-	cd frontend && npm run test:e2e
+
+check-firmware-build:
 	CHAYA_SKIP_FRONTEND_BUILD=1 "$(PIO)" run -e esp32s3-release
+	python3 scripts/test_embed_web_assets.py
 	python3 scripts/prepare_release_artifacts.py --build-dir .pio/build/esp32s3-release
 
 # Example: make flasher RELEASES_DIR=/tmp/chaya-releases
