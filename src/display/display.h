@@ -1,5 +1,6 @@
 #pragma once
 
+#include "display_link_pure.h"
 #include "heart/counter.h"
 #include "view_state.h"
 
@@ -11,14 +12,18 @@ void displayInit();
 /** Start dedicated FreeRTOS task (SPI/EPD); call after displayInit() once asyncInfraInit() ran. */
 void displayStartTask();
 
-/** Paint heart + counters; returns the snapshot that was actually drawn. */
-HeartCounterDrawSnapshot drawHeartWithNumber();
+/** Paint heart, battery, and counters; returns painted counters. */
+HeartCounterDrawSnapshot drawHeartWithNumber(DisplayHeartIcon icon);
 /** Setup splash: full-screen WIFI QR in SoftAP mode (phone camera join). */
 DisplayView drawSplashScreen();
 /** View variant that drawSplashScreen will normally produce for the current network mode. */
 DisplayView displaySplashTargetView();
-/** Power-off screen: centered red product name, independent of setup/AP state. */
+/** Power-off screen: centered red Lucide heart-off. */
 void drawPowerOffScreen();
+
+/** Desired Lucide heart glyph for the next STA heart paint (filled vs crack). */
+void displaySetDesiredHeartIcon(DisplayHeartIcon icon);
+DisplayHeartIcon displayDesiredHeartIcon();
 
 /** Queue heart redraw on display task (e.g. from main loop / button). */
 void requestHeartRedraw();

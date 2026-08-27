@@ -559,7 +559,12 @@ export function emit(event: string, data: unknown): void {
 }
 
 export function chayaPayload() {
-  return { rx: state.rx, tx: state.tx, connected: state.mqttConnected };
+  return {
+    rx: state.rx,
+    tx: state.tx,
+    connected: state.mqttConnected,
+    configured: Boolean(state.mqtt.server),
+  };
 }
 
 export function wifiPayload() {

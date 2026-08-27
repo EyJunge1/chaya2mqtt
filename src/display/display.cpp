@@ -4,6 +4,7 @@
 #include "async/event_types.h"
 #include "async/task_handles.h"
 #include "config/app_config.h"
+#include "display_link_pure.h"
 #include "display_refresh_pure.h"
 #include "heart/counter.h"
 #include "hw/button.h"
@@ -40,6 +41,10 @@ static std::atomic<bool> s_heartDrawPending{false};
 static std::atomic<int> s_lastDrawnRx{INT32_MIN};
 static std::atomic<int> s_lastDrawnTx{INT32_MIN};
 static std::atomic<unsigned long> s_lastHeartRedrawEnqueueMs{0};
+static std::atomic<uint8_t>       s_desiredHeartIcon{
+    static_cast<uint8_t>(DisplayHeartIcon::Filled)};
+static std::atomic<uint8_t> s_lastDrawnHeartIcon{
+    static_cast<uint8_t>(DisplayHeartIcon::Filled)};
 static std::atomic<bool>          s_powerOffPending{false};
 static SemaphoreHandle_t          s_drawIdleSem             = nullptr;
 static SemaphoreHandle_t          s_powerOffDoneSem         = nullptr;
@@ -49,6 +54,15 @@ static constexpr uint32_t         kDrawOnlyIfViewChanged    = 1U;
 
 static bool displayPostMsg(DisplayMsg::Cmd cmd, uint32_t payload, TickType_t waitTicks);
 
+void displaySetDesiredHeartIcon(DisplayHeartIcon icon) {
+    s_desiredHeartIcon.store(static_cast<uint8_t>(icon), std::memory_order_release);
+}
+
+DisplayHeartIcon displayDesiredHeartIcon() {
+    return static_cast<DisplayHeartIcon>(
+        s_desiredHeartIcon.load(std::memory_order_acquire));
+}
+
 static bool displayPostHeartRedraw(TickType_t waitTicks) {
     if (s_powerOffPending.load(std::memory_order_acquire)) {
         return false;
@@ -57,9 +71,12 @@ static bool displayPostHeartRedraw(TickType_t waitTicks) {
     const int tx = heartSentCounter.load(std::memory_order_relaxed);
     const unsigned long nowMs = millis();
     const unsigned long lastMs = s_lastHeartRedrawEnqueueMs.load(std::memory_order_relaxed);
+    const bool iconChanged =
+        s_desiredHeartIcon.load(std::memory_order_acquire)
+        != s_lastDrawnHeartIcon.load(std::memory_order_acquire);
     const DisplayHeartRedrawDecision decision = displayHeartRedrawDecide(
         rx, tx, s_lastDrawnRx.load(std::memory_order_relaxed),
-        s_lastDrawnTx.load(std::memory_order_relaxed), nowMs, lastMs,
+        s_lastDrawnTx.load(std::memory_order_relaxed), iconChanged, nowMs, lastMs,
         kHeartRedrawMinIntervalMs);
     if (decision == DisplayHeartRedrawDecision::SkipUnchanged) {
         return true;
@@ -196,7 +213,9 @@ static void displayTaskFn(void*) {
         }
         switch (msg.cmd) {
         case DisplayMsg::Cmd::DrawHeart: {
-            if (!displayRefreshRequired(configGetDisplayView(), DisplayView::Heart,
+            const DisplayHeartIcon icon = displayDesiredHeartIcon();
+            const DisplayView targetView = displayViewForHeartIcon(icon);
+            if (!displayRefreshRequired(configGetDisplayView(), targetView,
                                         msg.payload == kDrawOnlyIfViewChanged)) {
                 ESP_LOGI(TAG, "heart view unchanged; refresh skipped");
                 s_heartDrawQueued.store(false, std::memory_order_release);
@@ -207,18 +226,21 @@ static void displayTaskFn(void*) {
             }
             wlanBeginLowInterferenceForEpd();
             ledRefreshPulseBegin();
-            const HeartCounterDrawSnapshot drawn = drawHeartWithNumber();
+            const HeartCounterDrawSnapshot drawn = drawHeartWithNumber(icon);
             ledRefreshPulseEnd();
             wlanEndLowInterferenceForEpd();
-            (void)configSetDisplayView(DisplayView::Heart);
+            (void)configSetDisplayView(targetView);
             s_lastDrawnRx.store(drawn.heartCounterRaw, std::memory_order_relaxed);
             s_lastDrawnTx.store(drawn.heartSentCounterRaw, std::memory_order_relaxed);
+            s_lastDrawnHeartIcon.store(static_cast<uint8_t>(icon), std::memory_order_release);
             s_heartDrawQueued.store(false, std::memory_order_release);
             const bool hadPending = s_heartDrawPending.exchange(false, std::memory_order_acq_rel);
+            const bool iconChanged = displayDesiredHeartIcon() != icon;
             if (displayHeartNeedsFollowUpRedraw(
                     drawn.heartCounterRaw, drawn.heartSentCounterRaw,
                     heartCounter.load(std::memory_order_relaxed),
-                    heartSentCounter.load(std::memory_order_relaxed), hadPending)) {
+                    heartSentCounter.load(std::memory_order_relaxed), iconChanged,
+                    hadPending)) {
                 (void)displayPostHeartRedraw(0);
             }
             break;
@@ -245,7 +267,7 @@ static void displayTaskFn(void*) {
             break;
         }
         case DisplayMsg::Cmd::DrawPowerOff:
-            if (!displayViewNeedsRefresh(configGetDisplayView(), DisplayView::ProductTitle)) {
+            if (!displayViewNeedsRefresh(configGetDisplayView(), DisplayView::PowerOff)) {
                 ESP_LOGI(TAG, "power-off view unchanged; refresh skipped");
                 s_heartDrawPending.store(false, std::memory_order_release);
                 if (s_powerOffDoneSem != nullptr) {
@@ -258,7 +280,7 @@ static void displayTaskFn(void*) {
             drawPowerOffScreen();
             ledRefreshPulseEnd();
             wlanEndLowInterferenceForEpd();
-            (void)configSetDisplayView(DisplayView::ProductTitle);
+            (void)configSetDisplayView(DisplayView::PowerOff);
             s_heartDrawPending.store(false, std::memory_order_release);
             if (s_powerOffDoneSem != nullptr) {
                 (void)xSemaphoreGive(s_powerOffDoneSem);
