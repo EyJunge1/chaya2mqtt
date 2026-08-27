@@ -142,18 +142,19 @@
 
     <Panel>
       <form class="space-y-3" onsubmit={(e) => void save(e)}>
-        <Field label={i18n.t("mqtt.server")} hint={i18n.t("mqtt.server-hint")}>
+        <Field label={i18n.t("mqtt.server")} hint={i18n.t("mqtt.server-hint")} required>
           <TextInput bind:value={cfg.server} maxlength={127} required />
         </Field>
-        <Field label={i18n.t("mqtt.port")} hint={i18n.t("mqtt.port-hint")}>
+        <Field label={i18n.t("mqtt.port")} hint={i18n.t("mqtt.port-hint")} required>
           <TextInput type="number" min={1} max={65535} bind:value={cfg.port} required />
         </Field>
-        <Field label={i18n.t("mqtt.user")} hint={i18n.t("mqtt.user-hint")}>
+        <Field label={i18n.t("mqtt.user")} hint={i18n.t("mqtt.user-hint")} optional>
           <TextInput bind:value={cfg.username} maxlength={63} />
         </Field>
         <Field
           label={i18n.t("mqtt.pass")}
           hint={cfg.hasPassword ? i18n.t("mqtt.pass-hint") : i18n.t("mqtt.pass-hint-empty")}
+          optional
         >
           <TextInput
             type="password"
@@ -164,7 +165,7 @@
           />
         </Field>
 
-        <Field label={i18n.t("mqtt.partner-id")} hint={i18n.t("mqtt.partner-hint")}>
+        <Field label={i18n.t("mqtt.partner-id")} hint={i18n.t("mqtt.partner-hint")} optional>
           <TextInput
             bind:value={partner}
             maxlength={6}

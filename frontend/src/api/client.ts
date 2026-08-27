@@ -140,9 +140,9 @@ export const api = {
   saveMqtt: (fields: {
     mqtt_server: string;
     mqtt_port: number;
-    mqtt_user: string;
+    mqtt_user?: string;
     mqtt_pass?: string;
-    partner_id: string;
+    partner_id?: string;
   }) => apiPost("/api/mqtt", fields),
   getSettings: () => apiGet<SettingsInfo>("/api/settings"),
   saveSettings: (fields: {

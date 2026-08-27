@@ -69,6 +69,29 @@ describe("MqttPage", () => {
     expect(onDeviceRefresh).toHaveBeenCalled();
   });
 
+  it("saves broker without username, password, or partner", async () => {
+    const onToast = vi.fn();
+    getMqttConfig.mockResolvedValue(
+      cfg({ username: "", hasPassword: false, partnerId: "", topicSub: "" }),
+    );
+    render(MqttPage, { props: { mqtt: { connected: false }, onToast } });
+
+    await screen.findByDisplayValue("mqtt.example.com");
+    expect(screen.getAllByText("(common.optional)").length).toBeGreaterThanOrEqual(3);
+    fireEvent.click(screen.getByRole("button", { name: "common.save" }));
+
+    await waitFor(() => {
+      expect(saveMqtt).toHaveBeenCalledWith({
+        mqtt_server: "mqtt.example.com",
+        mqtt_port: 8883,
+        mqtt_user: "",
+        mqtt_pass: undefined,
+        partner_id: "",
+      });
+    });
+    expect(onToast).toHaveBeenCalledWith("toast.mqtt-saved", "success");
+  });
+
   it("unpairs without clearing the broker", async () => {
     const onToast = vi.fn();
     getMqttConfig

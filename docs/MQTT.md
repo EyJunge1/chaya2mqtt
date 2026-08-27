@@ -172,11 +172,11 @@ Namespace `mqtt`:
 
 | Key | Type | Description |
 |-----|------|-------------|
-| `server` | String | Broker hostname/IP |
-| `port` | Int | Port (default 8883) |
-| `user` | String | MQTT username |
-| `pass` | String | MQTT password |
-| `partner_id` | String | Partner device ID (6 hexadecimal characters) |
+| `server` | String | Broker hostname/IP (**required**) |
+| `port` | Int | Port (default 8883; **required**) |
+| `user` | String | MQTT username (optional; empty = anonymous) |
+| `pass` | String | MQTT password (optional) |
+| `partner_id` | String | Partner device ID, 6 hex (optional; empty = unpaired) |
 
 Topics are no longer persisted in NVS; legacy keys `topic_pub` / `topic_sub` are removed when saving.
 
