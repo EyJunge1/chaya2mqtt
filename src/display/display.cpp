@@ -4,6 +4,7 @@
 #include "async/event_types.h"
 #include "async/task_handles.h"
 #include "config/app_config.h"
+#include "display_refresh_pure.h"
 #include "heart/counter.h"
 #include "hw/button.h"
 #include "hw/pins.h"
@@ -39,9 +40,7 @@ static std::atomic<bool> s_heartDrawPending{false};
 static std::atomic<int> s_lastDrawnRx{INT32_MIN};
 static std::atomic<int> s_lastDrawnTx{INT32_MIN};
 static std::atomic<unsigned long> s_lastHeartRedrawEnqueueMs{0};
-static std::atomic<bool>          s_freshRx{false};
 static std::atomic<bool>          s_powerOffPending{false};
-static constexpr unsigned long    kHeartRedrawMinIntervalMs = 30000UL;
 static SemaphoreHandle_t          s_drawIdleSem             = nullptr;
 static SemaphoreHandle_t          s_powerOffDoneSem         = nullptr;
 static SemaphoreHandle_t          s_displayPostMutex        = nullptr;
@@ -50,30 +49,28 @@ static constexpr uint32_t         kDrawOnlyIfViewChanged    = 1U;
 
 static bool displayPostMsg(DisplayMsg::Cmd cmd, uint32_t payload, TickType_t waitTicks);
 
-void displayMarkFreshRx() {
-    s_freshRx.store(true, std::memory_order_release);
-}
-
-bool displayTakeFreshRx() {
-    return s_freshRx.exchange(false, std::memory_order_acq_rel);
-}
-
-static bool displayPostHeartRedraw(TickType_t waitTicks, bool bypassMinInterval = false) {
+static bool displayPostHeartRedraw(TickType_t waitTicks) {
     if (s_powerOffPending.load(std::memory_order_acquire)) {
         return false;
     }
     const int rx = heartCounter.load(std::memory_order_relaxed);
     const int tx = heartSentCounter.load(std::memory_order_relaxed);
-    if (rx == s_lastDrawnRx.load(std::memory_order_relaxed)
-        && tx == s_lastDrawnTx.load(std::memory_order_relaxed)) {
-        return true;
-    }
     const unsigned long nowMs = millis();
     const unsigned long lastMs = s_lastHeartRedrawEnqueueMs.load(std::memory_order_relaxed);
-    if (!bypassMinInterval && lastMs != 0UL && (nowMs - lastMs) < kHeartRedrawMinIntervalMs) {
+    const DisplayHeartRedrawDecision decision = displayHeartRedrawDecide(
+        rx, tx, s_lastDrawnRx.load(std::memory_order_relaxed),
+        s_lastDrawnTx.load(std::memory_order_relaxed), nowMs, lastMs,
+        kHeartRedrawMinIntervalMs);
+    if (decision == DisplayHeartRedrawDecision::SkipUnchanged) {
+        return true;
+    }
+    if (decision == DisplayHeartRedrawDecision::DeferPending) {
+        s_heartDrawPending.store(true, std::memory_order_release);
         return false;
     }
     if (s_heartDrawQueued.exchange(true, std::memory_order_acq_rel)) {
+        // A draw is already queued/running; remember that counters may still move.
+        s_heartDrawPending.store(true, std::memory_order_release);
         return true;
     }
     if (!displayPostMsg(DisplayMsg::Cmd::DrawHeart, 0, waitTicks)) {
@@ -82,7 +79,24 @@ static bool displayPostHeartRedraw(TickType_t waitTicks, bool bypassMinInterval 
         return false;
     }
     s_lastHeartRedrawEnqueueMs.store(nowMs, std::memory_order_relaxed);
+    // Queued draw captures the latest counters at paint time; later changes re-set pending.
+    s_heartDrawPending.store(false, std::memory_order_release);
     return true;
+}
+
+static TickType_t displayHeartPendingWaitTicks() {
+    constexpr unsigned long kIdlePollMs = 1000UL;
+    const unsigned long waitMs = displayHeartRedrawWaitMs(
+        millis(), s_lastHeartRedrawEnqueueMs.load(std::memory_order_relaxed),
+        kHeartRedrawMinIntervalMs, s_heartDrawPending.load(std::memory_order_acquire));
+    if (waitMs == ULONG_MAX) {
+        // Finite idle poll so a deferred pending flag set by another task is noticed.
+        return pdMS_TO_TICKS(kIdlePollMs);
+    }
+    if (waitMs == 0UL) {
+        return 0;
+    }
+    return pdMS_TO_TICKS(waitMs);
 }
 
 ChayaEpdPanel& displayPanel() {
@@ -170,7 +184,13 @@ static void displayTaskFn(void*) {
     static uint32_t s_stackLogCounter = 0;
     for (;;) {
         DisplayMsg msg;
-        if (xQueueReceive(g_displayCmdQueue, &msg, portMAX_DELAY) != pdTRUE) {
+        const TickType_t waitTicks = displayHeartPendingWaitTicks();
+        if (xQueueReceive(g_displayCmdQueue, &msg, waitTicks) != pdTRUE) {
+            // Trailing-edge timeout: flush a deferred heart redraw with the latest counters.
+            if (s_heartDrawPending.load(std::memory_order_acquire)
+                && !s_powerOffPending.load(std::memory_order_acquire)) {
+                (void)displayPostHeartRedraw(0);
+            }
             logTaskStackHighWaterPeriodic("DISP", s_stackLogCounter, 600);
             continue;
         }
@@ -179,26 +199,27 @@ static void displayTaskFn(void*) {
             if (!displayRefreshRequired(configGetDisplayView(), DisplayView::Heart,
                                         msg.payload == kDrawOnlyIfViewChanged)) {
                 ESP_LOGI(TAG, "heart view unchanged; refresh skipped");
+                s_heartDrawQueued.store(false, std::memory_order_release);
                 if (s_heartDrawPending.exchange(false, std::memory_order_acq_rel)) {
-                    (void)displayPostHeartRedraw(0, true);
+                    (void)displayPostHeartRedraw(0);
                 }
                 break;
             }
             wlanBeginLowInterferenceForEpd();
             ledRefreshPulseBegin();
-            drawHeartWithNumber();
+            const HeartCounterDrawSnapshot drawn = drawHeartWithNumber();
             ledRefreshPulseEnd();
             wlanEndLowInterferenceForEpd();
             (void)configSetDisplayView(DisplayView::Heart);
-            const int drawnRx = heartCounter.load(std::memory_order_relaxed);
-            const int drawnTx = heartSentCounter.load(std::memory_order_relaxed);
-            s_lastDrawnRx.store(drawnRx, std::memory_order_relaxed);
-            s_lastDrawnTx.store(drawnTx, std::memory_order_relaxed);
+            s_lastDrawnRx.store(drawn.heartCounterRaw, std::memory_order_relaxed);
+            s_lastDrawnTx.store(drawn.heartSentCounterRaw, std::memory_order_relaxed);
             s_heartDrawQueued.store(false, std::memory_order_release);
-            if (s_heartDrawPending.exchange(false, std::memory_order_acq_rel)
-                || heartCounter.load(std::memory_order_relaxed) != drawnRx
-                || heartSentCounter.load(std::memory_order_relaxed) != drawnTx) {
-                (void)displayPostHeartRedraw(0, true);
+            const bool hadPending = s_heartDrawPending.exchange(false, std::memory_order_acq_rel);
+            if (displayHeartNeedsFollowUpRedraw(
+                    drawn.heartCounterRaw, drawn.heartSentCounterRaw,
+                    heartCounter.load(std::memory_order_relaxed),
+                    heartSentCounter.load(std::memory_order_relaxed), hadPending)) {
+                (void)displayPostHeartRedraw(0);
             }
             break;
         }
@@ -208,7 +229,7 @@ static void displayTaskFn(void*) {
                                         msg.payload == kDrawOnlyIfViewChanged)) {
                 ESP_LOGI(TAG, "splash view unchanged; refresh skipped");
                 if (s_heartDrawPending.exchange(false, std::memory_order_acq_rel)) {
-                    (void)displayPostHeartRedraw(0, true);
+                    (void)displayPostHeartRedraw(0);
                 }
                 break;
             }
@@ -219,7 +240,7 @@ static void displayTaskFn(void*) {
             wlanEndLowInterferenceForEpd();
             (void)configSetDisplayView(drawnView);
             if (s_heartDrawPending.exchange(false, std::memory_order_acq_rel)) {
-                (void)displayPostHeartRedraw(0, true);
+                (void)displayPostHeartRedraw(0);
             }
             break;
         }

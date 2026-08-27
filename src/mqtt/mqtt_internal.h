@@ -27,8 +27,6 @@ extern char           s_mqttSubTopicCache[sizeof(MqttConfig::topicSub)];
 extern size_t         s_mqttSubTopicLen;
 extern portMUX_TYPE   s_mqttSubTopicMux;
 
-extern std::atomic<unsigned long> s_lastBrokerRedrawMs;
-
 bool mqttClientLockTimed();
 void mqttClientLock();
 void mqttClientUnlock();

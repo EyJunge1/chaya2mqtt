@@ -8,7 +8,6 @@ constexpr unsigned long kMqttWifiDownBackoffMs          = 20000UL;
 constexpr unsigned long kMqttWifiLostDuringTlsBackoffMs = 90000UL;
 constexpr unsigned long kMqttNtpRetryMs                 = 2000UL;
 
-constexpr unsigned long kMqttBrokerRedrawMinIntervalMs = 30000UL;
 constexpr unsigned long kMqttPublishAckWaitMs           = 5000UL;
 
 constexpr int kMqttWifiNetworkTimeoutMs = 5000;

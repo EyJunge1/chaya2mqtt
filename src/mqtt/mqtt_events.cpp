@@ -27,8 +27,6 @@
 
 DEFINE_LOG_TAG("MQTT");
 
-std::atomic<unsigned long> s_lastBrokerRedrawMs{0};
-
 unsigned long lastMqttAttemptAt    = 0;
 unsigned long mqttBackoffMs        = 0;
 unsigned long mqttCurrentBackoffMs = kMqttBackoffInitialMs;
@@ -91,17 +89,10 @@ static void handleCounterPayload(const char* payload, unsigned int length) {
 
     ESP_LOGI(TAG, "Heart counter from MQTT (remote): %d", newCounter);
     heartCounterStoreFromRemote(newCounter);
-    displayMarkFreshRx();
     audioRequest(AudioMsg::Kind::Rx);
     ledRefreshPulseBegin();
 
-    const unsigned long nowMs  = millis();
-    const unsigned long lastMs = s_lastBrokerRedrawMs.load(std::memory_order_relaxed);
-    if (lastMs != 0UL && (nowMs - lastMs) < kMqttBrokerRedrawMinIntervalMs) {
-        ledRefreshPulseEndAfter(kLedRefreshAckMs);
-        return;
-    }
-    s_lastBrokerRedrawMs.store(nowMs, std::memory_order_relaxed);
+    // Display layer owns the 30 s leading/trailing coalesce; always report the change.
     if (!requestHeartRedrawNonBlocking()) {
         ledRefreshPulseEndAfter(kLedRefreshAckMs);
     }
