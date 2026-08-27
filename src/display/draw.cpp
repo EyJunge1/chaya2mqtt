@@ -142,14 +142,14 @@ HeartCounterDrawSnapshot drawHeartWithNumber() {
     const uint16_t fg = displayFgColor();
     const uint16_t bg = displayBgColor();
 
-    static constexpr int kCenterX       = 100;
+    static constexpr int kCenterX         = 100;
     static constexpr int kHeartSize       = 70;
-    static constexpr int kCircleRadius  = (kHeartSize / 2) + 8;
-    static constexpr int kCircleSpacing = (kHeartSize / 2) - 3;
-    static constexpr int kCircleY       = 50;
-    static constexpr int kTriangleTop   = kCircleY + 15;
-    static constexpr int kTriangleBottom = 163;
-    static constexpr int kMaxWidth      = 2 * (kCircleSpacing + kCircleRadius) - 4;
+    static constexpr int kCircleRadius    = (kHeartSize / 2) + 8;
+    static constexpr int kCircleSpacing   = (kHeartSize / 2) - 3;
+    static constexpr int kCircleY         = 60;
+    static constexpr int kTriangleTop     = kCircleY + 15;
+    static constexpr int kTriangleBottom  = 173;
+    static constexpr int kMaxWidth        = 2 * (kCircleSpacing + kCircleRadius) - 4;
 
     const int dw = epd.width();
     const int dh = epd.height();
@@ -170,7 +170,17 @@ HeartCounterDrawSnapshot drawHeartWithNumber() {
     const uint8_t recvTextSize = footerTextSizeForDigitCount(recvLen);
     const uint8_t sentTextSize = footerTextSizeForDigitCount(sentLen);
     const int     batPct       = batteryPercent();
-    const uint16_t batColor    = displayBatteryIconYellow(batPct) ? GxEPD_YELLOW : fg;
+    uint16_t      batColor     = fg;
+    switch (displayBatteryColor(batPct)) {
+    case DisplayBatteryColor::Red:
+        batColor = GxEPD_RED;
+        break;
+    case DisplayBatteryColor::Yellow:
+        batColor = GxEPD_YELLOW;
+        break;
+    case DisplayBatteryColor::Black:
+        break;
+    }
 
     static constexpr int       kFooterTextTop = 167;
     static constexpr int       kLeftMargin    = 4;
@@ -181,6 +191,10 @@ HeartCounterDrawSnapshot drawHeartWithNumber() {
     const int16_t              kUpArrowCx     = static_cast<int16_t>(dw - 13);
     static constexpr int16_t   kUpArrowTipY =
         static_cast<int16_t>(kFooterTextTop + 1);
+    static constexpr int16_t   kBatteryWidthWithTerminal = 16;
+    static constexpr int16_t   kBatteryTopMargin         = 4;
+    const int16_t              kBatteryX =
+        static_cast<int16_t>(dw - kRightMargin - kBatteryWidthWithTerminal);
 
     int16_t rx1 = 0;
     int16_t ry1 = 0;
@@ -240,7 +254,7 @@ HeartCounterDrawSnapshot drawHeartWithNumber() {
                       static_cast<int16_t>(kFooterTextTop));
         epd.print(sentBuf);
 
-        drawBatteryIcon(93, 188, batPct, batColor);
+        drawBatteryIcon(kBatteryX, kBatteryTopMargin, batPct, batColor);
 
     } while (epd.nextPage());
 

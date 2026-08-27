@@ -35,9 +35,19 @@ void test_audio_playback_gates() {
     TEST_ASSERT_TRUE(audioPlaybackAllowed(false, 70, true, 12, 23, 8));
 }
 
-void test_draw_yellow_flags() {
-    TEST_ASSERT_TRUE(displayBatteryIconYellow(10));
-    TEST_ASSERT_FALSE(displayBatteryIconYellow(40));
+void test_display_battery_colors() {
+    TEST_ASSERT_EQUAL_INT(static_cast<int>(DisplayBatteryColor::Red),
+                          static_cast<int>(displayBatteryColor(0)));
+    TEST_ASSERT_EQUAL_INT(static_cast<int>(DisplayBatteryColor::Red),
+                          static_cast<int>(displayBatteryColor(14)));
+    TEST_ASSERT_EQUAL_INT(static_cast<int>(DisplayBatteryColor::Yellow),
+                          static_cast<int>(displayBatteryColor(15)));
+    TEST_ASSERT_EQUAL_INT(static_cast<int>(DisplayBatteryColor::Yellow),
+                          static_cast<int>(displayBatteryColor(39)));
+    TEST_ASSERT_EQUAL_INT(static_cast<int>(DisplayBatteryColor::Black),
+                          static_cast<int>(displayBatteryColor(40)));
+    TEST_ASSERT_EQUAL_INT(static_cast<int>(DisplayBatteryColor::Black),
+                          static_cast<int>(displayBatteryColor(100)));
 }
 
 void test_display_view_refresh_decision() {
@@ -107,7 +117,7 @@ int main(int, char**) {
     RUN_TEST(test_battery_pct_curve);
     RUN_TEST(test_audio_quiet_hours);
     RUN_TEST(test_audio_playback_gates);
-    RUN_TEST(test_draw_yellow_flags);
+    RUN_TEST(test_display_battery_colors);
     RUN_TEST(test_display_view_refresh_decision);
     RUN_TEST(test_queue_drop_coalescing);
     RUN_TEST(test_display_heart_redraw_leading_trailing);
