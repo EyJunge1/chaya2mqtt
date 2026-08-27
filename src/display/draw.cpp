@@ -144,7 +144,7 @@ HeartCounterDrawSnapshot drawHeartWithNumber() {
 
     static constexpr int kCenterX         = 100;
     static constexpr int kHeartSize       = 70;
-    static constexpr int kCircleRadius    = (kHeartSize / 2) + 9;
+    static constexpr int kCircleRadius    = (kHeartSize / 2) + 8;
     static constexpr int kCircleSpacing   = (kHeartSize / 2) - 3;
     static constexpr int kCircleY         = 68;
     static constexpr int kTriangleTop     = kCircleY + 15;
