@@ -1,11 +1,19 @@
 #pragma once
 
-#include "hw/battery_pure.h"
+#include <cstdint>
 
-inline bool displayFreshRxDots(bool freshRxSinceLastDraw) {
-    return freshRxSinceLastDraw;
-}
+enum class DisplayBatteryColor : uint8_t {
+    Black,
+    Yellow,
+    Red,
+};
 
-inline bool displayBatteryIconYellow(int batteryPct) {
-    return batteryWarnLow(batteryPct);
+inline DisplayBatteryColor displayBatteryColor(int batteryPct) {
+    if (batteryPct < 15) {
+        return DisplayBatteryColor::Red;
+    }
+    if (batteryPct < 40) {
+        return DisplayBatteryColor::Yellow;
+    }
+    return DisplayBatteryColor::Black;
 }

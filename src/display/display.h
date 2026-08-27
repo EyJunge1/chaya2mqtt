@@ -1,5 +1,6 @@
 #pragma once
 
+#include "heart/counter.h"
 #include "view_state.h"
 
 #include <cstdint>
@@ -10,7 +11,8 @@ void displayInit();
 /** Start dedicated FreeRTOS task (SPI/EPD); call after displayInit() once asyncInfraInit() ran. */
 void displayStartTask();
 
-void drawHeartWithNumber();
+/** Paint heart + counters; returns the snapshot that was actually drawn. */
+HeartCounterDrawSnapshot drawHeartWithNumber();
 /** Setup splash: full-screen WIFI QR in SoftAP mode (phone camera join). */
 DisplayView drawSplashScreen();
 /** View variant that drawSplashScreen will normally produce for the current network mode. */
@@ -23,9 +25,6 @@ void requestHeartRedraw();
 
 /** Same as requestHeartRedraw but never blocks (e.g. MQTT client callback). */
 bool requestHeartRedrawNonBlocking();
-
-/** Yellow RX dots on the next heart draw (consumed when drawn). */
-void displayMarkFreshRx();
 
 /**
  * Defer E-Ink drawing to display task (never call draw* from AsyncWebServer handlers).

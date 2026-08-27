@@ -7,7 +7,5 @@ using ChayaEpdPanel = GxEPD2_4C<GxEPD2_154c_GDEM0154F51H, GxEPD2_154c_GDEM0154F5
 
 ChayaEpdPanel& displayPanel();
 
-bool displayTakeFreshRx();
-
 void displayResumeSpiForDraw();
 void displaySuspendSpiLowPower();
