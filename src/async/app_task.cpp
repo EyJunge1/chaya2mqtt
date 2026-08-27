@@ -48,9 +48,10 @@ static void appTaskPollDisplayLinkStatus() {
     static DisplayLinkState s_link{};
     static DisplayHeartIcon s_lastIcon = DisplayHeartIcon::Filled;
 
+    const bool wifiConnected = wlanStaConnectedOk();
+    const bool mqttConnected = mqttIsConnected();
     const DisplayHeartIcon icon = displayHeartIconDecide(
-        false, wlanStaConnectedOk(), mqttIsConnected(), millis(), kDisplayOfflineGraceMs,
-        s_link);
+        false, wifiConnected, mqttConnected, millis(), kDisplayOfflineGraceMs, s_link);
     if (icon == s_lastIcon) {
         return;
     }

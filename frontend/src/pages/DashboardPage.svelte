@@ -6,7 +6,7 @@
     BatteryWarning,
     Heart,
     Radio,
-    Wifi,
+    RadioOff,
   } from "@lucide/svelte";
   import { api } from "../api/client.ts";
   import { otaHasPendingUpdate } from "../api/ota.ts";
@@ -20,6 +20,7 @@
   import type { ShowToast } from "../components/toastStack.ts";
   import WifiSetup from "../components/WifiSetup.svelte";
   import { i18n } from "../i18n/i18n.svelte.ts";
+  import { wifiSignalIcon } from "../ui/wifiSignal.ts";
 
   let {
     device,
@@ -37,6 +38,8 @@
 
   let busy = $state(false);
 
+  const WifiIcon = $derived(wifiSignalIcon(wifi));
+  const MqttIcon = $derived(chaya.configured ? Radio : RadioOff);
   const batteryPct = $derived(Math.max(0, Math.min(100, device.batteryPct)));
   const BatteryIcon = $derived(
     batteryPct >= 80
@@ -93,7 +96,7 @@
       <StatusBadge
         href="/wifi"
         ok={wifi.connected}
-        icon={Wifi}
+        icon={WifiIcon}
         label={i18n.t("status.wifi")}
         detailOk={i18n.t("status.wifi-ok")}
         detailBad={i18n.t("status.wifi-bad")}
@@ -101,10 +104,11 @@
       <StatusBadge
         href="/mqtt"
         ok={chaya.connected}
-        icon={Radio}
+        icon={MqttIcon}
+        neutral={!chaya.configured}
         label={i18n.t("status.mqtt")}
         detailOk={i18n.t("status.mqtt-ok")}
-        detailBad={i18n.t("status.mqtt-bad")}
+        detailBad={i18n.t(chaya.configured ? "status.mqtt-bad" : "status.mqtt-unconfigured")}
       />
       <Badge
         tone="neutral"

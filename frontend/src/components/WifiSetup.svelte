@@ -17,6 +17,7 @@
   import StatusBadge from "./StatusBadge.svelte";
   import TextInput from "./TextInput.svelte";
   import type { ShowToast } from "./toastStack.ts";
+  import { wifiSignalIcon } from "../ui/wifiSignal.ts";
 
   const IPV4_RE =
     /^(?:(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)\.){3}(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)$/;
@@ -190,6 +191,7 @@
   }
 
   const staticRequired = $derived(mode === "static");
+  const WifiStatusIcon = $derived(wifiSignalIcon(wifi));
   const activeNtp = $derived(ntpServers[0] || DEFAULT_NTP);
   const dnsPreview = $derived(
     wifi.connected
@@ -205,7 +207,7 @@
       {#snippet title()}
         <StatusBadge
           ok={wifi.connected}
-          icon={Wifi}
+          icon={WifiStatusIcon}
           label={i18n.t("wifi.status")}
           detailOk={i18n.t("status.wifi-ok")}
           detailBad={i18n.t("status.wifi-bad")}

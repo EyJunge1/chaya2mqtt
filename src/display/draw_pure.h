@@ -10,10 +10,10 @@ enum class DisplayBatteryColor : uint8_t {
 
 /** Lucide battery glyph chosen to match the web dashboard thresholds. */
 enum class DisplayBatteryIcon : uint8_t {
-    Full    = 0, // >= 80%
-    Medium  = 1, // >= 40%
-    Low     = 2, // >= 15%
-    Warning = 3, // < 15%
+    Full   = 0, // >= 80%
+    Medium = 1, // >= 40%
+    Low    = 2, // >= 15%
+    Empty  = 3, // < 15%
 };
 
 inline DisplayBatteryIcon displayBatteryIcon(int batteryPct) {
@@ -26,16 +26,15 @@ inline DisplayBatteryIcon displayBatteryIcon(int batteryPct) {
     if (batteryPct >= 15) {
         return DisplayBatteryIcon::Low;
     }
-    return DisplayBatteryIcon::Warning;
+    return DisplayBatteryIcon::Empty;
 }
 
 /**
- * E-Ink battery tint: Full/Medium black, Low yellow, Warning red
- * (same cutovers as displayBatteryIcon for Low/Warning).
+ * E-Ink battery tint: Full/Medium black, Low yellow, Empty red.
  */
 inline DisplayBatteryColor displayBatteryColor(int batteryPct) {
     switch (displayBatteryIcon(batteryPct)) {
-    case DisplayBatteryIcon::Warning:
+    case DisplayBatteryIcon::Empty:
         return DisplayBatteryColor::Red;
     case DisplayBatteryIcon::Low:
         return DisplayBatteryColor::Yellow;

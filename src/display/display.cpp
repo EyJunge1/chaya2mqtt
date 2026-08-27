@@ -235,8 +235,7 @@ static void displayTaskFn(void*) {
             s_lastDrawnHeartIcon.store(static_cast<uint8_t>(icon), std::memory_order_release);
             s_heartDrawQueued.store(false, std::memory_order_release);
             const bool hadPending = s_heartDrawPending.exchange(false, std::memory_order_acq_rel);
-            const bool iconChanged =
-                displayDesiredHeartIcon() != icon;
+            const bool iconChanged = displayDesiredHeartIcon() != icon;
             if (displayHeartNeedsFollowUpRedraw(
                     drawn.heartCounterRaw, drawn.heartSentCounterRaw,
                     heartCounter.load(std::memory_order_relaxed),

@@ -103,9 +103,8 @@ static void drawBatteryLucide(int16_t x, int16_t y, int pct, uint16_t color) {
     case DisplayBatteryIcon::Low:
         drawLucideIcon(x, y, kIconBatteryLow, kIconBatteryLowW, kIconBatteryLowH, color);
         break;
-    case DisplayBatteryIcon::Warning:
-        drawLucideIcon(x, y, kIconBatteryWarning, kIconBatteryWarningW, kIconBatteryWarningH,
-                       color);
+    case DisplayBatteryIcon::Empty:
+        drawLucideIcon(x, y, kIconBatteryEmpty, kIconBatteryEmptyW, kIconBatteryEmptyH, color);
         break;
     }
 }
@@ -161,7 +160,8 @@ HeartCounterDrawSnapshot drawHeartWithNumber(DisplayHeartIcon icon) {
     static constexpr int     kFooterTextTop = 167;
     static constexpr int     kLeftMargin    = 4;
     static constexpr int     kRightMargin   = 4;
-    static constexpr int     kArrowLane     = 26;
+    // 14 px move icon + exactly 5 px gap to the counter.
+    static constexpr int     kArrowLane     = kIconMoveDownW + 5;
     static constexpr int16_t kBatteryTopMargin = 4;
 
     const int16_t heartW =
@@ -177,11 +177,10 @@ HeartCounterDrawSnapshot drawHeartWithNumber(DisplayHeartIcon icon) {
         static_cast<int16_t>(kFooterTextTop - heartH - kHeartFooterGap);
 
     const int16_t downArrowX = static_cast<int16_t>(kLeftMargin);
-    const int16_t downArrowY =
-        static_cast<int16_t>(epd.height() - kIconArrowDownH - 2);
+    const int16_t downArrowY = static_cast<int16_t>(kFooterTextTop);
     const int16_t upArrowX =
-        static_cast<int16_t>(dw - kRightMargin - kIconArrowUpW);
-    const int16_t upArrowY = static_cast<int16_t>(kFooterTextTop + 2);
+        static_cast<int16_t>(dw - kRightMargin - kIconMoveUpW);
+    const int16_t upArrowY = static_cast<int16_t>(kFooterTextTop);
     const int16_t batteryX =
         static_cast<int16_t>(dw - kRightMargin - kIconBatteryFullW);
 
@@ -202,8 +201,12 @@ HeartCounterDrawSnapshot drawHeartWithNumber(DisplayHeartIcon icon) {
 
     epd.setTextSize(sentTextSize);
     epd.getTextBounds(sentBuf, 0, 0, &sx1, &sy1, &sw, &sh);
+    // The classic GFX font reports one trailing blank column per text size.
+    // Compensate it so the visible rightmost digit is also 5 px from the icon.
+    const int sentTrailingBlankPx = sentTextSize;
     const int sentTextCursorX =
-        dw - kRightMargin - kArrowLane - static_cast<int>(sw) - static_cast<int>(sx1);
+        dw - kRightMargin - kArrowLane - static_cast<int>(sw) - static_cast<int>(sx1)
+        + sentTrailingBlankPx;
 
     epd.setFullWindow();
     epd.firstPage();
@@ -212,9 +215,9 @@ HeartCounterDrawSnapshot drawHeartWithNumber(DisplayHeartIcon icon) {
 
         drawLucideIcon(heartX, heartY, heartBmp, heartW, heartH, GxEPD_RED);
 
-        drawLucideIcon(downArrowX, downArrowY, kIconArrowDown, kIconArrowDownW, kIconArrowDownH,
+        drawLucideIcon(downArrowX, downArrowY, kIconMoveDown, kIconMoveDownW, kIconMoveDownH,
                        fg);
-        drawLucideIcon(upArrowX, upArrowY, kIconArrowUp, kIconArrowUpW, kIconArrowUpH, fg);
+        drawLucideIcon(upArrowX, upArrowY, kIconMoveUp, kIconMoveUpW, kIconMoveUpH, fg);
 
         epd.setTextColor(fg);
         epd.setTextSize(recvTextSize);

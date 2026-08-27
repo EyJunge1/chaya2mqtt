@@ -85,10 +85,10 @@ Bitmaps are pre-rasterized from Lucide (`scripts/generate_display_icons.mjs` →
 | Element | Glyph | Color | Position (200×200) |
 |---------|-------|-------|--------------------|
 | Heart | `heart` / `heart-crack` | Red | Centered (~y=24) |
-| RX arrow | `arrow-down` | Black | Bottom left |
-| TX arrow | `arrow-up` | Black | Footer right |
-| Battery | `battery-full` / `medium` / `low` / `warning` | See below | Top right |
-| Power-off | `heart-off` | Red | Centered |
+| RX movement | `move-down` | Black | Bottom left |
+| TX movement | `move-up` | Black | Footer right |
+| Battery | `battery-full` / `medium` / `low` / empty `battery` | See below | Top right |
+| Power-off | `heart-off` | Black below red `Chaya2MQTT` | Centered |
 
 ### Battery thresholds (match web GUI)
 
@@ -97,7 +97,7 @@ Bitmaps are pre-rasterized from Lucide (`scripts/generate_display_icons.mjs` →
 | ≥ 80 | `battery-full` | Black |
 | ≥ 40 | `battery-medium` | Black |
 | ≥ 15 | `battery-low` | Yellow |
-| < 15 | `battery-warning` | Red |
+| < 15 | empty `battery` | Red |
 
 Palette: white background, black counters/arrows, red heart glyphs. The SoftAP splash title stays red text above the WIFI QR.
 
@@ -110,7 +110,7 @@ Palette: white background, black counters/arrows, red heart glyphs. The SoftAP s
 
 Centering uses `getTextBounds()` after dynamic `setTextSize`. For deltas **> 999**, `"999+"` is displayed.
 
-Footer position: Y=167, RX on the left (margin 4 + arrow lane 26), TX on the right (symmetrical).
+Footer position: Y=167, with a 5 px visual gap between each movement icon and counter.
 
 ## Refresh sequence
 

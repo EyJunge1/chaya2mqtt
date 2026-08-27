@@ -56,7 +56,7 @@ describe("DeviceRoot", () => {
       batteryMv: 3900,
       batteryPct: 55,
     });
-    getChaya.mockResolvedValue({ rx: 3, tx: 1, connected: true });
+    getChaya.mockResolvedValue({ rx: 3, tx: 1, connected: true, configured: true });
     getWifiStatus.mockResolvedValue({ connected: false });
     getMqttStatus.mockResolvedValue({ connected: true });
     getUpdateStatus.mockResolvedValue(null);
@@ -96,10 +96,10 @@ describe("DeviceRoot", () => {
   it("marks live state from SSE handlers", async () => {
     connectEvents.mockImplementation(
       (handlers: {
-        chaya?: (d: { rx: number; tx: number; connected: boolean }) => void;
+        chaya?: (d: { rx: number; tx: number; connected: boolean; configured: boolean }) => void;
         error?: () => void;
       }) => {
-        queueMicrotask(() => handlers.chaya?.({ rx: 9, tx: 1, connected: true }));
+        queueMicrotask(() => handlers.chaya?.({ rx: 9, tx: 1, connected: true, configured: true }));
         return () => undefined;
       },
     );

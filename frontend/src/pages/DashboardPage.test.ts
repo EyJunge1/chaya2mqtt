@@ -36,7 +36,7 @@ const wifi: WifiStatus = {
   rssi: -40,
 };
 
-const chaya: ChayaStatus = { connected: true, rx: 3, tx: 1 };
+const chaya: ChayaStatus = { connected: true, configured: true, rx: 3, tx: 1 };
 
 afterEach(() => {
   cleanup();
@@ -60,6 +60,20 @@ describe("DashboardPage", () => {
     });
 
     expect(container.querySelector(`.lucide-${iconName}`)).toBeInTheDocument();
+  });
+
+  it("shows RadioOff when MQTT is not configured", () => {
+    setLanguage("en");
+    const { container } = render(DashboardPage, {
+      props: {
+        device,
+        chaya: { connected: false, configured: false, rx: 0, tx: 0 },
+        wifi,
+        onToast: vi.fn(),
+      },
+    });
+
+    expect(container.querySelector(".lucide-radio-off")).toBeInTheDocument();
   });
 
   it("shows Wi-Fi setup in AP mode without the display-scan card", async () => {
@@ -88,7 +102,7 @@ describe("DashboardPage", () => {
     render(DashboardPage, {
       props: {
         device: apDevice,
-        chaya: { connected: false, rx: 0, tx: 0 },
+        chaya: { connected: false, configured: false, rx: 0, tx: 0 },
         wifi: wifiDown,
         onToast: vi.fn(),
       },

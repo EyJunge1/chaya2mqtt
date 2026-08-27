@@ -12,7 +12,7 @@ void displayInit();
 /** Start dedicated FreeRTOS task (SPI/EPD); call after displayInit() once asyncInfraInit() ran. */
 void displayStartTask();
 
-/** Paint heart + counters for the requested Lucide heart glyph; returns painted counters. */
+/** Paint heart, battery, and counters; returns painted counters. */
 HeartCounterDrawSnapshot drawHeartWithNumber(DisplayHeartIcon icon);
 /** Setup splash: full-screen WIFI QR in SoftAP mode (phone camera join). */
 DisplayView drawSplashScreen();

@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { Radio } from "@lucide/svelte";
+  import { Radio, RadioOff } from "@lucide/svelte";
   import { untrack } from "svelte";
   import { api } from "../api/client.ts";
   import type { MqttConfigView, MqttStatus } from "../api/types.ts";
@@ -98,6 +98,7 @@
 
   const brokerConfigured = $derived(Boolean(cfg?.server.trim()));
   const paired = $derived(Boolean(cfg?.partnerId));
+  const MqttIcon = $derived(brokerConfigured ? Radio : RadioOff);
 </script>
 
 {#if loadError}
@@ -115,10 +116,11 @@
       {#snippet title()}
         <StatusBadge
           ok={mqtt.connected}
-          icon={Radio}
+          icon={MqttIcon}
+          neutral={!brokerConfigured}
           label={i18n.t("mqtt.status")}
           detailOk={i18n.t("status.mqtt-ok")}
-          detailBad={i18n.t("status.mqtt-bad")}
+          detailBad={i18n.t(brokerConfigured ? "status.mqtt-bad" : "status.mqtt-unconfigured")}
         />
       {/snippet}
       <KeyValueGrid

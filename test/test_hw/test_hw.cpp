@@ -53,9 +53,9 @@ void test_display_battery_colors() {
 }
 
 void test_display_battery_icons() {
-    TEST_ASSERT_EQUAL_INT(static_cast<int>(DisplayBatteryIcon::Warning),
+    TEST_ASSERT_EQUAL_INT(static_cast<int>(DisplayBatteryIcon::Empty),
                           static_cast<int>(displayBatteryIcon(0)));
-    TEST_ASSERT_EQUAL_INT(static_cast<int>(DisplayBatteryIcon::Warning),
+    TEST_ASSERT_EQUAL_INT(static_cast<int>(DisplayBatteryIcon::Empty),
                           static_cast<int>(displayBatteryIcon(14)));
     TEST_ASSERT_EQUAL_INT(static_cast<int>(DisplayBatteryIcon::Low),
                           static_cast<int>(displayBatteryIcon(15)));
