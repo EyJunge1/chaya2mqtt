@@ -3,6 +3,7 @@
 
 #include "async/event_types.h"
 #include "async/task_handles.h"
+#include "config/app_config.h"
 #include "heart/counter.h"
 #include "hw/button.h"
 #include "hw/pins.h"
@@ -45,6 +46,7 @@ static SemaphoreHandle_t          s_drawIdleSem             = nullptr;
 static SemaphoreHandle_t          s_powerOffDoneSem         = nullptr;
 static SemaphoreHandle_t          s_displayPostMutex        = nullptr;
 static uint32_t                   s_busyCbLastLogMs         = 0;
+static constexpr uint32_t         kDrawOnlyIfViewChanged    = 1U;
 
 static bool displayPostMsg(DisplayMsg::Cmd cmd, uint32_t payload, TickType_t waitTicks);
 
@@ -172,12 +174,22 @@ static void displayTaskFn(void*) {
             logTaskStackHighWaterPeriodic("DISP", s_stackLogCounter, 600);
             continue;
         }
-        wlanBeginLowInterferenceForEpd();
         switch (msg.cmd) {
         case DisplayMsg::Cmd::DrawHeart: {
+            if (!displayRefreshRequired(configGetDisplayView(), DisplayView::Heart,
+                                        msg.payload == kDrawOnlyIfViewChanged)) {
+                ESP_LOGI(TAG, "heart view unchanged; refresh skipped");
+                if (s_heartDrawPending.exchange(false, std::memory_order_acq_rel)) {
+                    (void)displayPostHeartRedraw(0, true);
+                }
+                break;
+            }
+            wlanBeginLowInterferenceForEpd();
             ledRefreshPulseBegin();
             drawHeartWithNumber();
             ledRefreshPulseEnd();
+            wlanEndLowInterferenceForEpd();
+            (void)configSetDisplayView(DisplayView::Heart);
             const int drawnRx = heartCounter.load(std::memory_order_relaxed);
             const int drawnTx = heartSentCounter.load(std::memory_order_relaxed);
             s_lastDrawnRx.store(drawnRx, std::memory_order_relaxed);
@@ -190,25 +202,48 @@ static void displayTaskFn(void*) {
             }
             break;
         }
-        case DisplayMsg::Cmd::DrawSplash:
+        case DisplayMsg::Cmd::DrawSplash: {
+            const DisplayView targetView = displaySplashTargetView();
+            if (!displayRefreshRequired(configGetDisplayView(), targetView,
+                                        msg.payload == kDrawOnlyIfViewChanged)) {
+                ESP_LOGI(TAG, "splash view unchanged; refresh skipped");
+                if (s_heartDrawPending.exchange(false, std::memory_order_acq_rel)) {
+                    (void)displayPostHeartRedraw(0, true);
+                }
+                break;
+            }
+            wlanBeginLowInterferenceForEpd();
             ledRefreshPulseBegin();
-            drawSplashScreen();
+            const DisplayView drawnView = drawSplashScreen();
             ledRefreshPulseEnd();
+            wlanEndLowInterferenceForEpd();
+            (void)configSetDisplayView(drawnView);
             if (s_heartDrawPending.exchange(false, std::memory_order_acq_rel)) {
                 (void)displayPostHeartRedraw(0, true);
             }
             break;
+        }
         case DisplayMsg::Cmd::DrawPowerOff:
+            if (!displayViewNeedsRefresh(configGetDisplayView(), DisplayView::ProductTitle)) {
+                ESP_LOGI(TAG, "power-off view unchanged; refresh skipped");
+                s_heartDrawPending.store(false, std::memory_order_release);
+                if (s_powerOffDoneSem != nullptr) {
+                    (void)xSemaphoreGive(s_powerOffDoneSem);
+                }
+                break;
+            }
+            wlanBeginLowInterferenceForEpd();
             ledRefreshPulseBegin();
             drawPowerOffScreen();
             ledRefreshPulseEnd();
+            wlanEndLowInterferenceForEpd();
+            (void)configSetDisplayView(DisplayView::ProductTitle);
             s_heartDrawPending.store(false, std::memory_order_release);
             if (s_powerOffDoneSem != nullptr) {
                 (void)xSemaphoreGive(s_powerOffDoneSem);
             }
             break;
         }
-        wlanEndLowInterferenceForEpd();
         displaySignalDrawIdle();
         logTaskStackHighWaterPeriodic("DISP", s_stackLogCounter, 600);
     }
@@ -249,7 +284,7 @@ void requestDeferredDrawSplashScreen() {
         }
     }
     ESP_LOGI(TAG, "splash queued");
-    displayPostMsg(DisplayMsg::Cmd::DrawSplash, 0, pdMS_TO_TICKS(100));
+    displayPostMsg(DisplayMsg::Cmd::DrawSplash, kDrawOnlyIfViewChanged, pdMS_TO_TICKS(100));
 }
 
 void requestDeferredDrawHeartScreen() {
@@ -257,7 +292,7 @@ void requestDeferredDrawHeartScreen() {
         while (xSemaphoreTake(s_drawIdleSem, 0) == pdTRUE) {
         }
     }
-    displayPostMsg(DisplayMsg::Cmd::DrawHeart, 0, pdMS_TO_TICKS(100));
+    displayPostMsg(DisplayMsg::Cmd::DrawHeart, kDrawOnlyIfViewChanged, pdMS_TO_TICKS(100));
 }
 
 bool displayWaitDrawIdle(uint32_t timeoutMs) {

@@ -1,5 +1,7 @@
 #pragma once
 
+#include "view_state.h"
+
 #include <cstdint>
 
 void displayHwInitPins();
@@ -10,7 +12,9 @@ void displayStartTask();
 
 void drawHeartWithNumber();
 /** Setup splash: full-screen WIFI QR in SoftAP mode (phone camera join). */
-void drawSplashScreen();
+DisplayView drawSplashScreen();
+/** View variant that drawSplashScreen will normally produce for the current network mode. */
+DisplayView displaySplashTargetView();
 /** Power-off screen: centered red product name, independent of setup/AP state. */
 void drawPowerOffScreen();
 
