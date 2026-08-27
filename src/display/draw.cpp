@@ -111,10 +111,10 @@ static uint8_t footerTextSizeForDigitCount(size_t digitLen) {
 
 static void drawBatteryIcon(int16_t x, int16_t y, int pct, uint16_t color) {
     auto& epd = displayPanel();
-    static constexpr int16_t kW = 14;
-    static constexpr int16_t kH = 8;
+    static constexpr int16_t kW = 20;
+    static constexpr int16_t kH = 10;
     epd.drawRect(x, y, kW, kH, color);
-    epd.fillRect(static_cast<int16_t>(x + kW), static_cast<int16_t>(y + 2), 2, 4, color);
+    epd.fillRect(static_cast<int16_t>(x + kW), static_cast<int16_t>(y + 2), 3, 6, color);
     const int fillW = ((pct < 0 ? 0 : (pct > 100 ? 100 : pct)) * (kW - 2)) / 100;
     if (fillW > 0) {
         epd.fillRect(static_cast<int16_t>(x + 1), static_cast<int16_t>(y + 1),
@@ -146,9 +146,9 @@ HeartCounterDrawSnapshot drawHeartWithNumber() {
     static constexpr int kHeartSize       = 70;
     static constexpr int kCircleRadius    = (kHeartSize / 2) + 8;
     static constexpr int kCircleSpacing   = (kHeartSize / 2) - 3;
-    static constexpr int kCircleY         = 60;
+    static constexpr int kCircleY         = 68;
     static constexpr int kTriangleTop     = kCircleY + 15;
-    static constexpr int kTriangleBottom  = 173;
+    static constexpr int kTriangleBottom  = 181;
     static constexpr int kMaxWidth        = 2 * (kCircleSpacing + kCircleRadius) - 4;
 
     const int dw = epd.width();
@@ -191,7 +191,7 @@ HeartCounterDrawSnapshot drawHeartWithNumber() {
     const int16_t              kUpArrowCx     = static_cast<int16_t>(dw - 13);
     static constexpr int16_t   kUpArrowTipY =
         static_cast<int16_t>(kFooterTextTop + 1);
-    static constexpr int16_t   kBatteryWidthWithTerminal = 16;
+    static constexpr int16_t   kBatteryWidthWithTerminal = 23;
     static constexpr int16_t   kBatteryTopMargin         = 4;
     const int16_t              kBatteryX =
         static_cast<int16_t>(dw - kRightMargin - kBatteryWidthWithTerminal);
