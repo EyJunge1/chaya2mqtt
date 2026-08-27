@@ -1,6 +1,9 @@
 # Chaya2MQTT Web-UI
 
-Svelte 5 + Vite + Tailwind CSS + Lucide Icons.
+The little control room behind each heart: connect it to Wi-Fi, introduce it to
+its partner, send a heart, and keep it up to date.
+
+Built with Svelte 5, Vite, Tailwind CSS, and Lucide Icons.
 
 ## Development without the ESP32-S3
 

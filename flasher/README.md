@@ -1,8 +1,11 @@
 # Browser web flasher
 
-Separate Svelte 5 + Vite + Tailwind 4 app that flashes Chaya2MQTT over USB /
-Web Serial via `esptool-js`. The visual tokens match the embedded device admin
-UI, but this app has no dependency on device HTTP APIs.
+The easiest way to bring a new Chaya heart to life. Connect the ESP32-S3 over USB,
+choose a version, and the browser installs everything it needs.
+
+Under the hood, this is a separate Svelte 5 + Vite + Tailwind 4 app that flashes
+Chaya2MQTT through Web Serial with `esptool-js`. Its look matches the device admin
+UI, but it does not depend on the device HTTP APIs.
 
 ## UI development
 
@@ -40,6 +43,6 @@ channel manifests, and Stable/Beta factory images under `flasher/_site/`.
 
 ## Production
 
-`.github/workflows/deploy-pages.yml` builds this site and deploys it to GitHub
-Pages once the repository is public and Pages is enabled. Until then, use the
-local preview above.
+`.github/workflows/deploy-pages.yml` builds the site and deploys it to
+[GitHub Pages](https://eyjunge1.github.io/chaya2mqtt/). Use the local preview
+above when developing or testing unpublished firmware.

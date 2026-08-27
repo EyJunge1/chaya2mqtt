@@ -161,8 +161,8 @@ GitHub Actions (`.github/workflows/build-release.yml`):
 1. Trigger: push of tag `vYYYY.M.PATCH` or `vYYYY.M.PATCH-rc.N`
 2. Validate tag format; commit must be an ancestor of `origin/main`
 3. Set `APP_VERSION` from the tag (without `v`)
-4. Build frontend + embed SPA (lint/tests run locally only via `make check`)
-5. Run `pio run -e esp32s3-release` and validate artifacts via `scripts/prepare_release_artifacts.py`
+4. Run the complete `make check` quality gate, including frontend/flasher checks, tests, static analysis, and the release firmware build
+5. Validate and package the built images via `scripts/prepare_release_artifacts.py`
 6. Publish GitHub Release assets:
    - `firmware.bin` + `firmware.sha256` (OTA)
    - `firmware.factory.bin` + `firmware.factory.sha256` (USB / web flasher)

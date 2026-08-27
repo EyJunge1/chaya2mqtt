@@ -1,11 +1,16 @@
 # Chaya2MQTT
 
-Two [Waveshare ESP32-S3-ePaper-1.54G](https://docs.waveshare.com/ESP32-S3-ePaper-1.54G)
-(SKU **34586**) devices show a red heart with counters. Pressing the button on one
-device publishes the next sent count over MQTT; the partner receives it and updates
-its display. Pairing uses device IDs derived from the MAC address.
+Send a little heart to someone special—no matter how far away they are. ❤️
 
-## Flash
+Chaya2MQTT connects two
+[Waveshare ESP32-S3 e-paper displays](https://docs.waveshare.com/ESP32-S3-ePaper-1.54G):
+press the button on one and a red heart appears on the other. Each display keeps
+track of the hearts you have sent and received, while MQTT quietly carries them
+between the two devices.
+
+It is a tiny, always-there way to say *I'm thinking of you* without opening an app.
+
+## Bring your heart to life
 
 **Browser (recommended):** open the
 [web flasher](https://eyjunge1.github.io/chaya2mqtt/) in Chrome or Edge, connect
@@ -20,8 +25,8 @@ pio run -e esp32s3-release -t upload
 Use `make upload` to keep saved settings, or `make upload-erase` for a factory-style
 flash that erases them.
 
-After flash with no Wi-Fi credentials, the device opens SoftAP `Chaya2MQTT`. Scan
-the WIFI QR on the display and finish setup in the captive portal.
+After flashing, the device opens the Wi-Fi network `Chaya2MQTT`. Scan the QR code
+on its display and follow the setup page to connect it to Wi-Fi and its partner.
 
 ## Docs & license
 

@@ -15,7 +15,7 @@ Overview of all source modules under `src/`, with correct paths, responsibilitie
 4. `displayInit()` + `displayStartTask()`
 5. `buttonInit()`, `batteryInit()`, `audioInit()` (mic/capture off)
 6. Serial 115200 only when `CORE_DEBUG_LEVEL > 0`
-7. Load NVS: MQTT, counters, reset period, UI prefs, LED, audio
+7. Load NVS: MQTT, counters, reset period, UI prefs, LED, audio, display view
 8. If no STA credentials: arm setup AP and paint SoftAP WIFI QR **before** Wi‑Fi RF
 9. `setupWiFi()`—STA or AP (operational heart/splash is queued after STA `GOT_IP` or SoftAP ready)
 10. `mqttSetup()`
@@ -55,7 +55,9 @@ Global queues and mutexes. `asyncInfraInit()` creates:
 - `g_netCmdQueue` (32 × `NetCmd`)
 - `g_displayCmdQueue` (32 × `DisplayMsg`)
 - `g_audioCmdQueue` (4 × `AudioMsg`)
-- 6 mutexes (see [ARCHITECTURE.md](ARCHITECTURE.md))
+- 6 mutexes and the button-completion binary semaphore (see [ARCHITECTURE.md](ARCHITECTURE.md))
+
+The TLS bundle and MQTT configuration modules own additional internal mutexes.
 
 ### `async/app_task.cpp`
 
@@ -315,6 +317,7 @@ Button task (4096 stack, priority 8, core 1):
 | `csrf.h` / `csrf.cpp` | Generate and validate CSRF tokens |
 | `web_events.h` / `web_events.cpp` | SSE `/events` |
 | `routes/admin_routes_api.cpp` | JSON API `/api/*` for the Svelte SPA |
+| `routes/admin_routes_captive.cpp` | Captive-portal probes, redirects, and setup entry points |
 | `routes/admin_routes_spa.cpp` | Generic SPA blob lookup + SPA fallback |
 | `spa_asset_lookup.h` | Path/MIME/cache helpers (natively testable) |
 | `assets/web_ui.*` | Generated asset blob (raw), `.incbin` stub, and manifest |

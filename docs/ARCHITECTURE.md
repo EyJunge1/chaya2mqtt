@@ -162,7 +162,7 @@ sequenceDiagram
 4. **Display:** Enable GPIO6, init SPI/EPD (`initial_full_refresh=true`) + start display task
 5. **Button / battery / audio:** BOOT + PWR, ADC sample, ES8311 mic off
 6. **Serial:** 115200 in debug builds only (`CORE_DEBUG_LEVEL > 0`)
-7. **Load NVS:** MQTT configuration, counters, reset period, UI prefs, LED, audio
+7. **Load NVS:** MQTT configuration, counters, reset period, UI prefs, LED, audio, display view
 8. **Pre-RF splash:** If no STA credentials, paint the SoftAP WIFI QR before bringing up Wi‑Fi RF
 9. **WiFi:** STA with stored credentials or `Chaya2MQTT` SoftAP + captive DNS
 10. **MQTT:** Configure client (do not connect yet)
@@ -212,8 +212,9 @@ sequenceDiagram
 
     B->>M: mqttPublishChayaAndApplySentCounters()
     M->>M: retained publish to topic_pub
-    M->>C: heartSentCounter++
-    M->>D: requestHeartRedraw
+    M-->>M: wait for matching PUBACK (max 5 s)
+    M->>C: heartSentCounterApplyAfterSuccessfulPublish()
+    M->>D: requestHeartRedraw()
 
     W->>N: NetCmd ChayaSendRequested
     N->>M: mqttPublishChayaAndApplySentCounters()

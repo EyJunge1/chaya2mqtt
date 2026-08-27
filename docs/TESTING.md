@@ -78,7 +78,8 @@ For pull requests, the `Quality gate` workflow selects the affected frontend, fl
 jobs from the changed paths and runs them in parallel. Documentation-only changes finish without
 starting build jobs. Pushes to `main` still run the complete gate in parallel.
 The tag-based release workflow also runs the complete gate before publishing artifacts.
-The Pages deploy workflow is ready for later, once the repository is public and GitHub Pages is enabled.
+The Pages deploy workflow publishes the browser flasher to
+[`eyjunge1.github.io/chaya2mqtt`](https://eyjunge1.github.io/chaya2mqtt/).
 
 ## Frontend
 

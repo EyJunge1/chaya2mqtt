@@ -26,7 +26,7 @@ What the PCB actually has. **Chaya** is the firmware use today.
 
 | Part | Hardware | Chaya |
 |------|----------|-------|
-| **E-paper** | 1.54″, 200×200, **black / white / red / yellow** | Heart (red) + RX/TX counters. Yellow: fresh-RX dots, low-battery icon. |
+| **E-paper** | 1.54″, 200×200, **black / white / red / yellow** | Heart (red) + RX/TX counters; yellow low-battery icon |
 | **Antenna** | Onboard SMD / ceramic; Wi-Fi + BLE | Wi-Fi on; BLE unused (firmware may disable BT) |
 | **BOOT** (`Key1`) | GPIO0, side button | Press = send; hold during reset only for USB download mode |
 | **Reset** | `EN` / `CHIP_PU` only — **no** user RESET button | USB re-plug or chip EN |
@@ -177,7 +177,7 @@ If OTA/boot fails and the device is unreachable:
 
 ### Browser (web flasher)
 
-1. Preview locally via [flasher/README.md](../flasher/README.md) (Chrome / Edge or another Chromium browser with Web Serial). GitHub Pages hosting comes later.
+1. Open the [web flasher](https://eyjunge1.github.io/chaya2mqtt/) in Chrome, Edge, or another Chromium browser with Web Serial. For local development, see [flasher/README.md](../flasher/README.md).
 2. Connect USB-C with a **data** cable (hold **BOOT** only if the port will not enumerate)
 3. Choose Stable or Beta and install; prefer erase on a first/recovery flash
 4. Without Wi-Fi credentials the `Chaya2MQTT` SoftAP returns; scan the WIFI QR on the display or open `http://4.3.2.1/`
@@ -187,7 +187,7 @@ The flasher writes `firmware.factory.bin` (bootloader + partitions + app). OTA o
 ### PlatformIO
 
 1. Connect USB-C (hold **BOOT** only if the port will not enumerate)
-2. Flash: `make upload-erase` (erases the complete flash first)
+2. Flash a production build with `make upload-erase ENV=esp32s3-release` (erases the complete flash first). Omit `ENV=esp32s3-release` only when a debug build is intended.
 3. Without Wi-Fi credentials the `Chaya2MQTT` SoftAP returns; the display shows a WIFI QR for phone camera join
 
 On battery, press **PWR** to start; firmware must keep GPIO17 HIGH.
