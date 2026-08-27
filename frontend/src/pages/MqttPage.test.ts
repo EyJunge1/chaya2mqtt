@@ -137,6 +137,16 @@ describe("MqttPage", () => {
     expect(screen.getAllByText("-").length).toBeGreaterThan(0);
   });
 
+  it("shows RadioOff when no broker is configured", async () => {
+    getMqttConfig.mockResolvedValue(cfg({ server: "", partnerId: "", topicSub: "" }));
+    const { container } = render(MqttPage, {
+      props: { mqtt: { connected: false }, onToast: vi.fn() },
+    });
+
+    await screen.findByText("a1b2c3");
+    expect(container.querySelector(".lucide-radio-off")).toBeInTheDocument();
+  });
+
   it("reloads config when refreshSeq changes", async () => {
     getMqttConfig
       .mockResolvedValueOnce(cfg({ server: "", partnerId: "" }))

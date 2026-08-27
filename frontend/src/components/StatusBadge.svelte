@@ -13,6 +13,7 @@
     detailBad,
     href,
     icon: Icon,
+    neutral = false,
   }: {
     ok: boolean;
     label: string;
@@ -20,13 +21,14 @@
     detailBad?: string;
     href?: string;
     icon?: IconComponent;
+    neutral?: boolean;
   } = $props();
 
   const detail = $derived(
     ok ? (detailOk ?? i18n.t("status.connected")) : (detailBad ?? i18n.t("status.disconnected")),
   );
   const ariaLabel = $derived(`${label}: ${detail}`);
-  const iconClass = $derived(ok ? "text-status-ok" : "text-danger");
+  const iconClass = $derived(neutral ? "text-muted" : ok ? "text-status-ok" : "text-danger");
 </script>
 
 {#if href}

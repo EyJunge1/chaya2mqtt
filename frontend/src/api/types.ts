@@ -24,6 +24,7 @@ export interface ChayaStatus {
   rx: number;
   tx: number;
   connected: boolean;
+  configured: boolean;
 }
 
 export type WifiIpMode = "dhcp" | "static";

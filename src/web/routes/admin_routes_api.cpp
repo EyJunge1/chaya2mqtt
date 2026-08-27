@@ -159,11 +159,13 @@ void handleApiDeviceGet(AsyncWebServerRequest* req) {
 }
 
 void handleApiChayaGet(AsyncWebServerRequest* req) {
-    const int rx = heartDisplayRxDelta();
-    const int tx = heartDisplayTxDelta();
-    adminSendJsonWithBuffer<144>(req, [rx, tx](char* b, size_t n) {
-        const int w = snprintf(b, n, "{\"rx\":%d,\"tx\":%d,\"connected\":%s}", rx, tx,
-                               mqttIsConnected() ? "true" : "false");
+    const int  rx         = heartDisplayRxDelta();
+    const int  tx         = heartDisplayTxDelta();
+    const bool configured = mqttCfgIsBrokerConfigured();
+    adminSendJsonWithBuffer<160>(req, [rx, tx, configured](char* b, size_t n) {
+        const int w =
+            snprintf(b, n, "{\"rx\":%d,\"tx\":%d,\"connected\":%s,\"configured\":%s}", rx, tx,
+                     mqttIsConnected() ? "true" : "false", configured ? "true" : "false");
         return w > 0 && static_cast<size_t>(w) < n;
     });
 }

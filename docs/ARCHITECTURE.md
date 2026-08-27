@@ -193,7 +193,7 @@ link immediately before starting.
 
 | Command | Effect |
 |---------|--------|
-| `DrawHeart` | `drawHeartWithNumber()` |
+| `DrawHeart` | `drawHeartWithNumber(icon)` |
 | `DrawSplash` | `drawSplashScreen()` |
 | `DrawPowerOff` | `drawPowerOffScreen()` |
 
@@ -221,7 +221,7 @@ sequenceDiagram
     Note over M: Partner device receives
     M->>C: heartCounterStoreFromRemote(payload)
     M->>D: requestHeartRedrawNonBlocking
-    D->>D: drawHeartWithNumber
+    D->>D: drawHeartWithNumber(icon)
 ```
 
 ## Web admin: deferred work

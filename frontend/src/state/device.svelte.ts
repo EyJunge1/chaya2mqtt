@@ -5,7 +5,7 @@ import type { ShowToast, ToastItem, ToastVariant } from "../components/toastStac
 
 export type LiveState = "connecting" | "live" | "reconnecting";
 
-const emptyChaya = (): ChayaStatus => ({ rx: 0, tx: 0, connected: false });
+const emptyChaya = (): ChayaStatus => ({ rx: 0, tx: 0, connected: false, configured: false });
 const emptyWifi = (): WifiStatus => ({ connected: false });
 const emptyMqtt = (): MqttStatus => ({ connected: false });
 

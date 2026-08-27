@@ -68,7 +68,7 @@ Legacy keys `topic_pub` / `topic_sub` are removed when saving. Topics now exist 
 | `ui_lang` | String | `en` | UI language (`en` / `de`) |
 | `ui_theme` | String | `light` | Web UI theme (`light` / `dark`) |
 | `led_en` | UChar | `1` | Header user LED (`1`=activity blinks, `0`=off) |
-| `disp_view` | UChar | `0` | Last painted E-Ink view (`0`=unknown, `1`=heart, `2`=setup QR, `3`=product title) |
+| `disp_view` | UChar | `0` | Last painted E-Ink view (`0`=unknown, `1`=heart, `2`=setup QR, `3`=product title, `4`=heart-crack, `5`=power-off) |
 | `snd_mute` | UChar | `0` | Mute TX/RX click (`1` = no sound) |
 | `snd_vol` | UChar | `70` | Click volume 0–100 |
 | `snd_q0` | UChar | `23` | Quiet-hours start (local hour after NTP) |
