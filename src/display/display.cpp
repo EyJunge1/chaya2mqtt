@@ -49,7 +49,7 @@ static constexpr uint32_t         kDrawOnlyIfViewChanged    = 1U;
 
 static bool displayPostMsg(DisplayMsg::Cmd cmd, uint32_t payload, TickType_t waitTicks);
 
-static bool displayPostHeartRedraw(TickType_t waitTicks, bool bypassMinInterval = false) {
+static bool displayPostHeartRedraw(TickType_t waitTicks) {
     if (s_powerOffPending.load(std::memory_order_acquire)) {
         return false;
     }
@@ -59,8 +59,8 @@ static bool displayPostHeartRedraw(TickType_t waitTicks, bool bypassMinInterval 
     const unsigned long lastMs = s_lastHeartRedrawEnqueueMs.load(std::memory_order_relaxed);
     const DisplayHeartRedrawDecision decision = displayHeartRedrawDecide(
         rx, tx, s_lastDrawnRx.load(std::memory_order_relaxed),
-        s_lastDrawnTx.load(std::memory_order_relaxed), nowMs, lastMs, kHeartRedrawMinIntervalMs,
-        bypassMinInterval);
+        s_lastDrawnTx.load(std::memory_order_relaxed), nowMs, lastMs,
+        kHeartRedrawMinIntervalMs);
     if (decision == DisplayHeartRedrawDecision::SkipUnchanged) {
         return true;
     }
@@ -189,7 +189,7 @@ static void displayTaskFn(void*) {
             // Trailing-edge timeout: flush a deferred heart redraw with the latest counters.
             if (s_heartDrawPending.load(std::memory_order_acquire)
                 && !s_powerOffPending.load(std::memory_order_acquire)) {
-                (void)displayPostHeartRedraw(0, true);
+                (void)displayPostHeartRedraw(0);
             }
             logTaskStackHighWaterPeriodic("DISP", s_stackLogCounter, 600);
             continue;
@@ -201,7 +201,7 @@ static void displayTaskFn(void*) {
                 ESP_LOGI(TAG, "heart view unchanged; refresh skipped");
                 s_heartDrawQueued.store(false, std::memory_order_release);
                 if (s_heartDrawPending.exchange(false, std::memory_order_acq_rel)) {
-                    (void)displayPostHeartRedraw(0, true);
+                    (void)displayPostHeartRedraw(0);
                 }
                 break;
             }
@@ -219,7 +219,7 @@ static void displayTaskFn(void*) {
                     drawn.heartCounterRaw, drawn.heartSentCounterRaw,
                     heartCounter.load(std::memory_order_relaxed),
                     heartSentCounter.load(std::memory_order_relaxed), hadPending)) {
-                (void)displayPostHeartRedraw(0, true);
+                (void)displayPostHeartRedraw(0);
             }
             break;
         }
@@ -229,7 +229,7 @@ static void displayTaskFn(void*) {
                                         msg.payload == kDrawOnlyIfViewChanged)) {
                 ESP_LOGI(TAG, "splash view unchanged; refresh skipped");
                 if (s_heartDrawPending.exchange(false, std::memory_order_acq_rel)) {
-                    (void)displayPostHeartRedraw(0, true);
+                    (void)displayPostHeartRedraw(0);
                 }
                 break;
             }
@@ -240,7 +240,7 @@ static void displayTaskFn(void*) {
             wlanEndLowInterferenceForEpd();
             (void)configSetDisplayView(drawnView);
             if (s_heartDrawPending.exchange(false, std::memory_order_acq_rel)) {
-                (void)displayPostHeartRedraw(0, true);
+                (void)displayPostHeartRedraw(0);
             }
             break;
         }

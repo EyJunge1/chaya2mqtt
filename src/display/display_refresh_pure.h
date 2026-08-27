@@ -18,12 +18,11 @@ enum class DisplayHeartRedrawDecision : uint8_t {
  */
 inline DisplayHeartRedrawDecision displayHeartRedrawDecide(
     int currentRx, int currentTx, int lastDrawnRx, int lastDrawnTx, unsigned long nowMs,
-    unsigned long lastEnqueueMs, unsigned long minIntervalMs, bool bypassMinInterval) {
+    unsigned long lastEnqueueMs, unsigned long minIntervalMs) {
     if (currentRx == lastDrawnRx && currentTx == lastDrawnTx) {
         return DisplayHeartRedrawDecision::SkipUnchanged;
     }
-    if (!bypassMinInterval && lastEnqueueMs != 0UL
-        && (nowMs - lastEnqueueMs) < minIntervalMs) {
+    if (lastEnqueueMs != 0UL && (nowMs - lastEnqueueMs) < minIntervalMs) {
         return DisplayHeartRedrawDecision::DeferPending;
     }
     return DisplayHeartRedrawDecision::QueueNow;

@@ -79,23 +79,19 @@ void test_display_heart_redraw_leading_trailing() {
 
     TEST_ASSERT_EQUAL_INT(
         static_cast<int>(DisplayHeartRedrawDecision::SkipUnchanged),
-        static_cast<int>(displayHeartRedrawDecide(3, 1, 3, 1, 1000, 0, kMin, false)));
+        static_cast<int>(displayHeartRedrawDecide(3, 1, 3, 1, 1000, 0, kMin)));
 
     TEST_ASSERT_EQUAL_INT(
         static_cast<int>(DisplayHeartRedrawDecision::QueueNow),
-        static_cast<int>(displayHeartRedrawDecide(4, 1, 3, 1, 1000, 0, kMin, false)));
+        static_cast<int>(displayHeartRedrawDecide(4, 1, 3, 1, 1000, 0, kMin)));
 
     TEST_ASSERT_EQUAL_INT(
         static_cast<int>(DisplayHeartRedrawDecision::DeferPending),
-        static_cast<int>(displayHeartRedrawDecide(5, 1, 3, 1, 10000, 1000, kMin, false)));
+        static_cast<int>(displayHeartRedrawDecide(5, 1, 3, 1, 10000, 1000, kMin)));
 
     TEST_ASSERT_EQUAL_INT(
         static_cast<int>(DisplayHeartRedrawDecision::QueueNow),
-        static_cast<int>(displayHeartRedrawDecide(5, 1, 3, 1, 10000, 1000, kMin, true)));
-
-    TEST_ASSERT_EQUAL_INT(
-        static_cast<int>(DisplayHeartRedrawDecision::QueueNow),
-        static_cast<int>(displayHeartRedrawDecide(5, 1, 3, 1, 32000, 1000, kMin, false)));
+        static_cast<int>(displayHeartRedrawDecide(5, 1, 3, 1, 32000, 1000, kMin)));
 }
 
 void test_display_heart_redraw_wait_and_follow_up() {
