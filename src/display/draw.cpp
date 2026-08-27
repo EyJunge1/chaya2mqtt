@@ -109,13 +109,6 @@ static uint8_t footerTextSizeForDigitCount(size_t digitLen) {
     return digitLen <= 3 ? 4 : 3;
 }
 
-static void drawFreshRxDots(uint16_t color) {
-    auto& epd = displayPanel();
-    epd.fillCircle(184, 38, 3, color);
-    epd.fillCircle(191, 50, 3, color);
-    epd.fillCircle(184, 62, 3, color);
-}
-
 static void drawBatteryIcon(int16_t x, int16_t y, int pct, uint16_t color) {
     auto& epd = displayPanel();
     static constexpr int16_t kW = 14;
@@ -140,7 +133,7 @@ static void formatCappedCounterForDisplay(int rawCounter, int baseline, char* bu
 
 } // namespace
 
-void drawHeartWithNumber() {
+HeartCounterDrawSnapshot drawHeartWithNumber() {
     displayResumeSpiForDraw();
 
     ESP_LOGI(TAG, "Drawing red heart with counters...");
@@ -176,7 +169,6 @@ void drawHeartWithNumber() {
 
     const uint8_t recvTextSize = footerTextSizeForDigitCount(recvLen);
     const uint8_t sentTextSize = footerTextSizeForDigitCount(sentLen);
-    const bool    freshRx      = displayFreshRxDots(displayTakeFreshRx());
     const int     batPct       = batteryPercent();
     const uint16_t batColor    = displayBatteryIconYellow(batPct) ? GxEPD_YELLOW : fg;
 
@@ -248,9 +240,6 @@ void drawHeartWithNumber() {
                       static_cast<int16_t>(kFooterTextTop));
         epd.print(sentBuf);
 
-        if (freshRx) {
-            drawFreshRxDots(GxEPD_YELLOW);
-        }
         drawBatteryIcon(93, 188, batPct, batColor);
 
     } while (epd.nextPage());
@@ -259,6 +248,7 @@ void drawHeartWithNumber() {
     displaySuspendSpiLowPower();
 
     ESP_LOGI(TAG, "Red heart with counters drawn");
+    return snap;
 }
 
 DisplayView displaySplashTargetView() {
