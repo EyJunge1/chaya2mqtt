@@ -1,0 +1,4 @@
+# Dynamic frequency scaling (used by esp_pm_configure in main.cpp).
+CONFIG_PM_ENABLE=y
+# Keep tickless idle off — web/MQTT must stay responsive.
+CONFIG_FREERTOS_USE_TICKLESS_IDLE=n

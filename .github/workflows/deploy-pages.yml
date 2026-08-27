@@ -1,0 +1,96 @@
+name: Deploy web flasher (GitHub Pages)
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+concurrency:
+  group: pages-${{ github.repository }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+jobs:
+  # Free GitHub Pages for private repos requires a paid plan. Skip quietly while private.
+  gate:
+    runs-on: ubuntu-latest
+    outputs:
+      deploy: ${{ steps.check.outputs.deploy }}
+    steps:
+      - name: Require public repository
+        id: check
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          visibility="$(gh api "repos/${GITHUB_REPOSITORY}" --jq .visibility)"
+          echo "repository visibility=${visibility}"
+          if [[ "${visibility}" == "public" ]]; then
+            echo "deploy=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "deploy=false" >> "$GITHUB_OUTPUT"
+            echo "Skipping Pages deploy while the repository is private (no cost / no Pages errors)."
+          fi
+
+  build:
+    needs: gate
+    if: needs.gate.outputs.deploy == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: flasher/package-lock.json
+
+      - name: Build Svelte web flasher
+        working-directory: flasher
+        run: |
+          npm ci
+          npm run check
+          npm run build
+
+      - name: Download Stable + Beta factory images
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: |
+          python3 scripts/fetch_flasher_releases.py --out /tmp/chaya-releases
+
+      - name: Generate flasher site
+        run: |
+          python3 scripts/generate_flasher_site.py \
+            --flasher-dist flasher/dist \
+            --out flasher/_site \
+            --releases-dir /tmp/chaya-releases
+
+      - name: Configure GitHub Pages
+        uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
+        with:
+          path: flasher/_site
+
+  deploy:
+    needs: [gate, build]
+    if: needs.gate.outputs.deploy == 'true'
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@cd2ce8fcbc39b97be8ca5fce6e763baed58fa128 # v5.0.0

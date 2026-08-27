@@ -1,0 +1,77 @@
+name: Feature or change request
+description: Suggest an improvement or major change
+title: "[Feature]: "
+labels:
+  - enhancement
+body:
+  - type: markdown
+    attributes:
+      value: |
+        For bug reports, please use the "Bug report" template.
+
+        Please discuss major architecture, protocol, or hardware changes here before implementation.
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Firmware
+        - Web interface
+        - MQTT / Protocol
+        - Wi-Fi / Setup
+        - OTA
+        - Display
+        - Hardware
+        - Documentation
+        - CI / Tests
+        - Other
+    validations:
+      required: true
+  - type: dropdown
+    id: scope
+    attributes:
+      label: Scope
+      description: For major changes, please describe alternatives and impact particularly clearly.
+      options:
+        - Small improvement
+        - New feature
+        - Major architecture, protocol, or hardware change
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem / Benefit
+      description: What problem should be solved, and why is it important?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: What should the change look like?
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives
+      description: What alternatives were considered?
+  - type: textarea
+    id: impact
+    attributes:
+      label: Impact
+      description: Possible impact on existing devices, APIs, MQTT topics, the NVS schema, OTA, or hardware.
+      placeholder: |
+        Breaking change? yes/no
+        Affected contracts: REST/OpenAPI, AsyncAPI/SSE, MQTT, pin map, …
+        Migration required: …
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before submitting
+      options:
+        - label: I have checked existing issues for duplicates.
+          required: true
+        - label: For major changes, I will discuss the proposal here before implementation.
+          required: true

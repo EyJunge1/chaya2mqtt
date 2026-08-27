@@ -1,0 +1,53 @@
+{
+  "name": "frontend",
+  "private": true,
+  "version": "0.0.0",
+  "license": "GPL-3.0-only",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "check": "svelte-check --tsconfig ./tsconfig.app.json",
+    "lint": "eslint .",
+    "format": "prettier --write \"src/**/*.{ts,svelte,css,html}\" \"mock/**/*.ts\" \"e2e/**/*.ts\" \"*.{ts,js,json,html}\" \".prettierrc\" \"eslint.config.js\"",
+    "format:check": "prettier --check \"src/**/*.{ts,svelte,css,html}\" \"mock/**/*.ts\" \"e2e/**/*.ts\" \"*.{ts,js,json,html}\" \".prettierrc\" \"eslint.config.js\"",
+    "preview": "vite preview",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "test:e2e": "playwright test",
+    "test:e2e:smoke": "playwright test --grep @smoke"
+  },
+  "dependencies": {
+    "@lucide/svelte": "^1.34.0",
+    "svelte": "^5.56.10"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@playwright/test": "^1.62.1",
+    "@sveltejs/vite-plugin-svelte": "^7.3.0",
+    "@tailwindcss/vite": "^4.3.3",
+    "@testing-library/jest-dom": "^7.0.1",
+    "@testing-library/svelte": "^5.4.2",
+    "@testing-library/user-event": "^14.6.6",
+    "@types/node": "^26.4.0",
+    "@vitest/coverage-v8": "^4.1.11",
+    "eslint": "^10.9.1",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-svelte": "^3.23.0",
+    "globals": "^17.11.0",
+    "jsdom": "^30.0.1",
+    "prettier": "^3.9.6",
+    "prettier-plugin-svelte": "^4.1.1",
+    "svelte-check": "^4.7.6",
+    "tailwindcss": "^4.3.3",
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.68.0",
+    "vite": "^8.2.2",
+    "vitest": "^4.1.11"
+  },
+  "allowScripts": {
+    "fsevents@2.3.2": true,
+    "fsevents@2.3.3": true
+  }
+}

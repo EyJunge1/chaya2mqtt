@@ -1,0 +1,62 @@
+version: 2
+
+# PlatformIO (platformio.ini / lib_deps) and ESP-IDF Component Manager
+# (idf_component.yml) are not yet supported by Dependabot.
+# See: https://github.com/dependabot/dependabot-core/issues/13206
+# PlatformIO library updates: renovate.json. Pinned platform/framework commits are reviewed
+# manually because the OTA SHA-256 API depends on specific upstream changes.
+
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: Etc/UTC
+    open-pull-requests-limit: 3
+    labels:
+      - dependencies
+    groups:
+      github-actions:
+        patterns:
+          - "*"
+        update-types:
+          - minor
+          - patch
+
+  - package-ecosystem: npm
+    directory: /frontend
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: Etc/UTC
+    open-pull-requests-limit: 5
+    labels:
+      - dependencies
+    groups:
+      frontend-minor-patch:
+        patterns:
+          - "*"
+        update-types:
+          - minor
+          - patch
+
+  - package-ecosystem: npm
+    directory: /flasher
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: Etc/UTC
+    open-pull-requests-limit: 5
+    labels:
+      - dependencies
+    groups:
+      flasher-minor-patch:
+        patterns:
+          - "*"
+        update-types:
+          - minor
+          - patch

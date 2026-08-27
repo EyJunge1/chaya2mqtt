@@ -1,0 +1,157 @@
+asyncapi: 3.0.0
+info:
+  title: Chaya2MQTT Server-Sent Events
+  version: 1.0.0
+  description: |
+    Live updates from the device via SSE at `/events`.
+    Maximum 6 concurrent clients. Status events are dirty-diffed about every 500 ms.
+    There is no login; access is limited by Host/Origin allowlists on the LAN.
+servers:
+  device:
+    host: chaya2mqtt-{deviceId}.local
+    pathname: /events
+    protocol: http
+    description: STA mode mDNS host (EventSource uses http://host/events)
+    variables:
+      deviceId:
+        default: abc123
+        description: Six-character lowercase device ID derived from the STA MAC address
+    security:
+      - $ref: "#/components/securitySchemes/lanHostAllowlist"
+channels:
+  events:
+    address: /events
+    messages:
+      chaya:
+        $ref: "#/components/messages/ChayaEvent"
+      wifi:
+        $ref: "#/components/messages/WifiEvent"
+      mqtt:
+        $ref: "#/components/messages/MqttEvent"
+      ota:
+        $ref: "#/components/messages/OtaEvent"
+      device:
+        $ref: "#/components/messages/DeviceEvent"
+operations:
+  receiveChaya:
+    action: receive
+    channel:
+      $ref: "#/channels/events"
+    messages:
+      - $ref: "#/channels/events/messages/chaya"
+  receiveWifi:
+    action: receive
+    channel:
+      $ref: "#/channels/events"
+    messages:
+      - $ref: "#/channels/events/messages/wifi"
+  receiveMqtt:
+    action: receive
+    channel:
+      $ref: "#/channels/events"
+    messages:
+      - $ref: "#/channels/events/messages/mqtt"
+  receiveOta:
+    action: receive
+    channel:
+      $ref: "#/channels/events"
+    messages:
+      - $ref: "#/channels/events/messages/ota"
+  receiveDevice:
+    action: receive
+    channel:
+      $ref: "#/channels/events"
+    messages:
+      - $ref: "#/channels/events/messages/device"
+components:
+  securitySchemes:
+    lanHostAllowlist:
+      type: httpApiKey
+      in: header
+      name: Host
+      description: |
+        No login. The firmware accepts only Host (and Origin, when sent) values
+        from the LAN allowlist, same as the REST admin API.
+  messages:
+    ChayaEvent:
+      name: chaya
+      title: Heart counters
+      contentType: application/json
+      payload:
+        $ref: "#/components/schemas/ChayaStatus"
+    WifiEvent:
+      name: wifi
+      title: Wi-Fi status
+      contentType: application/json
+      payload:
+        $ref: "#/components/schemas/WifiStatus"
+    MqttEvent:
+      name: mqtt
+      title: MQTT status
+      contentType: application/json
+      payload:
+        type: object
+        required: [connected]
+        properties:
+          connected:
+            type: boolean
+    OtaEvent:
+      name: ota
+      title: OTA status
+      contentType: application/json
+      payload:
+        $ref: "#/components/schemas/OtaStatus"
+    DeviceEvent:
+      name: device
+      title: Battery status
+      contentType: application/json
+      payload:
+        $ref: "#/components/schemas/DeviceBattery"
+  schemas:
+    DeviceBattery:
+      type: object
+      required: [batteryMv, batteryPct]
+      properties:
+        batteryMv: { type: integer }
+        batteryPct: { type: integer, minimum: 0, maximum: 100 }
+    ChayaStatus:
+      type: object
+      required: [rx, tx, connected]
+      properties:
+        rx: { type: integer }
+        tx: { type: integer }
+        connected: { type: boolean }
+    WifiStatus:
+      oneOf:
+        - type: object
+          required: [connected]
+          properties:
+            connected: { type: boolean, const: false }
+        - type: object
+          required: [connected, ssid, ip, gateway, netmask, dns1, dns2, rssi]
+          properties:
+            connected: { type: boolean, const: true }
+            ssid: { type: string }
+            ip: { type: string }
+            gateway: { type: string }
+            netmask: { type: string }
+            dns1: { type: string }
+            dns2: { type: string }
+            rssi: { type: integer }
+    OtaStatus:
+      type: object
+      required:
+        [phase, channel, localVersion, availableVersion, bytesDone, bytesTotal, error, generation]
+      properties:
+        phase:
+          type: string
+          enum: [idle, checking, available, downloading, verifying, rebooting, error]
+        channel:
+          type: string
+          enum: [stable, beta]
+        localVersion: { type: string }
+        availableVersion: { type: string }
+        bytesDone: { type: integer }
+        bytesTotal: { type: integer }
+        error: { type: string }
+        generation: { type: integer }
