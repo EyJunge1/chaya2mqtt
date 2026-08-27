@@ -296,16 +296,30 @@ paths:
               allOf:
                 - $ref: "#/components/schemas/CsrfForm"
                 - type: object
+                  required: [mqtt_server, mqtt_port]
                   properties:
-                    mqtt_server: { type: string, maxLength: 127 }
-                    mqtt_port: { type: integer }
-                    mqtt_user: { type: string, maxLength: 63 }
-                    mqtt_pass: { type: string, maxLength: 63 }
+                    mqtt_server:
+                      type: string
+                      maxLength: 127
+                      description: Broker hostname or IP (required)
+                    mqtt_port:
+                      type: integer
+                      description: MQTT port (required; typically 8883 for TLS)
+                    mqtt_user:
+                      type: string
+                      maxLength: 63
+                      description: MQTT username (optional; empty for anonymous)
+                    mqtt_pass:
+                      type: string
+                      maxLength: 63
+                      description: >
+                        MQTT password (optional). Omit or leave empty to keep the stored password.
                     partner_id:
                       type: string
                       maxLength: 6
                       description: >
-                        6 lowercase hex digits for the partner device, or empty to unpair.
+                        Optional pairing: 6 lowercase hex digits for the partner device,
+                        or empty to unpair.
                         Topics are derived automatically.
                       pattern: "^([0-9a-f]{6})?$"
       responses:

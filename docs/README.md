@@ -56,10 +56,10 @@ If `pio: command not found` appears, PlatformIO is located at `~/.platformio/pen
 2. If no WiFi configuration is stored, the ESP32-S3 opens the WPA2/WPA3 **`Chaya2MQTT`** access point with an individual 8-digit PIN. The E-Ink display shows the WIFI QR. On battery, press **PWR** to start (firmware must hold GPIO17 HIGH).
 3. Scan the WIFI QR on the display with your phone camera (or join `Chaya2MQTT` manually using its displayed PIN) and open the captive portal / browser (`http://chaya2mqtt.local` or `http://4.3.2.1`).
 4. Enter the **WiFi** SSID and password. After switching to STA mode, configure MQTT under **MQTT**:
-   - **MQTT server** (hostname or IP)
-   - **MQTT port** (default: **8883**)
-   - **MQTT username / password** (optional)
-   - **Partner ID** of the other device (6 hexadecimal characters)
+   - **MQTT server** (hostname or IP) — required
+   - **MQTT port** (default: **8883**) — required
+   - **MQTT username / password** (optional; leave empty for anonymous brokers)
+   - **Partner ID** of the other device (optional for broker connect; 6 hex characters, needed for pairing)
 5. In AP mode, the WiFi connection is **tested** before the credentials are saved.
 6. After a successful connection, the admin UI is available at **`http://chaya2mqtt-<deviceId>.local`**, for example `http://chaya2mqtt-a1b2c3.local`. The address and ID are shown on the dashboard.
 
