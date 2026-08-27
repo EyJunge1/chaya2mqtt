@@ -94,21 +94,24 @@
 
   async function check() {
     busy = true;
+    const previousStatus = status;
+    status = {
+      ...(status ?? emptyStatus()),
+      phase: "checking",
+      channel,
+      error: "",
+    };
     try {
       const res = await api.checkUpdate(channel);
       onToast(
         res.ok ? i18n.t("toast.update-checking") : i18n.t("toast.update-failed"),
         res.ok ? "info" : "error",
       );
-      if (res.ok) {
-        status = {
-          ...(status ?? emptyStatus()),
-          phase: "checking",
-          channel,
-          error: "",
-        };
+      if (!res.ok) {
+        status = previousStatus;
       }
     } catch {
+      status = previousStatus;
       onToast(i18n.t("toast.update-failed"), "error");
     } finally {
       busy = false;

@@ -3,19 +3,16 @@
 ENV ?= esp32s3
 PIO ?= $(HOME)/.platformio/penv/bin/pio
 
-.PHONY: help check build upload monitor dev clean flasher
+.PHONY: help check upload upload-erase monitor dev clean flasher
 
 help:
 	@echo "  make check    # run the full quality gate"
-	@echo "  make build    # build firmware (ENV=$(ENV))"
-	@echo "  make upload   # erase flash, then build and flash firmware"
+	@echo "  make upload       # build and flash debug; keep saved settings"
+	@echo "  make upload-erase # erase all settings, then build and flash debug"
 	@echo "  make monitor  # open the serial monitor"
 	@echo "  make dev      # start the web interface locally"
 	@echo "  make flasher  # build local web-flasher site (needs RELEASES_DIR)"
 	@echo "  make clean    # remove build artifacts"
-	@echo ""
-	@echo "Release build: make build ENV=esp32s3-release"
-
 check:
 	cd frontend && npm ci && npm run lint && npm run format:check && npm run test:coverage && npm run build
 	cd flasher && npm ci && npm run lint && npm run format:check && npm run check && npm run build
@@ -37,10 +34,10 @@ flasher:
 	cd flasher && npm ci && npm run build
 	python3 scripts/generate_flasher_site.py --releases-dir "$(RELEASES_DIR)"
 
-build:
-	"$(PIO)" run -e $(ENV)
-
 upload:
+	"$(PIO)" run -e $(ENV) -t upload
+
+upload-erase:
 	"$(PIO)" run -e $(ENV) -t erase
 	"$(PIO)" run -e $(ENV) -t upload
 

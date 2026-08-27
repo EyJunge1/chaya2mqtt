@@ -21,7 +21,7 @@ first if you want to test the actual flash dialog.
 
 1. Build a release firmware once so a factory image exists:
    ```bash
-   make build ENV=esp32s3-release
+   pio run -e esp32s3-release
    ```
 2. Stage local release folders:
    ```bash

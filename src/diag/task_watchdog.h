@@ -22,7 +22,11 @@ inline void chayaTaskWatchdogSubscribe(const char* logTag) {
 }
 
 inline void chayaTaskWatchdogReset() {
-    static_cast<void>(esp_task_wdt_reset());
+    // Blocking OTA work temporarily unsubscribes its task. Resetting while
+    // unsubscribed makes ESP-IDF emit "task not found" for every polling slice.
+    if (esp_task_wdt_status(nullptr) == ESP_OK) {
+        static_cast<void>(esp_task_wdt_reset());
+    }
 }
 
 inline void chayaTaskWatchdogUnsubscribe(const char* logTag) {

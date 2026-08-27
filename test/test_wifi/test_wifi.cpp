@@ -27,6 +27,19 @@ void test_setup_ap_pass_syntax_and_format() {
     TEST_ASSERT_FALSE(formatSetupApPassFromU32(1, pin, 8));
 }
 
+void test_wlan_boot_decision_keeps_configured_device_out_of_setup_ap() {
+    TEST_ASSERT_EQUAL_INT(static_cast<int>(WlanBootAction::StartSetupAp),
+                          static_cast<int>(wlanBootDecide(false, false, false)));
+    TEST_ASSERT_EQUAL_INT(static_cast<int>(WlanBootAction::WaitForSta),
+                          static_cast<int>(wlanBootDecide(true, false, false)));
+    TEST_ASSERT_EQUAL_INT(static_cast<int>(WlanBootAction::FinishSta),
+                          static_cast<int>(wlanBootDecide(true, true, false)));
+    TEST_ASSERT_EQUAL_INT(static_cast<int>(WlanBootAction::ContinueStaOnly),
+                          static_cast<int>(wlanBootDecide(true, false, true)));
+    TEST_ASSERT_EQUAL_INT(static_cast<int>(WlanBootAction::FinishSta),
+                          static_cast<int>(wlanBootDecide(true, true, true)));
+}
+
 void test_wifi_qr_payload() {
     char out[kWifiQrPayloadMaxLen]{};
     TEST_ASSERT_TRUE(wifiQrBuildWpaPayload("Chaya2MQTT", "12345678", out, sizeof(out)));
@@ -229,6 +242,7 @@ void test_wlan_unpack_invalid_static_falls_back_dhcp() {
 int main(int, char**) {
     UNITY_BEGIN();
     RUN_TEST(test_setup_ap_pass_syntax_and_format);
+    RUN_TEST(test_wlan_boot_decision_keeps_configured_device_out_of_setup_ap);
     RUN_TEST(test_wifi_qr_payload);
     RUN_TEST(test_wifi_ssid_syntax);
     RUN_TEST(test_ipv4_and_netmask_validation);

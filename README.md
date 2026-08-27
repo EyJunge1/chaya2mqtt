@@ -17,7 +17,8 @@ USB-C (data cable), and install. Prefer erase on a first or recovery flash.
 pio run -e esp32s3-release -t upload
 ```
 
-Or `make upload` (erases the whole flash, including saved settings).
+Use `make upload` to keep saved settings, or `make upload-erase` for a factory-style
+flash that erases them.
 
 After flash with no Wi-Fi credentials, the device opens SoftAP `Chaya2MQTT`. Scan
 the WIFI QR on the display and finish setup in the captive portal.

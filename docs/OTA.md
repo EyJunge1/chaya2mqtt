@@ -201,7 +201,7 @@ Local checks before commits: `make check`.
 1. Prefer the [web flasher](../flasher/README.md) or PlatformIO USB recovery — see [HARDWARE.md](HARDWARE.md)
 2. Connect USB-C on the 1.54G (hold **BOOT** only if the port does not enumerate)
 3. Optionally erase flash (`pio run -e esp32s3-release -t erase` or erase in the web installer)
-4. Flash the **factory** image (web flasher) or `make upload ENV=esp32s3-release`
+4. Flash the **factory** image (web flasher) or `make upload-erase`
 5. The WPA2/WPA3 `Chaya2MQTT` SoftAP appears; the display shows a WIFI QR for phone camera join
 
 There is **no** unauthenticated HTTP endpoint for core dumps.

@@ -1,6 +1,5 @@
 <script lang="ts">
   import {
-    Battery,
     BatteryFull,
     BatteryLow,
     BatteryMedium,
@@ -40,15 +39,13 @@
 
   const batteryPct = $derived(Math.max(0, Math.min(100, device.batteryPct)));
   const BatteryIcon = $derived(
-    batteryPct >= 75
+    batteryPct >= 80
       ? BatteryFull
-      : batteryPct >= 45
+      : batteryPct >= 40
         ? BatteryMedium
-        : batteryPct >= 25
-          ? BatteryWarning
-          : batteryPct >= 10
-            ? BatteryLow
-            : Battery,
+        : batteryPct >= 15
+          ? BatteryLow
+          : BatteryWarning,
   );
   // Green → orange → red (skip pure yellow).
   const batteryColor = $derived.by(() => {

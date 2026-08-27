@@ -157,6 +157,9 @@ bool isBusyPhase(OtaPhase p) {
 void runGithubCheck(bool manual) {
     loadChannelIfNeeded();
     const OtaChannel channel = s_channel.load(std::memory_order_acquire);
+    const unsigned long startedMs = millis();
+    ESP_LOGI(TAG, "%s update check started (channel=%s)",
+             manual ? "Manual" : "Automatic", channelName(channel));
 
     portENTER_CRITICAL(&s_otaMux);
     if (isBusyPhase(s_status.phase) && s_status.phase != OtaPhase::Checking) {
@@ -198,10 +201,11 @@ void runGithubCheck(bool manual) {
     portEXIT_CRITICAL(&s_otaMux);
 
     if (manual) {
-        ESP_LOGI(TAG, "Manual update check done (%s)",
+        ESP_LOGI(TAG, "Manual update check done (%s, %lu ms)",
                  gr == GithubCheckResult::ParsedUpgradeAvail
                      ? "available"
-                     : (gr == GithubCheckResult::ApiError ? "error" : "up_to_date"));
+                     : (gr == GithubCheckResult::ApiError ? "error" : "up_to_date"),
+                 millis() - startedMs);
     } else if (gr == GithubCheckResult::ApiError) {
         ESP_LOGE(TAG, "Update check failed");
     } else if (gr == GithubCheckResult::ParsedUpgradeAvail) {
@@ -391,6 +395,15 @@ size_t otaFormatStatusJson(char* buf, size_t bufLen) {
 
 void otaQueueGithubCheck() {
     loadChannelIfNeeded();
+    portENTER_CRITICAL(&s_otaMux);
+    s_havePendingRelease         = false;
+    s_pendingRelease             = OtaReleaseInfo{};
+    s_status.availableVersion[0] = '\0';
+    s_status.error[0]            = '\0';
+    s_status.bytesDone           = 0;
+    s_status.bytesTotal          = 0;
+    setPhaseLocked(OtaPhase::Checking);
+    portEXIT_CRITICAL(&s_otaMux);
     g_otaCheckRequested.store(true, std::memory_order_release);
     otaTaskWake();
 }
