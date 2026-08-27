@@ -1,0 +1,310 @@
+<script lang="ts">
+  import { untrack } from "svelte";
+  import { api } from "../api/client.ts";
+  import type { SettingsInfo } from "../api/types.ts";
+  import ConfirmDialog from "../components/ConfirmDialog.svelte";
+  import DangerButton from "../components/DangerButton.svelte";
+  import ErrorBlock from "../components/ErrorBlock.svelte";
+  import Field from "../components/Field.svelte";
+  import InfoTip from "../components/InfoTip.svelte";
+  import LoadingBlock from "../components/LoadingBlock.svelte";
+  import Panel from "../components/Panel.svelte";
+  import PrimaryButton from "../components/PrimaryButton.svelte";
+  import Switch from "../components/Switch.svelte";
+  import TextInput from "../components/TextInput.svelte";
+  import type { ShowToast } from "../components/toastStack.ts";
+  import { i18n } from "../i18n/i18n.svelte.ts";
+
+  let {
+    onToast,
+    onDeviceRefresh,
+  }: {
+    onToast: ShowToast;
+    onDeviceRefresh: () => Promise<void>;
+  } = $props();
+
+  let settings = $state<SettingsInfo | null>(null);
+  let busy = $state(false);
+  let quietHoursEnabled = $state(false);
+  let loadError = $state(false);
+  let confirmReboot = $state(false);
+  let confirmFactory = $state(false);
+
+  async function load() {
+    loadError = false;
+    settings = null;
+    try {
+      const s = await api.getSettings();
+      settings = s;
+      quietHoursEnabled = s.quietHourStart !== s.quietHourEnd;
+    } catch {
+      loadError = true;
+      onToast(i18n.t("toast.settings-load-failed"), "error");
+    }
+  }
+
+  $effect(() => {
+    untrack(() => {
+      void load();
+    });
+  });
+
+  async function save(e: SubmitEvent) {
+    e.preventDefault();
+    if (!settings) return;
+    busy = true;
+    try {
+      const res = await api.saveSettings({
+        reset_days: settings.resetDays,
+        led_enabled: settings.ledEnabled ? 1 : 0,
+        audio_muted: settings.audioMuted ? 1 : 0,
+        audio_volume: settings.audioVolume,
+        quiet_hour_start: settings.quietHourStart,
+        quiet_hour_end: quietHoursEnabled ? settings.quietHourEnd : settings.quietHourStart,
+        audio_custom: settings.audioCustom ? 1 : 0,
+        tx_hz: settings.txHz,
+        tx_ms: settings.txMs,
+        rx_hz: settings.rxHz,
+        rx_ms: settings.rxMs,
+      });
+      if (!res.ok) {
+        onToast(i18n.t("toast.save-failed"), "error");
+        return;
+      }
+      onToast(i18n.t("toast.saved"), "success");
+      await onDeviceRefresh();
+    } catch {
+      onToast(i18n.t("toast.save-failed"), "error");
+    } finally {
+      busy = false;
+    }
+  }
+
+  async function reboot() {
+    busy = true;
+    try {
+      const res = await api.reboot();
+      onToast(
+        res.ok ? i18n.t("toast.rebooting") : i18n.t("toast.reboot-failed"),
+        res.ok ? "info" : "error",
+      );
+      confirmReboot = false;
+    } catch {
+      onToast(i18n.t("toast.reboot-failed"), "error");
+    } finally {
+      busy = false;
+    }
+  }
+
+  async function factoryReset() {
+    busy = true;
+    try {
+      const res = await api.factoryReset();
+      onToast(
+        res.ok ? i18n.t("toast.reset-factory") : i18n.t("toast.reset-factory-failed"),
+        res.ok ? "info" : "error",
+      );
+      if (res.ok) confirmFactory = false;
+    } catch {
+      onToast(i18n.t("toast.reset-factory-failed"), "error");
+    } finally {
+      busy = false;
+    }
+  }
+
+  function hourToTimeValue(hour: number): string {
+    const h = Math.max(0, Math.min(23, Math.trunc(Number.isFinite(hour) ? hour : 0)));
+    return `${String(h).padStart(2, "0")}:00`;
+  }
+
+  function timeValueToHour(value: string): number {
+    const hour = Number.parseInt(value.slice(0, 2), 10);
+    if (!Number.isFinite(hour)) return 0;
+    return Math.max(0, Math.min(23, hour));
+  }
+</script>
+
+{#if loadError}
+  <ErrorBlock
+    title={i18n.t("settings.load-error-title")}
+    message={i18n.t("settings.load-error")}
+    retryLabel={i18n.t("common.retry")}
+    onRetry={() => void load()}
+  />
+{:else if !settings}
+  <LoadingBlock label={i18n.t("settings.loading")} />
+{:else}
+  <div class="space-y-4">
+    <Panel title={i18n.t("settings.general")}>
+      <form class="space-y-3" onsubmit={(e) => void save(e)}>
+        <Field label={i18n.t("settings.reset-days")} hint={i18n.t("settings.reset-hint")}>
+          <TextInput type="number" min={0} max={30} bind:value={settings.resetDays} />
+        </Field>
+        <PrimaryButton type="submit" loading={busy}>
+          {i18n.t("common.save")}
+        </PrimaryButton>
+      </form>
+    </Panel>
+
+    <Panel title={i18n.t("settings.led")}>
+      <form class="space-y-3" onsubmit={(e) => void save(e)}>
+        <Field label={i18n.t("settings.led-enabled")} hint={i18n.t("settings.led-enabled-hint")}>
+          <Switch
+            label={i18n.t("settings.led-enabled")}
+            checked={settings.ledEnabled}
+            disabled={busy}
+            onChange={(ledEnabled) => {
+              if (settings) settings = { ...settings, ledEnabled };
+            }}
+          />
+        </Field>
+        <PrimaryButton type="submit" loading={busy}>
+          {i18n.t("common.save")}
+        </PrimaryButton>
+      </form>
+    </Panel>
+
+    <Panel title={i18n.t("settings.sound")}>
+      <form class="space-y-3" onsubmit={(e) => void save(e)}>
+        <Field label={i18n.t("settings.audio-mute")} hint={i18n.t("settings.audio-mute-hint")}>
+          <Switch
+            label={i18n.t("settings.audio-mute")}
+            checked={settings.audioMuted}
+            disabled={busy}
+            onChange={(audioMuted) => {
+              if (settings) settings = { ...settings, audioMuted };
+            }}
+          />
+        </Field>
+        {#if !settings.audioMuted}
+          <Field
+            label={i18n.t("settings.audio-volume")}
+            hint={i18n.t("settings.audio-volume-hint")}
+          >
+            <TextInput type="number" min={0} max={100} bind:value={settings.audioVolume} />
+          </Field>
+          <Field label={i18n.t("settings.quiet")} hint={i18n.t("settings.quiet-hint")}>
+            <Switch
+              label={i18n.t("settings.quiet")}
+              checked={quietHoursEnabled}
+              disabled={busy}
+              onChange={(on) => {
+                quietHoursEnabled = on;
+                if (on && settings && settings.quietHourStart === settings.quietHourEnd) {
+                  settings = { ...settings, quietHourStart: 23, quietHourEnd: 8 };
+                }
+              }}
+            />
+          </Field>
+          {#if quietHoursEnabled}
+            <div class="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
+              <div class="rounded-xl border border-border bg-bg px-3 py-2">
+                <input
+                  type="time"
+                  step="3600"
+                  value={hourToTimeValue(settings.quietHourStart)}
+                  aria-label={i18n.t("settings.quiet-start")}
+                  class="w-full bg-transparent text-center text-text tabular-nums outline-none"
+                  oninput={(e) => {
+                    if (!settings) return;
+                    settings = {
+                      ...settings,
+                      quietHourStart: timeValueToHour(e.currentTarget.value),
+                    };
+                  }}
+                />
+              </div>
+              <span class="text-sm font-semibold text-muted" aria-hidden="true">–</span>
+              <div class="rounded-xl border border-border bg-bg px-3 py-2">
+                <input
+                  type="time"
+                  step="3600"
+                  value={hourToTimeValue(settings.quietHourEnd)}
+                  aria-label={i18n.t("settings.quiet-end")}
+                  class="w-full bg-transparent text-center text-text tabular-nums outline-none"
+                  oninput={(e) => {
+                    if (!settings) return;
+                    settings = {
+                      ...settings,
+                      quietHourEnd: timeValueToHour(e.currentTarget.value),
+                    };
+                  }}
+                />
+              </div>
+            </div>
+          {/if}
+          <Field
+            label={i18n.t("settings.sound-custom-enable")}
+            hint={i18n.t("settings.sound-custom-hint")}
+          >
+            <Switch
+              label={i18n.t("settings.sound-custom-enable")}
+              checked={settings.audioCustom}
+              disabled={busy}
+              onChange={(audioCustom) => {
+                if (settings) settings = { ...settings, audioCustom };
+              }}
+            />
+          </Field>
+          {#if settings.audioCustom}
+            <div class="grid gap-3 sm:grid-cols-2">
+              <Field label={i18n.t("settings.tone-tx-hz")} hint={i18n.t("settings.tone-hz-hint")}>
+                <TextInput type="number" min={40} max={2000} bind:value={settings.txHz} />
+              </Field>
+              <Field label={i18n.t("settings.tone-tx-ms")} hint={i18n.t("settings.tone-ms-hint")}>
+                <TextInput type="number" min={20} max={500} bind:value={settings.txMs} />
+              </Field>
+              <Field label={i18n.t("settings.tone-rx-hz")} hint={i18n.t("settings.tone-hz-hint")}>
+                <TextInput type="number" min={40} max={2000} bind:value={settings.rxHz} />
+              </Field>
+              <Field label={i18n.t("settings.tone-rx-ms")} hint={i18n.t("settings.tone-ms-hint")}>
+                <TextInput type="number" min={20} max={500} bind:value={settings.rxMs} />
+              </Field>
+            </div>
+          {/if}
+        {/if}
+        <PrimaryButton type="submit" loading={busy}>
+          {i18n.t("common.save")}
+        </PrimaryButton>
+      </form>
+    </Panel>
+
+    <Panel>
+      <div class="space-y-3">
+        <DangerButton disabled={busy} onclick={() => (confirmReboot = true)}>
+          {i18n.t("settings.reboot")}
+        </DangerButton>
+        <div class="flex flex-col gap-3 border-t border-border pt-3">
+          <h3 class="inline-flex items-center gap-1.5 text-base font-semibold text-text-bright">
+            {i18n.t("settings.factory-reset")}
+            <InfoTip text={i18n.t("settings.factory-reset-hint")} />
+          </h3>
+          <DangerButton disabled={busy} onclick={() => (confirmFactory = true)}>
+            {i18n.t("settings.factory-reset-confirm")}
+          </DangerButton>
+        </div>
+      </div>
+    </Panel>
+
+    <ConfirmDialog
+      open={confirmReboot}
+      title={i18n.t("settings.reboot-title")}
+      description={i18n.t("settings.reboot-text")}
+      confirmLabel={i18n.t("settings.reboot-confirm")}
+      cancelLabel={i18n.t("common.cancel")}
+      confirming={busy}
+      onConfirm={() => void reboot()}
+      onCancel={() => (confirmReboot = false)}
+    />
+    <ConfirmDialog
+      open={confirmFactory}
+      title={i18n.t("settings.factory-reset-title")}
+      description={i18n.t("settings.factory-reset-text")}
+      confirmLabel={i18n.t("settings.factory-reset-confirm")}
+      cancelLabel={i18n.t("common.cancel")}
+      confirming={busy}
+      onConfirm={() => void factoryReset()}
+      onCancel={() => (confirmFactory = false)}
+    />
+  </div>
+{/if}

@@ -1,0 +1,233 @@
+import { ESPLoader, Transport } from "esptool-js";
+import type { FlashManifest, FlashProgress } from "./types";
+
+const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+
+async function hardReset(transport: Transport, esploader: ESPLoader): Promise<void> {
+  await transport.setRTS(true);
+  await sleep(100);
+  await esploader.after();
+}
+
+async function loadManifest(manifestPath: string): Promise<FlashManifest> {
+  const url = new URL(manifestPath, window.location.href).href;
+  const response = await fetch(url, { cache: "no-store" });
+  if (!response.ok) {
+    throw new Error(`HTTP ${response.status}`);
+  }
+  return (await response.json()) as FlashManifest;
+}
+
+async function fetchPart(url: string): Promise<Uint8Array> {
+  const response = await fetch(url);
+  if (!response.ok) {
+    throw new Error(`Downloading firmware failed: ${response.status}`);
+  }
+  return new Uint8Array(await response.arrayBuffer());
+}
+
+/**
+ * Flash a factory image from an ESP Web Tools-compatible manifest over Web Serial.
+ */
+export async function flashFirmware(options: {
+  port: SerialPort;
+  manifestPath: string;
+  eraseFirst: boolean;
+  onProgress: (progress: FlashProgress) => void;
+}): Promise<void> {
+  const { port, manifestPath, eraseFirst, onProgress } = options;
+  const emit = (progress: FlashProgress) => onProgress(progress);
+
+  const manifest = await loadManifest(manifestPath);
+  const transport = new Transport(port);
+  const esploader = new ESPLoader({
+    transport,
+    baudrate: 115200,
+    enableTracing: false,
+  });
+
+  let chipFamily = "Unknown";
+
+  const fail = async (message: string) => {
+    emit({ phase: "error", message, percentage: null, chipFamily });
+    try {
+      await hardReset(transport, esploader);
+    } catch {
+      // Best-effort reset after failure.
+    }
+    try {
+      await transport.disconnect();
+    } catch {
+      // Port may already be closed.
+    }
+  };
+
+  emit({
+    phase: "initializing",
+    message: "initializing",
+    percentage: null,
+  });
+
+  try {
+    await esploader.main();
+    await esploader.flashId();
+  } catch (err) {
+    console.error(err);
+    await fail("init_failed");
+    return;
+  }
+
+  chipFamily = esploader.chip.CHIP_NAME;
+  emit({
+    phase: "initializing",
+    message: "initialized",
+    percentage: null,
+    chipFamily,
+  });
+
+  const portInfo = port.getInfo();
+  const isCdcUsbPort =
+    portInfo.usbVendorId === 0x303a &&
+    portInfo.usbProductId !== undefined &&
+    [0x1001, 0x1002, 0x1003, 0x0002, 0x0003].includes(portInfo.usbProductId);
+  const detectedSerialType = isCdcUsbPort ? "cdc" : "uart";
+
+  const build =
+    manifest.builds.find(
+      (candidate) =>
+        candidate.chipFamily === chipFamily && candidate.serialType === detectedSerialType,
+    ) ??
+    manifest.builds.find(
+      (candidate) => candidate.chipFamily === chipFamily && candidate.serialType === undefined,
+    );
+
+  if (!build) {
+    await fail("unsupported_chip");
+    return;
+  }
+
+  emit({
+    phase: "preparing",
+    message: "preparing",
+    percentage: null,
+    chipFamily,
+  });
+
+  const manifestUrl = new URL(manifestPath, window.location.href);
+  const fileArray: Array<{ data: Uint8Array; address: number }> = [];
+  let totalSize = 0;
+
+  try {
+    for (const part of build.parts) {
+      const partUrl = new URL(part.path, manifestUrl).href;
+      const data = await fetchPart(partUrl);
+      fileArray.push({ data, address: part.offset });
+      totalSize += data.length;
+    }
+  } catch (err) {
+    console.error(err);
+    await fail("download_failed");
+    return;
+  }
+
+  emit({
+    phase: "preparing",
+    message: "prepared",
+    percentage: null,
+    chipFamily,
+  });
+
+  if (eraseFirst) {
+    emit({
+      phase: "erasing",
+      message: "erasing",
+      percentage: null,
+      chipFamily,
+    });
+    try {
+      await esploader.eraseFlash();
+    } catch (err) {
+      console.error(err);
+      await fail("erase_failed");
+      return;
+    }
+    emit({
+      phase: "erasing",
+      message: "erased",
+      percentage: null,
+      chipFamily,
+    });
+  }
+
+  emit({
+    phase: "writing",
+    message: "writing",
+    percentage: 0,
+    chipFamily,
+  });
+
+  let totalWritten = 0;
+  try {
+    await esploader.writeFlash({
+      fileArray,
+      flashSize: "keep",
+      flashMode: "keep",
+      flashFreq: "keep",
+      eraseAll: false,
+      compress: true,
+      reportProgress: (fileIndex, written, total) => {
+        const uncompressedWritten = (written / total) * fileArray[fileIndex].data.length;
+        const percentage = Math.min(
+          100,
+          Math.floor(((totalWritten + uncompressedWritten) / totalSize) * 100),
+        );
+        if (written === total) {
+          totalWritten += uncompressedWritten;
+          return;
+        }
+        emit({
+          phase: "writing",
+          message: "writing",
+          percentage,
+          chipFamily,
+        });
+      },
+    });
+  } catch (err) {
+    console.error(err);
+    await fail("write_failed");
+    return;
+  }
+
+  emit({
+    phase: "writing",
+    message: "written",
+    percentage: 100,
+    chipFamily,
+  });
+
+  try {
+    await hardReset(transport, esploader);
+    await transport.disconnect();
+  } catch (err) {
+    console.error(err);
+  }
+
+  emit({
+    phase: "finished",
+    message: "finished",
+    percentage: 100,
+    chipFamily,
+  });
+}
+
+export async function closeSerialPort(port: SerialPort | null | undefined): Promise<void> {
+  if (!port) return;
+  try {
+    if (port.readable || port.writable) {
+      await port.close();
+    }
+  } catch {
+    // Already closed by esptool transport.
+  }
+}

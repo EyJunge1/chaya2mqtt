@@ -1,0 +1,127 @@
+# =====================================================
+# Ruff — Linting, Formatting, Readability, Security
+# =====================================================
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+fix = true
+show-fixes = true
+respect-gitignore = true
+
+
+# -----------------------------------------------------
+# Ruff Lint Rules
+# -----------------------------------------------------
+[tool.ruff.lint]
+select = [
+  # -------------------------------------------------
+  # Core correctness & imports
+  # -------------------------------------------------
+  "E",        # pycodestyle errors
+  "F",        # pyflakes
+  "I",        # import sorting
+
+  # -------------------------------------------------
+  # Bugs & logic correctness
+  # -------------------------------------------------
+  "B",        # bugbear
+  "RET",      # return correctness
+  "TRY",      # bad try/except
+  "SIM",      # simplifications
+  "C4",       # comprehensions
+  "UP",       # pyupgrade
+  "RUF",      # ruff-specific
+
+  # -------------------------------------------------
+  # Readability & maintainability
+  # -------------------------------------------------
+  "PLC",      # pylint conventions
+  "PLE",      # pylint errors
+  "PLW",      # pylint warnings
+  "PERF",     # performance anti-patterns
+
+  # -------------------------------------------------
+  # Documentation & logging
+  # -------------------------------------------------
+  "G",        # logging mistakes
+  "LOG",      # logging best practices
+  "D",        # pydocstyle (docstrings)
+
+  # -------------------------------------------------
+  # Async, typing & hygiene
+  # -------------------------------------------------
+  "ASYNC",    # async correctness
+  "TC",       # type-checking imports
+  "ARG",      # unused arguments
+  "ERA",      # commented-out code
+
+  # -------------------------------------------------
+  # Security
+  # -------------------------------------------------
+  "S",        # bandit security rules
+
+  # -------------------------------------------------
+  # Extra quality & modernization
+  # -------------------------------------------------
+  "DTZ",      # datetime timezone awareness
+  "PIE",      # misc. lints (unnecessary pass, etc.)
+  "RSE",      # unnecessary parens on raise
+  "FLY",      # f-string over join
+  "FURB",     # refurb — modern Python patterns
+
+  # -------------------------------------------------
+  # Naming, imports & hygiene
+  # -------------------------------------------------
+  "A",        # no shadowing of builtins (id, type, list, …)
+  "N",        # pep8 naming conventions
+  "ISC",      # implicit string concatenation
+  "FA",       # future annotations
+  "TID",      # tidy imports
+  "PGH",      # no blanket noqa / type: ignore
+  "SLF",      # no private member access from outside
+
+  # -------------------------------------------------
+  # Debug & print protection
+  # -------------------------------------------------
+  "T10",      # no leftover debugger statements
+  "BLE",      # no blind except
+
+  # -------------------------------------------------
+  # Class structure & code hygiene
+  # -------------------------------------------------
+  "SLOT",     # suggest __slots__ for classes
+  "FIX",      # warn on TODO/FIXME/HACK/XXX comments
+  "TD",       # enforce TODO format (author, issue link)
+]
+
+# -----------------------------------------------------
+# Docstring convention
+# -----------------------------------------------------
+[tool.ruff.lint.pydocstyle]
+convention = "pep257"
+
+
+# -----------------------------------------------------
+# Ruff Formatter
+# -----------------------------------------------------
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+line-ending = "lf"
+skip-magic-trailing-comma = false
+docstring-code-format = true
+
+
+# =====================================================
+# Pyright — Type Checking
+# =====================================================
+[tool.pyright]
+include = ["scripts"]
+pythonVersion = "3.12"
+typeCheckingMode = "standard"
+exclude = [
+  "**/__pycache__",
+  "**/.*",
+]
+reportUnnecessaryTypeIgnoreComment = true
+reportMissingTypeStubs = false

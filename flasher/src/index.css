@@ -1,0 +1,100 @@
+@import "tailwindcss";
+
+@theme {
+  --color-bg: var(--ui-bg);
+  --color-surface: var(--ui-surface);
+  --color-surface-hover: var(--ui-surface-hover);
+  --color-border: var(--ui-border);
+  --color-text: var(--ui-text);
+  --color-text-bright: var(--ui-text-bright);
+  --color-accent: var(--ui-accent);
+  --color-danger: var(--ui-danger);
+  --color-warning: var(--ui-warning);
+  --color-status-ok: var(--ui-status-ok);
+  --color-muted: var(--ui-muted);
+  --color-ring: var(--ui-ring);
+  --shadow-elevated: 0 12px 40px rgb(0 0 0 / 0.35);
+  --shadow-dialog: 0 20px 60px rgb(0 0 0 / 0.45);
+}
+
+[data-theme="light"] {
+  color-scheme: light;
+  --ui-bg: #faf6f8;
+  --ui-surface: #ffffff;
+  --ui-surface-hover: #f4e8ef;
+  --ui-border: #e5d0db;
+  --ui-text: #4a3040;
+  --ui-text-bright: #1a0f16;
+  --ui-accent: #e85a9b;
+  --ui-danger: #d32f2f;
+  --ui-warning: #c79100;
+  --ui-status-ok: #059669;
+  --ui-muted: #8a6a7a;
+  --ui-ring: #e85a9b;
+}
+
+[data-theme="dark"] {
+  color-scheme: dark;
+  --ui-bg: #0a0a0a;
+  --ui-surface: #141414;
+  --ui-surface-hover: #1a1a1a;
+  --ui-border: #2a2a2a;
+  --ui-text: #fbe0ef;
+  --ui-text-bright: #ffffff;
+  --ui-accent: #ef7ab4;
+  --ui-danger: #f44336;
+  --ui-warning: #f0b429;
+  --ui-status-ok: #34d399;
+  --ui-muted: #b08a9e;
+  --ui-ring: #ef7ab4;
+}
+
+@utility focus-ring {
+  @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-bg;
+}
+
+html {
+  -webkit-tap-highlight-color: transparent;
+  height: 100%;
+  overscroll-behavior: none;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  height: 100%;
+  overflow: hidden;
+  overscroll-behavior: none;
+  background: var(--ui-bg);
+  color: var(--ui-text);
+  font-family:
+    system-ui,
+    -apple-system,
+    Segoe UI,
+    Roboto,
+    sans-serif;
+  text-rendering: optimizeLegibility;
+}
+
+button,
+input {
+  font: inherit;
+}
+
+a {
+  color: inherit;
+}
+
+#root {
+  height: 100%;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+  }
+}
