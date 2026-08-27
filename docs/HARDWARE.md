@@ -187,7 +187,7 @@ The flasher writes `firmware.factory.bin` (bootloader + partitions + app). OTA o
 ### PlatformIO
 
 1. Connect USB-C (hold **BOOT** only if the port will not enumerate)
-2. Flash: `make upload ENV=esp32s3-release` (automatically erases the complete flash first)
+2. Flash: `make upload-erase` (erases the complete flash first)
 3. Without Wi-Fi credentials the `Chaya2MQTT` SoftAP returns; the display shows a WIFI QR for phone camera join
 
 On battery, press **PWR** to start; firmware must keep GPIO17 HIGH.

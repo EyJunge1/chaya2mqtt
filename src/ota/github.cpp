@@ -94,6 +94,8 @@ bool httpGetGithubJson(const char* url, size_t* outLen, bool allowTruncated = fa
         ESP_LOGE(TAG, "GitHub API: CA bundle install failed");
         return false;
     }
+    const unsigned long requestStartedMs = millis();
+    ESP_LOGI(TAG, "GitHub API request started");
 
     WiFiClientSecure tls;
     tls.setCACertBundle(x509_crt_bundle_start,
@@ -135,6 +137,7 @@ bool httpGetGithubJson(const char* url, size_t* outLen, bool allowTruncated = fa
     constexpr unsigned long kGithubStreamDeadlineMs = 45000UL;
 
     while (https.connected() && len + 1 < kGithubJsonBuf
+           && (contentLen <= 0 || len < static_cast<size_t>(contentLen))
            && (millis() - streamStartMs) < kGithubStreamDeadlineMs) {
         chayaTaskWatchdogReset();
         if (stream.available() <= 0) {
@@ -166,6 +169,8 @@ bool httpGetGithubJson(const char* url, size_t* outLen, bool allowTruncated = fa
                  static_cast<unsigned>(len), contentLen);
         return false;
     }
+    ESP_LOGI(TAG, "GitHub API response received (%u bytes, %lu ms)",
+             static_cast<unsigned>(len), millis() - requestStartedMs);
     return len > 0U;
 }
 

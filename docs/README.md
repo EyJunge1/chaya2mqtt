@@ -40,12 +40,12 @@ pio run -t upload                 # Flash (default: esp32s3-release)
 pio device monitor                # Serial monitor (115200 baud)
 ```
 
-Alternatively, use the Makefile (`ENV` defaults to **`esp32s3`** debug — unlike bare `pio run`):
+Alternatively, use the Makefile (upload targets default to debug):
 
 ```bash
-make build                         # Build debug (ENV=esp32s3)
-make upload ENV=esp32s3-release   # Erase, build, and flash release
-make monitor                       # Serial monitor
+make upload                   # Build and flash debug; keep saved settings
+make upload-erase             # Erase settings, build, and flash debug
+make monitor                  # Serial monitor
 ```
 
 If `pio: command not found` appears, PlatformIO is located at `~/.platformio/penv/bin/pio`. Either set `export PATH="$HOME/.platformio/penv/bin:$PATH"` or use `make`.

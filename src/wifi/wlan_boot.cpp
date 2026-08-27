@@ -299,7 +299,9 @@ void wlanBootConnectServiceLoop() {
     wlanWifiApiLock();
     const bool connected = (WiFi.status() == WL_CONNECTED && WiFi.localIP()[0] != 0);
     wlanWifiApiUnlock();
-    if (connected) {
+    const bool timedOut = millis() - s_bootStaConnectStartMs >= kWifiStaBootConnectTimeoutMs;
+    switch (wlanBootDecide(true, connected, timedOut)) {
+    case WlanBootAction::FinishSta: {
         s_bootStaConnectPending.store(false, std::memory_order_release);
         bool expectedFinish = false;
         if (s_bootStaFinishDone.compare_exchange_strong(expectedFinish, true,
@@ -310,11 +312,19 @@ void wlanBootConnectServiceLoop() {
         wlanNoteBootSettledNow();
         return;
     }
-    if (millis() - s_bootStaConnectStartMs >= kWifiStaBootConnectTimeoutMs) {
+    case WlanBootAction::ContinueStaOnly:
         s_bootStaConnectPending.store(false, std::memory_order_release);
-        setupWifiStartApFallback(s_bootAttemptSsid);
+        ESP_LOGW(TAG,
+                 "WLAN STA boot timeout for '%s' — setup AP remains disabled; continuing recovery",
+                 s_bootAttemptSsid);
         s_bootWifiSettled.store(true, std::memory_order_release);
         wlanNoteBootSettledNow();
+        return;
+    case WlanBootAction::WaitForSta:
+        return;
+    case WlanBootAction::StartSetupAp:
+        // This loop is only armed after loading stored STA credentials.
+        return;
     }
 }
 
@@ -335,7 +345,8 @@ void setupWiFi() {
 
     WiFi.onEvent(wifiStationEvent);
 
-    if (haveCfg && cfg.ssid[0] != '\0') {
+    const bool hasStaCredentials = haveCfg && cfg.ssid[0] != '\0';
+    if (wlanBootDecide(hasStaCredentials, false, false) != WlanBootAction::StartSetupAp) {
         setupWifiBeginStaConnectAsync(cfg);
     } else {
         setupWifiStartApFallback("");

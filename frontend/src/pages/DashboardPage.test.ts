@@ -44,6 +44,24 @@ afterEach(() => {
 });
 
 describe("DashboardPage", () => {
+  it.each([
+    [100, "battery-full"],
+    [80, "battery-full"],
+    [79, "battery-medium"],
+    [40, "battery-medium"],
+    [39, "battery-low"],
+    [15, "battery-low"],
+    [14, "battery-warning"],
+    [0, "battery-warning"],
+  ])("shows the correct battery icon at %i%%", (batteryPct, iconName) => {
+    setLanguage("en");
+    const { container } = render(DashboardPage, {
+      props: { device: { ...device, batteryPct }, chaya, wifi, onToast: vi.fn() },
+    });
+
+    expect(container.querySelector(`.lucide-${iconName}`)).toBeInTheDocument();
+  });
+
   it("shows Wi-Fi setup in AP mode without the display-scan card", async () => {
     setLanguage("en");
     scanWifi.mockResolvedValue([]);
