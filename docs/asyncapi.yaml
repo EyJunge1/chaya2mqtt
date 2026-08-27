@@ -18,6 +18,13 @@ servers:
         description: Six-character lowercase device ID derived from the STA MAC address
     security:
       - $ref: "#/components/securitySchemes/lanHostAllowlist"
+  setup:
+    host: 4.3.2.1
+    pathname: /events
+    protocol: http
+    description: Setup-AP address (EventSource uses http://4.3.2.1/events)
+    security:
+      - $ref: "#/components/securitySchemes/lanHostAllowlist"
 channels:
   events:
     address: /events
@@ -118,9 +125,15 @@ components:
       type: object
       required: [rx, tx, connected, configured]
       properties:
-        rx: { type: integer }
-        tx: { type: integer }
-        connected: { type: boolean }
+        rx:
+          type: integer
+          description: Uncapped received-heart display delta (absolute counter minus saved baseline)
+        tx:
+          type: integer
+          description: Uncapped sent-heart display delta (absolute counter minus saved baseline)
+        connected:
+          type: boolean
+          description: Whether the MQTT client is currently connected
         configured:
           type: boolean
           description: Whether an MQTT broker is configured

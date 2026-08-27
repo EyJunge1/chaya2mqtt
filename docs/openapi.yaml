@@ -6,6 +6,8 @@ info:
     HTTP JSON API served by the device firmware (ESPAsyncWebServer on port 80).
     Mutations use `application/x-www-form-urlencoded` and require `csrf_token`.
     There is no login; access is limited by Host/Origin allowlists on the LAN.
+    Routes restricted to STA or setup-AP mode return HTTP 400 with `ap_mode` or
+    `not_ap`. Temporarily blocked operations return HTTP 503 with `busy` or `shutdown`.
   license:
     name: GNU General Public License v3.0 only
     identifier: GPL-3.0-only
@@ -86,6 +88,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ChayaStatus"
+        "400":
+          $ref: "#/components/responses/ApiError"
         "403":
           $ref: "#/components/responses/Forbidden"
   /api/chaya/send:
@@ -106,6 +110,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiOk"
+        "400":
+          $ref: "#/components/responses/ApiError"
         "403":
           $ref: "#/components/responses/Forbidden"
         "503":
@@ -211,6 +217,8 @@ paths:
                     enum: [idle, testing, ok, fail]
                   ssid:
                     type: string
+        "400":
+          $ref: "#/components/responses/ApiError"
         "403":
           $ref: "#/components/responses/Forbidden"
   /api/wifi/connect-commit:
@@ -231,6 +239,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiOk"
+        "400":
+          $ref: "#/components/responses/ApiError"
         "403":
           $ref: "#/components/responses/Forbidden"
   /api/wifi/connect-abort:
@@ -251,6 +261,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiOk"
+        "400":
+          $ref: "#/components/responses/ApiError"
         "403":
           $ref: "#/components/responses/Forbidden"
   /api/mqtt/status:
@@ -268,6 +280,8 @@ paths:
                 required: [connected]
                 properties:
                   connected: { type: boolean }
+        "400":
+          $ref: "#/components/responses/ApiError"
         "403":
           $ref: "#/components/responses/Forbidden"
   /api/mqtt:
@@ -282,8 +296,12 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/MqttConfigView"
+        "400":
+          $ref: "#/components/responses/ApiError"
         "403":
           $ref: "#/components/responses/Forbidden"
+        "503":
+          $ref: "#/components/responses/ApiError"
     post:
       tags: [mqtt]
       summary: Save MQTT broker and partner ID (topics are derived)
@@ -296,15 +314,14 @@ paths:
               allOf:
                 - $ref: "#/components/schemas/CsrfForm"
                 - type: object
-                  required: [mqtt_server, mqtt_port]
                   properties:
                     mqtt_server:
                       type: string
                       maxLength: 127
-                      description: Broker hostname or IP (required)
+                      description: Broker hostname or IP; omitted fields keep their current value
                     mqtt_port:
                       type: integer
-                      description: MQTT port (required; typically 8883 for TLS)
+                      description: MQTT port (typically 8883 for TLS); omitted fields keep their current value
                     mqtt_user:
                       type: string
                       maxLength: 63
@@ -333,6 +350,8 @@ paths:
           $ref: "#/components/responses/ApiError"
         "403":
           $ref: "#/components/responses/Forbidden"
+        "503":
+          $ref: "#/components/responses/ApiError"
   /api/settings:
     get:
       tags: [settings]
@@ -345,6 +364,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/SettingsInfo"
+        "400":
+          $ref: "#/components/responses/ApiError"
         "403":
           $ref: "#/components/responses/Forbidden"
     post:
@@ -394,6 +415,8 @@ paths:
           $ref: "#/components/responses/ApiError"
         "403":
           $ref: "#/components/responses/Forbidden"
+        "503":
+          $ref: "#/components/responses/ApiError"
   /api/reboot:
     post:
       tags: [settings]
@@ -412,8 +435,12 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiOk"
+        "400":
+          $ref: "#/components/responses/ApiError"
         "403":
           $ref: "#/components/responses/Forbidden"
+        "503":
+          $ref: "#/components/responses/ApiError"
   /api/factory-reset:
     post:
       tags: [reset]
@@ -432,8 +459,12 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiOk"
+        "400":
+          $ref: "#/components/responses/ApiError"
         "403":
           $ref: "#/components/responses/Forbidden"
+        "503":
+          $ref: "#/components/responses/ApiError"
   /api/update/status:
     get:
       tags: [update]
@@ -446,6 +477,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/OtaStatus"
+        "400":
+          $ref: "#/components/responses/ApiError"
         "403":
           $ref: "#/components/responses/Forbidden"
   /api/update/check:
@@ -472,6 +505,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiOk"
+        "400":
+          $ref: "#/components/responses/ApiError"
         "403":
           $ref: "#/components/responses/Forbidden"
         "503":
@@ -494,6 +529,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiOk"
+        "400":
+          $ref: "#/components/responses/ApiError"
         "403":
           $ref: "#/components/responses/Forbidden"
         "409":
@@ -559,9 +596,15 @@ components:
       type: object
       required: [rx, tx, connected, configured]
       properties:
-        rx: { type: integer }
-        tx: { type: integer }
-        connected: { type: boolean }
+        rx:
+          type: integer
+          description: Uncapped received-heart display delta (absolute counter minus saved baseline)
+        tx:
+          type: integer
+          description: Uncapped sent-heart display delta (absolute counter minus saved baseline)
+        connected:
+          type: boolean
+          description: Whether the MQTT client is currently connected
         configured:
           type: boolean
           description: Whether an MQTT broker is configured

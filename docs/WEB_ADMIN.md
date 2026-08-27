@@ -65,7 +65,7 @@ Mutations expect `application/x-www-form-urlencoded`, including `csrf_token`.
 |-------|--------|------------|-------------|
 | `/api/csrf` | GET | Host | `{token}` |
 | `/api/device` | GET | Host | Mode, version, device ID, `batteryMv` / `batteryPct`; also `apSsid` / `apIp` in AP mode |
-| `/api/chaya` | GET | Host + STA | `{rx,tx,connected}` |
+| `/api/chaya` | GET | Host + STA | Display deltas `{rx,tx}` plus MQTT `{connected,configured}` |
 | `/api/chaya/send` | POST | CSRF + STA | Send heart (queued) |
 | `/api/wifi/status` | GET | Host | Link status including current IP/gateway/netmask/DNS |
 | `/api/wifi/config` | GET | Host | Stored WiFi configuration (without password) |
@@ -82,6 +82,17 @@ Mutations expect `application/x-www-form-urlencoded`, including `csrf_token`.
 | `/api/update/status` | GET | Host + STA | OTA status (phase, channel, versions, progress) |
 | `/api/update/check` | POST | CSRF + STA | GitHub OTA check (`channel=stable\|beta` optional) |
 | `/api/update/install` | POST | CSRF + STA | Start confirmed installation |
+
+`rx` and `tx` are the current display deltas (absolute counter minus its saved
+baseline), not the absolute MQTT counters. The web API returns the uncapped deltas;
+the E-Ink renderer formats its compact counter display separately. `connected`
+reports the live MQTT connection, while `configured` reports whether a broker has
+been configured.
+
+STA-only routes return `400 {"ok":false,"error":"ap_mode"}` in setup-AP mode.
+The AP-only connect-status route returns `400 {"ok":false,"error":"not_ap"}` in
+STA mode. Operations that cannot safely proceed during another update, shutdown,
+or configuration snapshot may return `503` with `busy` or `shutdown`.
 
 Machine-readable contracts:
 

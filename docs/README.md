@@ -1,8 +1,12 @@
-# Chaya2MQTT – E-Ink Heart with MQTT
+# Chaya2MQTT – send a little heart
 
-Two ESP32-S3 devices, each with a **4-color e-paper display**, show a **red heart** with **counters**. When the button on **device A** is pressed, it publishes the next sent counter as a **retained MQTT message** to its **publish topic**; **device B** receives it on its **subscribe topic**, sets its counter to the received value, and updates the display. The same applies in reverse—each device has separate publish and subscribe topics, so that only the counter on the **other** device changes.
+Chaya2MQTT turns two small ESP32-S3 e-paper displays into a private connection:
+press the button on yours and a red heart appears on the other. It could be across
+the room or across the world—as long as both hearts can reach the same MQTT broker.
 
-Thanks to **retained messages**, a device automatically retrieves the current counter after an offline period as soon as it reconnects.
+Each display remembers how many hearts were sent and received. If one heart goes
+offline for a while, it catches up automatically when it reconnects. The technical
+details live below; the idea is simply a quiet little *thinking of you*. ❤️
 
 ## Features
 
@@ -30,7 +34,9 @@ Tests and quality gates: [TESTING.md](TESTING.md)
 
 ## Quick start
 
-**Browser:** Preview the USB web flasher locally via [flasher/README.md](../flasher/README.md) (Chrome / Edge or another Chromium browser + USB-C). GitHub Pages hosting for that installer comes later.
+**Browser:** Open the hosted [web flasher](https://eyjunge1.github.io/chaya2mqtt/)
+in Chrome, Edge, or another Chromium browser and connect the device over USB-C.
+For local flasher development, see [flasher/README.md](../flasher/README.md).
 
 ```bash
 # In the project directory
