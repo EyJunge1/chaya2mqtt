@@ -39,7 +39,6 @@
   let busy = $state(false);
 
   const batteryPct = $derived(Math.max(0, Math.min(100, device.batteryPct)));
-  const deviceAddress = $derived(`${device.hostname}.local`);
   const BatteryIcon = $derived(
     batteryPct >= 75
       ? BatteryFull
@@ -119,13 +118,6 @@
           <BatteryIcon size={18} aria-hidden="true" />
         </span>
         {batteryPct}%
-      </Badge>
-      <Badge
-        tone="muted"
-        aria-label={`${i18n.t("dashboard.device")}: ${deviceAddress}, ID ${device.deviceId}`}
-        title={`${i18n.t("dashboard.device")}: ${deviceAddress}, ID ${device.deviceId}`}
-      >
-        {deviceAddress} · {device.deviceId}
       </Badge>
     </div>
 

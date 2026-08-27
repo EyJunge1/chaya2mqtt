@@ -95,7 +95,8 @@ describe("DashboardPage", () => {
     expect(screen.getByText("1")).toBeInTheDocument();
     expect(screen.getByLabelText(/Battery: 55%/i)).toBeInTheDocument();
     expect(screen.getByText(/55%/)).toBeInTheDocument();
-    expect(screen.getByText("chaya2mqtt-a1b2c3.local · a1b2c3")).toBeInTheDocument();
+    expect(screen.queryByText(/chaya2mqtt-a1b2c3\.local/)).not.toBeInTheDocument();
+    expect(screen.queryByText("a1b2c3")).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Send heart/i })).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: /Send heart/i }));
