@@ -1,6 +1,6 @@
 # Display
 
-The E-Ink display shows a **red heart** with **RX and TX counters** (delta display), plus yellow accents for a fresh receive and a low battery. All drawing takes place exclusively in the **display task**—other tasks send commands via `g_displayCmdQueue`. The user LED pulses for the duration of a heart/splash refresh.
+The E-Ink display shows a **Lucide heart** with **RX and TX counters** (delta display), Lucide **arrow** glyphs, and a Lucide **battery** icon (same thresholds as the web dashboard). All drawing takes place exclusively in the **display task**—other tasks send commands via `g_displayCmdQueue`. The user LED pulses for the duration of a heart/splash refresh.
 
 ## Display task
 
@@ -16,18 +16,13 @@ The E-Ink display shows a **red heart** with **RX and TX counters** (delta displ
 
 | Command | Function | Trigger |
 |---------|----------|---------|
-| `DrawHeart` | `drawHeartWithNumber()` | MQTT reception, publish, setup, counter reset |
+| `DrawHeart` | `drawHeartWithNumber(icon)` | MQTT reception, publish, setup, counter reset, link-status icon change |
 | `DrawSplash` | `drawSplashScreen()` | SoftAP setup: full-screen WIFI QR (`T:WPA`) for phone camera join |
-| `DrawPowerOff` | `drawPowerOffScreen()` | Controlled shutdown: centered red `Chaya2MQTT` title |
+| `DrawPowerOff` | `drawPowerOffScreen()` | Controlled shutdown: centered red Lucide `heart-off` |
 
-The last successfully painted view is cached in `cfg/disp_view`: unknown, heart, setup QR, or
-the centered product title. Boot/setup requests are skipped when that exact view is already on
-the bistable panel. Setup QR and product title are distinct views. Normal RX/TX heart redraws
-remain content-driven and are never suppressed solely because the heart view is active.
+The last successfully painted view is cached in `cfg/disp_view`: unknown, filled heart, setup QR, product title, cracked heart, or power-off. Boot/setup requests are skipped when that exact view is already on the bistable panel. Setup QR, product title, filled heart, cracked heart, and power-off are distinct views. Normal RX/TX heart redraws remain content-driven (counters **or** heart icon) and are never suppressed solely because a heart-family view is active.
 
-On controlled shutdown, the product title is still painted after a heart or setup QR. If the
-product title is already visible, the refresh is skipped and shutdown continues immediately.
-The NVS value is written only after a completed refresh and only when the view changes.
+On controlled shutdown, the power-off glyph is still painted after a heart or setup QR. If the power-off view is already visible, the refresh is skipped and shutdown continues immediately. The NVS value is written only after a completed refresh and only when the view changes.
 
 ### API for other tasks
 
@@ -38,6 +33,18 @@ The NVS value is written only after a completed refresh and only when the view c
 | `requestDeferredDrawSplashScreen()` | Yes (100 ms) | Setup |
 | `requestDeferredDrawHeartScreen()` | Yes (100 ms) | Setup |
 | `displayDrawPowerOffAndWait()` | Yes (dedicated completion semaphore) | PWR shutdown |
+| `displaySetDesiredHeartIcon()` | No | App task link monitor |
+
+## Heart link status (filled vs crack)
+
+In STA mode the heart glyph tracks connectivity:
+
+| Glyph | Condition |
+|-------|-----------|
+| Lucide **heart** (filled, red) | Wi-Fi **and** MQTT connected, or outage shorter than grace |
+| Lucide **heart-crack** (outline, red) | Wi-Fi **or** MQTT continuously down for **5 minutes** (`kDisplayOfflineGraceMs`) |
+
+Recovery is immediate when both links are healthy again. SoftAP/setup keeps the QR splash and never switches to crack. The app task polls every ~500 ms and only queues a redraw when the glyph actually changes (still subject to the 20 s heart redraw coalescing).
 
 ## Counter delta vs. absolute value
 
@@ -71,30 +78,28 @@ When a displayed delta reaches ≥ **999** (`kDisplayCounterMax` in `display/dis
 - `maybeResetDisplayBaselinesWhenCapped()` sets the baseline to the current raw value
 - The display returns to 0
 
-## Heart geometry
+## Lucide icons
 
-Constants in `display/draw.cpp`:
+Bitmaps are pre-rasterized from Lucide (`scripts/generate_display_icons.mjs` → `src/display/icons_lucide.h`, ISC license) and drawn with Adafruit GFX `drawBitmap()`.
 
-| Parameter | Value | Description |
-|-----------|-------|-------------|
-| `kCenterX` | 100 | X coordinate of the heart's center |
-| `kHeartSize` | 70 | Heart size |
-| `kCircleRadius` | 43 | `(kHeartSize / 2) + 8` — radius of the two heart circles |
-| `kCircleSpacing` | 32 | `(kHeartSize / 2) - 3` — distance between the circles and the center |
-| `kCircleY` | 50 | Y position of the circles |
-| `kTriangleTop` | 65 | `kCircleY + 15` — top point of the triangle |
-| `kTriangleBottom` | 163 | Bottom point of the triangle |
+| Element | Glyph | Color | Position (200×200) |
+|---------|-------|-------|--------------------|
+| Heart | `heart` / `heart-crack` | Red | Centered (~y=24) |
+| RX arrow | `arrow-down` | Black | Bottom left |
+| TX arrow | `arrow-up` | Black | Footer right |
+| Battery | `battery-full` / `medium` / `low` / `warning` | See below | Top right |
+| Power-off | `heart-off` | Red | Centered |
 
-Structure:
-1. Two red circles (`GxEPD_RED`) at the top
-2. A red triangle as the point of the heart
-3. A red rectangle connecting them
-4. Arrows (RX at bottom left ↓, TX at top right ↑) in the foreground color
-5. Counters at the bottom (RX on the left, TX on the right) in the foreground color
-6. Three small **yellow** dots to the right of the heart when RX changed since the last draw (`freshRx`)
-7. Battery icon at the bottom centre; **yellow** when the pack is under 20 %
+### Battery thresholds (match web GUI)
 
-Palette: white background, black counters/arrows, red heart. The splash title stays red.
+| Percent | Lucide icon | E-Ink color |
+|---------|-------------|-------------|
+| ≥ 80 | `battery-full` | Black |
+| ≥ 40 | `battery-medium` | Black |
+| ≥ 15 | `battery-low` | Yellow |
+| < 15 | `battery-warning` | Red |
+
+Palette: white background, black counters/arrows, red heart glyphs. The SoftAP splash title stays red text above the WIFI QR.
 
 ## Text rendering
 
@@ -157,7 +162,7 @@ Onboard Waveshare 1.54G panel. See [HARDWARE.md](HARDWARE.md).
 - Alias: `ChayaEpdPanel` in `src/display/internal.h`
 - Full-window refresh (~20 s); fast mode ~15 s
 - Enable panel power on GPIO6 **LOW** before drawing (active-low `EPD3V3_EN`)
-- Colors: `GxEPD_BLACK`, `GxEPD_WHITE`, `GxEPD_RED`, `GxEPD_YELLOW` — the heart uses red; yellow is reserved for fresh-RX dots and a low-battery icon
+- Colors: `GxEPD_BLACK`, `GxEPD_WHITE`, `GxEPD_RED`, `GxEPD_YELLOW` — heart glyphs use red; yellow is reserved for the low-battery icon
 
 ## Further documentation
 

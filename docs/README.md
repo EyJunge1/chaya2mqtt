@@ -147,7 +147,7 @@ The 1.54G has **8 MB** flash. `partitions_chaya_8mb.csv` is a dual-OTA map (~3
 | [HARDWARE.md](HARDWARE.md) | The only board: 1.54G SKU 34586, pins, battery |
 | [OTA.md](OTA.md) | Firmware updates via GitHub |
 | [CONFIGURATION.md](CONFIGURATION.md) | NVS namespaces, defaults |
-| [DISPLAY.md](DISPLAY.md) | Display task, heart geometry, delta logic |
+| [DISPLAY.md](DISPLAY.md) | Display task, Lucide icons, delta logic |
 
 ## License
 

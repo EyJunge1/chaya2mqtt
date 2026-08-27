@@ -228,7 +228,7 @@ counters after the active display command. Splash and power-off commands keep pr
 |----------|-------------|
 | `displayInit()` | Initialize SPI + EPD |
 | `displayStartTask()` | FreeRTOS task (8192 stack, priority 3) |
-| `drawHeartWithNumber()` | Red heart + RX/TX deltas |
+| `drawHeartWithNumber(icon)` | Lucide heart / heart-crack + RX/TX deltas + arrows + battery |
 | `drawSplashScreen()` | SoftAP: red title + bottom-aligned WIFI QR for phone camera join |
 | `requestHeartRedraw()` | Redraw heart (blocking, 100 ms queue timeout) |
 | `requestHeartRedrawNonBlocking()` | Redraw heart (0 ms timeout, for MQTT callback) |

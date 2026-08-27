@@ -8,6 +8,7 @@
 #include "heart/counter_pure.h"
 #include "hw/battery.h"
 #include "hw/pins.h"
+#include "icons_lucide.h"
 #include "wifi/wifi_qr_pure.h"
 #include "wifi/wlan.h"
 #include "wifi/wlan_config.h"
@@ -81,44 +82,31 @@ void drawCenteredTextScreen(const char* text, uint8_t startSize, uint8_t minSize
     } while (epd.nextPage());
 }
 
-// Incoming arrow (tip toward +y).
-static void drawArrowDown(int16_t cx, int16_t tipY, uint16_t color) {
-    auto& epd = displayPanel();
-    static constexpr int16_t kHalf = 12;
-    static constexpr int16_t kStemH = 20;
-    const int16_t            baseY = static_cast<int16_t>(tipY - 5);
-    epd.fillTriangle(cx, tipY, static_cast<int16_t>(cx - kHalf), baseY,
-                     static_cast<int16_t>(cx + kHalf), baseY, color);
-    epd.fillRect(static_cast<int16_t>(cx - 2), static_cast<int16_t>(tipY - kStemH - 6), 4,
-                 kStemH, color);
-}
-
-// Outgoing arrow (tip toward −y).
-static void drawArrowUp(int16_t cx, int16_t tipY, uint16_t color) {
-    auto& epd = displayPanel();
-    static constexpr int16_t kHalf = 12;
-    static constexpr int16_t kStemH = 20;
-    const int16_t            baseY = static_cast<int16_t>(tipY + 5);
-    epd.fillTriangle(cx, tipY, static_cast<int16_t>(cx - kHalf), baseY,
-                     static_cast<int16_t>(cx + kHalf), baseY, color);
-    epd.fillRect(static_cast<int16_t>(cx - 2), static_cast<int16_t>(tipY + 6), 4, kStemH,
-                 color);
+static void drawLucideIcon(int16_t x, int16_t y, const uint8_t* bitmap, int16_t w, int16_t h,
+                           uint16_t color) {
+    displayPanel().drawBitmap(x, y, bitmap, w, h, color);
 }
 
 static uint8_t footerTextSizeForDigitCount(size_t digitLen) {
     return digitLen <= 3 ? 4 : 3;
 }
 
-static void drawBatteryIcon(int16_t x, int16_t y, int pct, uint16_t color) {
-    auto& epd = displayPanel();
-    static constexpr int16_t kW = 20;
-    static constexpr int16_t kH = 10;
-    epd.drawRect(x, y, kW, kH, color);
-    epd.fillRect(static_cast<int16_t>(x + kW), static_cast<int16_t>(y + 2), 3, 6, color);
-    const int fillW = ((pct < 0 ? 0 : (pct > 100 ? 100 : pct)) * (kW - 2)) / 100;
-    if (fillW > 0) {
-        epd.fillRect(static_cast<int16_t>(x + 1), static_cast<int16_t>(y + 1),
-                     static_cast<int16_t>(fillW), static_cast<int16_t>(kH - 2), color);
+static void drawBatteryLucide(int16_t x, int16_t y, int pct, uint16_t color) {
+    switch (displayBatteryIcon(pct)) {
+    case DisplayBatteryIcon::Full:
+        drawLucideIcon(x, y, kIconBatteryFull, kIconBatteryFullW, kIconBatteryFullH, color);
+        break;
+    case DisplayBatteryIcon::Medium:
+        drawLucideIcon(x, y, kIconBatteryMedium, kIconBatteryMediumW, kIconBatteryMediumH,
+                       color);
+        break;
+    case DisplayBatteryIcon::Low:
+        drawLucideIcon(x, y, kIconBatteryLow, kIconBatteryLowW, kIconBatteryLowH, color);
+        break;
+    case DisplayBatteryIcon::Warning:
+        drawLucideIcon(x, y, kIconBatteryWarning, kIconBatteryWarningW, kIconBatteryWarningH,
+                       color);
+        break;
     }
 }
 
@@ -133,37 +121,25 @@ static void formatCappedCounterForDisplay(int rawCounter, int baseline, char* bu
 
 } // namespace
 
-HeartCounterDrawSnapshot drawHeartWithNumber() {
+HeartCounterDrawSnapshot drawHeartWithNumber(DisplayHeartIcon icon) {
     displayResumeSpiForDraw();
 
-    ESP_LOGI(TAG, "Drawing red heart with counters...");
+    ESP_LOGI(TAG, "Drawing Lucide heart (icon=%u) with counters...",
+             static_cast<unsigned>(icon));
 
     auto& epd = displayPanel();
     const uint16_t fg = displayFgColor();
     const uint16_t bg = displayBgColor();
-
-    static constexpr int kCenterX         = 100;
-    static constexpr int kHeartSize       = 70;
-    static constexpr int kCircleRadius    = (kHeartSize / 2) + 8;
-    static constexpr int kCircleSpacing   = (kHeartSize / 2) - 3;
-    static constexpr int kCircleY         = 68;
-    static constexpr int kTriangleTop     = kCircleY + 15;
-    static constexpr int kTriangleBottom  = 181;
-    static constexpr int kMaxWidth        = 2 * (kCircleSpacing + kCircleRadius) - 4;
-
     const int dw = epd.width();
-    const int dh = epd.height();
-
-    const int16_t triLeftX   = static_cast<int16_t>(kCenterX - (kMaxWidth / 2));
-    const int16_t triRightX  = static_cast<int16_t>(kCenterX + (kMaxWidth / 2));
-    const int16_t triBottomY = static_cast<int16_t>(kTriangleBottom);
 
     char recvBuf[16];
     char sentBuf[16];
     HeartCounterDrawSnapshot snap{};
     heartCounterFillDrawSnapshot(&snap);
-    formatCappedCounterForDisplay(snap.heartCounterRaw, snap.counterBaselineRaw, recvBuf, sizeof(recvBuf));
-    formatCappedCounterForDisplay(snap.heartSentCounterRaw, snap.sentCountBaselineRaw, sentBuf, sizeof(sentBuf));
+    formatCappedCounterForDisplay(snap.heartCounterRaw, snap.counterBaselineRaw, recvBuf,
+                                  sizeof(recvBuf));
+    formatCappedCounterForDisplay(snap.heartSentCounterRaw, snap.sentCountBaselineRaw, sentBuf,
+                                  sizeof(sentBuf));
     const size_t recvLen = std::max<size_t>(strlen(recvBuf), size_t{1});
     const size_t sentLen = std::max<size_t>(strlen(sentBuf), size_t{1});
 
@@ -182,19 +158,32 @@ HeartCounterDrawSnapshot drawHeartWithNumber() {
         break;
     }
 
-    static constexpr int       kFooterTextTop = 167;
-    static constexpr int       kLeftMargin    = 4;
-    static constexpr int       kRightMargin   = 4;
-    static constexpr int       kArrowLane     = 26;
-    static constexpr int16_t   kDownArrowCx   = 13;
-    static constexpr int16_t   kDownArrowTipY = 198;
-    const int16_t              kUpArrowCx     = static_cast<int16_t>(dw - 13);
-    static constexpr int16_t   kUpArrowTipY =
-        static_cast<int16_t>(kFooterTextTop + 1);
-    static constexpr int16_t   kBatteryWidthWithTerminal = 23;
-    static constexpr int16_t   kBatteryTopMargin         = 4;
-    const int16_t              kBatteryX =
-        static_cast<int16_t>(dw - kRightMargin - kBatteryWidthWithTerminal);
+    static constexpr int     kFooterTextTop = 167;
+    static constexpr int     kLeftMargin    = 4;
+    static constexpr int     kRightMargin   = 4;
+    static constexpr int     kArrowLane     = 26;
+    static constexpr int16_t kBatteryTopMargin = 4;
+
+    const int16_t heartW =
+        icon == DisplayHeartIcon::Crack ? kIconHeartCrackW : kIconHeartW;
+    const int16_t heartH =
+        icon == DisplayHeartIcon::Crack ? kIconHeartCrackH : kIconHeartH;
+    const uint8_t* heartBmp =
+        icon == DisplayHeartIcon::Crack ? kIconHeartCrack : kIconHeart;
+    const int16_t heartX = static_cast<int16_t>((dw - heartW) / 2);
+    // Leave a little visual breathing room above the RX/TX footer.
+    static constexpr int16_t kHeartFooterGap = 4;
+    const int16_t heartY =
+        static_cast<int16_t>(kFooterTextTop - heartH - kHeartFooterGap);
+
+    const int16_t downArrowX = static_cast<int16_t>(kLeftMargin);
+    const int16_t downArrowY =
+        static_cast<int16_t>(epd.height() - kIconArrowDownH - 2);
+    const int16_t upArrowX =
+        static_cast<int16_t>(dw - kRightMargin - kIconArrowUpW);
+    const int16_t upArrowY = static_cast<int16_t>(kFooterTextTop + 2);
+    const int16_t batteryX =
+        static_cast<int16_t>(dw - kRightMargin - kIconBatteryFullW);
 
     int16_t rx1 = 0;
     int16_t ry1 = 0;
@@ -221,27 +210,11 @@ HeartCounterDrawSnapshot drawHeartWithNumber() {
     do {
         epd.fillScreen(bg);
 
-        epd.fillCircle(static_cast<int16_t>(kCenterX - kCircleSpacing),
-                         static_cast<int16_t>(kCircleY),
-                         static_cast<int16_t>(kCircleRadius), GxEPD_RED);
-        epd.fillCircle(static_cast<int16_t>(kCenterX + kCircleSpacing),
-                         static_cast<int16_t>(kCircleY),
-                         static_cast<int16_t>(kCircleRadius), GxEPD_RED);
+        drawLucideIcon(heartX, heartY, heartBmp, heartW, heartH, GxEPD_RED);
 
-        if (kTriangleTop >= 0 && kTriangleBottom < dh && triLeftX >= 0 && triRightX < dw) {
-            epd.fillTriangle(triLeftX, static_cast<int16_t>(kTriangleTop), triRightX,
-                             static_cast<int16_t>(kTriangleTop),
-                             static_cast<int16_t>(kCenterX), triBottomY, GxEPD_RED);
-        }
-
-        epd.fillRect(static_cast<int16_t>(kCenterX - (kHeartSize / 3)),
-                       static_cast<int16_t>(kCircleY - (kHeartSize / 6)),
-                       static_cast<int16_t>((kHeartSize * 2) / 3),
-                       static_cast<int16_t>(kHeartSize / 2), GxEPD_RED);
-
-        drawArrowDown(kDownArrowCx, kDownArrowTipY, fg);
-
-        drawArrowUp(kUpArrowCx, kUpArrowTipY, fg);
+        drawLucideIcon(downArrowX, downArrowY, kIconArrowDown, kIconArrowDownW, kIconArrowDownH,
+                       fg);
+        drawLucideIcon(upArrowX, upArrowY, kIconArrowUp, kIconArrowUpW, kIconArrowUpH, fg);
 
         epd.setTextColor(fg);
         epd.setTextSize(recvTextSize);
@@ -254,14 +227,14 @@ HeartCounterDrawSnapshot drawHeartWithNumber() {
                       static_cast<int16_t>(kFooterTextTop));
         epd.print(sentBuf);
 
-        drawBatteryIcon(kBatteryX, kBatteryTopMargin, batPct, batColor);
+        drawBatteryLucide(batteryX, kBatteryTopMargin, batPct, batColor);
 
     } while (epd.nextPage());
 
     epd.hibernate();
     displaySuspendSpiLowPower();
 
-    ESP_LOGI(TAG, "Red heart with counters drawn");
+    ESP_LOGI(TAG, "Lucide heart with counters drawn");
     return snap;
 }
 
@@ -391,10 +364,43 @@ DisplayView drawSplashScreen() {
 void drawPowerOffScreen() {
     displayResumeSpiForDraw();
 
-    ESP_LOGI(TAG, "Drawing power-off screen...");
-    static constexpr const char kTitle[] = "Chaya2MQTT";
-    drawCenteredTextScreen(kTitle, 3, 1, GxEPD_RED);
-    displayPanel().hibernate();
+    ESP_LOGI(TAG, "Drawing power-off Lucide heart-off...");
+    auto& epd = displayPanel();
+    const uint16_t bg = displayBgColor();
+    static constexpr char kTitle[] = "Chaya2MQTT";
+    // Same size as the configured-Wi-Fi startup title, with equal outer/title gaps.
+    static constexpr uint8_t kTitleSize = 3;
+    static constexpr int16_t kPowerOffGap = 10;
+    // Lucide heart-off's diagonal slash starts ~7 px above the actual heart outline.
+    static constexpr int16_t kHeartOffVisualTopInset = 7;
+    static constexpr int16_t kTitleTop = kPowerOffGap;
+
+    int16_t titleX1 = 0;
+    int16_t titleY1 = 0;
+    uint16_t titleW = 0;
+    uint16_t titleH = 0;
+    epd.setTextSize(kTitleSize);
+    epd.getTextBounds(kTitle, 0, 0, &titleX1, &titleY1, &titleW, &titleH);
+    const int16_t titleX =
+        static_cast<int16_t>((epd.width() - static_cast<int>(titleW)) / 2 - titleX1);
+    const int16_t heartX = static_cast<int16_t>((epd.width() - kIconHeartOffW) / 2);
+    const int16_t heartY =
+        static_cast<int16_t>(kTitleTop + static_cast<int16_t>(titleH) + kPowerOffGap
+                             - kHeartOffVisualTopInset);
+
+    epd.setFullWindow();
+    epd.firstPage();
+    do {
+        epd.fillScreen(bg);
+        epd.setTextColor(GxEPD_RED);
+        epd.setTextSize(kTitleSize);
+        epd.setCursor(titleX, kTitleTop);
+        epd.print(kTitle);
+        drawLucideIcon(heartX, heartY, kIconHeartOff, kIconHeartOffW, kIconHeartOffH,
+                       GxEPD_BLACK);
+    } while (epd.nextPage());
+
+    epd.hibernate();
     displaySuspendSpiLowPower();
     ESP_LOGI(TAG, "Power-off screen drawn");
 }

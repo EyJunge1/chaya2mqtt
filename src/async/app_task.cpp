@@ -4,8 +4,11 @@
 #include "config/app_config.h"
 #include "heart/counter.h"
 #include "display/display.h"
+#include "display/display_config.h"
+#include "display/display_link_pure.h"
 #include "hw/battery.h"
 #include "hw/battery_config.h"
+#include "mqtt/mqtt.h"
 #include "web/admin.h"
 #include "ota/ota.h"
 #include "ota/ota_health.h"
@@ -37,6 +40,27 @@ void appTaskNotify() {
     }
 }
 
+static void appTaskPollDisplayLinkStatus() {
+    if (configIsApMode() || !wlanIsSetupComplete()) {
+        return;
+    }
+
+    static DisplayLinkState s_link{};
+    static DisplayHeartIcon s_lastIcon = DisplayHeartIcon::Filled;
+
+    const DisplayHeartIcon icon = displayHeartIconDecide(
+        false, wlanStaConnectedOk(), mqttIsConnected(), millis(), kDisplayOfflineGraceMs,
+        s_link);
+    if (icon == s_lastIcon) {
+        return;
+    }
+    s_lastIcon = icon;
+    displaySetDesiredHeartIcon(icon);
+    requestHeartRedraw();
+    ESP_LOGI(TAG, "display heart icon -> %s",
+             icon == DisplayHeartIcon::Crack ? "crack" : "filled");
+}
+
 static void appTaskFn(void*) {
     chayaTaskWatchdogSubscribe(TAG);
     static uint32_t s_stackLogCounter = 0;
@@ -58,6 +82,8 @@ static void appTaskFn(void*) {
         }
         maybeSaveHeartCounter();
         maybeSaveHeartSentCounter();
+
+        appTaskPollDisplayLinkStatus();
 
         ++s_batterySkip;
         if (s_batterySkip >= (kBatteryPollMs / 500UL)) {
