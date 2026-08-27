@@ -55,6 +55,9 @@ Generated artifacts (`frontend/coverage/`, `frontend/test-results/`, `playwright
 | Target / command | Purpose |
 |------------------|---------|
 | `make check` | Complete hardware-free gate before commits |
+| `make check-frontend` | Frontend lint, coverage, build, and Playwright E2E |
+| `make check-flasher` | Web-flasher lint, type-check, build, and Python tests |
+| `make check-firmware` | Native/ASan tests, cppcheck, and release build |
 | `cd frontend && npm test` | Vitest |
 | `cd frontend && npm run test:coverage` | Vitest with coverage thresholds |
 | `pio test -e native` | Native Unity including the device simulator |
@@ -71,7 +74,9 @@ Generated artifacts (`frontend/coverage/`, `frontend/test-results/`, `playwright
 
 Frontend linting and formatting, coverage thresholds, frontend build, SPA embedding + Python embedding tests, flasher/release artifact tests, native Unity, ASan/UBSan, cppcheck, Playwright E2E, the ESP32-S3 release build, and `prepare_release_artifacts.py` validation.
 
-The `Quality gate` workflow runs the same command for pull requests and pushes to `main`.
+For pull requests, the `Quality gate` workflow selects the affected frontend, flasher, and firmware
+jobs from the changed paths and runs them in parallel. Documentation-only changes finish without
+starting build jobs. Pushes to `main` still run the complete gate in parallel.
 The tag-based release workflow also runs the complete gate before publishing artifacts.
 The Pages deploy workflow is ready for later, once the repository is public and GitHub Pages is enabled.
 

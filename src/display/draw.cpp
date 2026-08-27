@@ -261,7 +261,19 @@ void drawHeartWithNumber() {
     ESP_LOGI(TAG, "Red heart with counters drawn");
 }
 
-void drawSplashScreen() {
+DisplayView displaySplashTargetView() {
+    char apSsid[kWifiSsidMaxLen]{};
+    char apIp[16]{};
+    char apPass[kSetupApPassBufLen]{};
+    if (configIsApMode()
+        && wlanApSetupSnapshot(apSsid, sizeof(apSsid), apIp, sizeof(apIp))
+        && wlanApSetupPassSnapshot(apPass, sizeof(apPass))) {
+        return DisplayView::SetupQr;
+    }
+    return DisplayView::ProductTitle;
+}
+
+DisplayView drawSplashScreen() {
     displayResumeSpiForDraw();
 
     ESP_LOGI(TAG, "Drawing Chaya2MQTT splash...");
@@ -275,10 +287,10 @@ void drawSplashScreen() {
         static_cast<void>(apIp);
         if (!wifiQrBuildWpaPayload(apSsid, apPass, s_wifiQrPayload, sizeof(s_wifiQrPayload))) {
             ESP_LOGE(TAG, "AP WIFI QR payload failed");
-            drawCenteredTextScreen(kSetupApSsid, 2, 1, displayFgColor());
+            drawCenteredTextScreen(kSetupApSsid, 3, 1, GxEPD_RED);
             displayPanel().hibernate();
             displaySuspendSpiLowPower();
-            return;
+            return DisplayView::ProductTitle;
         }
 
         // Version 3 (29 modules) holds our ~40-byte MeCard with ECC-M.
@@ -287,10 +299,10 @@ void drawSplashScreen() {
             qrcodegen_Mask_AUTO, true);
         if (!ok) {
             ESP_LOGE(TAG, "AP WIFI QR encode failed");
-            drawCenteredTextScreen(kSetupApSsid, 2, 1, displayFgColor());
+            drawCenteredTextScreen(kSetupApSsid, 3, 1, GxEPD_RED);
             displayPanel().hibernate();
             displaySuspendSpiLowPower();
-            return;
+            return DisplayView::ProductTitle;
         }
 
         auto& epd = displayPanel();
@@ -355,12 +367,12 @@ void drawSplashScreen() {
                 }
             }
         } while (epd.nextPage());
-        const uint32_t drawMs = millis() - drawStartedMs;
+        [[maybe_unused]] const uint32_t drawMs = millis() - drawStartedMs;
         epd.hibernate();
         displaySuspendSpiLowPower();
         ESP_LOGI(TAG, "AP WIFI QR splash drawn (modules=%d scale=%d ms=%lu busy=%d)", qrSize,
                  scale, static_cast<unsigned long>(drawMs), digitalRead(pins::kDisplayBusy));
-        return;
+        return DisplayView::SetupQr;
     }
 
     static constexpr const char kTitle[] = "Chaya2MQTT";
@@ -369,6 +381,7 @@ void drawSplashScreen() {
     displaySuspendSpiLowPower();
 
     ESP_LOGI(TAG, "Splash drawn");
+    return DisplayView::ProductTitle;
 }
 
 void drawPowerOffScreen() {

@@ -3,6 +3,7 @@
 #include "audio/audio_pure.h"
 #include "async/queue_coalesce_pure.h"
 #include "display/draw_pure.h"
+#include "display/view_state.h"
 #include "hw/battery_pure.h"
 
 void test_battery_pct_curve() {
@@ -40,6 +41,17 @@ void test_draw_yellow_flags() {
     TEST_ASSERT_FALSE(displayBatteryIconYellow(40));
 }
 
+void test_display_view_refresh_decision() {
+    TEST_ASSERT_TRUE(displayViewNeedsRefresh(DisplayView::Unknown, DisplayView::ProductTitle));
+    TEST_ASSERT_FALSE(
+        displayViewNeedsRefresh(DisplayView::ProductTitle, DisplayView::ProductTitle));
+    TEST_ASSERT_TRUE(displayViewNeedsRefresh(DisplayView::SetupQr, DisplayView::ProductTitle));
+    TEST_ASSERT_TRUE(displayViewNeedsRefresh(DisplayView::ProductTitle, DisplayView::SetupQr));
+    TEST_ASSERT_FALSE(displayViewNeedsRefresh(DisplayView::Heart, DisplayView::Heart));
+    TEST_ASSERT_TRUE(displayRefreshRequired(DisplayView::Heart, DisplayView::Heart, false));
+    TEST_ASSERT_FALSE(displayRefreshRequired(DisplayView::Heart, DisplayView::Heart, true));
+}
+
 void test_queue_drop_coalescing() {
     bool pending = false;
     pending = queueCoalescePendingAfterPost(pending, true);
@@ -58,6 +70,7 @@ int main(int, char**) {
     RUN_TEST(test_audio_quiet_hours);
     RUN_TEST(test_audio_playback_gates);
     RUN_TEST(test_draw_yellow_flags);
+    RUN_TEST(test_display_view_refresh_decision);
     RUN_TEST(test_queue_drop_coalescing);
     return UNITY_END();
 }

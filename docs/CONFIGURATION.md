@@ -68,6 +68,7 @@ Legacy keys `topic_pub` / `topic_sub` are removed when saving. Topics now exist 
 | `ui_lang` | String | `en` | UI language (`en` / `de`) |
 | `ui_theme` | String | `light` | Web UI theme (`light` / `dark`) |
 | `led_en` | UChar | `1` | Header user LED (`1`=activity blinks, `0`=off) |
+| `disp_view` | UChar | `0` | Last painted E-Ink view (`0`=unknown, `1`=heart, `2`=setup QR, `3`=product title) |
 | `snd_mute` | UChar | `0` | Mute TX/RX click (`1` = no sound) |
 | `snd_vol` | UChar | `70` | Click volume 0–100 |
 | `snd_q0` | UChar | `23` | Quiet-hours start (local hour after NTP) |
@@ -82,6 +83,7 @@ Legacy keys `topic_pub` / `topic_sub` are removed when saving. Topics now exist 
 
 **Written by:**
 - `rstPeriod` / `ui_lang` / `ui_theme` / `led_en` / `snd_mute` / `snd_vol` / `snd_q0` / `snd_q1` / `snd_custom` / `snd_tx_hz` / `snd_tx_ms` / `snd_rx_hz` / `snd_rx_ms`: web POST `/api/settings` (deferred via the app task)
+- `disp_view`: by the display task after a completed full refresh; unchanged values are not rewritten
 - `upd_day`: automatically after an OTA check
 - `upd_chan`: when selecting a channel during the update check
 
@@ -130,6 +132,7 @@ Some values are additionally cached in RAM (atomics):
 | `sentCountBaseline` | `chaya/baseBlob` (legacy `sntBase`) | counter |
 | `s_resetPeriodDaysCached` | `cfg/rstPeriod` | app_config |
 | `s_ledEnabledCached` | `cfg/led_en` | app_config |
+| `s_displayViewCached` | `cfg/disp_view` | app_config |
 | `s_audioMutedCached` / volume / quiet hours | `cfg/snd_*` | app_config |
 
 The active MQTT configuration (`mqttCfg`) exists only in `mqtt/config.cpp`—access is through the snapshot/pending API.

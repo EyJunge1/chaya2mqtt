@@ -1,5 +1,7 @@
 #pragma once
 
+#include "display/view_state.h"
+
 #include <cstdint>
 
 void configLoadResetPeriodFromNvs();
@@ -21,6 +23,11 @@ bool configSetUiTheme(const char* theme);
 void configLoadLedFromNvs();
 bool configGetLedEnabled();
 bool configSetLedEnabled(bool enabled);
+
+/** Last successfully painted E-Ink view (Unknown when missing/invalid). */
+void        configLoadDisplayViewFromNvs();
+DisplayView configGetDisplayView();
+bool        configSetDisplayView(DisplayView view);
 
 /** Heart-click audio: mute, volume 0–100, quiet hours (local, equal = off), optional custom tone. */
 void configLoadAudioFromNvs();

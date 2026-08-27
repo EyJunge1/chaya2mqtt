@@ -14,12 +14,13 @@
 
 DEFINE_LOG_TAG("CFG");
 
-// NVS namespace "cfg" — cached: display reset period, UI language, UI theme, LED.
+// NVS namespace "cfg" — cached: display reset period/view, UI language/theme, LED, audio.
 
 static std::atomic<uint8_t> s_resetPeriodDaysCached{7};
 static char s_uiLangCached[3] = "en";
 static char s_uiThemeCached[6] = "light";
 static std::atomic<bool> s_ledEnabledCached{true};
+static std::atomic<DisplayView> s_displayViewCached{DisplayView::Unknown};
 static std::atomic<bool> s_audioMutedCached{false};
 static std::atomic<uint8_t> s_audioVolumeCached{kAudioDefaultVolume};
 static std::atomic<uint8_t> s_audioQuiet0Cached{kAudioDefaultQuiet0};
@@ -163,6 +164,32 @@ bool configSetLedEnabled(bool enabled) {
         return false;
     }
     s_ledEnabledCached.store(enabled, std::memory_order_relaxed);
+    return true;
+}
+
+void configLoadDisplayViewFromNvs() {
+    const auto raw =
+        static_cast<DisplayView>(app_nvs::readUChar(kNvsNsCfg, kNvsKeyCfgDispView, 0));
+    s_displayViewCached.store(displayViewIsValid(raw) ? raw : DisplayView::Unknown,
+                              std::memory_order_relaxed);
+}
+
+DisplayView configGetDisplayView() {
+    return s_displayViewCached.load(std::memory_order_relaxed);
+}
+
+bool configSetDisplayView(DisplayView view) {
+    if (!displayViewIsValid(view) || view == DisplayView::Unknown) {
+        return false;
+    }
+    if (configGetDisplayView() == view) {
+        return true;
+    }
+    if (!app_nvs::writeUChar(kNvsNsCfg, kNvsKeyCfgDispView, static_cast<uint8_t>(view))) {
+        ESP_LOGE(TAG, "NVS cfg: failed to persist disp_view");
+        return false;
+    }
+    s_displayViewCached.store(view, std::memory_order_relaxed);
     return true;
 }
 
@@ -325,6 +352,7 @@ bool configSetAudioTones(uint16_t txHz, uint16_t txMs, uint16_t rxHz, uint16_t r
 void app_configResetRamAfterFactoryClear() {
     s_resetPeriodDaysCached.store(7, std::memory_order_relaxed);
     s_ledEnabledCached.store(true, std::memory_order_relaxed);
+    s_displayViewCached.store(DisplayView::Unknown, std::memory_order_relaxed);
     s_audioMutedCached.store(false, std::memory_order_relaxed);
     s_audioVolumeCached.store(kAudioDefaultVolume, std::memory_order_relaxed);
     s_audioQuiet0Cached.store(kAudioDefaultQuiet0, std::memory_order_relaxed);
