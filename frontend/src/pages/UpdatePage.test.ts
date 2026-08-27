@@ -77,6 +77,42 @@ describe("UpdatePage", () => {
     expect(onToast).toHaveBeenCalledWith("toast.update-checking", "info");
   });
 
+  it("does not overwrite a completed SSE check with the HTTP response", async () => {
+    let resolveCheck!: (value: { ok: boolean; message: string }) => void;
+    checkUpdate.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveCheck = resolve;
+        }),
+    );
+    const onToast = vi.fn();
+    const { rerender } = render(UpdatePage, {
+      props: { onToast, otaStatus: status() },
+    });
+
+    await screen.findByText("2026.8.1");
+    fireEvent.click(screen.getByRole("button", { name: "update.check" }));
+    await waitFor(() => {
+      expect(checkUpdate).toHaveBeenCalledWith("stable");
+    });
+
+    await rerender({
+      onToast,
+      otaStatus: status({
+        phase: "available",
+        availableVersion: "2026.8.2",
+        generation: 3,
+      }),
+    });
+    resolveCheck({ ok: true, message: "checking" });
+
+    await waitFor(() => {
+      expect(onToast).toHaveBeenCalledWith("toast.update-checking", "info");
+    });
+    expect(screen.getByText("update.phase.available")).toBeInTheDocument();
+    expect(screen.queryByText("update.phase.checking")).not.toBeInTheDocument();
+  });
+
   it("confirms install when update is available", async () => {
     getUpdateStatus.mockResolvedValue(status({ phase: "available", availableVersion: "2026.8.2" }));
     const onToast = vi.fn();
