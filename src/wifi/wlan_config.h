@@ -42,10 +42,35 @@ inline bool formatSetupApPassFromU32(uint32_t n, char* out, size_t outLen) {
     return true;
 }
 
-/** Boot STA attempt before SoftAP fallback (slow DHCP / crowded 2.4 GHz). */
+/** Initial STA wait before handing an offline configured device to recovery. */
 constexpr unsigned long kWifiStaBootConnectTimeoutMs = 10000UL;
 constexpr uint8_t       kWifiStaMaxTxPowerQuarterDbm = 52U;
 constexpr uint16_t      kWifiStaInactiveTimeSeconds  = 30U;
+
+enum class WlanBootAction : uint8_t {
+    WaitForSta      = 0,
+    FinishSta       = 1,
+    ContinueStaOnly = 2,
+    StartSetupAp    = 3,
+};
+
+/**
+ * Pure boot decision for unit tests.
+ * Once STA credentials exist, a timeout must never expose the setup AP again.
+ */
+inline WlanBootAction wlanBootDecide(bool hasStaCredentials, bool staConnected,
+                                     bool staConnectTimedOut) {
+    if (!hasStaCredentials) {
+        return WlanBootAction::StartSetupAp;
+    }
+    if (staConnected) {
+        return WlanBootAction::FinishSta;
+    }
+    if (staConnectTimedOut) {
+        return WlanBootAction::ContinueStaOnly;
+    }
+    return WlanBootAction::WaitForSta;
+}
 
 /** STA stability / scan timing (module-local). */
 constexpr unsigned long kStaStableAfterGotIpMs   = 3000UL;
