@@ -14,13 +14,15 @@ enum class DisplayHeartRedrawDecision : uint8_t {
 
 /**
  * Decide whether a heart redraw should queue now, wait for the min interval
- * (trailing edge), or skip because counters and heart icon already match the
- * last painted frame.
+ * (trailing edge), or skip because counters, heart icon, and battery icon
+ * already match the last painted frame.
  */
 inline DisplayHeartRedrawDecision displayHeartRedrawDecide(
     int currentRx, int currentTx, int lastDrawnRx, int lastDrawnTx, bool iconChanged,
-    unsigned long nowMs, unsigned long lastEnqueueMs, unsigned long minIntervalMs) {
-    if (currentRx == lastDrawnRx && currentTx == lastDrawnTx && !iconChanged) {
+    bool batteryIconChanged, unsigned long nowMs, unsigned long lastEnqueueMs,
+    unsigned long minIntervalMs) {
+    if (currentRx == lastDrawnRx && currentTx == lastDrawnTx && !iconChanged
+        && !batteryIconChanged) {
         return DisplayHeartRedrawDecision::SkipUnchanged;
     }
     if (lastEnqueueMs != 0UL && (nowMs - lastEnqueueMs) < minIntervalMs) {
@@ -50,6 +52,8 @@ inline unsigned long displayHeartRedrawWaitMs(unsigned long nowMs, unsigned long
 
 /** True when a follow-up redraw is needed after a completed heart paint. */
 inline bool displayHeartNeedsFollowUpRedraw(int drawnRx, int drawnTx, int currentRx,
-                                            int currentTx, bool iconChanged, bool hadPending) {
-    return hadPending || iconChanged || currentRx != drawnRx || currentTx != drawnTx;
+                                            int currentTx, bool iconChanged,
+                                            bool batteryIconChanged, bool hadPending) {
+    return hadPending || iconChanged || batteryIconChanged || currentRx != drawnRx
+           || currentTx != drawnTx;
 }

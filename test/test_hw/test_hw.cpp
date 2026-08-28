@@ -113,27 +113,35 @@ void test_display_heart_redraw_leading_trailing() {
 
     TEST_ASSERT_EQUAL_INT(
         static_cast<int>(DisplayHeartRedrawDecision::SkipUnchanged),
-        static_cast<int>(displayHeartRedrawDecide(3, 1, 3, 1, false, 1000, 0, kMin)));
+        static_cast<int>(displayHeartRedrawDecide(3, 1, 3, 1, false, false, 1000, 0, kMin)));
 
     TEST_ASSERT_EQUAL_INT(
         static_cast<int>(DisplayHeartRedrawDecision::QueueNow),
-        static_cast<int>(displayHeartRedrawDecide(4, 1, 3, 1, false, 1000, 0, kMin)));
+        static_cast<int>(displayHeartRedrawDecide(4, 1, 3, 1, false, false, 1000, 0, kMin)));
 
     TEST_ASSERT_EQUAL_INT(
         static_cast<int>(DisplayHeartRedrawDecision::QueueNow),
-        static_cast<int>(displayHeartRedrawDecide(3, 1, 3, 1, true, 1000, 0, kMin)));
+        static_cast<int>(displayHeartRedrawDecide(3, 1, 3, 1, true, false, 1000, 0, kMin)));
+
+    TEST_ASSERT_EQUAL_INT(
+        static_cast<int>(DisplayHeartRedrawDecision::QueueNow),
+        static_cast<int>(displayHeartRedrawDecide(3, 1, 3, 1, false, true, 1000, 0, kMin)));
 
     TEST_ASSERT_EQUAL_INT(
         static_cast<int>(DisplayHeartRedrawDecision::DeferPending),
-        static_cast<int>(displayHeartRedrawDecide(5, 1, 3, 1, false, 10000, 1000, kMin)));
+        static_cast<int>(displayHeartRedrawDecide(5, 1, 3, 1, false, false, 10000, 1000, kMin)));
 
     TEST_ASSERT_EQUAL_INT(
         static_cast<int>(DisplayHeartRedrawDecision::DeferPending),
-        static_cast<int>(displayHeartRedrawDecide(3, 1, 3, 1, true, 10000, 1000, kMin)));
+        static_cast<int>(displayHeartRedrawDecide(3, 1, 3, 1, true, false, 10000, 1000, kMin)));
+
+    TEST_ASSERT_EQUAL_INT(
+        static_cast<int>(DisplayHeartRedrawDecision::DeferPending),
+        static_cast<int>(displayHeartRedrawDecide(3, 1, 3, 1, false, true, 10000, 1000, kMin)));
 
     TEST_ASSERT_EQUAL_INT(
         static_cast<int>(DisplayHeartRedrawDecision::QueueNow),
-        static_cast<int>(displayHeartRedrawDecide(5, 1, 3, 1, false, 32000, 1000, kMin)));
+        static_cast<int>(displayHeartRedrawDecide(5, 1, 3, 1, false, false, 32000, 1000, kMin)));
 }
 
 void test_display_heart_redraw_wait_and_follow_up() {
@@ -145,10 +153,11 @@ void test_display_heart_redraw_wait_and_follow_up() {
     TEST_ASSERT_EQUAL_UINT(16000UL, displayHeartRedrawWaitMs(5000, 1000, kMin, true));
 
     // Race: paint used old snapshot while atomics already advanced → follow-up required.
-    TEST_ASSERT_TRUE(displayHeartNeedsFollowUpRedraw(6, 2, 7, 2, false, false));
-    TEST_ASSERT_TRUE(displayHeartNeedsFollowUpRedraw(6, 2, 6, 2, false, true));
-    TEST_ASSERT_TRUE(displayHeartNeedsFollowUpRedraw(6, 2, 6, 2, true, false));
-    TEST_ASSERT_FALSE(displayHeartNeedsFollowUpRedraw(6, 2, 6, 2, false, false));
+    TEST_ASSERT_TRUE(displayHeartNeedsFollowUpRedraw(6, 2, 7, 2, false, false, false));
+    TEST_ASSERT_TRUE(displayHeartNeedsFollowUpRedraw(6, 2, 6, 2, false, false, true));
+    TEST_ASSERT_TRUE(displayHeartNeedsFollowUpRedraw(6, 2, 6, 2, true, false, false));
+    TEST_ASSERT_TRUE(displayHeartNeedsFollowUpRedraw(6, 2, 6, 2, false, true, false));
+    TEST_ASSERT_FALSE(displayHeartNeedsFollowUpRedraw(6, 2, 6, 2, false, false, false));
 }
 
 void test_display_link_offline_grace() {
