@@ -47,6 +47,29 @@ constexpr unsigned long kWifiStaBootConnectTimeoutMs = 10000UL;
 constexpr uint8_t       kWifiStaMaxTxPowerQuarterDbm = 52U;
 constexpr uint16_t      kWifiStaInactiveTimeSeconds  = 30U;
 
+/** EPD low-interference TX caps (ESP-IDF quarter-dBm units: value/4 = dBm). */
+constexpr int8_t kWifiEpdTxPowerStrongQdbm = 8;  // 2 dBm — good link
+constexpr int8_t kWifiEpdTxPowerMediumQdbm = 28; // 7 dBm — fair link
+constexpr int8_t kWifiEpdTxPowerWeakQdbm   = 40; // 10 dBm — weak / unknown RSSI
+constexpr int    kWifiEpdRssiStrongMinDbm  = -55;
+constexpr int    kWifiEpdRssiMediumMinDbm  = -64;
+
+/**
+ * Choose the EPD TX power cap from STA RSSI. Never raises the current max.
+ * `rssi <= 0` from WiFi.RSSI() when associated; 0 or positive is treated as unknown.
+ */
+inline int8_t wlanEpdTxPowerQuarterDbmFromRssi(int rssi, int8_t currentMaxQdbm) {
+    int8_t target = kWifiEpdTxPowerWeakQdbm;
+    if (rssi < 0) {
+        if (rssi >= kWifiEpdRssiStrongMinDbm) {
+            target = kWifiEpdTxPowerStrongQdbm;
+        } else if (rssi >= kWifiEpdRssiMediumMinDbm) {
+            target = kWifiEpdTxPowerMediumQdbm;
+        }
+    }
+    return (currentMaxQdbm < target) ? currentMaxQdbm : target;
+}
+
 enum class WlanBootAction : uint8_t {
     WaitForSta      = 0,
     FinishSta       = 1,

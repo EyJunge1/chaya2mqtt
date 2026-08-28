@@ -199,21 +199,18 @@ void writeSilence(i2s_chan_handle_t tx, uint32_t durationMs) {
     }
 }
 
-void playBuiltinKind(i2s_chan_handle_t tx, AudioMsg::Kind kind, float amp) {
-    if (kind == AudioMsg::Kind::Tx) {
-        writeTone(tx, 80, 880.0f, 0.95f * amp);
-        writeSilence(tx, 70);
-        writeTone(tx, 100, 660.0f, 0.75f * amp);
-    } else {
-        writeTone(tx, 140, 660.0f, 0.55f * amp);
-    }
+void playBuiltinKind(i2s_chan_handle_t tx, AudioMsg::Kind /*kind*/, float amp) {
+    // Amp/DAC need a short silent buffer after power-up or the first samples are lost.
+    writeSilence(tx, 80);
+    writeTone(tx, 120, 880.0f, 0.95f * amp);
 }
 
 void playConfiguredKind(i2s_chan_handle_t tx, AudioMsg::Kind kind, float amp) {
+    writeSilence(tx, 80);
     if (kind == AudioMsg::Kind::Tx) {
-        writeTone(tx, configGetAudioTxMs(), static_cast<float>(configGetAudioTxHz()), 0.9f * amp);
+        writeTone(tx, configGetAudioTxMs(), static_cast<float>(configGetAudioTxHz()), 0.95f * amp);
     } else {
-        writeTone(tx, configGetAudioRxMs(), static_cast<float>(configGetAudioRxHz()), 0.55f * amp);
+        writeTone(tx, configGetAudioRxMs(), static_cast<float>(configGetAudioRxHz()), 0.95f * amp);
     }
 }
 
@@ -245,7 +242,7 @@ void playKind(AudioMsg::Kind kind) {
     const uint8_t vol = configGetAudioVolume();
     // Waveshare: PA_EN LOW + PA_CTRL HIGH before codec/I2S use.
     paAudioPowerAndAmpOn();
-    delay(20);
+    delay(40);
     i2s_chan_handle_t tx = nullptr;
     if (!i2sStart(&tx)) {
         ESP_LOGW(TAG, "I2S start failed");
@@ -258,7 +255,7 @@ void playKind(AudioMsg::Kind kind) {
         paAudioPowerOff();
         return;
     }
-    delay(10);
+    delay(30);
     const float amp = static_cast<float>(vol) / 100.0f;
     if (configGetAudioCustom()) {
         playConfiguredKind(tx, kind, amp);
@@ -269,6 +266,7 @@ void playKind(AudioMsg::Kind kind) {
     delay(4);
     paAudioPowerOff();
     i2sStop(tx);
+    ESP_LOGI(TAG, "done %s", kind == AudioMsg::Kind::Tx ? "Tx" : "Rx");
 }
 
 void audioTaskFn(void*) {

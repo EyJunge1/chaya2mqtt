@@ -35,6 +35,10 @@ When saving, legacy keys (`ssid`, `pass`, `cred_v1`) are removed and only `cfg_v
 Invalid static fields in NVS are reset to DHCP when loaded. Known built-in NTP pairs are loaded as “automatic” (empty).
 Static addresses are not coordinated between devices; every Chaya2MQTT on the same LAN must be assigned a different IP.
 
+STA max TX power defaults to 52 quarter-dBm (13 dBm). During each E-Paper waveform the firmware
+temporarily lowers that cap from the current RSSI (see `docs/DISPLAY.md`); the chosen target never
+raises the configured maximum.
+
 **Written by:** `wlanSaveConfigToNvs()`—from web POST `/api/wifi/connect` (STA) or `/api/wifi/connect-commit` (AP test)
 
 The device ID and hostnames are not stored in NVS. The ID is derived from the STA MAC at runtime; the setup hostname is `chaya2mqtt`, while the LAN hostname is `chaya2mqtt-<deviceId>`. They therefore remain stable across configuration changes and factory reset without a migration.

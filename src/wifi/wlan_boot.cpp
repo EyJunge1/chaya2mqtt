@@ -213,16 +213,25 @@ bool wlanBeginLowInterferenceForEpd() {
     wifiScanStopForEpdLocked();
     if (!s_epdTxPowerSaved.load(std::memory_order_acquire)) {
         int8_t cur = 0;
-        if (esp_wifi_get_max_tx_power(&cur) == ESP_OK
-            && esp_wifi_set_max_tx_power(8) == ESP_OK) {
-            s_epdSavedTxPowerQdbm = cur;
-            s_epdTxPowerSaved.store(true, std::memory_order_release);
-        } else {
+        const int rssi = static_cast<int>(WiFi.RSSI());
+        if (esp_wifi_get_max_tx_power(&cur) != ESP_OK) {
             wlanWifiApiUnlock();
             s_epdRefreshActive.store(false, std::memory_order_release);
-            ESP_LOGE(TAG, "EPD refresh refused: failed to lower WiFi TX power");
+            ESP_LOGE(TAG, "EPD refresh refused: failed to read WiFi TX power");
             return false;
         }
+        const int8_t target = wlanEpdTxPowerQuarterDbmFromRssi(rssi, cur);
+        if (esp_wifi_set_max_tx_power(target) != ESP_OK) {
+            wlanWifiApiUnlock();
+            s_epdRefreshActive.store(false, std::memory_order_release);
+            ESP_LOGE(TAG, "EPD refresh refused: failed to set WiFi TX power to %d",
+                     static_cast<int>(target));
+            return false;
+        }
+        s_epdSavedTxPowerQdbm = cur;
+        s_epdTxPowerSaved.store(true, std::memory_order_release);
+        ESP_LOGI(TAG, "EPD low-interference TX: rssi=%d cur=%d target=%d", rssi,
+                 static_cast<int>(cur), static_cast<int>(target));
     }
     wlanWifiApiUnlock();
     return true;

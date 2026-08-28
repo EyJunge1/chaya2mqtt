@@ -145,8 +145,14 @@ sequenceDiagram
 
 1. Compare state-driven requests with `cfg/disp_view`; signal completion without touching the panel when the view is unchanged
 2. Persist `cfg/disp_view=unknown` before touching the panel
-3. Enter the WLAN low-interference window; active scans are paused, new connection tests are refused,
-   and GOT_IP, reconnect, recovery, MQTT teardown, and settings apply remain pending
+3. Enter the WLAN low-interference window (`wlanBeginLowInterferenceForEpd`): active scans are paused,
+   new connection tests are refused, and GOT_IP, reconnect, recovery, MQTT teardown, and settings
+   apply remain pending. Under the WiFi mutex the STA RSSI selects a temporary TX-power cap that
+   never exceeds the current max (`wlanEpdTxPowerQuarterDbmFromRssi`):
+   - RSSI ≥ −55 dBm → 8 quarter-dBm (2 dBm)
+   - RSSI −64…−56 dBm → 28 quarter-dBm (7 dBm)
+   - RSSI ≤ −65 dBm or unknown → 40 quarter-dBm (10 dBm)
+   The previous cap is restored after the refresh via the network task.
 4. `displayResumeSpiForDraw` — after `hibernate()`, GxEPD2 `init(0, true, 2, false)` (RST only; rail and SPI stay up)
 5. `setFullWindow()` → `firstPage()` → draw → `nextPage()` (full refresh ~20 s; fast ~15 s)
 6. `hibernate()` — controller deep sleep; the image remains bistable
