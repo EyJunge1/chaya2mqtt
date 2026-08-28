@@ -19,6 +19,7 @@ enum class LedPreset : uint8_t {
     WifiUp,    // 2× 80/80
     MqttUp,    // 1× 150/0
     LinkDown,  // 4× 50/50
+    SoftOff,   // 3× 60/60 — soft-off armed (≥2 s hold)
 };
 
 void buttonInit();

@@ -41,7 +41,7 @@ static void waitForPwrRelease() {
         if (digitalRead(pins::kPwrButton) != LOW) {
             if (releasedSinceMs == 0) {
                 releasedSinceMs = nowMs;
-            } else if (nowMs - releasedSinceMs >= kDebounceStableMs) {
+            } else if (nowMs - releasedSinceMs >= kSoftOffReleaseSettleMs) {
                 return;
             }
         } else {
@@ -51,29 +51,57 @@ static void waitForPwrRelease() {
     }
 }
 
-static void processPowerOff() {
-    if (otaBlocksDestructiveAction()) {
-        ESP_LOGW(TAG, "PWR soft-off ignored: OTA in progress");
+/** Blocking SoftOff LED ack while still held (≥2 s). Queued patterns would stall during shutdown. */
+static void blinkSoftOffArmedLed() {
+    if (!configGetLedEnabled()) {
+        ledOutput(LOW);
         return;
     }
+    for (uint8_t i = 0; i < kLedPresetSoftOffCount; i++) {
+        ledOutput(HIGH);
+        vTaskDelay(pdMS_TO_TICKS(kLedPresetSoftOffOnMs));
+        ledOutput(LOW);
+        if (kLedPresetSoftOffOffMs > 0) {
+            vTaskDelay(pdMS_TO_TICKS(kLedPresetSoftOffOffMs));
+        }
+    }
+}
+
+/**
+ * Soft-off after long-press release. Returns false if blocked (e.g. OTA).
+ * On success does not return (deep sleep / power cut).
+ */
+static bool processPowerOff() {
+    if (otaBlocksDestructiveAction()) {
+        static unsigned long s_lastOtaWarnMs = 0;
+        const unsigned long nowMs = millis();
+        if (s_lastOtaWarnMs == 0 || nowMs - s_lastOtaWarnMs >= 5000UL) {
+            ESP_LOGW(TAG, "PWR soft-off ignored: OTA in progress");
+            s_lastOtaWarnMs = nowMs;
+        }
+        return false;
+    }
+
+    ESP_LOGI(TAG, "PWR long press released: soft-off");
 
     g_systemShutdownInProgress.store(true, std::memory_order_release);
     flushHeartCounterIfDirty();
     flushHeartSentCounterIfDirty();
 
-    // A four-color full refresh can take tens of seconds. This task intentionally stops all
-    // button processing while shutdown is committed, so unsubscribe it from the task watchdog.
+    // Already released (edge-on-release). EPD may take tens of seconds.
     chayaTaskWatchdogUnsubscribe(TAG);
     if (!displayDrawPowerOffAndWait(kPowerOffDisplayTimeoutMs)) {
         ESP_LOGW(TAG, "Power-off screen timed out; continuing shutdown");
     }
 
-    // Deep-sleep wake is level-triggered. Sleeping while PWR is still LOW would wake immediately.
-    ESP_LOGI(TAG, "PWR released after soft-off — waiting for stable release then deep sleep");
+    // Settle before EXT1 in case of bounce / re-press during the EPD refresh.
+    ESP_LOGI(TAG, "PWR soft-off — stable release settle (%lu ms) then deep sleep",
+             kSoftOffReleaseSettleMs);
     waitForPwrRelease();
-    ESP_LOGI(TAG, "PWR released after soft-off — entering deep sleep (mv=%d pct=%d)",
-             batteryMilliVolts(), batteryPercent());
+    ESP_LOGI(TAG, "PWR soft-off — entering deep sleep (mv=%d pct=%d)", batteryMilliVolts(),
+             batteryPercent());
     batteryPowerOffAndSleep();
+    return true;
 }
 
 void pwrPollAndProcess() {
@@ -95,17 +123,22 @@ void pwrPollAndProcess() {
     }
     if (pressed) {
         if (!pwr.heldDown) {
-            pwr.heldDown         = true;
-            pwr.softOffTriggered = false;
-            pwr.pressStartMs     = nowMs;
-        } else if (!pwr.softOffTriggered && (nowMs - pwr.pressStartMs >= kSoftOffHoldMs)) {
-            pwr.softOffTriggered = true;
-            ESP_LOGI(TAG, "PWR long press: soft-off");
-            processPowerOff();
+            pwr.heldDown     = true;
+            pwr.softOffArmed = false;
+            pwr.pressStartMs = nowMs;
+        } else if (!pwr.softOffArmed && (nowMs - pwr.pressStartMs >= kSoftOffHoldMs)) {
+            // Threshold reached — holding longer is fine; shutdown starts on release.
+            pwr.softOffArmed = true;
+            ESP_LOGI(TAG, "PWR soft-off armed (release to shut down)");
+            blinkSoftOffArmedLed();
         }
-    } else {
-        pwr.heldDown         = false;
-        pwr.softOffTriggered = false;
+    } else if (pwr.heldDown) {
+        const bool armed = pwr.softOffArmed;
+        pwr.heldDown     = false;
+        pwr.softOffArmed = false;
+        if (armed) {
+            (void)processPowerOff();
+        }
     }
 }
 

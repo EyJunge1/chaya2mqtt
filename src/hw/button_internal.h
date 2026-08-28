@@ -46,7 +46,8 @@ struct ButtonState {
 struct PwrButtonState {
     bool          seenRelease           = false;
     bool          heldDown              = false;
-    bool          softOffTriggered      = false;
+    /** True once this press has been held ≥ kSoftOffHoldMs (LED ack). Soft-off runs on release. */
+    bool          softOffArmed          = false;
     unsigned long pressStartMs          = 0;
     int           lastRawReading        = 0;
     unsigned long lastDebounceChangeMs  = 0;

@@ -158,6 +158,8 @@ static LedBlinkPattern ledPresetToPattern(LedPreset preset) {
         return {kLedPresetMqttUpCount, kLedPresetMqttUpOnMs, kLedPresetMqttUpOffMs};
     case LedPreset::LinkDown:
         return {kLedPresetLinkDownCount, kLedPresetLinkDownOnMs, kLedPresetLinkDownOffMs};
+    case LedPreset::SoftOff:
+        return {kLedPresetSoftOffCount, kLedPresetSoftOffOnMs, kLedPresetSoftOffOffMs};
     }
     return {kLedPresetBootCount, kLedPresetBootOnMs, kLedPresetBootOffMs};
 }

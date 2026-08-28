@@ -282,7 +282,7 @@ cycle, so bursts do not grow an unbounded audio backlog.
 
 | File | Responsibility |
 |------|----------------|
-| `button_input.cpp` | BOOT GPIO/ISR and debounce; PWR long-press waits for shutdown draw, release, then powers off |
+| `button_input.cpp` | BOOT GPIO/ISR and debounce; PWR arms soft-off after ≥2 s (LED), runs shutdown on release, then power off |
 | `button_led.cpp` | TX LED sequence, refresh pulse, finite status patterns (`ledPlayPattern` / presets) |
 | `led_pattern_pure.h` | Host-testable blink phase advance |
 
