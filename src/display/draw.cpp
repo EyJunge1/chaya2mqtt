@@ -17,6 +17,7 @@
 
 #include <Arduino.h>
 #include <algorithm>
+#include <cstddef>
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
@@ -76,17 +77,24 @@ static constexpr HeartIconRow kHeartIconRows[] = {
     {DisplayHeartIcon::Crack, kIconHeartCrack, kIconHeartCrackW, kIconHeartCrackH},
 };
 
+template <typename Row, typename Icon, size_t N>
+static const Row* findIconRow(const Row (&table)[N], Icon icon) {
+    for (const Row& row : table) {
+        if (row.icon == icon) {
+            return &row;
+        }
+    }
+    return nullptr;
+}
+
 static uint8_t footerTextSizeForDigitCount(size_t digitLen) {
     return digitLen <= 3 ? 4 : 3;
 }
 
 static void drawBatteryLucide(int16_t x, int16_t y, int pct, uint16_t color) {
     const DisplayBatteryIcon icon = displayBatteryIcon(pct);
-    for (const BatteryIconRow& row : kBatteryIconRows) {
-        if (row.icon == icon) {
-            drawLucideIcon(x, y, row.bitmap, row.w, row.h, color);
-            return;
-        }
+    if (const BatteryIconRow* row = findIconRow(kBatteryIconRows, icon)) {
+        drawLucideIcon(x, y, row->bitmap, row->w, row->h, color);
     }
 }
 
@@ -200,12 +208,9 @@ HeartCounterDrawSnapshot drawHeartWithNumber(DisplayHeartIcon icon) {
     static constexpr int kArrowLane = kIconMoveDownW + 5;
     static constexpr int16_t kHeartFooterGap = 4;
 
-    const HeartIconRow* heartRow = &kHeartIconRows[0];
-    for (const HeartIconRow& row : kHeartIconRows) {
-        if (row.icon == icon) {
-            heartRow = &row;
-            break;
-        }
+    const HeartIconRow* heartRow = findIconRow(kHeartIconRows, icon);
+    if (heartRow == nullptr) {
+        heartRow = &kHeartIconRows[0];
     }
     const int16_t heartW   = heartRow->w;
     const int16_t heartH   = heartRow->h;

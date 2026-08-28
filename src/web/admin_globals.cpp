@@ -1,7 +1,12 @@
 #include "admin_globals.h"
 
+#include "constants.h"
+
 #include <Arduino.h>
 #include <ESPAsyncWebServer.h>
+#include <cerrno>
+#include <climits>
+#include <cstdlib>
 #include <cstring>
 
 std::atomic<bool> g_webAdminRebootRequested{false};
@@ -40,4 +45,49 @@ bool adminParseBodyParam(AsyncWebServerRequest* req, const char* name, char* out
     }
     strlcpy(out, p->value().c_str(), outLen);
     return true;
+}
+
+AdminFormParam adminOptionalFormInt(AsyncWebServerRequest* req, const char* name, int* out) {
+    if (req == nullptr || name == nullptr || out == nullptr || !req->hasParam(name, true)) {
+        return AdminFormParam::Absent;
+    }
+    const AsyncWebParameter* p = req->getParam(name, true);
+    if (p == nullptr || p->value().length() == 0U) {
+        return AdminFormParam::Invalid;
+    }
+    errno        = 0;
+    char* end    = nullptr;
+    const long v = strtol(p->value().c_str(), &end, 10);
+    if (errno == ERANGE || end == p->value().c_str() || *end != '\0' || v < INT_MIN
+        || v > INT_MAX) {
+        return AdminFormParam::Invalid;
+    }
+    *out = static_cast<int>(v);
+    return AdminFormParam::Ok;
+}
+
+AdminFormParam adminOptionalFormBool(AsyncWebServerRequest* req, const char* name, bool* out) {
+    if (req == nullptr || name == nullptr || out == nullptr || !req->hasParam(name, true)) {
+        return AdminFormParam::Absent;
+    }
+    const AsyncWebParameter* p = req->getParam(name, true);
+    if (p == nullptr || !formBoolSyntaxOk(p->value().c_str())) {
+        return AdminFormParam::Invalid;
+    }
+    *out = formBoolFromForm(p->value().c_str());
+    return AdminFormParam::Ok;
+}
+
+AdminFormParam adminOptionalFormString(AsyncWebServerRequest* req, const char* name, char* out,
+                                       size_t outLen) {
+    if (req == nullptr || name == nullptr || out == nullptr || outLen == 0U
+        || !req->hasParam(name, true)) {
+        return AdminFormParam::Absent;
+    }
+    const AsyncWebParameter* p = req->getParam(name, true);
+    if (p == nullptr || p->value().length() >= outLen) {
+        return AdminFormParam::Invalid;
+    }
+    strlcpy(out, p->value().c_str(), outLen);
+    return AdminFormParam::Ok;
 }

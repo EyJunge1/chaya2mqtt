@@ -143,42 +143,6 @@ void loadHeartCounter() {
     heartDebounceUnlock();
 }
 
-bool saveHeartCounter() {
-    heartDebounceLock();
-    const bool ok = s_rxCounter.save();
-    if (ok) {
-        s_rxCounter.syncAfterExternalLoad(millis());
-    }
-    heartDebounceUnlock();
-    return ok;
-}
-
-bool saveHeartSentCounter() {
-    heartDebounceLock();
-    const bool ok = s_txCounter.save();
-    if (ok) {
-        s_txCounter.syncAfterExternalLoad(millis());
-    }
-    heartDebounceUnlock();
-    return ok;
-}
-
-void maybeSaveHeartCounter() {
-    if (!heartDebounceLockTimed(1000U)) {
-        return;
-    }
-    s_rxCounter.maybeSave();
-    heartDebounceUnlock();
-}
-
-void maybeSaveHeartSentCounter() {
-    if (!heartDebounceLockTimed(1000U)) {
-        return;
-    }
-    s_txCounter.maybeSave();
-    heartDebounceUnlock();
-}
-
 void maybeSaveAllHeartCounters() {
     if (!heartDebounceLockTimed(1000U)) {
         return;
@@ -188,15 +152,11 @@ void maybeSaveAllHeartCounters() {
     heartDebounceUnlock();
 }
 
-void flushHeartCounterIfDirty() {
-    heartDebounceLock();
-    s_rxCounter.flushIfDirty();
-    heartDebounceUnlock();
-}
-
-void flushHeartSentCounterIfDirty() {
-    heartDebounceLock();
-    s_txCounter.flushIfDirty();
+void maybeSaveHeartSentCounter() {
+    if (!heartDebounceLockTimed(1000U)) {
+        return;
+    }
+    s_txCounter.maybeSave();
     heartDebounceUnlock();
 }
 

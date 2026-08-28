@@ -160,11 +160,10 @@ App task (4096 stack, priority 4, core 1), loop every 500 ms:
 | `heartCounterStoreFromRemote(int)` | Set received value (thread-safe) |
 | `heartSentCounterApplyAfterSuccessfulPublish()` | Increment TX counter |
 | `heartCounterFillDrawSnapshot(...)` | Atomic snapshot for the display |
-| `loadHeartCounter()` / `saveHeartCounter()` | Read/write NVS `chaya` |
+| `loadHeartCounter()` | Read NVS `chaya` |
 | `persistCounterBaselineState()` | Write packed `baseBlob` (baselines + reset day) |
-| `maybeSaveHeartCounter()` | Debounced save (≥30 s) |
-| `maybeSaveAllHeartCounters()` | Debounced save for RX + TX |
-| `flushHeartCounterIfDirty()` | Save immediately if changed |
+| `maybeSaveAllHeartCounters()` | Debounced save for RX + TX (≥30 s) |
+| `maybeSaveHeartSentCounter()` | Debounced save for TX only (publish ack) |
 | `flushAllHeartCountersIfDirty()` | Flush RX + TX if dirty |
 | `maybePeriodicallyResetCounters()` | Periodic baseline roll (UTC days) |
 | `maybeResetDisplayBaselinesWhenCapped()` | Baseline roll when display reaches ≥999 |

@@ -149,63 +149,67 @@ void handleApiMqttPost(AsyncWebServerRequest* req) {
         sendErr(req, 503, "busy");
         return;
     }
-    if (req->hasParam("mqtt_server", true)) {
-        const AsyncWebParameter* p = req->getParam("mqtt_server", true);
-        if (p != nullptr) {
-            if (p->value().length() >= sizeof(pending.server)) {
-                sendErr(req, 400, "broker");
-                return;
-            }
-            strlcpy(pending.server, p->value().c_str(), sizeof(pending.server));
+    switch (adminOptionalFormString(req, "mqtt_server", pending.server, sizeof(pending.server))) {
+    case AdminFormParam::Absent:
+        break;
+    case AdminFormParam::Invalid:
+        sendErr(req, 400, "broker");
+        return;
+    case AdminFormParam::Ok:
+        break;
+    }
+    {
+        int v = 0;
+        switch (adminOptionalFormInt(req, "mqtt_port", &v)) {
+        case AdminFormParam::Absent:
+            break;
+        case AdminFormParam::Invalid:
+            sendErr(req, 400, "port");
+            return;
+        case AdminFormParam::Ok:
+            pending.port = normalizeMqttPort(v);
+            break;
         }
     }
-    if (req->hasParam("mqtt_port", true)) {
-        const AsyncWebParameter* p = req->getParam("mqtt_port", true);
-        if (p != nullptr) {
-            errno        = 0;
-            char* endPtr = nullptr;
-            const long v = strtol(p->value().c_str(), &endPtr, 10);
-            if ((errno == ERANGE) || (endPtr == p->value().c_str()) || (*endPtr != '\0')) {
-                sendErr(req, 400, "port");
-                return;
+    switch (adminOptionalFormString(req, "mqtt_user", pending.username, sizeof(pending.username))) {
+    case AdminFormParam::Absent:
+        break;
+    case AdminFormParam::Invalid:
+        sendErr(req, 400, "username");
+        return;
+    case AdminFormParam::Ok:
+        break;
+    }
+    {
+        char passBuf[sizeof(pending.password)];
+        switch (adminOptionalFormString(req, "mqtt_pass", passBuf, sizeof(passBuf))) {
+        case AdminFormParam::Absent:
+            break;
+        case AdminFormParam::Invalid:
+            sendErr(req, 400, "password");
+            return;
+        case AdminFormParam::Ok:
+            // Empty password field means "leave unchanged".
+            if (passBuf[0] != '\0') {
+                strlcpy(pending.password, passBuf, sizeof(pending.password));
             }
-            pending.port = normalizeMqttPort(static_cast<int>(v));
+            break;
         }
     }
-    if (req->hasParam("mqtt_user", true)) {
-        const AsyncWebParameter* p = req->getParam("mqtt_user", true);
-        if (p != nullptr) {
-            if (p->value().length() >= sizeof(pending.username)) {
-                sendErr(req, 400, "username");
-                return;
-            }
-            strlcpy(pending.username, p->value().c_str(), sizeof(pending.username));
+    switch (adminOptionalFormString(req, "partner_id", pending.partnerDeviceId,
+                                    sizeof(pending.partnerDeviceId))) {
+    case AdminFormParam::Absent:
+        break;
+    case AdminFormParam::Invalid:
+        sendErr(req, 400, "partner");
+        return;
+    case AdminFormParam::Ok:
+        normalizePartnerIdInput(pending.partnerDeviceId, sizeof(pending.partnerDeviceId));
+        if (pending.partnerDeviceId[0] != '\0' && !partnerIdInputValid(pending.partnerDeviceId)) {
+            sendErr(req, 400, "partner");
+            return;
         }
-    }
-    if (req->hasParam("mqtt_pass", true)) {
-        const AsyncWebParameter* p = req->getParam("mqtt_pass", true);
-        if (p != nullptr && p->value().length() > 0) {
-            if (p->value().length() >= sizeof(pending.password)) {
-                sendErr(req, 400, "password");
-                return;
-            }
-            strlcpy(pending.password, p->value().c_str(), sizeof(pending.password));
-        }
-    }
-    if (req->hasParam("partner_id", true)) {
-        const AsyncWebParameter* p = req->getParam("partner_id", true);
-        if (p != nullptr) {
-            if (p->value().length() >= sizeof(pending.partnerDeviceId)) {
-                sendErr(req, 400, "partner");
-                return;
-            }
-            strlcpy(pending.partnerDeviceId, p->value().c_str(), sizeof(pending.partnerDeviceId));
-            normalizePartnerIdInput(pending.partnerDeviceId, sizeof(pending.partnerDeviceId));
-            if (pending.partnerDeviceId[0] != '\0' && !partnerIdInputValid(pending.partnerDeviceId)) {
-                sendErr(req, 400, "partner");
-                return;
-            }
-        }
+        break;
     }
     mqttCfgApplyPairingTopics(&pending);
     if (!mqttServerSyntaxOk(pending.server, sizeof(pending.server))) {

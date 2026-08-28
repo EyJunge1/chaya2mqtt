@@ -76,149 +76,201 @@ void handleApiSettingsPost(AsyncWebServerRequest* req) {
     strlcpy(lang, configGetUiLang(), sizeof(lang));
     strlcpy(theme, configGetUiTheme(), sizeof(theme));
 
-    if (req->hasParam("reset_days", true)) {
-        const AsyncWebParameter* p = req->getParam("reset_days", true);
-        if (p != nullptr) {
-            int v = 0;
-            if (!parseFormIntStrict(p->value(), &v) || v < 0 || v > 30) {
+    {
+        int v = 0;
+        switch (adminOptionalFormInt(req, "reset_days", &v)) {
+        case AdminFormParam::Absent:
+            break;
+        case AdminFormParam::Invalid:
+            sendErr(req, 400, "reset_days");
+            return;
+        case AdminFormParam::Ok:
+            if (v < 0 || v > 30) {
                 sendErr(req, 400, "reset_days");
                 return;
             }
             days = static_cast<uint8_t>(v);
+            break;
         }
     }
-    if (req->hasParam("lang", true)) {
-        const AsyncWebParameter* p = req->getParam("lang", true);
-        if (p != nullptr) {
-            const String v = p->value();
-            if (uiLangSyntaxOk(v.c_str())) {
-                strlcpy(lang, v.c_str(), sizeof(lang));
-            } else {
+    {
+        char buf[sizeof(lang)];
+        switch (adminOptionalFormString(req, "lang", buf, sizeof(buf))) {
+        case AdminFormParam::Absent:
+            break;
+        case AdminFormParam::Invalid:
+            sendErr(req, 400, "lang");
+            return;
+        case AdminFormParam::Ok:
+            if (!uiLangSyntaxOk(buf)) {
                 sendErr(req, 400, "lang");
                 return;
             }
+            strlcpy(lang, buf, sizeof(lang));
+            break;
         }
     }
-    if (req->hasParam("theme", true)) {
-        const AsyncWebParameter* p = req->getParam("theme", true);
-        if (p != nullptr) {
-            const String v = p->value();
-            if (uiThemeSyntaxOk(v.c_str())) {
-                strlcpy(theme, v.c_str(), sizeof(theme));
-            } else {
+    {
+        char buf[sizeof(theme)];
+        switch (adminOptionalFormString(req, "theme", buf, sizeof(buf))) {
+        case AdminFormParam::Absent:
+            break;
+        case AdminFormParam::Invalid:
+            sendErr(req, 400, "theme");
+            return;
+        case AdminFormParam::Ok:
+            if (!uiThemeSyntaxOk(buf)) {
                 sendErr(req, 400, "theme");
                 return;
             }
+            strlcpy(theme, buf, sizeof(theme));
+            break;
         }
     }
-    if (req->hasParam("led_enabled", true)) {
-        const AsyncWebParameter* p = req->getParam("led_enabled", true);
-        if (p != nullptr) {
-            const String v = p->value();
-            if (!formBoolSyntaxOk(v.c_str())) {
-                sendErr(req, 400, "led_enabled");
-                return;
-            }
-            ledEnabled = formBoolFromForm(v.c_str());
-        }
+    switch (adminOptionalFormBool(req, "led_enabled", &ledEnabled)) {
+    case AdminFormParam::Absent:
+        break;
+    case AdminFormParam::Invalid:
+        sendErr(req, 400, "led_enabled");
+        return;
+    case AdminFormParam::Ok:
+        break;
     }
-    if (req->hasParam("audio_muted", true)) {
-        const AsyncWebParameter* p = req->getParam("audio_muted", true);
-        if (p != nullptr) {
-            const String v = p->value();
-            if (!formBoolSyntaxOk(v.c_str())) {
-                sendErr(req, 400, "audio_muted");
-                return;
-            }
-            audioMuted = formBoolFromForm(v.c_str());
-        }
+    switch (adminOptionalFormBool(req, "audio_muted", &audioMuted)) {
+    case AdminFormParam::Absent:
+        break;
+    case AdminFormParam::Invalid:
+        sendErr(req, 400, "audio_muted");
+        return;
+    case AdminFormParam::Ok:
+        break;
     }
-    if (req->hasParam("audio_volume", true)) {
-        const AsyncWebParameter* p = req->getParam("audio_volume", true);
-        if (p != nullptr) {
-            int v = 0;
-            if (!parseFormIntStrict(p->value(), &v) || !audioVolumeInRange(v)) {
+    {
+        int v = 0;
+        switch (adminOptionalFormInt(req, "audio_volume", &v)) {
+        case AdminFormParam::Absent:
+            break;
+        case AdminFormParam::Invalid:
+            sendErr(req, 400, "audio_volume");
+            return;
+        case AdminFormParam::Ok:
+            if (!audioVolumeInRange(v)) {
                 sendErr(req, 400, "audio_volume");
                 return;
             }
             audioVol = static_cast<uint8_t>(v);
+            break;
         }
     }
-    if (req->hasParam("quiet_hour_start", true)) {
-        const AsyncWebParameter* p = req->getParam("quiet_hour_start", true);
-        if (p != nullptr) {
-            int v = 0;
-            if (!parseFormIntStrict(p->value(), &v) || !quietHourInRange(v)) {
+    {
+        int v = 0;
+        switch (adminOptionalFormInt(req, "quiet_hour_start", &v)) {
+        case AdminFormParam::Absent:
+            break;
+        case AdminFormParam::Invalid:
+            sendErr(req, 400, "quiet_hour_start");
+            return;
+        case AdminFormParam::Ok:
+            if (!quietHourInRange(v)) {
                 sendErr(req, 400, "quiet_hour_start");
                 return;
             }
             quiet0 = static_cast<uint8_t>(v);
+            break;
         }
     }
-    if (req->hasParam("quiet_hour_end", true)) {
-        const AsyncWebParameter* p = req->getParam("quiet_hour_end", true);
-        if (p != nullptr) {
-            int v = 0;
-            if (!parseFormIntStrict(p->value(), &v) || !quietHourInRange(v)) {
+    {
+        int v = 0;
+        switch (adminOptionalFormInt(req, "quiet_hour_end", &v)) {
+        case AdminFormParam::Absent:
+            break;
+        case AdminFormParam::Invalid:
+            sendErr(req, 400, "quiet_hour_end");
+            return;
+        case AdminFormParam::Ok:
+            if (!quietHourInRange(v)) {
                 sendErr(req, 400, "quiet_hour_end");
                 return;
             }
             quiet1 = static_cast<uint8_t>(v);
+            break;
         }
     }
-    if (req->hasParam("audio_custom", true)) {
-        const AsyncWebParameter* p = req->getParam("audio_custom", true);
-        if (p != nullptr) {
-            const String v = p->value();
-            if (!formBoolSyntaxOk(v.c_str())) {
-                sendErr(req, 400, "audio_custom");
-                return;
-            }
-            audioCustom = formBoolFromForm(v.c_str());
-        }
+    switch (adminOptionalFormBool(req, "audio_custom", &audioCustom)) {
+    case AdminFormParam::Absent:
+        break;
+    case AdminFormParam::Invalid:
+        sendErr(req, 400, "audio_custom");
+        return;
+    case AdminFormParam::Ok:
+        break;
     }
-    if (req->hasParam("tx_hz", true)) {
-        const AsyncWebParameter* p = req->getParam("tx_hz", true);
-        if (p != nullptr) {
-            int v = 0;
-            if (!parseFormIntStrict(p->value(), &v) || !audioToneHzInRange(v)) {
+    {
+        int v = 0;
+        switch (adminOptionalFormInt(req, "tx_hz", &v)) {
+        case AdminFormParam::Absent:
+            break;
+        case AdminFormParam::Invalid:
+            sendErr(req, 400, "tx_hz");
+            return;
+        case AdminFormParam::Ok:
+            if (!audioToneHzInRange(v)) {
                 sendErr(req, 400, "tx_hz");
                 return;
             }
             txHz = static_cast<uint16_t>(v);
+            break;
         }
     }
-    if (req->hasParam("tx_ms", true)) {
-        const AsyncWebParameter* p = req->getParam("tx_ms", true);
-        if (p != nullptr) {
-            int v = 0;
-            if (!parseFormIntStrict(p->value(), &v) || !audioToneMsInRange(v)) {
+    {
+        int v = 0;
+        switch (adminOptionalFormInt(req, "tx_ms", &v)) {
+        case AdminFormParam::Absent:
+            break;
+        case AdminFormParam::Invalid:
+            sendErr(req, 400, "tx_ms");
+            return;
+        case AdminFormParam::Ok:
+            if (!audioToneMsInRange(v)) {
                 sendErr(req, 400, "tx_ms");
                 return;
             }
             txMs = static_cast<uint16_t>(v);
+            break;
         }
     }
-    if (req->hasParam("rx_hz", true)) {
-        const AsyncWebParameter* p = req->getParam("rx_hz", true);
-        if (p != nullptr) {
-            int v = 0;
-            if (!parseFormIntStrict(p->value(), &v) || !audioToneHzInRange(v)) {
+    {
+        int v = 0;
+        switch (adminOptionalFormInt(req, "rx_hz", &v)) {
+        case AdminFormParam::Absent:
+            break;
+        case AdminFormParam::Invalid:
+            sendErr(req, 400, "rx_hz");
+            return;
+        case AdminFormParam::Ok:
+            if (!audioToneHzInRange(v)) {
                 sendErr(req, 400, "rx_hz");
                 return;
             }
             rxHz = static_cast<uint16_t>(v);
+            break;
         }
     }
-    if (req->hasParam("rx_ms", true)) {
-        const AsyncWebParameter* p = req->getParam("rx_ms", true);
-        if (p != nullptr) {
-            int v = 0;
-            if (!parseFormIntStrict(p->value(), &v) || !audioToneMsInRange(v)) {
+    {
+        int v = 0;
+        switch (adminOptionalFormInt(req, "rx_ms", &v)) {
+        case AdminFormParam::Absent:
+            break;
+        case AdminFormParam::Invalid:
+            sendErr(req, 400, "rx_ms");
+            return;
+        case AdminFormParam::Ok:
+            if (!audioToneMsInRange(v)) {
                 sendErr(req, 400, "rx_ms");
                 return;
             }
             rxMs = static_cast<uint16_t>(v);
+            break;
         }
     }
 

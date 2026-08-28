@@ -33,3 +33,12 @@ extern portMUX_TYPE g_webAdminSettingsPendingMux;
 
 bool adminParseBodyParam(AsyncWebServerRequest* req, const char* name, char* out,
                          size_t outLen);
+
+/** Optional POST body fields: absent vs. present-and-ok vs. present-but-invalid. */
+enum class AdminFormParam : uint8_t { Absent, Ok, Invalid };
+
+AdminFormParam adminOptionalFormInt(AsyncWebServerRequest* req, const char* name, int* out);
+AdminFormParam adminOptionalFormBool(AsyncWebServerRequest* req, const char* name, bool* out);
+/** Absent if missing; Ok if copied; Invalid if present but too long for outLen. */
+AdminFormParam adminOptionalFormString(AsyncWebServerRequest* req, const char* name, char* out,
+                                       size_t outLen);

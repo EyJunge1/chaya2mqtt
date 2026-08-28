@@ -63,6 +63,28 @@ static bool setCachedBoolAsUChar(std::atomic<bool>& cache, bool value, const cha
     return true;
 }
 
+static bool setCachedString(char* cache, size_t cacheLen, portMUX_TYPE* mux, const char* key,
+                            const char* value, const char* errMsg) {
+    if (cache == nullptr || mux == nullptr || key == nullptr || value == nullptr
+        || cacheLen == 0U) {
+        return false;
+    }
+    portENTER_CRITICAL(mux);
+    const bool same = strcmp(cache, value) == 0;
+    portEXIT_CRITICAL(mux);
+    if (same) {
+        return true;
+    }
+    if (!app_nvs::writeString(kNvsNsCfg, key, value)) {
+        ESP_LOGE(TAG, "%s", errMsg);
+        return false;
+    }
+    portENTER_CRITICAL(mux);
+    strlcpy(cache, value, cacheLen);
+    portEXIT_CRITICAL(mux);
+    return true;
+}
+
 static uint16_t clampAudioToneHz(uint32_t raw, uint16_t fallback) {
     if (raw < kAudioToneHzMin || raw > kAudioToneHzMax) {
         return fallback;
@@ -130,20 +152,8 @@ bool configSetUiLang(const char* lang) {
     if (!uiLangSyntaxOk(lang)) {
         return false;
     }
-    portENTER_CRITICAL(&s_uiPrefsMux);
-    const bool same = strcmp(s_uiLangCached, lang) == 0;
-    portEXIT_CRITICAL(&s_uiPrefsMux);
-    if (same) {
-        return true;
-    }
-    if (!app_nvs::writeString(kNvsNsCfg, kNvsKeyCfgUiLang, lang)) {
-        ESP_LOGE(TAG, "NVS cfg: failed to persist ui_lang");
-        return false;
-    }
-    portENTER_CRITICAL(&s_uiPrefsMux);
-    strlcpy(s_uiLangCached, lang, sizeof(s_uiLangCached));
-    portEXIT_CRITICAL(&s_uiPrefsMux);
-    return true;
+    return setCachedString(s_uiLangCached, sizeof(s_uiLangCached), &s_uiPrefsMux,
+                           kNvsKeyCfgUiLang, lang, "NVS cfg: failed to persist ui_lang");
 }
 
 const char* configGetUiTheme() {
@@ -154,20 +164,8 @@ bool configSetUiTheme(const char* theme) {
     if (!uiThemeSyntaxOk(theme)) {
         return false;
     }
-    portENTER_CRITICAL(&s_uiPrefsMux);
-    const bool same = strcmp(s_uiThemeCached, theme) == 0;
-    portEXIT_CRITICAL(&s_uiPrefsMux);
-    if (same) {
-        return true;
-    }
-    if (!app_nvs::writeString(kNvsNsCfg, kNvsKeyCfgUiTheme, theme)) {
-        ESP_LOGE(TAG, "NVS cfg: failed to persist ui_theme");
-        return false;
-    }
-    portENTER_CRITICAL(&s_uiPrefsMux);
-    strlcpy(s_uiThemeCached, theme, sizeof(s_uiThemeCached));
-    portEXIT_CRITICAL(&s_uiPrefsMux);
-    return true;
+    return setCachedString(s_uiThemeCached, sizeof(s_uiThemeCached), &s_uiPrefsMux,
+                           kNvsKeyCfgUiTheme, theme, "NVS cfg: failed to persist ui_theme");
 }
 
 void configLoadLedFromNvs() {
