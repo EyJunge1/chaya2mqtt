@@ -41,7 +41,12 @@ void mqttDisconnect() {
     mqttKillClient();
 }
 
+void mqttRequestKillClientDeferred() {
+    s_mqttKillCoalesce.store(true, std::memory_order_release);
+}
+
 void mqttSetup() {
+    ESP_LOGI(TAG, "MQTT setup (kill+reset backoff)");
     mqttKillClient();
     portENTER_CRITICAL(&s_mqttBackoffMux);
     lastMqttAttemptAt    = 0;
@@ -134,6 +139,11 @@ static void mqttLoopTryReconnect(MqttConfig& loopCfg, unsigned long now) {
 }
 
 void mqttLoop() {
+    if (wlanEpdRefreshActive()) {
+        // Keep kill/reconnect work pending; network task must stay short for TWDT.
+        return;
+    }
+
     if (s_mqttKillCoalesce.exchange(false, std::memory_order_acq_rel)) {
         mqttKillClient();
     }

@@ -24,6 +24,17 @@ void wlanRequestWifiScanRefresh() {
     s_wifiScanKick.store(true, std::memory_order_release);
 }
 
+void wifiScanStopForEpdLocked() {
+    if (!s_wifiScanInProgress.exchange(false, std::memory_order_acq_rel)) {
+        return;
+    }
+    (void)esp_wifi_scan_stop();
+    WiFi.scanDelete();
+    // Preserve the user's request; restart after the EPD window closes.
+    s_wifiScanKick.store(true, std::memory_order_release);
+    ESP_LOGI(TAG, "WLAN scan paused for EPD refresh");
+}
+
 bool wlanWifiScanCacheReady() {
     return s_wifiScanHasValidCache.load(std::memory_order_acquire)
            && !s_wifiScanInProgress.load(std::memory_order_acquire);
@@ -65,6 +76,12 @@ bool wlanWifiScanCopyRowAt(size_t index, WlanScanRow* out) {
 
 void wifiScanServiceOnMainTask() {
     wlanWifiApiLock();
+    // Recheck under the WiFi mutex: the display task may have opened the EPD
+    // window after wlanLoop() took its initial state snapshot.
+    if (s_epdRefreshActive.load(std::memory_order_acquire)) {
+        wlanWifiApiUnlock();
+        return;
+    }
     if (s_wifiScanKick.exchange(false, std::memory_order_acq_rel)) {
         const unsigned long nowMs       = millis();
         const unsigned long nextAllowed = s_wifiScanNextAllowedMs.load(std::memory_order_relaxed);

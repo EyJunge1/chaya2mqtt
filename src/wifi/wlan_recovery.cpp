@@ -18,7 +18,8 @@ void wlanRecoveryServiceLoop() {
     static WlanRecoveryState s_recovery{};
 
     if (!s_wifiSetupComplete.load(std::memory_order_acquire)
-        || !s_bootWifiSettled.load(std::memory_order_acquire)) {
+        || !s_bootWifiSettled.load(std::memory_order_acquire)
+        || s_epdRefreshActive.load(std::memory_order_acquire)) {
         return;
     }
 
@@ -31,13 +32,20 @@ void wlanRecoveryServiceLoop() {
     const WlanRecoveryAction action =
         wlanRecoveryDecide(apMode, connected, otaBlock, hasCreds, nowMs, nowMs, s_recovery);
 
+    const unsigned long downFor =
+        (s_recovery.linkDownSinceMs != 0UL) ? (nowMs - s_recovery.linkDownSinceMs) : 0UL;
+
     switch (action) {
     case WlanRecoveryAction::None:
         break;
     case WlanRecoveryAction::ForcedReassoc:
+        ESP_LOGW(TAG, "WLAN recovery action=ForcedReassoc downFor=%lu ms otaBlock=%d", downFor,
+                 otaBlock ? 1 : 0);
         wlanForceStaReassoc("recovery");
         break;
     case WlanRecoveryAction::Restart:
+        ESP_LOGW(TAG, "WLAN recovery action=Restart downFor=%lu ms otaBlock=%d", downFor,
+                 otaBlock ? 1 : 0);
         wlanControlledRestart("recovery-prolonged-outage");
         break;
     }

@@ -35,9 +35,9 @@ describe("SettingsPage", () => {
       quietHourStart: 23,
       quietHourEnd: 8,
       audioCustom: false,
-      txHz: 95,
+      txHz: 880,
       txMs: 80,
-      rxHz: 88,
+      rxHz: 660,
       rxMs: 140,
     });
     saveSettings.mockResolvedValue({ ok: true, message: "saved" });
@@ -61,9 +61,9 @@ describe("SettingsPage", () => {
         quiet_hour_start: 23,
         quiet_hour_end: 8,
         audio_custom: 0,
-        tx_hz: 95,
+        tx_hz: 880,
         tx_ms: 80,
-        rx_hz: 88,
+        rx_hz: 660,
         rx_ms: 140,
       }),
     );

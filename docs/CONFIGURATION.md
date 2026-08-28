@@ -35,6 +35,10 @@ When saving, legacy keys (`ssid`, `pass`, `cred_v1`) are removed and only `cfg_v
 Invalid static fields in NVS are reset to DHCP when loaded. Known built-in NTP pairs are loaded as “automatic” (empty).
 Static addresses are not coordinated between devices; every Chaya2MQTT on the same LAN must be assigned a different IP.
 
+STA max TX power defaults to 52 quarter-dBm (13 dBm). During each E-Paper waveform the firmware
+temporarily lowers that cap from the current RSSI (see `docs/DISPLAY.md`); the chosen target never
+raises the configured maximum.
+
 **Written by:** `wlanSaveConfigToNvs()`—from web POST `/api/wifi/connect` (STA) or `/api/wifi/connect-commit` (AP test)
 
 The device ID and hostnames are not stored in NVS. The ID is derived from the STA MAC at runtime; the setup hostname is `chaya2mqtt`, while the LAN hostname is `chaya2mqtt-<deviceId>`. They therefore remain stable across configuration changes and factory reset without a migration.
@@ -74,16 +78,17 @@ Legacy keys `topic_pub` / `topic_sub` are removed when saving. Topics now exist 
 | `snd_q0` | UChar | `23` | Quiet-hours start (local hour after NTP) |
 | `snd_q1` | UChar | `8` | Quiet-hours end (equal to `snd_q0` = off; wraps midnight) |
 | `snd_custom` | UChar | `0` | Use custom TX/RX Hz/ms (`1`); otherwise built-in tone |
-| `snd_tx_hz` | UInt | `95` | Send click frequency (Hz, 40–2000) |
+| `snd_tx_hz` | UInt | `880` | Send click frequency (Hz, 40–2000) |
 | `snd_tx_ms` | UInt | `80` | Send click duration (ms, 20–500) |
-| `snd_rx_hz` | UInt | `88` | Receive click frequency (Hz, 40–2000) |
+| `snd_rx_hz` | UInt | `660` | Receive click frequency (Hz, 40–2000) |
 | `snd_rx_ms` | UInt | `140` | Receive click duration (ms, 20–500) |
 | `upd_day` | UInt | `0` | Last automatic OTA check (UTC calendar day) |
 | `upd_chan` | String | `stable` | OTA channel (`stable` or `beta`) |
 
 **Written by:**
 - `rstPeriod` / `ui_lang` / `ui_theme` / `led_en` / `snd_mute` / `snd_vol` / `snd_q0` / `snd_q1` / `snd_custom` / `snd_tx_hz` / `snd_tx_ms` / `snd_rx_hz` / `snd_rx_ms`: web POST `/api/settings` (deferred via the app task)
-- `disp_view`: by the display task after a completed full refresh; unchanged values are not rewritten
+- `disp_view`: two-phase display transaction—`Unknown` is persisted before a full refresh and the
+  completed view afterward. A reset or power loss during the waveform therefore forces a repaint.
 - `upd_day`: automatically after an OTA check
 - `upd_chan`: when selecting a channel during the update check
 

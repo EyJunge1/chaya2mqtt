@@ -1,5 +1,6 @@
 #include "wlan.h"
 
+#include "test.h"
 #include "wlan_config.h"
 #include "wlan_internal.h"
 
@@ -112,14 +113,14 @@ void setupWifiFinishStaConnected() {
     portEXIT_CRITICAL(&g_lastFailedBootSsidMux);
     wlanWifiApiLock();
     WiFi.setSleep(true);
+    (void)esp_wifi_set_ps(WIFI_PS_MIN_MODEM);
+    (void)esp_wifi_set_max_tx_power(kWifiStaMaxTxPowerQuarterDbm);
+    const esp_err_t inact = esp_wifi_set_inactive_time(WIFI_IF_STA, kWifiStaInactiveTimeSeconds);
     wlanWifiApiUnlock();
-    esp_wifi_set_ps(WIFI_PS_MIN_MODEM);
-    esp_wifi_set_max_tx_power(kWifiStaMaxTxPowerQuarterDbm);
 
     wlanApplyNtpFromConfig(s_activeWlanConfig);
     // Start/restart mDNS from wlanLoop(), after re-validating that STA is still connected.
     s_mdnsRestartNeeded.store(true, std::memory_order_release);
-    const esp_err_t inact = esp_wifi_set_inactive_time(WIFI_IF_STA, kWifiStaInactiveTimeSeconds);
     if (inact != ESP_OK) {
         ESP_LOGW(TAG, "esp_wifi_set_inactive_time: %s", esp_err_to_name(inact));
     }
@@ -142,8 +143,8 @@ void setupWifiFinishStaConnected() {
     }
 }
 
-static int8_t            s_epdSavedTxPowerQdbm = 0;
-static bool              s_epdTxPowerSaved     = false;
+static int8_t           s_epdSavedTxPowerQdbm = 0;
+static std::atomic<bool> s_epdTxPowerSaved{false};
 
 static bool wlanBringUpSetupSoftApLocked(const char* apPass, const char** outAuth) {
     WiFi.softAPConfig(IPAddress(4, 3, 2, 1), IPAddress(4, 3, 2, 1), IPAddress(255, 255, 255, 0));
@@ -189,33 +190,75 @@ static bool wlanFinishSetupSoftAp(const char* apAuth) {
     return true;
 }
 
-void wlanBeginLowInterferenceForEpd() {
+bool wlanEpdRefreshActive() {
+    return s_epdRefreshActive.load(std::memory_order_acquire);
+}
+
+bool wlanBeginLowInterferenceForEpd() {
+    s_epdRefreshActive.store(true, std::memory_order_release);
+    // A setup connection test owns an active STA association. Let it finish
+    // instead of changing radio state underneath it.
+    if (wlanGetWifiConnectionTestState() == WlanWifiConnectionTestState::Testing) {
+        s_epdRefreshActive.store(false, std::memory_order_release);
+        return false;
+    }
+    // The display task has no TWDT and may wait here. Taking the project WiFi
+    // mutex guarantees that no normal TX-power update can race the snapshot.
+    wlanWifiApiLock();
     if (WiFi.getMode() == WIFI_OFF || WiFi.getMode() == WIFI_MODE_NULL) {
-        return;
+        s_epdTxPowerSaved.store(false, std::memory_order_release);
+        wlanWifiApiUnlock();
+        return true;
     }
-    if (!wlanWifiApiLockTimed(200U)) {
-        return;
-    }
-    int8_t cur = 0;
-    if (esp_wifi_get_max_tx_power(&cur) == ESP_OK) {
+    wifiScanStopForEpdLocked();
+    if (!s_epdTxPowerSaved.load(std::memory_order_acquire)) {
+        int8_t cur = 0;
+        const int rssi = static_cast<int>(WiFi.RSSI());
+        if (esp_wifi_get_max_tx_power(&cur) != ESP_OK) {
+            wlanWifiApiUnlock();
+            s_epdRefreshActive.store(false, std::memory_order_release);
+            ESP_LOGE(TAG, "EPD refresh refused: failed to read WiFi TX power");
+            return false;
+        }
+        const int8_t target = wlanEpdTxPowerQuarterDbmFromRssi(rssi, cur);
+        if (esp_wifi_set_max_tx_power(target) != ESP_OK) {
+            wlanWifiApiUnlock();
+            s_epdRefreshActive.store(false, std::memory_order_release);
+            ESP_LOGE(TAG, "EPD refresh refused: failed to set WiFi TX power to %d",
+                     static_cast<int>(target));
+            return false;
+        }
         s_epdSavedTxPowerQdbm = cur;
-        s_epdTxPowerSaved     = true;
-        // ~2 dBm: SoftAP stays up for local phones; EPD rail stops browning out.
-        (void)esp_wifi_set_max_tx_power(8);
+        s_epdTxPowerSaved.store(true, std::memory_order_release);
+        ESP_LOGI(TAG, "EPD low-TX begin saved_qdbm=%d rssi=%d target=%d", static_cast<int>(cur),
+                 rssi, static_cast<int>(target));
+    }
+    wlanWifiApiUnlock();
+    return true;
+}
+
+void wlanRestoreTxPowerAfterEpd() {
+    if (s_epdRefreshActive.load(std::memory_order_acquire)
+        || !s_epdTxPowerSaved.load(std::memory_order_acquire)
+        || !wlanWifiApiLockTimed(200U)) {
+        return;
+    }
+    if (s_epdTxPowerSaved.load(std::memory_order_acquire)
+        && esp_wifi_set_max_tx_power(s_epdSavedTxPowerQdbm) == ESP_OK) {
+        ESP_LOGI(TAG, "EPD low-TX end restored_qdbm=%d", static_cast<int>(s_epdSavedTxPowerQdbm));
+        s_epdTxPowerSaved.store(false, std::memory_order_release);
     }
     wlanWifiApiUnlock();
 }
 
 void wlanEndLowInterferenceForEpd() {
-    if (!s_epdTxPowerSaved) {
+    const bool wasActive = s_epdRefreshActive.exchange(false, std::memory_order_acq_rel);
+    if (!wasActive) {
         return;
     }
-    if (!wlanWifiApiLockTimed(200U)) {
-        return;
-    }
-    (void)esp_wifi_set_max_tx_power(s_epdSavedTxPowerQdbm);
-    s_epdTxPowerSaved = false;
-    wlanWifiApiUnlock();
+    ESP_LOGD(TAG, "EPD low-interference flag cleared (TX restore deferred to network task)");
+    // The network task consumes deferred TX-power, power-save, reconnect and MQTT work
+    // on its next bounded poll; no WiFi API calls block the display task here.
 }
 
 void setupWifiStartApFallback(const char* attemptedSsid) {
@@ -259,6 +302,11 @@ void setupWifiStartApFallback(const char* attemptedSsid) {
 }
 
 void wlanHandleStaGotIpNetCmd() {
+    if (s_epdRefreshActive.load(std::memory_order_acquire)) {
+        // setupWifiFinishStaConnected() restores normal TX power; keep GOT_IP
+        // pending until the low-interference refresh window has closed.
+        return;
+    }
     if (!s_staGotIpWorkPending.exchange(false, std::memory_order_acq_rel)) {
         return;
     }
@@ -293,6 +341,9 @@ void wlanHandleStaGotIpNetCmd() {
 }
 
 void wlanBootConnectServiceLoop() {
+    if (s_epdRefreshActive.load(std::memory_order_acquire)) {
+        return;
+    }
     if (!s_bootStaConnectPending.load(std::memory_order_acquire)) {
         return;
     }

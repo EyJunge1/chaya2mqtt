@@ -6,7 +6,9 @@
 #include "config/app_config.h"
 #include "display_link_pure.h"
 #include "display_refresh_pure.h"
+#include "draw_pure.h"
 #include "heart/counter.h"
+#include "hw/battery.h"
 #include "hw/button.h"
 #include "hw/pins.h"
 
@@ -38,6 +40,7 @@ static bool s_panelInited  = false;
 static bool s_hibernating  = false;
 static std::atomic<bool> s_heartDrawQueued{false};
 static std::atomic<bool> s_heartDrawPending{false};
+static std::atomic<bool> s_splashDrawPending{false};
 static std::atomic<int> s_lastDrawnRx{INT32_MIN};
 static std::atomic<int> s_lastDrawnTx{INT32_MIN};
 static std::atomic<unsigned long> s_lastHeartRedrawEnqueueMs{0};
@@ -45,7 +48,11 @@ static std::atomic<uint8_t>       s_desiredHeartIcon{
     static_cast<uint8_t>(DisplayHeartIcon::Filled)};
 static std::atomic<uint8_t> s_lastDrawnHeartIcon{
     static_cast<uint8_t>(DisplayHeartIcon::Filled)};
+/** Sentinel until the first heart paint records a real battery glyph. */
+static constexpr uint8_t kBatteryIconUnset = 0xFFU;
+static std::atomic<uint8_t> s_lastDrawnBatteryIcon{kBatteryIconUnset};
 static std::atomic<bool>          s_powerOffPending{false};
+static std::atomic<bool>          s_powerOffDrawSucceeded{false};
 static SemaphoreHandle_t          s_drawIdleSem             = nullptr;
 static SemaphoreHandle_t          s_powerOffDoneSem         = nullptr;
 static SemaphoreHandle_t          s_displayPostMutex        = nullptr;
@@ -74,10 +81,14 @@ static bool displayPostHeartRedraw(TickType_t waitTicks) {
     const bool iconChanged =
         s_desiredHeartIcon.load(std::memory_order_acquire)
         != s_lastDrawnHeartIcon.load(std::memory_order_acquire);
+    const uint8_t batteryIcon =
+        static_cast<uint8_t>(displayBatteryIcon(batteryPercent()));
+    const bool batteryIconChanged =
+        batteryIcon != s_lastDrawnBatteryIcon.load(std::memory_order_acquire);
     const DisplayHeartRedrawDecision decision = displayHeartRedrawDecide(
         rx, tx, s_lastDrawnRx.load(std::memory_order_relaxed),
-        s_lastDrawnTx.load(std::memory_order_relaxed), iconChanged, nowMs, lastMs,
-        kHeartRedrawMinIntervalMs);
+        s_lastDrawnTx.load(std::memory_order_relaxed), iconChanged, batteryIconChanged, nowMs,
+        lastMs, kHeartRedrawMinIntervalMs);
     if (decision == DisplayHeartRedrawDecision::SkipUnchanged) {
         return true;
     }
@@ -122,12 +133,13 @@ ChayaEpdPanel& displayPanel() {
 
 static void displayBusyProgressCb(const void*) {
     const uint32_t now = millis();
-    if (now - s_busyCbLastLogMs < 2000U) {
-        return;
+    if (now - s_busyCbLastLogMs >= 2000U) {
+        s_busyCbLastLogMs = now;
+        ESP_LOGI(TAG, "EPD busy… pin=%d pwr_en=%d", digitalRead(pins::kDisplayBusy),
+                 digitalRead(pins::kDisplayPwrEn));
     }
-    s_busyCbLastLogMs = now;
-    ESP_LOGI(TAG, "EPD busy… pin=%d pwr_en=%d", digitalRead(pins::kDisplayBusy),
-             digitalRead(pins::kDisplayPwrEn));
+    // GxEPD2 skips its internal delay(1) when a busy callback is set; yield here.
+    delay(1);
 }
 
 static void displaySetPanelPower(bool on) {
@@ -196,6 +208,25 @@ static void displaySignalDrawIdle() {
     }
 }
 
+static bool displayBeginPersistentRefresh() {
+    // Two-phase panel state: persist Unknown before the first waveform. Any
+    // reset or power loss from here until configSetDisplayView() forces the
+    // next boot to repaint instead of trusting a partially refreshed panel.
+    if (!configInvalidateDisplayView()) {
+        ESP_LOGE(TAG, "EPD refresh cancelled: failed to persist unknown view");
+        return false;
+    }
+    constexpr uint8_t kPrepareAttempts = 3;
+    for (uint8_t attempt = 0; attempt < kPrepareAttempts; ++attempt) {
+        if (wlanBeginLowInterferenceForEpd()) {
+            return true;
+        }
+        vTaskDelay(pdMS_TO_TICKS(250U * (attempt + 1U)));
+    }
+    ESP_LOGE(TAG, "EPD refresh deferred: WLAN low-interference setup failed");
+    return false;
+}
+
 static void displayTaskFn(void*) {
     /* No esp_task_wdt on this task: E-Ink full refresh can block >> default TWDT interval (see displayInit). */
     static uint32_t s_stackLogCounter = 0;
@@ -204,6 +235,11 @@ static void displayTaskFn(void*) {
         const TickType_t waitTicks = displayHeartPendingWaitTicks();
         if (xQueueReceive(g_displayCmdQueue, &msg, waitTicks) != pdTRUE) {
             // Trailing-edge timeout: flush a deferred heart redraw with the latest counters.
+            if (s_splashDrawPending.exchange(false, std::memory_order_acq_rel)
+                && !s_powerOffPending.load(std::memory_order_acquire)
+                && !displayPostMsg(DisplayMsg::Cmd::DrawSplash, kDrawOnlyIfViewChanged, 0)) {
+                s_splashDrawPending.store(true, std::memory_order_release);
+            }
             if (s_heartDrawPending.load(std::memory_order_acquire)
                 && !s_powerOffPending.load(std::memory_order_acquire)) {
                 (void)displayPostHeartRedraw(0);
@@ -224,23 +260,36 @@ static void displayTaskFn(void*) {
                 }
                 break;
             }
-            wlanBeginLowInterferenceForEpd();
+            if (!displayBeginPersistentRefresh()) {
+                s_heartDrawQueued.store(false, std::memory_order_release);
+                s_heartDrawPending.store(true, std::memory_order_release);
+                break;
+            }
+            ESP_LOGI(TAG, "EPD refresh start view=%d (heart)", static_cast<int>(targetView));
+            const unsigned long refreshStartMs = millis();
             ledRefreshPulseBegin();
             const HeartCounterDrawSnapshot drawn = drawHeartWithNumber(icon);
             ledRefreshPulseEnd();
             wlanEndLowInterferenceForEpd();
             (void)configSetDisplayView(targetView);
+            ESP_LOGI(TAG, "EPD refresh done view=%d ms=%lu (heart)", static_cast<int>(targetView),
+                     millis() - refreshStartMs);
             s_lastDrawnRx.store(drawn.heartCounterRaw, std::memory_order_relaxed);
             s_lastDrawnTx.store(drawn.heartSentCounterRaw, std::memory_order_relaxed);
             s_lastDrawnHeartIcon.store(static_cast<uint8_t>(icon), std::memory_order_release);
+            const uint8_t paintedBatteryIcon =
+                static_cast<uint8_t>(displayBatteryIcon(batteryPercent()));
+            s_lastDrawnBatteryIcon.store(paintedBatteryIcon, std::memory_order_release);
             s_heartDrawQueued.store(false, std::memory_order_release);
             const bool hadPending = s_heartDrawPending.exchange(false, std::memory_order_acq_rel);
             const bool iconChanged = displayDesiredHeartIcon() != icon;
+            const bool batteryIconChanged =
+                static_cast<uint8_t>(displayBatteryIcon(batteryPercent())) != paintedBatteryIcon;
             if (displayHeartNeedsFollowUpRedraw(
                     drawn.heartCounterRaw, drawn.heartSentCounterRaw,
                     heartCounter.load(std::memory_order_relaxed),
                     heartSentCounter.load(std::memory_order_relaxed), iconChanged,
-                    hadPending)) {
+                    batteryIconChanged, hadPending)) {
                 (void)displayPostHeartRedraw(0);
             }
             break;
@@ -250,17 +299,26 @@ static void displayTaskFn(void*) {
             if (!displayRefreshRequired(configGetDisplayView(), targetView,
                                         msg.payload == kDrawOnlyIfViewChanged)) {
                 ESP_LOGI(TAG, "splash view unchanged; refresh skipped");
+                s_splashDrawPending.store(false, std::memory_order_release);
                 if (s_heartDrawPending.exchange(false, std::memory_order_acq_rel)) {
                     (void)displayPostHeartRedraw(0);
                 }
                 break;
             }
-            wlanBeginLowInterferenceForEpd();
+            if (!displayBeginPersistentRefresh()) {
+                s_splashDrawPending.store(true, std::memory_order_release);
+                break;
+            }
+            ESP_LOGI(TAG, "EPD refresh start view=%d (splash)", static_cast<int>(targetView));
+            const unsigned long refreshStartMs = millis();
             ledRefreshPulseBegin();
             const DisplayView drawnView = drawSplashScreen();
             ledRefreshPulseEnd();
             wlanEndLowInterferenceForEpd();
             (void)configSetDisplayView(drawnView);
+            ESP_LOGI(TAG, "EPD refresh done view=%d ms=%lu (splash)", static_cast<int>(drawnView),
+                     millis() - refreshStartMs);
+            s_splashDrawPending.store(false, std::memory_order_release);
             if (s_heartDrawPending.exchange(false, std::memory_order_acq_rel)) {
                 (void)displayPostHeartRedraw(0);
             }
@@ -269,18 +327,32 @@ static void displayTaskFn(void*) {
         case DisplayMsg::Cmd::DrawPowerOff:
             if (!displayViewNeedsRefresh(configGetDisplayView(), DisplayView::PowerOff)) {
                 ESP_LOGI(TAG, "power-off view unchanged; refresh skipped");
+                s_powerOffDrawSucceeded.store(true, std::memory_order_release);
                 s_heartDrawPending.store(false, std::memory_order_release);
                 if (s_powerOffDoneSem != nullptr) {
                     (void)xSemaphoreGive(s_powerOffDoneSem);
                 }
                 break;
             }
-            wlanBeginLowInterferenceForEpd();
+            if (!displayBeginPersistentRefresh()) {
+                s_powerOffDrawSucceeded.store(false, std::memory_order_release);
+                s_heartDrawPending.store(false, std::memory_order_release);
+                if (s_powerOffDoneSem != nullptr) {
+                    (void)xSemaphoreGive(s_powerOffDoneSem);
+                }
+                break;
+            }
+            ESP_LOGI(TAG, "EPD refresh start view=%d (power-off)",
+                     static_cast<int>(DisplayView::PowerOff));
+            const unsigned long refreshStartMs = millis();
             ledRefreshPulseBegin();
             drawPowerOffScreen();
             ledRefreshPulseEnd();
             wlanEndLowInterferenceForEpd();
             (void)configSetDisplayView(DisplayView::PowerOff);
+            ESP_LOGI(TAG, "EPD refresh done view=%d ms=%lu (power-off)",
+                     static_cast<int>(DisplayView::PowerOff), millis() - refreshStartMs);
+            s_powerOffDrawSucceeded.store(true, std::memory_order_release);
             s_heartDrawPending.store(false, std::memory_order_release);
             if (s_powerOffDoneSem != nullptr) {
                 (void)xSemaphoreGive(s_powerOffDoneSem);
@@ -327,7 +399,12 @@ void requestDeferredDrawSplashScreen() {
         }
     }
     ESP_LOGI(TAG, "splash queued");
-    displayPostMsg(DisplayMsg::Cmd::DrawSplash, kDrawOnlyIfViewChanged, pdMS_TO_TICKS(100));
+    if (displayPostMsg(DisplayMsg::Cmd::DrawSplash, kDrawOnlyIfViewChanged,
+                       pdMS_TO_TICKS(100))) {
+        s_splashDrawPending.store(false, std::memory_order_release);
+    } else {
+        s_splashDrawPending.store(true, std::memory_order_release);
+    }
 }
 
 void requestDeferredDrawHeartScreen() {
@@ -351,6 +428,7 @@ bool displayDrawPowerOffAndWait(uint32_t timeoutMs) {
     }
     while (xSemaphoreTake(s_powerOffDoneSem, 0) == pdTRUE) {
     }
+    s_powerOffDrawSucceeded.store(false, std::memory_order_release);
     if (xSemaphoreTake(s_displayPostMutex, pdMS_TO_TICKS(1000)) != pdTRUE) {
         ESP_LOGW(TAG, "power-off display post mutex unavailable");
         return false;
@@ -368,7 +446,9 @@ bool displayDrawPowerOffAndWait(uint32_t timeoutMs) {
         return false;
     }
     ESP_LOGI(TAG, "power-off screen queued");
-    return xSemaphoreTake(s_powerOffDoneSem, pdMS_TO_TICKS(timeoutMs)) == pdTRUE;
+    const bool completed =
+        xSemaphoreTake(s_powerOffDoneSem, pdMS_TO_TICKS(timeoutMs)) == pdTRUE;
+    return completed && s_powerOffDrawSucceeded.load(std::memory_order_acquire);
 }
 
 void displayInit() {

@@ -27,12 +27,29 @@ DEFINE_LOG_TAG("NET");
 
 // wlanLoop + mqttLoop (STA) + serialized admin net commands.
 
+static bool s_mqttSettingsChangedDeferred = false;
+
 static void handleNetCommand(NetCmd cmd) {
+    static const char* const kNetCmdNames[] = {
+        "MqttSettingsChanged", "MqttKillClient", "WifiGotIp",
+        "WifiReconnect",       "ChayaSendRequested", "FactoryResetRequested",
+    };
+    const unsigned idx = static_cast<unsigned>(cmd);
+    ESP_LOGI(TAG, "netCmd=%s",
+             idx < (sizeof(kNetCmdNames) / sizeof(kNetCmdNames[0])) ? kNetCmdNames[idx]
+                                                                   : "?");
     switch (cmd) {
     case NetCmd::MqttSettingsChanged: {
+        if (wlanEpdRefreshActive()) {
+            ESP_LOGD(TAG, "MQTT settings apply deferred (EPD refresh active)");
+            s_mqttSettingsChangedDeferred = true;
+            break;
+        }
+        ESP_LOGI(TAG, "MQTT settings apply: start");
         mqttBeginSettingsApply();
         if (!mqttCfgHasUnappliedPending()) {
             mqttEndSettingsApply();
+            ESP_LOGI(TAG, "MQTT settings apply: nothing pending");
             break;
         }
         mqttDisconnect();
@@ -43,6 +60,7 @@ static void handleNetCommand(NetCmd cmd) {
             mqttPostponeConnect(3000UL);
             mqttEndSettingsApply();
             chayaTaskWatchdogReset();
+            ESP_LOGI(TAG, "MQTT settings apply: done (matches NVS, postpone=3000)");
             break;
         }
         if (!saveMQTTConfig()) {
@@ -58,9 +76,14 @@ static void handleNetCommand(NetCmd cmd) {
         mqttEndSettingsApply();
         chayaTaskWatchdogReset();
         requestHeartRedraw();
+        ESP_LOGI(TAG, "MQTT settings apply: done (saved, postpone=3000)");
         break;
     }
     case NetCmd::MqttKillClient:
+        if (wlanEpdRefreshActive()) {
+            mqttRequestKillClientDeferred();
+            break;
+        }
         mqttDisconnect();
         break;
     case NetCmd::WifiGotIp:
@@ -87,8 +110,14 @@ static void networkTaskFn(void*) {
     for (;;) {
         NetCmd cmd;
         const uint32_t pollMs = configIsApMode() ? kNetworkPollApMs : kNetworkPollStaMs;
-        const bool hasCmd =
-            xQueueReceive(g_netCmdQueue, &cmd, pdMS_TO_TICKS(pollMs)) == pdTRUE;
+        bool hasCmd = false;
+        if (s_mqttSettingsChangedDeferred && !wlanEpdRefreshActive()) {
+            s_mqttSettingsChangedDeferred = false;
+            cmd = NetCmd::MqttSettingsChanged;
+            hasCmd = true;
+        } else {
+            hasCmd = xQueueReceive(g_netCmdQueue, &cmd, pdMS_TO_TICKS(pollMs)) == pdTRUE;
+        }
 
         if (hasCmd) {
             handleNetCommand(cmd);

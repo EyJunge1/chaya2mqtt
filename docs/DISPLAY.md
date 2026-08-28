@@ -32,7 +32,7 @@ Pixel-accurate host previews of the 200×200 panel (scaled 4×). Generated from 
 | `DrawSplash` | `drawSplashScreen()` | SoftAP setup: full-screen WIFI QR (`T:WPA`) for phone camera join |
 | `DrawPowerOff` | `drawPowerOffScreen()` | Controlled shutdown: centered red Lucide `heart-off` |
 
-The last successfully painted view is cached in `cfg/disp_view`: unknown, filled heart, setup QR, product title, cracked heart, or power-off. Boot/setup requests are skipped when that exact view is already on the bistable panel. Setup QR, product title, filled heart, cracked heart, and power-off are distinct views. Normal RX/TX heart redraws remain content-driven (counters **or** heart icon) and are never suppressed solely because a heart-family view is active.
+The last successfully painted view is cached in `cfg/disp_view`: unknown, filled heart, setup QR, product title, cracked heart, or power-off. Before each waveform the display task persists `unknown`; it commits the target view only after the refresh completes. A watchdog reset, brownout, or power loss mid-refresh therefore forces the next boot to repaint instead of trusting a partial gray frame. Boot/setup requests are skipped when the exact completed view is already on the bistable panel. Setup QR, product title, filled heart, cracked heart, and power-off are distinct views. Normal RX/TX heart redraws remain content-driven (counters **or** heart icon) and are never suppressed solely because a heart-family view is active.
 
 On controlled shutdown, the power-off glyph is still painted after a heart or setup QR. If the power-off view is already visible, the refresh is skipped and shutdown continues immediately. The NVS value is written only after a completed refresh and only when the view changes.
 
@@ -144,10 +144,19 @@ sequenceDiagram
 ```
 
 1. Compare state-driven requests with `cfg/disp_view`; signal completion without touching the panel when the view is unchanged
-2. `displayResumeSpiForDraw` — after `hibernate()`, GxEPD2 `init(0, true, 2, false)` (RST only; rail and SPI stay up)
-3. `setFullWindow()` → `firstPage()` → draw → `nextPage()` (full refresh ~20 s; fast ~15 s)
-4. `hibernate()` — controller deep sleep; the image remains bistable
-5. Call `displaySuspendSpiLowPower` and persist the completed view
+2. Persist `cfg/disp_view=unknown` before touching the panel
+3. Enter the WLAN low-interference window (`wlanBeginLowInterferenceForEpd`): active scans are paused,
+   new connection tests are refused, and GOT_IP, reconnect, recovery, MQTT teardown, and settings
+   apply remain pending. Under the WiFi mutex the STA RSSI selects a temporary TX-power cap that
+   never exceeds the current max (`wlanEpdTxPowerQuarterDbmFromRssi`):
+   - RSSI ≥ −55 dBm → 8 quarter-dBm (2 dBm)
+   - RSSI −64…−56 dBm → 28 quarter-dBm (7 dBm)
+   - RSSI ≤ −65 dBm or unknown → 40 quarter-dBm (10 dBm)
+   The previous cap is restored after the refresh via the network task.
+4. `displayResumeSpiForDraw` — after `hibernate()`, GxEPD2 `init(0, true, 2, false)` (RST only; rail and SPI stay up)
+5. `setFullWindow()` → `firstPage()` → draw → `nextPage()` (full refresh ~20 s; fast ~15 s)
+6. `hibernate()` — controller deep sleep; the image remains bistable
+7. Leave the low-interference window and persist the completed view
 
 ## Splash display
 

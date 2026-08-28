@@ -114,8 +114,11 @@ bool wlanEnsureSetupApPass();
 bool wlanArmSetupApMode();
 
 /** Briefly drop WiFi TX while the E-Ink panel refreshes (~15–20 s). */
-void wlanBeginLowInterferenceForEpd();
+bool wlanBeginLowInterferenceForEpd();
 void wlanEndLowInterferenceForEpd();
+
+/** True while an E-Ink full refresh holds the low-interference window. */
+bool wlanEpdRefreshActive();
 
 /** Wall-clock ms when boot WiFi first settled (0 if not yet). */
 unsigned long wlanBootSettledAtMs();

@@ -14,6 +14,8 @@
 #include <esp_err.h>
 #include <esp_log.h>
 #include <esp_random.h>
+#include <esp_system.h>
+#include <esp_timer.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/semphr.h>
 
@@ -22,6 +24,15 @@
 #include "util/log_tag.h"
 
 DEFINE_LOG_TAG("MQTT");
+
+namespace {
+constexpr uint64_t kMqttTeardownDeadlineUs = 30000000ULL;
+
+void mqttTeardownDeadlineCb(void*) {
+    ESP_LOGE(TAG, "MQTT teardown exceeded 30 s — restarting");
+    esp_restart();
+}
+} // namespace
 
 esp_mqtt_client_handle_t s_client = nullptr;
 std::atomic<uint32_t>    s_clientGeneration{0};
@@ -173,10 +184,14 @@ void mqttKillClientImpl() {
         return;
     }
 
+    const uint32_t genBefore = s_clientGeneration.load(std::memory_order_acquire);
+    const int64_t teardownStartUs = esp_timer_get_time();
+    ESP_LOGI(TAG, "MQTT teardown begin gen=%u", static_cast<unsigned>(genBefore));
+
     s_disconnectIntentional.store(true, std::memory_order_release);
 
     esp_mqtt_client_handle_t cli = s_client;
-    mqttAbortPendingPublish(s_clientGeneration.load(std::memory_order_acquire));
+    mqttAbortPendingPublish(genBefore);
     s_client                     = nullptr;
     s_clientGeneration.fetch_add(1U, std::memory_order_acq_rel);
     portENTER_CRITICAL(&s_mqttSubTopicMux);
@@ -184,7 +199,28 @@ void mqttKillClientImpl() {
     s_mqttSubTopicCache[0] = '\0';
     portEXIT_CRITICAL(&s_mqttSubTopicMux);
 
-    chayaTaskWatchdogReset();
+    // stop/destroy may legitimately exceed the default TWDT while TLS unwinds.
+    // A separate deadline still recovers a true deadlock.
+    esp_timer_handle_t teardownDeadline = nullptr;
+    esp_timer_create_args_t deadlineArgs{};
+    deadlineArgs.callback = mqttTeardownDeadlineCb;
+    deadlineArgs.dispatch_method = ESP_TIMER_TASK;
+    deadlineArgs.name = "mqtt_teardown";
+    deadlineArgs.skip_unhandled_events = true;
+    bool deadlineArmed =
+        esp_timer_create(&deadlineArgs, &teardownDeadline) == ESP_OK
+        && esp_timer_start_once(teardownDeadline, kMqttTeardownDeadlineUs) == ESP_OK;
+    if (!deadlineArmed && teardownDeadline != nullptr) {
+        (void)esp_timer_delete(teardownDeadline);
+        teardownDeadline = nullptr;
+    }
+
+    // Preserve the caller's subscription state: setup may call this outside
+    // the subscribed network task. Without a deadline, retain normal TWDT coverage.
+    const bool watchdogWasSubscribed = esp_task_wdt_status(nullptr) == ESP_OK;
+    if (watchdogWasSubscribed && deadlineArmed) {
+        chayaTaskWatchdogUnsubscribe(TAG);
+    }
     const esp_err_t st = esp_mqtt_client_stop(cli);
     if (st != ESP_OK && st != ESP_ERR_INVALID_STATE) {
         ESP_LOGW(TAG, "esp_mqtt_client_stop: %s", esp_err_to_name(st));
@@ -195,10 +231,23 @@ void mqttKillClientImpl() {
     if (de != ESP_OK) {
         ESP_LOGW(TAG, "esp_mqtt_client_destroy: %s", esp_err_to_name(de));
     }
+    if (deadlineArmed) {
+        (void)esp_timer_stop(teardownDeadline);
+        (void)esp_timer_delete(teardownDeadline);
+    }
+    if (watchdogWasSubscribed && deadlineArmed) {
+        chayaTaskWatchdogSubscribe(TAG);
+        chayaTaskWatchdogReset();
+    }
 
     s_disconnectIntentional.store(false, std::memory_order_release);
     s_connected.store(false, std::memory_order_release);
     s_connectPending.store(false, std::memory_order_release);
+
+    const unsigned long durMs =
+        static_cast<unsigned long>((esp_timer_get_time() - teardownStartUs) / 1000LL);
+    ESP_LOGI(TAG, "MQTT teardown end gen=%u dur=%lu ms stop=%s destroy=%s",
+             static_cast<unsigned>(genBefore), durMs, esp_err_to_name(st), esp_err_to_name(de));
 }
 
 void mqttKillClient() {

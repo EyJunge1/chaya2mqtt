@@ -222,6 +222,31 @@ void test_wifi_soft_reconnect_escalation_threshold() {
     TEST_ASSERT_TRUE(kWifiSoftReconnectAttemptsBeforeForce > 0U);
 }
 
+void test_wlan_epd_tx_power_from_rssi() {
+    constexpr int8_t kCur = 52; // 13 dBm configured max
+    TEST_ASSERT_EQUAL_INT8(kWifiEpdTxPowerStrongQdbm,
+                           wlanEpdTxPowerQuarterDbmFromRssi(-55, kCur));
+    TEST_ASSERT_EQUAL_INT8(kWifiEpdTxPowerStrongQdbm,
+                           wlanEpdTxPowerQuarterDbmFromRssi(-40, kCur));
+    TEST_ASSERT_EQUAL_INT8(kWifiEpdTxPowerMediumQdbm,
+                           wlanEpdTxPowerQuarterDbmFromRssi(-56, kCur));
+    TEST_ASSERT_EQUAL_INT8(kWifiEpdTxPowerMediumQdbm,
+                           wlanEpdTxPowerQuarterDbmFromRssi(-64, kCur));
+    TEST_ASSERT_EQUAL_INT8(kWifiEpdTxPowerWeakQdbm,
+                           wlanEpdTxPowerQuarterDbmFromRssi(-65, kCur));
+    TEST_ASSERT_EQUAL_INT8(kWifiEpdTxPowerWeakQdbm,
+                           wlanEpdTxPowerQuarterDbmFromRssi(-90, kCur));
+    // Unknown / not associated
+    TEST_ASSERT_EQUAL_INT8(kWifiEpdTxPowerWeakQdbm,
+                           wlanEpdTxPowerQuarterDbmFromRssi(0, kCur));
+    TEST_ASSERT_EQUAL_INT8(kWifiEpdTxPowerWeakQdbm,
+                           wlanEpdTxPowerQuarterDbmFromRssi(1, kCur));
+    // Never raise above the current max
+    TEST_ASSERT_EQUAL_INT8(6, wlanEpdTxPowerQuarterDbmFromRssi(-90, 6));
+    TEST_ASSERT_EQUAL_INT8(20, wlanEpdTxPowerQuarterDbmFromRssi(-60, 20));
+    TEST_ASSERT_EQUAL_INT8(8, wlanEpdTxPowerQuarterDbmFromRssi(-40, 8));
+}
+
 void test_wlan_unpack_invalid_static_falls_back_dhcp() {
     WlanConfig cfg{};
     wlanConfigClear(&cfg);
@@ -250,6 +275,7 @@ int main(int, char**) {
     RUN_TEST(test_wlan_pack_roundtrip);
     RUN_TEST(test_wlan_recovery_decide);
     RUN_TEST(test_wifi_soft_reconnect_escalation_threshold);
+    RUN_TEST(test_wlan_epd_tx_power_from_rssi);
     RUN_TEST(test_wlan_unpack_invalid_static_falls_back_dhcp);
     return UNITY_END();
 }

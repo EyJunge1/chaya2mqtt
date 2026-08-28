@@ -41,7 +41,7 @@ For local flasher development, see [flasher/README.md](../flasher/README.md).
 ```bash
 # In the project directory
 pio run                           # Build (default env: esp32s3-release)
-pio run -e esp32s3                # Development build (CORE_DEBUG_LEVEL=3)
+pio run -e esp32s3                # Development build (CORE_DEBUG_LEVEL=4)
 pio run -t upload                 # Flash (default: esp32s3-release)
 pio device monitor                # Serial monitor (115200 baud)
 ```
@@ -126,7 +126,7 @@ chaya2mqtt/
 
 | Environment | Purpose | Debug level | Optimization |
 |-------------|---------|-------------|--------------|
-| `esp32s3` | Development (ESP32-S3 1.54G) | `CORE_DEBUG_LEVEL=3` | Default |
+| `esp32s3` | Development (ESP32-S3 1.54G) | `CORE_DEBUG_LEVEL=4` | Default |
 | `esp32s3-release` | Production (default) | `CORE_DEBUG_LEVEL=0` | `-Os`, `-DNDEBUG` |
 
 The 1.54G has **8 MB** flash. `partitions_chaya_8mb.csv` is a dual-OTA map (~3.75 MB per slot).

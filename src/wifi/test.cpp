@@ -128,9 +128,19 @@ bool wlanStartWifiConnectionTest(const WlanConfig& cfg) {
     if (!configIsApMode() || cfg.ssid[0] == '\0' || wlanConfigValidate(&cfg) != nullptr) {
         return false;
     }
+    if (wlanEpdRefreshActive()) {
+        ESP_LOGW(TAG, "WLAN connection test deferred: EPD refresh active");
+        return false;
+    }
     wlanAbortWifiConnectionTest();
 
     wifiTestLock();
+    // Close the race with a refresh beginning after the first check.
+    if (wlanEpdRefreshActive()) {
+        wifiTestUnlock();
+        ESP_LOGW(TAG, "WLAN connection test deferred: EPD refresh started");
+        return false;
+    }
     s_wifiConnTestCfg     = cfg;
     s_wifiConnTestStartMs = millis();
     s_wifiConnTestState   = WlanWifiConnectionTestState::Testing;

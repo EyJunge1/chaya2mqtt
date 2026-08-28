@@ -106,6 +106,7 @@ static bool mqttPublishChayaLocked() {
     esp_mqtt_client_handle_t cli = s_client;
     if (cli == nullptr) {
         mqttClientUnlock();
+        ESP_LOGW(TAG, "Publish skipped: mqtt client null");
         return false;
     }
 
@@ -120,7 +121,12 @@ static bool mqttPublishChayaLocked() {
         portEXIT_CRITICAL(&s_publishAckMux);
     }
     mqttClientUnlock();
+    if (pid < 0) {
+        ESP_LOGW(TAG, "Publish failed: esp_mqtt_client_publish returned %d", pid);
+        return false;
+    }
     if (!published) {
+        ESP_LOGW(TAG, "Publish skipped: could not begin PUBACK wait (msg_id=%d)", pid);
         return false;
     }
     ESP_LOGD(TAG, "Published chaya QoS 1 → %s payload=%s (msg_id=%d)", topicPub, buf, pid);
@@ -138,9 +144,13 @@ static bool mqttPublishChayaLocked() {
         chayaTaskWatchdogReset();
     }
     chayaTaskWatchdogReset();
+    const unsigned long waitMs =
+        static_cast<unsigned long>((xTaskGetTickCount() - started) * portTICK_PERIOD_MS);
     const bool confirmed = publishAckConfirmed(pid, clientGeneration);
     if (!confirmed) {
-        ESP_LOGW(TAG, "QoS 1 PUBACK timeout/failure (msg_id=%d)", pid);
+        ESP_LOGW(TAG, "QoS 1 PUBACK timeout/failure (msg_id=%d wait_ms=%lu)", pid, waitMs);
+    } else {
+        ESP_LOGI(TAG, "PUBACK ok msg_id=%d wait_ms=%lu", pid, waitMs);
     }
     return confirmed;
 }

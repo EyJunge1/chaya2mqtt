@@ -69,7 +69,10 @@ static void processPowerOff() {
     }
 
     // Deep-sleep wake is level-triggered. Sleeping while PWR is still LOW would wake immediately.
+    ESP_LOGI(TAG, "PWR released after soft-off — waiting for stable release then deep sleep");
     waitForPwrRelease();
+    ESP_LOGI(TAG, "PWR released after soft-off — entering deep sleep (mv=%d pct=%d)",
+             batteryMilliVolts(), batteryPercent());
     batteryPowerOffAndSleep();
 }
 
@@ -131,7 +134,13 @@ void buttonPollAndProcess() {
                 if (!ledTxBusy() && !configIsApMode()) {
                     if (mqttCfgIsBrokerConfigured()) {
                         startMqttSendLedSequence();
+                    } else {
+                        ESP_LOGD(TAG, "BTN publish skipped: ap=0 broker=0 ledBusy=0");
                     }
+                } else {
+                    ESP_LOGD(TAG, "BTN publish skipped: ap=%d broker=%d ledBusy=%d",
+                             configIsApMode() ? 1 : 0, mqttCfgIsBrokerConfigured() ? 1 : 0,
+                             ledTxBusy() ? 1 : 0);
                 }
             }
             btn.heldDown = false;

@@ -12,6 +12,9 @@ void mqttSetup();
 void mqttDisconnect();
 void mqttLoop();
 
+/** Coalesce a client teardown for the network task (safe during EPD refresh). */
+void mqttRequestKillClientDeferred();
+
 void mqttPostponeConnect(unsigned long delayMs);
 
 /** Block publishes while broker settings are torn down/reapplied. */
