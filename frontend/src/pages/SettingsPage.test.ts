@@ -35,9 +35,9 @@ describe("SettingsPage", () => {
       quietHourStart: 23,
       quietHourEnd: 8,
       audioCustom: false,
-      txHz: 95,
+      txHz: 880,
       txMs: 80,
-      rxHz: 88,
+      rxHz: 660,
       rxMs: 140,
     });
     saveSettings.mockResolvedValue({ ok: true, message: "saved" });

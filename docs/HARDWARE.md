@@ -43,7 +43,7 @@ What the PCB actually has. **Chaya** is the firmware use today.
 | **Audio codec** | ES8311 (I2C `0x18`) | Playback only (synthetic TX/RX click). Capture path off at boot. |
 | **Microphone** | Onboard, via ES8311 | Permanently off (ADC/mic-bias disabled; no I2S-RX) |
 | **Speaker** | Onboard + MX1.25 2-pin header | Short click on send/receive |
-| **Amp** | `PA_EN` GPIO42, `PA_CTRL` GPIO46 | HIGH only while playing |
+| **Amp** | `PA_EN` GPIO42 (LOW = audio power on), `PA_CTRL` GPIO46 (HIGH = amp on while playing) | Same active-low power pattern as EPD_PWR |
 | **Temp / humidity** | SHTC3 (I2C `0x70`) | Unused |
 | **RTC** | PCF85063 (I2C `0x51`, INT GPIO5), backside | Unused |
 | **Touch** | Pins reserved (`EPD_TP_RST` GPIO7, `EPD_TP_INT` GPIO21) | **No** touch panel on this SKU |
@@ -89,8 +89,8 @@ Onboard **ES8311** (low-power codec): mic in, speaker out. Waveshare ships an on
 | I2S_ASDOUT | 16 | Codec → MCU (capture) |
 | I2S_LRCK | 38 | Frame clock |
 | I2S_DSDIN | 45 | MCU → codec (playback) |
-| PA_EN | 42 | Codec / PA power |
-| PA_CTRL | 46 | Amplifier enable |
+| PA_EN | 42 | Audio power enable (**LOW** = on; Waveshare `Audio_PWR_PIN`) |
+| PA_CTRL | 46 | Amplifier enable (**HIGH** while playing) |
 
 Chaya plays a short synthetic click on heart send/receive (mute, volume, and quiet hours in settings). The microphone / capture path is disabled at boot and never used.
 

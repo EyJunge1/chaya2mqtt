@@ -74,9 +74,9 @@ Legacy keys `topic_pub` / `topic_sub` are removed when saving. Topics now exist 
 | `snd_q0` | UChar | `23` | Quiet-hours start (local hour after NTP) |
 | `snd_q1` | UChar | `8` | Quiet-hours end (equal to `snd_q0` = off; wraps midnight) |
 | `snd_custom` | UChar | `0` | Use custom TX/RX Hz/ms (`1`); otherwise built-in tone |
-| `snd_tx_hz` | UInt | `95` | Send click frequency (Hz, 40–2000) |
+| `snd_tx_hz` | UInt | `880` | Send click frequency (Hz, 40–2000) |
 | `snd_tx_ms` | UInt | `80` | Send click duration (ms, 20–500) |
-| `snd_rx_hz` | UInt | `88` | Receive click frequency (Hz, 40–2000) |
+| `snd_rx_hz` | UInt | `660` | Receive click frequency (Hz, 40–2000) |
 | `snd_rx_ms` | UInt | `140` | Receive click duration (ms, 20–500) |
 | `upd_day` | UInt | `0` | Last automatic OTA check (UTC calendar day) |
 | `upd_chan` | String | `stable` | OTA channel (`stable` or `beta`) |
