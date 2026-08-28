@@ -184,10 +184,14 @@ void mqttKillClientImpl() {
         return;
     }
 
+    const uint32_t genBefore = s_clientGeneration.load(std::memory_order_acquire);
+    const int64_t teardownStartUs = esp_timer_get_time();
+    ESP_LOGI(TAG, "MQTT teardown begin gen=%u", static_cast<unsigned>(genBefore));
+
     s_disconnectIntentional.store(true, std::memory_order_release);
 
     esp_mqtt_client_handle_t cli = s_client;
-    mqttAbortPendingPublish(s_clientGeneration.load(std::memory_order_acquire));
+    mqttAbortPendingPublish(genBefore);
     s_client                     = nullptr;
     s_clientGeneration.fetch_add(1U, std::memory_order_acq_rel);
     portENTER_CRITICAL(&s_mqttSubTopicMux);
@@ -239,6 +243,11 @@ void mqttKillClientImpl() {
     s_disconnectIntentional.store(false, std::memory_order_release);
     s_connected.store(false, std::memory_order_release);
     s_connectPending.store(false, std::memory_order_release);
+
+    const unsigned long durMs =
+        static_cast<unsigned long>((esp_timer_get_time() - teardownStartUs) / 1000LL);
+    ESP_LOGI(TAG, "MQTT teardown end gen=%u dur=%lu ms stop=%s destroy=%s",
+             static_cast<unsigned>(genBefore), durMs, esp_err_to_name(st), esp_err_to_name(de));
 }
 
 void mqttKillClient() {

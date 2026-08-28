@@ -336,6 +336,8 @@ void mqttEventHandler(void* /*handler_args*/, esp_event_base_t /*base*/, int32_t
 
     case MQTT_EVENT_PUBLISHED:
         if (mqttEventGenerationStillValid(handlerGeneration)) {
+            ESP_LOGD(TAG, "PUBACK msg_id=%d gen=%u", ev->msg_id,
+                     static_cast<unsigned>(handlerGeneration));
             mqttHandlePublishedAck(ev->msg_id, handlerGeneration);
         }
         break;
@@ -372,10 +374,19 @@ void mqttEventHandler(void* /*handler_args*/, esp_event_base_t /*base*/, int32_t
     }
 
     case MQTT_EVENT_ERROR:
-        if (ev->error_handle != nullptr
-            && ev->error_handle->error_type == MQTT_ERROR_TYPE_SUBSCRIBE_FAILED) {
-            ESP_LOGE(TAG, "MQTT subscribe rejected by broker");
-            (void)mqttEventDisconnectIfLive(ev->client, handlerGeneration);
+        if (ev->error_handle != nullptr) {
+            const esp_mqtt_error_codes_t* eh = ev->error_handle;
+            ESP_LOGW(TAG,
+                     "MQTT EVENT_ERROR: error_type=%d connect_rc=%d tls=%s sock_errno=%d",
+                     static_cast<int>(eh->error_type),
+                     static_cast<int>(eh->connect_return_code),
+                     esp_err_to_name(eh->esp_tls_last_esp_err), eh->esp_transport_sock_errno);
+            if (eh->error_type == MQTT_ERROR_TYPE_SUBSCRIBE_FAILED) {
+                ESP_LOGE(TAG, "MQTT subscribe rejected by broker");
+                (void)mqttEventDisconnectIfLive(ev->client, handlerGeneration);
+            }
+        } else {
+            ESP_LOGW(TAG, "MQTT EVENT_ERROR (no error_handle)");
         }
         break;
 

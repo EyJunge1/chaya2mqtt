@@ -50,6 +50,7 @@ void sendOk(AsyncWebServerRequest* req, int code = 200, const char* extraJson = 
 }
 
 void sendErr(AsyncWebServerRequest* req, int code, const char* error) {
+    ESP_LOGW(TAG, "API error %d: %s", code, error != nullptr ? error : "error");
     char buf[128];
     const int n = snprintf(buf, sizeof(buf), "{\"ok\":false,\"error\":\"%s\"}",
                            error != nullptr ? error : "error");
@@ -407,6 +408,7 @@ void handleApiWifiConnectPost(AsyncWebServerRequest* req) {
             sendErr(req, 503, "test_start");
             return;
         }
+        ESP_LOGI(TAG, "WiFi connect test started ssid=%s", cfg.ssid);
         sendOk(req, 200, "\"next\":\"/wifi-testing\"");
         return;
     }
@@ -414,6 +416,7 @@ void handleApiWifiConnectPost(AsyncWebServerRequest* req) {
         sendErr(req, 500, "save");
         return;
     }
+    ESP_LOGI(TAG, "WiFi config saved (STA) ssid=%s — rebooting", cfg.ssid);
     deferredRebootAfterWifiSave();
     sendOk(req, 200, "\"message\":\"saved_rebooting\"");
 }
@@ -672,6 +675,10 @@ void handleApiMqttPost(AsyncWebServerRequest* req) {
     if (!mqttCfgEquals(&pending, &active)) {
         mqttCfgStorePending(&pending);
         g_webAdminMqttApplyVersion.fetch_add(1U, std::memory_order_acq_rel);
+        ESP_LOGI(TAG, "MQTT settings accepted broker=%s:%u", pending.server,
+                 static_cast<unsigned>(pending.port));
+    } else {
+        ESP_LOGI(TAG, "MQTT settings unchanged");
     }
     sendOk(req, 200, "\"message\":\"saved\"");
 }
@@ -889,6 +896,7 @@ void handleApiRebootPost(AsyncWebServerRequest* req) {
         sendErr(req, 503, "shutdown");
         return;
     }
+    ESP_LOGI(TAG, "API reboot requested");
     g_webAdminRebootRequested.store(true, std::memory_order_release);
     sendOk(req, 200, "\"message\":\"rebooting\"");
 }
@@ -945,6 +953,7 @@ void handleApiUpdateCheckPost(AsyncWebServerRequest* req) {
     } else {
         otaQueueGithubCheck();
     }
+    ESP_LOGI(TAG, "API OTA check queued");
     sendOk(req, 200, "\"message\":\"checking\"");
 }
 
@@ -960,6 +969,7 @@ void handleApiUpdateInstallPost(AsyncWebServerRequest* req) {
         sendErr(req, 409, "not_available");
         return;
     }
+    ESP_LOGI(TAG, "API OTA install queued version=%s", st.availableVersion);
     otaQueueInstall();
     sendOk(req, 200, "\"message\":\"installing\"");
 }
@@ -981,6 +991,7 @@ void handleApiResetPost(AsyncWebServerRequest* req, NetCmd cmd, const char* mess
         sendErr(req, 503, "queue_full");
         return;
     }
+    ESP_LOGW(TAG, "API reset queued: %s", message != nullptr ? message : "?");
     char extra[64];
     const int n = snprintf(extra, sizeof(extra), "\"message\":\"%s\"", message);
     sendOk(req, 202, n > 0 && static_cast<size_t>(n) < sizeof(extra) ? extra : nullptr);

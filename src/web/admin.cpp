@@ -125,6 +125,8 @@ void webAdminLoop() {
             ESP_LOGW(TAG, "Reboot/reconnect deferred: OTA in progress");
             return;
         }
+        ESP_LOGW(TAG, "Admin restart (reboot=%d wifiReconnect=%d)", rebootReq ? 1 : 0,
+                 wifiReconnectReq ? 1 : 0);
         g_webAdminRebootRequested.store(false, std::memory_order_release);
         g_webAdminWifiReconnectRequested.store(false, std::memory_order_release);
         flushHeartCounterIfDirty();

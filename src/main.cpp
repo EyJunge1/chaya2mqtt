@@ -61,6 +61,11 @@ void setup() {
 
 #if defined(CORE_DEBUG_LEVEL) && CORE_DEBUG_LEVEL > 0
     Serial.begin(115200);
+    // IDF component tags: closer to Espressif example verbosity for net/TLS debugging.
+    esp_log_level_set("wifi", ESP_LOG_DEBUG);
+    esp_log_level_set("mqtt_client", ESP_LOG_DEBUG);
+    esp_log_level_set("esp-tls", ESP_LOG_INFO);
+    esp_log_level_set("transport_base", ESP_LOG_INFO);
 #endif
     ESP_LOGI(TAG, "=== Chaya2MQTT === rst:%d", static_cast<int>(esp_reset_reason()));
     ESP_LOGI(TAG, "Firmware %s | heap free=%zu min_free=%zu", APP_VERSION,

@@ -265,11 +265,15 @@ static void displayTaskFn(void*) {
                 s_heartDrawPending.store(true, std::memory_order_release);
                 break;
             }
+            ESP_LOGI(TAG, "EPD refresh start view=%d (heart)", static_cast<int>(targetView));
+            const unsigned long refreshStartMs = millis();
             ledRefreshPulseBegin();
             const HeartCounterDrawSnapshot drawn = drawHeartWithNumber(icon);
             ledRefreshPulseEnd();
             wlanEndLowInterferenceForEpd();
             (void)configSetDisplayView(targetView);
+            ESP_LOGI(TAG, "EPD refresh done view=%d ms=%lu (heart)", static_cast<int>(targetView),
+                     millis() - refreshStartMs);
             s_lastDrawnRx.store(drawn.heartCounterRaw, std::memory_order_relaxed);
             s_lastDrawnTx.store(drawn.heartSentCounterRaw, std::memory_order_relaxed);
             s_lastDrawnHeartIcon.store(static_cast<uint8_t>(icon), std::memory_order_release);
@@ -305,11 +309,15 @@ static void displayTaskFn(void*) {
                 s_splashDrawPending.store(true, std::memory_order_release);
                 break;
             }
+            ESP_LOGI(TAG, "EPD refresh start view=%d (splash)", static_cast<int>(targetView));
+            const unsigned long refreshStartMs = millis();
             ledRefreshPulseBegin();
             const DisplayView drawnView = drawSplashScreen();
             ledRefreshPulseEnd();
             wlanEndLowInterferenceForEpd();
             (void)configSetDisplayView(drawnView);
+            ESP_LOGI(TAG, "EPD refresh done view=%d ms=%lu (splash)", static_cast<int>(drawnView),
+                     millis() - refreshStartMs);
             s_splashDrawPending.store(false, std::memory_order_release);
             if (s_heartDrawPending.exchange(false, std::memory_order_acq_rel)) {
                 (void)displayPostHeartRedraw(0);
@@ -334,11 +342,16 @@ static void displayTaskFn(void*) {
                 }
                 break;
             }
+            ESP_LOGI(TAG, "EPD refresh start view=%d (power-off)",
+                     static_cast<int>(DisplayView::PowerOff));
+            const unsigned long refreshStartMs = millis();
             ledRefreshPulseBegin();
             drawPowerOffScreen();
             ledRefreshPulseEnd();
             wlanEndLowInterferenceForEpd();
             (void)configSetDisplayView(DisplayView::PowerOff);
+            ESP_LOGI(TAG, "EPD refresh done view=%d ms=%lu (power-off)",
+                     static_cast<int>(DisplayView::PowerOff), millis() - refreshStartMs);
             s_powerOffDrawSucceeded.store(true, std::memory_order_release);
             s_heartDrawPending.store(false, std::memory_order_release);
             if (s_powerOffDoneSem != nullptr) {

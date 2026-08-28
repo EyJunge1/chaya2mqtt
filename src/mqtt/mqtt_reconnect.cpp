@@ -46,6 +46,7 @@ void mqttRequestKillClientDeferred() {
 }
 
 void mqttSetup() {
+    ESP_LOGI(TAG, "MQTT setup (kill+reset backoff)");
     mqttKillClient();
     portENTER_CRITICAL(&s_mqttBackoffMux);
     lastMqttAttemptAt    = 0;

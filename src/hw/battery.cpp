@@ -68,7 +68,7 @@ void batteryPowerOffAndSleep() {
         }
     }
 
-    ESP_LOGI(TAG, "Power-off: latch LOW, USB fallback deep sleep");
+    ESP_LOGI(TAG, "deep sleep arm wake=PWR mv=%d pct=%d", batteryMilliVolts(), batteryPercent());
     gpio_hold_dis(static_cast<gpio_num_t>(pins::kBatControl));
     digitalWrite(pins::kBatControl, LOW);
     pinMode(pins::kBatControl, OUTPUT);

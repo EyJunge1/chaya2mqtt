@@ -230,8 +230,8 @@ bool wlanBeginLowInterferenceForEpd() {
         }
         s_epdSavedTxPowerQdbm = cur;
         s_epdTxPowerSaved.store(true, std::memory_order_release);
-        ESP_LOGI(TAG, "EPD low-interference TX: rssi=%d cur=%d target=%d", rssi,
-                 static_cast<int>(cur), static_cast<int>(target));
+        ESP_LOGI(TAG, "EPD low-TX begin saved_qdbm=%d rssi=%d target=%d", static_cast<int>(cur),
+                 rssi, static_cast<int>(target));
     }
     wlanWifiApiUnlock();
     return true;
@@ -245,6 +245,7 @@ void wlanRestoreTxPowerAfterEpd() {
     }
     if (s_epdTxPowerSaved.load(std::memory_order_acquire)
         && esp_wifi_set_max_tx_power(s_epdSavedTxPowerQdbm) == ESP_OK) {
+        ESP_LOGI(TAG, "EPD low-TX end restored_qdbm=%d", static_cast<int>(s_epdSavedTxPowerQdbm));
         s_epdTxPowerSaved.store(false, std::memory_order_release);
     }
     wlanWifiApiUnlock();
@@ -255,6 +256,7 @@ void wlanEndLowInterferenceForEpd() {
     if (!wasActive) {
         return;
     }
+    ESP_LOGD(TAG, "EPD low-interference flag cleared (TX restore deferred to network task)");
     // The network task consumes deferred TX-power, power-save, reconnect and MQTT work
     // on its next bounded poll; no WiFi API calls block the display task here.
 }

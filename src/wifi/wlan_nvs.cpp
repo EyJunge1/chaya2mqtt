@@ -122,6 +122,8 @@ bool wlanSaveConfigToNvs(const WlanConfig& cfg) {
         ESP_LOGE(TAG, "NVS wifi: cfg_v2 write failed");
         return false;
     }
+    ESP_LOGI(TAG, "WiFi NVS saved ssid=%s mode=%s", cfg.ssid,
+             cfg.mode == WlanIpMode::Static ? "static" : "dhcp");
     return true;
 }
 

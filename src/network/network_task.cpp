@@ -30,15 +30,26 @@ DEFINE_LOG_TAG("NET");
 static bool s_mqttSettingsChangedDeferred = false;
 
 static void handleNetCommand(NetCmd cmd) {
+    static const char* const kNetCmdNames[] = {
+        "MqttSettingsChanged", "MqttKillClient", "WifiGotIp",
+        "WifiReconnect",       "ChayaSendRequested", "FactoryResetRequested",
+    };
+    const unsigned idx = static_cast<unsigned>(cmd);
+    ESP_LOGI(TAG, "netCmd=%s",
+             idx < (sizeof(kNetCmdNames) / sizeof(kNetCmdNames[0])) ? kNetCmdNames[idx]
+                                                                   : "?");
     switch (cmd) {
     case NetCmd::MqttSettingsChanged: {
         if (wlanEpdRefreshActive()) {
+            ESP_LOGD(TAG, "MQTT settings apply deferred (EPD refresh active)");
             s_mqttSettingsChangedDeferred = true;
             break;
         }
+        ESP_LOGI(TAG, "MQTT settings apply: start");
         mqttBeginSettingsApply();
         if (!mqttCfgHasUnappliedPending()) {
             mqttEndSettingsApply();
+            ESP_LOGI(TAG, "MQTT settings apply: nothing pending");
             break;
         }
         mqttDisconnect();
@@ -49,6 +60,7 @@ static void handleNetCommand(NetCmd cmd) {
             mqttPostponeConnect(3000UL);
             mqttEndSettingsApply();
             chayaTaskWatchdogReset();
+            ESP_LOGI(TAG, "MQTT settings apply: done (matches NVS, postpone=3000)");
             break;
         }
         if (!saveMQTTConfig()) {
@@ -64,6 +76,7 @@ static void handleNetCommand(NetCmd cmd) {
         mqttEndSettingsApply();
         chayaTaskWatchdogReset();
         requestHeartRedraw();
+        ESP_LOGI(TAG, "MQTT settings apply: done (saved, postpone=3000)");
         break;
     }
     case NetCmd::MqttKillClient:

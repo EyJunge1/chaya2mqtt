@@ -401,6 +401,13 @@ Thread-safe `Preferences` wrapper with `g_nvsMutex`:
 | `config/nvs_keys.h` | Central NVS namespace and key constants |
 | `async/task_config.h` | FreeRTOS task stack sizes and queue depths |
 
+### Logging convention
+
+- Always use `DEFINE_LOG_TAG("…")` + `ESP_LOGx(TAG, …)` from `esp_log.h`. Do **not** use Arduino `log_e`/`log_i` (fixed tag) or `Serial.printf`.
+- Levels: `E` = failure, `W` = unexpected but continuing, `I` = state transition, `D` = detail/defer (visible when `CORE_DEBUG_LEVEL≥4`).
+- Dev (`esp32s3`): `CORE_DEBUG_LEVEL=4` plus IDF tags `wifi`/`mqtt_client` at DEBUG and `esp-tls`/`transport_base` at INFO (set in `main.cpp`).
+- Release (`esp32s3-release`): `CORE_DEBUG_LEVEL=0` (logs compiled out / silent).
+
 ---
 
 ## Cross-references
