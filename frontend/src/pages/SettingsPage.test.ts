@@ -61,9 +61,9 @@ describe("SettingsPage", () => {
         quiet_hour_start: 23,
         quiet_hour_end: 8,
         audio_custom: 0,
-        tx_hz: 95,
+        tx_hz: 880,
         tx_ms: 80,
-        rx_hz: 88,
+        rx_hz: 660,
         rx_ms: 140,
       }),
     );
