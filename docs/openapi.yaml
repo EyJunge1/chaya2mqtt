@@ -17,7 +17,7 @@ servers:
     variables:
       deviceId:
         default: a1b2c3
-        description: Six-character device ID derived from the STA MAC
+        description: Six-character device ID from NVS (random; MAC-seeded once on OTA migration)
   - url: http://4.3.2.1
     description: AP setup mode
 security: []
@@ -651,7 +651,7 @@ components:
       properties:
         deviceId:
           type: string
-          description: Own 6-char lowercase hex device ID (derived from MAC)
+          description: Own 6-char lowercase hex device ID (NVS `cfg/device_id`)
         server: { type: string }
         port: { type: integer }
         username: { type: string }

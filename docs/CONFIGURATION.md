@@ -41,7 +41,11 @@ raises the configured maximum.
 
 **Written by:** `wlanSaveConfigToNvs()`—from web POST `/api/wifi/connect` (STA) or `/api/wifi/connect-commit` (AP test)
 
-The device ID and hostnames are not stored in NVS. The ID is derived from the STA MAC at runtime; the setup hostname is `chaya2mqtt`, while the LAN hostname is `chaya2mqtt-<deviceId>`. They therefore remain stable across configuration changes and factory reset without a migration.
+The device ID is stored in NVS (`cfg/device_id`) as six lowercase hex characters. It is created
+randomly on first boot and after factory reset / flash erase. On OTA upgrade from firmware that
+had no `device_id` key, the ID is seeded once from the STA MAC when WiFi or MQTT config already
+exists, so pairings and hostnames stay stable until the next reset. The setup SoftAP hostname is
+`chaya2mqtt`; the LAN hostname is `chaya2mqtt-<deviceId>`.
 
 ## Namespace `mqtt`
 
@@ -68,6 +72,7 @@ Legacy keys `topic_pub` / `topic_sub` are removed when saving. Topics now exist 
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
+| `device_id` | String | (random) | Own 6-char hex device ID (MQTT topics, client ID, LAN hostname) |
 | `rstPeriod` | UChar | `7` | Display reset period in UTC days (0=off, 1–30) |
 | `ui_lang` | String | `en` | UI language (`en` / `de`) |
 | `ui_theme` | String | `light` | Web UI theme (`light` / `dark`) |
@@ -86,6 +91,7 @@ Legacy keys `topic_pub` / `topic_sub` are removed when saving. Topics now exist 
 | `upd_chan` | String | `stable` | OTA channel (`stable` or `beta`) |
 
 **Written by:**
+- `device_id`: created by `buildDeviceId()` on first use (random, or one-time MAC seed on OTA migration)
 - `rstPeriod` / `ui_lang` / `ui_theme` / `led_en` / `snd_mute` / `snd_vol` / `snd_q0` / `snd_q1` / `snd_custom` / `snd_tx_hz` / `snd_tx_ms` / `snd_rx_hz` / `snd_rx_ms`: web POST `/api/settings` (deferred via the app task)
 - `disp_view`: two-phase display transaction—`Unknown` is persisted before a full refresh and the
   completed view afterward. A reset or power loss during the waveform therefore forces a repaint.

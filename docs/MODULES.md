@@ -113,9 +113,13 @@ NVS debouncing: saves only every **≥30 s** (`kHeartCounterSaveMinIntervalMs`).
 
 ## `device_identity` – stable device and network identity
 
-**Files:** `device_identity.h`, `device_identity.cpp`
+**Files:** `device_identity.h`, `device_identity.cpp`, `device_identity_pure.h`
 
-`buildDeviceId()` derives the six-character ID from the STA MAC. Pure formatting helpers turn it into the unique STA/DHCP/mDNS hostname `chaya2mqtt-<deviceId>`; the setup AP keeps the unsuffixed hostname.
+`buildDeviceId()` loads or creates the six-character ID in NVS `cfg/device_id` (random via
+`esp_fill_random`; one-time STA-MAC seed when upgrading a device that already has WiFi/MQTT
+config). Result is cached in RAM. Pure helpers in `device_identity_pure.h` cover create-mode
+selection and hex formatting. Formatting helpers turn the ID into the unique STA/DHCP/mDNS
+hostname `chaya2mqtt-<deviceId>`; the setup AP keeps the unsuffixed hostname.
 
 ---
 

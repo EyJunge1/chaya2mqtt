@@ -16,7 +16,7 @@ details live below; the idea is simply a quiet little *thinking of you*. ❤️
 | **MQTT sync** | Publish on button press or via the web UI; subscribe sets the counter to the received value |
 | **TLS** | Broker connection via `mqtts://` with the **Mozilla CA bundle** (port **8883**) |
 | **Web admin** | Captive portal in AP mode, then `http://chaya2mqtt-<deviceId>.local` |
-| **Pairing** | Device ID derived from MAC → automatic topics `chaya2mqtt/<id>` |
+| **Pairing** | Random device ID in NVS → automatic topics `chaya2mqtt/<id>` |
 | **Button** | BOOT: press → send via MQTT |
 | **OTA** | Automatic daily GitHub release check + manual trigger |
 
