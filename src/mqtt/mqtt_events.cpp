@@ -200,56 +200,57 @@ static bool mqttEventGenerationStillValid(uint32_t generation) {
     return valid;
 }
 
-static bool mqttEventDisconnectIfLive(esp_mqtt_client_handle_t cli, uint32_t generation) {
+template <typename Fn>
+static bool mqttWithLiveClient(esp_mqtt_client_handle_t cli, uint32_t generation, Fn&& fn) {
     if (!mqttClientLockTimed()) {
         return false;
     }
     const bool live = (s_client == cli
                        && s_clientGeneration.load(std::memory_order_acquire) == generation);
     if (live) {
-        (void)esp_mqtt_client_disconnect(cli);
+        fn(cli);
     }
     mqttClientUnlock();
     return live;
 }
 
-static int mqttEventSubscribeIfLive(esp_mqtt_client_handle_t cli, uint32_t generation,
-                                    const char* topic, int qos) {
+template <typename Fn>
+static int mqttWithLiveClientInt(esp_mqtt_client_handle_t cli, uint32_t generation, Fn&& fn) {
     if (!mqttClientLockTimed()) {
         return -1;
     }
     const bool live = (s_client == cli
                        && s_clientGeneration.load(std::memory_order_acquire) == generation);
-    const int result = live ? esp_mqtt_client_subscribe(cli, topic, qos) : -1;
+    const int result = live ? fn(cli) : -1;
     mqttClientUnlock();
     return result;
+}
+
+static bool mqttEventDisconnectIfLive(esp_mqtt_client_handle_t cli, uint32_t generation) {
+    return mqttWithLiveClient(cli, generation, [](esp_mqtt_client_handle_t c) {
+        (void)esp_mqtt_client_disconnect(c);
+    });
+}
+
+static int mqttEventSubscribeIfLive(esp_mqtt_client_handle_t cli, uint32_t generation,
+                                    const char* topic, int qos) {
+    return mqttWithLiveClientInt(cli, generation, [&](esp_mqtt_client_handle_t c) {
+        return esp_mqtt_client_subscribe(c, topic, qos);
+    });
 }
 
 static int mqttEventPublishIfLive(esp_mqtt_client_handle_t cli, uint32_t generation,
                                   const char* topic, const char* payload, int length, int qos,
                                   int retain) {
-    if (!mqttClientLockTimed()) {
-        return -1;
-    }
-    const bool live = (s_client == cli
-                       && s_clientGeneration.load(std::memory_order_acquire) == generation);
-    const int result =
-        live ? esp_mqtt_client_publish(cli, topic, payload, length, qos, retain) : -1;
-    mqttClientUnlock();
-    return result;
+    return mqttWithLiveClientInt(cli, generation, [&](esp_mqtt_client_handle_t c) {
+        return esp_mqtt_client_publish(c, topic, payload, length, qos, retain);
+    });
 }
 
 static bool mqttEventMarkConnectedIfLive(esp_mqtt_client_handle_t cli, uint32_t generation) {
-    if (!mqttClientLockTimed()) {
-        return false;
-    }
-    const bool live = (s_client == cli
-                       && s_clientGeneration.load(std::memory_order_acquire) == generation);
-    if (live) {
+    return mqttWithLiveClient(cli, generation, [](esp_mqtt_client_handle_t) {
         s_connected.store(true, std::memory_order_release);
-    }
-    mqttClientUnlock();
-    return live;
+    });
 }
 
 void mqttEventHandler(void* /*handler_args*/, esp_event_base_t /*base*/, int32_t event_id,

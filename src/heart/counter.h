@@ -35,8 +35,10 @@ bool saveHeartCounter();
 bool saveHeartSentCounter();
 void maybeSaveHeartCounter();
 void maybeSaveHeartSentCounter();
+void maybeSaveAllHeartCounters();
 void flushHeartCounterIfDirty();
 void flushHeartSentCounterIfDirty();
+void flushAllHeartCountersIfDirty();
 
 void maybePeriodicallyResetCounters();
 void maybeResetDisplayBaselinesWhenCapped();

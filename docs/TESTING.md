@@ -35,7 +35,7 @@ Local test pyramid for chaya2mqtt based on this **principle**: real firmware log
 | OTA health window (30 s) | `ota/ota_health.h` | `test_ota` (`test_ota_health_window`) | — |
 | WiFi forced-reassociation threshold | `wifi/wlan_config.h` | `test_wifi` | — |
 | Time helpers | `util/time_helpers.h` | `test_time` | — |
-| Battery / audio gates / queue coalescing / display link + battery icons / LED patterns | pure helpers in `hw`, `audio`, `async`, `display` | `test_hw` | Settings, dashboard |
+| Battery / audio gates / queue coalescing / display link + battery icons / LED patterns / button debounce | pure helpers in `hw`, `audio`, `async`, `display`, `button`, `led` | `test_hw` | Settings, dashboard |
 | Device orchestration | Pure helpers + `sim/device_runtime.h` | `test_device_sim` | Mock scenarios |
 | REST/SSE contract | `admin_routes_api*.cpp`, `events.*` | — | `contract.test.ts`, OpenAPI/AsyncAPI |
 | SPA-UI | `frontend/src/**` | — | Vitest Pages/Components, Playwright |

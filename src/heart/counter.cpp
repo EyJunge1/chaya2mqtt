@@ -17,20 +17,20 @@ std::atomic<int> heartSentCounter{0};
 std::atomic<int> counterBaseline{0};
 std::atomic<int> sentCountBaseline{0};
 
-int heartDisplayRxDelta() {
+static int heartDisplayDelta(std::atomic<int>& counter, std::atomic<int>& baseline) {
     portENTER_CRITICAL(&s_heartDisplayMux);
-    const int c = heartCounter.load(std::memory_order_relaxed);
-    const int b = counterBaseline.load(std::memory_order_relaxed);
+    const int c = counter.load(std::memory_order_relaxed);
+    const int b = baseline.load(std::memory_order_relaxed);
     portEXIT_CRITICAL(&s_heartDisplayMux);
     return heartCounterDeltaPure(c, b);
 }
 
+int heartDisplayRxDelta() {
+    return heartDisplayDelta(heartCounter, counterBaseline);
+}
+
 int heartDisplayTxDelta() {
-    portENTER_CRITICAL(&s_heartDisplayMux);
-    const int c = heartSentCounter.load(std::memory_order_relaxed);
-    const int b = sentCountBaseline.load(std::memory_order_relaxed);
-    portEXIT_CRITICAL(&s_heartDisplayMux);
-    return heartCounterDeltaPure(c, b);
+    return heartDisplayDelta(heartSentCounter, sentCountBaseline);
 }
 
 void heartCounterStoreFromRemote(int value) {

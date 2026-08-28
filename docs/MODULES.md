@@ -127,7 +127,7 @@ App task (4096 stack, priority 4, core 1), loop every 500 ms:
 - `webAdminLoop()`—deferred web work, SSE
 - `maybePeriodicallyResetCounters()`—STA mode only
 - `maybeResetDisplayBaselinesWhenCapped()`—STA mode only
-- `maybeSaveHeartCounter()` / `maybeSaveHeartSentCounter()`
+- `maybeSaveAllHeartCounters()`
 - Battery ADC sample (~every 30 s)
 - Periodic heap logging (free/min/largest)
 
@@ -163,7 +163,9 @@ App task (4096 stack, priority 4, core 1), loop every 500 ms:
 | `loadHeartCounter()` / `saveHeartCounter()` | Read/write NVS `chaya` |
 | `persistCounterBaselineState()` | Write packed `baseBlob` (baselines + reset day) |
 | `maybeSaveHeartCounter()` | Debounced save (≥30 s) |
+| `maybeSaveAllHeartCounters()` | Debounced save for RX + TX |
 | `flushHeartCounterIfDirty()` | Save immediately if changed |
+| `flushAllHeartCountersIfDirty()` | Flush RX + TX if dirty |
 | `maybePeriodicallyResetCounters()` | Periodic baseline roll (UTC days) |
 | `maybeResetDisplayBaselinesWhenCapped()` | Baseline roll when display reaches ≥999 |
 | `counterResetRamAfterFactoryClear()` | Reset RAM after factory reset |
@@ -339,7 +341,7 @@ cycle, so bursts do not grow an unbounded audio backlog.
 
 ## `button/` – BOOT, PWR latch
 
-**Files:** `button/button.h`, `button/button_config.h`, `button/button_internal.h`, `button/button_input.cpp`
+**Files:** `button/button.h`, `button/button_config.h`, `button/button_internal.h`, `button/button_debounce_pure.h`, `button/button_input.cpp`
 
 | File | Responsibility |
 |------|----------------|
@@ -381,6 +383,7 @@ LED priority: MQTT TX sequence > finite pattern > E-Ink/RX refresh pulse > idle.
 | `ledIsActivityActive()` | TX sequence, pattern, or refresh pulse running? |
 | `ledRefreshPulseBegin/End` | Pulse GPIO3 during E-Ink refresh / RX ack |
 | `ledPlayPattern` / `ledPlayPreset` | Queue finite blink or Boot/WifiUp/MqttUp/LinkDown/SoftOff |
+| `ledPlayPatternBlocking` / `ledPlayPresetBlocking` | Blocking blink (boot / soft-off ack; same timings as queued) |
 
 Presets: Boot (startup), WifiUp (STA ready / reconnect), MqttUp (broker connected), LinkDown (heart → crack), SoftOff (PWR armed).
 

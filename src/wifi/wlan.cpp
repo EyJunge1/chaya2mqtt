@@ -364,8 +364,7 @@ void wlanForceStaReassoc(const char* reasonTag) {
 
 void wlanControlledRestart(const char* reasonTag) {
     ESP_LOGE(TAG, "WLAN controlled restart (%s)", reasonTag != nullptr ? reasonTag : "n/a");
-    flushHeartCounterIfDirty();
-    flushHeartSentCounterIfDirty();
+    flushAllHeartCountersIfDirty();
     prepareForResetAndRestart();
     delay(200);
     releaseGpioHoldBeforeRestart();

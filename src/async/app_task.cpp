@@ -85,8 +85,7 @@ static void appTaskFn(void*) {
             maybePeriodicallyResetCounters();
             maybeResetDisplayBaselinesWhenCapped();
         }
-        maybeSaveHeartCounter();
-        maybeSaveHeartSentCounter();
+        maybeSaveAllHeartCounters();
 
         appTaskPollDisplayLinkStatus();
 

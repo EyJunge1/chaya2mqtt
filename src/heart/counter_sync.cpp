@@ -120,16 +120,14 @@ void maybeResetDisplayBaselinesWhenCapped() {
     snapSent  = heartSentCounter.load(std::memory_order_relaxed);
     snapCb    = counterBaseline.load(std::memory_order_relaxed);
     snapSb    = sentCountBaseline.load(std::memory_order_relaxed);
-    const int64_t dRecv = static_cast<int64_t>(snapHeart) - static_cast<int64_t>(snapCb);
-    const int64_t dSent = static_cast<int64_t>(snapSent) - static_cast<int64_t>(snapSb);
-    if (dRecv >= kDisplayCounterMax) {
-        counterBaseline.store(snapHeart, std::memory_order_relaxed);
-        changed = true;
-    }
-    if (dSent >= kDisplayCounterMax) {
-        sentCountBaseline.store(snapSent, std::memory_order_relaxed);
-        changed = true;
-    }
+    auto applyCapBaseline = [&](int32_t counter, int32_t baseline, std::atomic<int>& baselineAtom) {
+        if (static_cast<int64_t>(counter) - static_cast<int64_t>(baseline) >= kDisplayCounterMax) {
+            baselineAtom.store(counter, std::memory_order_relaxed);
+            changed = true;
+        }
+    };
+    applyCapBaseline(snapHeart, snapCb, counterBaseline);
+    applyCapBaseline(snapSent, snapSb, sentCountBaseline);
     portEXIT_CRITICAL(&s_heartDisplayMux);
     if (changed && persistCounterBaselineState()) {
         ESP_LOGI(TAG, "Display baseline reset (display reached cap)");

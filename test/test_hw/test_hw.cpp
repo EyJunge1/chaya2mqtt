@@ -2,6 +2,7 @@
 
 #include "audio/audio_pure.h"
 #include "async/queue_coalesce_pure.h"
+#include "button/button_debounce_pure.h"
 #include "display/display_config.h"
 #include "display/display_link_pure.h"
 #include "display/display_refresh_pure.h"
@@ -290,6 +291,38 @@ void test_led_pattern_normalize_zero_count() {
     TEST_ASSERT_EQUAL_UINT16(50, offMs);
 }
 
+void test_debounce_commits_after_stable_ms() {
+    DebouncedGpioState st{};
+    st.lastRawReading       = 1;
+    st.debouncedLevel       = 1;
+    st.lastDebounceChangeMs = 1000;
+
+    debounceUpdate(st, 0, 1000, 20);
+    TEST_ASSERT_EQUAL_INT(0, st.lastRawReading);
+    TEST_ASSERT_EQUAL_INT(1, st.debouncedLevel);
+
+    debounceUpdate(st, 0, 1019, 20);
+    TEST_ASSERT_EQUAL_INT(1, st.debouncedLevel);
+
+    debounceUpdate(st, 0, 1020, 20);
+    TEST_ASSERT_EQUAL_INT(0, st.debouncedLevel);
+}
+
+void test_debounce_resets_timer_on_bounce() {
+    DebouncedGpioState st{};
+    st.lastRawReading       = 1;
+    st.debouncedLevel       = 1;
+    st.lastDebounceChangeMs = 0;
+
+    debounceUpdate(st, 0, 100, 20);
+    debounceUpdate(st, 1, 110, 20);
+    debounceUpdate(st, 0, 120, 20);
+    TEST_ASSERT_EQUAL_INT(1, st.debouncedLevel);
+
+    debounceUpdate(st, 0, 140, 20);
+    TEST_ASSERT_EQUAL_INT(0, st.debouncedLevel);
+}
+
 int main(int, char**) {
     UNITY_BEGIN();
     RUN_TEST(test_battery_pct_curve);
@@ -306,5 +339,7 @@ int main(int, char**) {
     RUN_TEST(test_led_pattern_three_blinks);
     RUN_TEST(test_led_pattern_single_pulse_no_off);
     RUN_TEST(test_led_pattern_normalize_zero_count);
+    RUN_TEST(test_debounce_commits_after_stable_ms);
+    RUN_TEST(test_debounce_resets_timer_on_bounce);
     return UNITY_END();
 }

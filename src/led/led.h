@@ -38,3 +38,11 @@ void ledRefreshPulseEndAfter(unsigned long durationMs);
  */
 void ledPlayPattern(LedBlinkPattern pattern);
 void ledPlayPreset(LedPreset preset);
+
+/**
+ * Blocking finite blink (same timings as queued patterns).
+ * Use only when the button/LED task is not running yet, or during shutdown
+ * where queued patterns would stall.
+ */
+void ledPlayPatternBlocking(LedBlinkPattern pattern);
+void ledPlayPresetBlocking(LedPreset preset);

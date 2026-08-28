@@ -1,5 +1,7 @@
 #pragma once
 
+#include "button_debounce_pure.h"
+
 #include <atomic>
 #include <cstdint>
 
@@ -9,22 +11,18 @@
 extern std::atomic<TaskHandle_t> s_buttonTaskHandle;
 
 struct ButtonState {
-    bool          heldDown            = false;
-    unsigned long pressStartMs        = 0;
-    int           lastRawReading       = 0;
-    unsigned long lastDebounceChangeMs = 0;
-    int           debouncedLevel       = 0;
+    bool               heldDown     = false;
+    unsigned long      pressStartMs = 0;
+    DebouncedGpioState debounce{};
 };
 
 struct PwrButtonState {
-    bool          seenRelease          = false;
-    bool          heldDown             = false;
+    bool               seenRelease  = false;
+    bool               heldDown     = false;
     /** True once this press has been held ≥ kSoftOffHoldMs (LED ack). Soft-off runs on release. */
-    bool          softOffArmed         = false;
-    unsigned long pressStartMs         = 0;
-    int           lastRawReading       = 0;
-    unsigned long lastDebounceChangeMs = 0;
-    int           debouncedLevel       = 0;
+    bool               softOffArmed = false;
+    unsigned long      pressStartMs = 0;
+    DebouncedGpioState debounce{};
 };
 
 extern ButtonState    btn;

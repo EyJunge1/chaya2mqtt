@@ -15,6 +15,7 @@
 
 #include <esp_log.h>
 #include <freertos/FreeRTOS.h>
+#include <freertos/task.h>
 
 #include "util/log_tag.h"
 
@@ -179,6 +180,26 @@ void ledPlayPattern(LedBlinkPattern pattern) {
 
 void ledPlayPreset(LedPreset preset) {
     ledPlayPattern(ledPresetToPattern(preset));
+}
+
+void ledPlayPatternBlocking(LedBlinkPattern pattern) {
+    if (!configGetLedEnabled()) {
+        ledOutput(LOW);
+        return;
+    }
+    ledPatternNormalize(pattern.count, pattern.onMs, pattern.offMs);
+    for (uint8_t i = 0; i < pattern.count; i++) {
+        ledOutput(HIGH);
+        vTaskDelay(pdMS_TO_TICKS(pattern.onMs));
+        ledOutput(LOW);
+        if (pattern.offMs > 0) {
+            vTaskDelay(pdMS_TO_TICKS(pattern.offMs));
+        }
+    }
+}
+
+void ledPlayPresetBlocking(LedPreset preset) {
+    ledPlayPatternBlocking(ledPresetToPattern(preset));
 }
 
 struct LedPhaseRow {

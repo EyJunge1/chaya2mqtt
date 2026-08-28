@@ -163,6 +163,16 @@ bool mqttCfgHasUnappliedPending() {
     return differs;
 }
 
+/** Read broker fields from an open Preferences handle into `out` (raw port, not normalized). */
+static void mqttCfgReadFromPrefs(Preferences& prefs, MqttConfig& out) {
+    prefs.getString(kNvsKeyMqttServer, out.server, sizeof(out.server));
+    out.port =
+        static_cast<uint16_t>(prefs.getInt(kNvsKeyMqttPort, static_cast<int>(kMqttDefaultTlsPort)));
+    prefs.getString(kNvsKeyMqttUser, out.username, sizeof(out.username));
+    prefs.getString(kNvsKeyMqttPass, out.password, sizeof(out.password));
+    prefs.getString(kNvsKeyMqttPartnerId, out.partnerDeviceId, sizeof(out.partnerDeviceId));
+}
+
 bool mqttCfgMatchesNvs() {
     MqttConfig active{};
     mqttCfgSnapshot(&active);
@@ -176,12 +186,7 @@ bool mqttCfgMatchesNvs() {
             return active.server[0] == '\0';
         }
         nvsPresent = true;
-        prefs.getString(kNvsKeyMqttServer, stored.server, sizeof(stored.server));
-        stored.port =
-            static_cast<uint16_t>(prefs.getInt(kNvsKeyMqttPort, static_cast<int>(kMqttDefaultTlsPort)));
-        prefs.getString(kNvsKeyMqttUser, stored.username, sizeof(stored.username));
-        prefs.getString(kNvsKeyMqttPass, stored.password, sizeof(stored.password));
-        prefs.getString(kNvsKeyMqttPartnerId, stored.partnerDeviceId, sizeof(stored.partnerDeviceId));
+        mqttCfgReadFromPrefs(prefs, stored);
         prefs.end();
     }
 
@@ -209,13 +214,8 @@ void loadMQTTConfig() {
             loaded.server[0] = '\0';
             prefs.end();
         } else {
-            prefs.getString(kNvsKeyMqttServer, loaded.server, sizeof(loaded.server));
-            loaded.port = normalizeMqttPort(
-                prefs.getInt(kNvsKeyMqttPort, static_cast<int>(kMqttDefaultTlsPort)));
-            prefs.getString(kNvsKeyMqttUser, loaded.username, sizeof(loaded.username));
-            prefs.getString(kNvsKeyMqttPass, loaded.password, sizeof(loaded.password));
-            prefs.getString(kNvsKeyMqttPartnerId, loaded.partnerDeviceId,
-                            sizeof(loaded.partnerDeviceId));
+            mqttCfgReadFromPrefs(prefs, loaded);
+            loaded.port = normalizeMqttPort(static_cast<int>(loaded.port));
             prefs.end();
         }
     }

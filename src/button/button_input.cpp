@@ -10,7 +10,6 @@
 #include "heart/counter.h"
 #include "hw/pins.h"
 #include "led/led.h"
-#include "led/led_config.h"
 #include "led/led_internal.h"
 #include "mqtt/config.h"
 #include "ota/ota.h"
@@ -57,18 +56,7 @@ static void waitForPwrRelease() {
 
 /** Blocking SoftOff LED ack while still held (≥2 s). Queued patterns would stall during shutdown. */
 static void blinkSoftOffArmedLed() {
-    if (!configGetLedEnabled()) {
-        ledOutput(LOW);
-        return;
-    }
-    for (uint8_t i = 0; i < kLedPresetSoftOffCount; i++) {
-        ledOutput(HIGH);
-        vTaskDelay(pdMS_TO_TICKS(kLedPresetSoftOffOnMs));
-        ledOutput(LOW);
-        if (kLedPresetSoftOffOffMs > 0) {
-            vTaskDelay(pdMS_TO_TICKS(kLedPresetSoftOffOffMs));
-        }
-    }
+    ledPlayPresetBlocking(LedPreset::SoftOff);
 }
 
 /**
@@ -89,8 +77,7 @@ static bool processPowerOff() {
     ESP_LOGI(TAG, "PWR long press released: soft-off");
 
     g_systemShutdownInProgress.store(true, std::memory_order_release);
-    flushHeartCounterIfDirty();
-    flushHeartSentCounterIfDirty();
+    flushAllHeartCountersIfDirty();
 
     // Already released (edge-on-release). EPD may take tens of seconds.
     chayaTaskWatchdogUnsubscribe(TAG);
@@ -111,14 +98,8 @@ static bool processPowerOff() {
 void pwrPollAndProcess() {
     const int raw             = digitalRead(pins::kPwrButton);
     const unsigned long nowMs = millis();
-    if (raw != pwr.lastRawReading) {
-        pwr.lastRawReading       = raw;
-        pwr.lastDebounceChangeMs = nowMs;
-    }
-    if (nowMs - pwr.lastDebounceChangeMs >= kDebounceStableMs) {
-        pwr.debouncedLevel = pwr.lastRawReading;
-    }
-    const bool pressed = (pwr.debouncedLevel == LOW);
+    debounceUpdate(pwr.debounce, raw, nowMs, kDebounceStableMs);
+    const bool pressed = (pwr.debounce.debouncedLevel == LOW);
     if (!pwr.seenRelease) {
         if (!pressed) {
             pwr.seenRelease = true;
@@ -149,15 +130,9 @@ void pwrPollAndProcess() {
 void buttonPollAndProcess() {
     const int raw             = digitalRead(kButtonGpio);
     const unsigned long nowMs = millis();
-    if (raw != btn.lastRawReading) {
-        btn.lastRawReading       = raw;
-        btn.lastDebounceChangeMs = nowMs;
-    }
-    if (nowMs - btn.lastDebounceChangeMs >= kDebounceStableMs) {
-        btn.debouncedLevel = btn.lastRawReading;
-    }
+    debounceUpdate(btn.debounce, raw, nowMs, kDebounceStableMs);
     // BOOT / Key1 is active-low (pressed = LOW).
-    const bool pressed = (btn.debouncedLevel == LOW);
+    const bool pressed = (btn.debounce.debouncedLevel == LOW);
 
     if (pressed) {
         if (!btn.heldDown) {
@@ -220,13 +195,14 @@ void buttonInit() {
     pinMode(kButtonGpio, INPUT_PULLUP);
     pinMode(pins::kPwrButton, INPUT_PULLUP);
     ledInit();
-    btn.lastRawReading       = digitalRead(kButtonGpio);
-    btn.debouncedLevel       = btn.lastRawReading;
-    btn.lastDebounceChangeMs = millis();
-    pwr.lastRawReading       = digitalRead(pins::kPwrButton);
-    pwr.debouncedLevel       = pwr.lastRawReading;
-    pwr.lastDebounceChangeMs = millis();
-    pwr.seenRelease          = (pwr.debouncedLevel != LOW);
+    const unsigned long nowMs = millis();
+    btn.debounce.lastRawReading       = digitalRead(kButtonGpio);
+    btn.debounce.debouncedLevel       = btn.debounce.lastRawReading;
+    btn.debounce.lastDebounceChangeMs = nowMs;
+    pwr.debounce.lastRawReading       = digitalRead(pins::kPwrButton);
+    pwr.debounce.debouncedLevel       = pwr.debounce.lastRawReading;
+    pwr.debounce.lastDebounceChangeMs = nowMs;
+    pwr.seenRelease                   = (pwr.debounce.debouncedLevel != LOW);
 }
 
 void buttonStartTask() {
@@ -250,18 +226,6 @@ void buttonStartTask() {
 
 void buttonStartupBlink() {
     // Blocking before the button task starts (avoids racing ledOutput with the task).
-    // Uses the same Boot preset timings as ledPlayPreset(LedPreset::Boot).
-    if (!configGetLedEnabled()) {
-        ledOutput(LOW);
-        return;
-    }
-    for (uint8_t i = 0; i < kLedPresetBootCount; i++) {
-        ledOutput(HIGH);
-        vTaskDelay(pdMS_TO_TICKS(kLedPresetBootOnMs));
-        ledOutput(LOW);
-        if (kLedPresetBootOffMs > 0) {
-            vTaskDelay(pdMS_TO_TICKS(kLedPresetBootOffMs));
-        }
-    }
+    ledPlayPresetBlocking(LedPreset::Boot);
 }
 

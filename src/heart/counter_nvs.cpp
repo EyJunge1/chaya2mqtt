@@ -179,6 +179,15 @@ void maybeSaveHeartSentCounter() {
     heartDebounceUnlock();
 }
 
+void maybeSaveAllHeartCounters() {
+    if (!heartDebounceLockTimed(1000U)) {
+        return;
+    }
+    s_rxCounter.maybeSave();
+    s_txCounter.maybeSave();
+    heartDebounceUnlock();
+}
+
 void flushHeartCounterIfDirty() {
     heartDebounceLock();
     s_rxCounter.flushIfDirty();
@@ -187,6 +196,13 @@ void flushHeartCounterIfDirty() {
 
 void flushHeartSentCounterIfDirty() {
     heartDebounceLock();
+    s_txCounter.flushIfDirty();
+    heartDebounceUnlock();
+}
+
+void flushAllHeartCountersIfDirty() {
+    heartDebounceLock();
+    s_rxCounter.flushIfDirty();
     s_txCounter.flushIfDirty();
     heartDebounceUnlock();
 }
