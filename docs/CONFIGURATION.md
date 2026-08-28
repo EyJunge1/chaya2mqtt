@@ -151,7 +151,7 @@ The active MQTT configuration (`mqttCfg`) exists only in `mqtt/config.cpp`—acc
 ## Factory reset
 
 Trigger: web admin **Settings → Device → Factory reset** (`POST /api/factory-reset`) →
-`resetAllSettings()` in `wifi/wlan.cpp`. There is no physical reset gesture; if the web
+`resetAllSettings()` in `wifi/wlan_reset.cpp`. There is no physical reset gesture; if the web
 admin is unreachable, erase and reflash over USB.
 
 Sequence:

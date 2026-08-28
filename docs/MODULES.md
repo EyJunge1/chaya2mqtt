@@ -232,11 +232,12 @@ Event handler (`MQTT_EVENT_DATA`): parse payload → `heartCounterStoreFromRemot
 
 ## `wifi/wlan` – WiFi & captive portal
 
-**Files:** `wifi/wlan.h`, `wifi/wlan_config.h`, `wifi/wlan_internal.h`, `wifi/wlan.cpp`, `wifi/wlan_boot.cpp`, `wifi/wlan_events.cpp`, `wifi/wlan_nvs.cpp`, `wifi/wlan_scan.cpp`
+**Files:** `wifi/wlan.h`, `wifi/wlan_config.h`, `wifi/wlan_internal.h`, `wifi/wlan.cpp`, `wifi/wlan_reset.cpp`, `wifi/wlan_boot.cpp`, `wifi/wlan_events.cpp`, `wifi/wlan_nvs.cpp`, `wifi/wlan_scan.cpp`
 
 | File | Responsibility |
 |------|----------------|
-| `wlan.cpp` | Global state, `wlanLoop()`, factory reset, SoftAP snapshot, API lock |
+| `wlan.cpp` | Global state, `wlanLoop()`, SoftAP snapshot, API lock, STA snapshots |
+| `wlan_reset.cpp` | Factory reset, controlled restart, forced STA reassociation |
 | `wlan_boot.cpp` | `setupWiFi()`, STA/AP fallback (WPA2/WPA3 setup AP), mDNS/NTP |
 | `wlan_events.cpp` | STA events, reconnect backoff |
 | `wlan_recovery.cpp` / `wlan_recovery.h` | Stage 2 recovery (forced reassociation / restart with OTA guard) |
@@ -284,7 +285,7 @@ Network task (7168 stack, priority 5, core 1):
 
 ## `display/` – E-Ink
 
-**Files:** `display/display.h`, `display/display_config.h`, `display/display.cpp`, `display/draw.cpp`, `display/internal.h`, `display/qr/qrcodegen.{c,h}`
+**Files:** `display/display.h`, `display/display_config.h`, `display/display.cpp`, `display/display_hw.cpp`, `display/display_task.cpp`, `display/display_task_internal.h`, `display/draw.cpp`, `display/internal.h`, `display/qr/qrcodegen.{c,h}`
 
 ### Display task
 

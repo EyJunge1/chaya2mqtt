@@ -40,7 +40,7 @@ flowchart TB
 | **button** | 4096 | 8 | 1 | `button/button_input.cpp`, `led/led.cpp` | BOOT debounce, LED patterns, MQTT send |
 | **app** | 4096 | 4 | 1 | `async/app_task.cpp` | `webAdminLoop()`, OTA health, counter resets/NVS saves, battery poll |
 | **ota** | 8192 | 4 | 1 | `ota/ota_task.cpp` | `otaLoop()` (GitHub + Download) |
-| **display** | 8192 | 3 | 1 | `display/display.cpp` | Exclusive SPI/EPD access |
+| **display** | 8192 | 3 | 1 | `display/display_task.cpp` | Exclusive SPI/EPD access |
 | **audio** | 6144 | 3 | 1 | `audio/audio.cpp` | ES8311 playback queue (mic stays off) |
 
 **Task watchdog:** Network, app, audio, and button are registered with the ESP task WDT. OTA
