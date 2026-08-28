@@ -386,10 +386,16 @@ static bool displayPostMsg(DisplayMsg::Cmd cmd, uint32_t payload, TickType_t wai
 }
 
 void requestHeartRedraw() {
+    if (configIsApMode()) {
+        return;
+    }
     (void)displayPostHeartRedraw(pdMS_TO_TICKS(100));
 }
 
 bool requestHeartRedrawNonBlocking() {
+    if (configIsApMode()) {
+        return true;
+    }
     return displayPostHeartRedraw(0);
 }
 
@@ -408,6 +414,9 @@ void requestDeferredDrawSplashScreen() {
 }
 
 void requestDeferredDrawHeartScreen() {
+    if (configIsApMode()) {
+        return;
+    }
     if (s_drawIdleSem != nullptr) {
         while (xSemaphoreTake(s_drawIdleSem, 0) == pdTRUE) {
         }

@@ -94,8 +94,11 @@ static void appTaskFn(void*) {
         if (s_batterySkip >= (kBatteryPollMs / 500UL)) {
             s_batterySkip = 0U;
             batteryPoll();
-            // Heart redraw decide skips when battery icon level is unchanged.
-            requestHeartRedraw();
+            // SoftAP keeps the WIFI QR / title splash — never overlay the heart there.
+            if (!configIsApMode()) {
+                // Heart redraw decide skips when battery icon level is unchanged.
+                requestHeartRedraw();
+            }
         }
 
         ++s_heapLogCounter;
