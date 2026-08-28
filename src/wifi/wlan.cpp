@@ -50,6 +50,8 @@ std::atomic<uint32_t>      s_wifiReconnectFailCount{0};
 std::atomic<bool>          s_staReconnectWorkPending{false};
 std::atomic<bool>          s_staGotIpWorkPending{false};
 std::atomic<bool>          s_mdnsRestartNeeded{false};
+std::atomic<bool>          s_epdRefreshActive{false};
+std::atomic<bool>          s_epdDeferredPsWake{false};
 
 std::atomic<bool> s_wifiSetupComplete{false};
 std::atomic<bool> s_bootStaConnectPending{false};
@@ -403,12 +405,19 @@ void resetAllSettings() {
 
 void wlanLoop() {
     // Fallback for a full NetCmd queue: WiFi event work is coalesced in atomic flags.
-    wlanHandleStaGotIpNetCmd();
-    wlanHandleStaReconnectNetCmd();
-    wlanBootConnectServiceLoop();
-    wifiScanServiceOnMainTask();
-    wifiConnectionTestServiceLoop();
-    wlanRecoveryServiceLoop();
+    const bool epdRefreshActive = s_epdRefreshActive.load(std::memory_order_acquire);
+    if (!epdRefreshActive) {
+        wlanRestoreTxPowerAfterEpd();
+        if (s_epdDeferredPsWake.exchange(false, std::memory_order_acq_rel)) {
+            wlanSetStaPowerSaveMqttActive(false);
+        }
+        wlanHandleStaGotIpNetCmd();
+        wlanHandleStaReconnectNetCmd();
+        wlanBootConnectServiceLoop();
+        wifiScanServiceOnMainTask();
+        wifiConnectionTestServiceLoop();
+        wlanRecoveryServiceLoop();
+    }
     if (s_captiveDnsStarted.load(std::memory_order_acquire)) {
         static unsigned long s_lastApDnsPollMs = 0UL;
         const unsigned long  nowMs             = millis();
@@ -419,7 +428,7 @@ void wlanLoop() {
             s_lastApDnsPollMs = nowMs;
         }
     }
-    if (s_mdnsRestartNeeded.exchange(false, std::memory_order_acq_rel)) {
+    if (!epdRefreshActive && s_mdnsRestartNeeded.exchange(false, std::memory_order_acq_rel)) {
         if (!g_apMode.load(std::memory_order_relaxed) && wlanStaConnectedOk()) {
             char staHostname[kDeviceStaHostnameBufLen]{};
             if (!buildDeviceStaHostname(staHostname, sizeof(staHostname))) {
@@ -461,12 +470,21 @@ void wlanSetStaPowerSaveMqttActive(bool mqttSessionActive) {
     if (g_apMode.load(std::memory_order_relaxed)) {
         return;
     }
+    // During EPD refresh keep TX low; defer "radio fully awake" until the panel finishes.
+    if (!mqttSessionActive && s_epdRefreshActive.load(std::memory_order_acquire)) {
+        s_epdDeferredPsWake.store(true, std::memory_order_release);
+        return;
+    }
+    if (!mqttSessionActive) {
+        s_epdDeferredPsWake.store(false, std::memory_order_release);
+    }
     wlanWifiApiLock();
     if (mqttSessionActive) {
         if (WiFi.status() != WL_CONNECTED || WiFi.localIP()[0] == 0) {
             wlanWifiApiUnlock();
             return;
         }
+        s_epdDeferredPsWake.store(false, std::memory_order_release);
         // Connected MQTT session: modem sleep is fine.
         WiFi.setSleep(true);
         esp_wifi_set_ps(WIFI_PS_MIN_MODEM);

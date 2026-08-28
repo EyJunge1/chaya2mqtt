@@ -18,7 +18,8 @@ void wlanRecoveryServiceLoop() {
     static WlanRecoveryState s_recovery{};
 
     if (!s_wifiSetupComplete.load(std::memory_order_acquire)
-        || !s_bootWifiSettled.load(std::memory_order_acquire)) {
+        || !s_bootWifiSettled.load(std::memory_order_acquire)
+        || s_epdRefreshActive.load(std::memory_order_acquire)) {
         return;
     }
 

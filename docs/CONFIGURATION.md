@@ -83,7 +83,8 @@ Legacy keys `topic_pub` / `topic_sub` are removed when saving. Topics now exist 
 
 **Written by:**
 - `rstPeriod` / `ui_lang` / `ui_theme` / `led_en` / `snd_mute` / `snd_vol` / `snd_q0` / `snd_q1` / `snd_custom` / `snd_tx_hz` / `snd_tx_ms` / `snd_rx_hz` / `snd_rx_ms`: web POST `/api/settings` (deferred via the app task)
-- `disp_view`: by the display task after a completed full refresh; unchanged values are not rewritten
+- `disp_view`: two-phase display transaction—`Unknown` is persisted before a full refresh and the
+  completed view afterward. A reset or power loss during the waveform therefore forces a repaint.
 - `upd_day`: automatically after an OTA check
 - `upd_chan`: when selecting a channel during the update check
 

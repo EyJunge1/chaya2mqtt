@@ -27,9 +27,15 @@ DEFINE_LOG_TAG("NET");
 
 // wlanLoop + mqttLoop (STA) + serialized admin net commands.
 
+static bool s_mqttSettingsChangedDeferred = false;
+
 static void handleNetCommand(NetCmd cmd) {
     switch (cmd) {
     case NetCmd::MqttSettingsChanged: {
+        if (wlanEpdRefreshActive()) {
+            s_mqttSettingsChangedDeferred = true;
+            break;
+        }
         mqttBeginSettingsApply();
         if (!mqttCfgHasUnappliedPending()) {
             mqttEndSettingsApply();
@@ -61,6 +67,10 @@ static void handleNetCommand(NetCmd cmd) {
         break;
     }
     case NetCmd::MqttKillClient:
+        if (wlanEpdRefreshActive()) {
+            mqttRequestKillClientDeferred();
+            break;
+        }
         mqttDisconnect();
         break;
     case NetCmd::WifiGotIp:
@@ -87,8 +97,14 @@ static void networkTaskFn(void*) {
     for (;;) {
         NetCmd cmd;
         const uint32_t pollMs = configIsApMode() ? kNetworkPollApMs : kNetworkPollStaMs;
-        const bool hasCmd =
-            xQueueReceive(g_netCmdQueue, &cmd, pdMS_TO_TICKS(pollMs)) == pdTRUE;
+        bool hasCmd = false;
+        if (s_mqttSettingsChangedDeferred && !wlanEpdRefreshActive()) {
+            s_mqttSettingsChangedDeferred = false;
+            cmd = NetCmd::MqttSettingsChanged;
+            hasCmd = true;
+        } else {
+            hasCmd = xQueueReceive(g_netCmdQueue, &cmd, pdMS_TO_TICKS(pollMs)) == pdTRUE;
+        }
 
         if (hasCmd) {
             handleNetCommand(cmd);

@@ -28,6 +28,8 @@ bool configSetLedEnabled(bool enabled);
 void        configLoadDisplayViewFromNvs();
 DisplayView configGetDisplayView();
 bool        configSetDisplayView(DisplayView view);
+/** Mark panel contents unknown (cache + NVS) so the next draw is not skipped. */
+bool        configInvalidateDisplayView();
 
 /** Heart-click audio: mute, volume 0–100, quiet hours (local, equal = off), optional custom tone. */
 void configLoadAudioFromNvs();

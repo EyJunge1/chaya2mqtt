@@ -23,6 +23,8 @@ extern std::atomic<uint32_t>      s_wifiReconnectFailCount;
 extern std::atomic<bool>          s_staReconnectWorkPending;
 extern std::atomic<bool>          s_staGotIpWorkPending;
 extern std::atomic<bool>          s_mdnsRestartNeeded;
+extern std::atomic<bool>          s_epdRefreshActive;
+extern std::atomic<bool>          s_epdDeferredPsWake;
 
 extern std::atomic<bool> s_wifiSetupComplete;
 extern std::atomic<bool> s_bootStaConnectPending;
@@ -51,6 +53,10 @@ void setupWifiBeginStaConnectAsync(const WlanConfig& cfg);
 void wifiLoadCredentialsFromNvs(char* ssid, size_t ssidLen, char* pass, size_t passLen);
 
 void wlanBootConnectServiceLoop();
+/** Retry restoring WiFi TX power after an EPD refresh if the mutex was busy. */
+void wlanRestoreTxPowerAfterEpd();
+/** Stop an asynchronous scan before EPD TX throttling; caller holds g_wifiApiMutex. */
+void wifiScanStopForEpdLocked();
 void wifiScanServiceOnMainTask();
 void wifiStationEvent(arduino_event_id_t event, arduino_event_info_t info);
 

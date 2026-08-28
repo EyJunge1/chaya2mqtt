@@ -47,6 +47,12 @@ void wlanHandleStaReconnectNetCmd() {
     if (g_apMode.load(std::memory_order_relaxed)) {
         return;
     }
+    if (s_epdRefreshActive.load(std::memory_order_acquire)) {
+        // Keep the request alive; wlanEndLowInterferenceForEpd() re-wakes the network task.
+        s_staReconnectWorkPending.store(true, std::memory_order_release);
+        ESP_LOGD(TAG, "WLAN reconnect deferred (EPD refresh)");
+        return;
+    }
     const unsigned long nowMs       = millis();
     const unsigned long nextAllowed = s_wifiReconnectNextAllowedMs.load(std::memory_order_relaxed);
     if (nextAllowed != 0UL && static_cast<std::int32_t>(nowMs - nextAllowed) < 0) {

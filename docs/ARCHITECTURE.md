@@ -187,7 +187,9 @@ The network task services its queue and WiFi/MQTT loops every **50 ms in setup-A
 responsive captive DNS) and every **250 ms in STA mode**. Queue traffic wakes it immediately.
 `GOT_IP` and reconnect work are additionally coalesced in atomic flags, so neither is lost when the
 queue is full. A stale reconnect is discarded when STA is already connected; mDNS re-validates the
-link immediately before starting.
+link immediately before starting. During an E-Paper waveform, GOT_IP finalization, reconnect,
+recovery, MQTT teardown, and MQTT settings apply remain pending; the network task resumes them
+after the display task closes the low-interference window.
 
 ## DisplayMsg – display command queue
 

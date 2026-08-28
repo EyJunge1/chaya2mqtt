@@ -193,6 +193,17 @@ bool configSetDisplayView(DisplayView view) {
     return true;
 }
 
+bool configInvalidateDisplayView() {
+    // Force a redraw in this boot even if NVS is temporarily unavailable.
+    s_displayViewCached.store(DisplayView::Unknown, std::memory_order_relaxed);
+    if (!app_nvs::writeUChar(kNvsNsCfg, kNvsKeyCfgDispView,
+                             static_cast<uint8_t>(DisplayView::Unknown))) {
+        ESP_LOGE(TAG, "NVS cfg: failed to invalidate disp_view");
+        return false;
+    }
+    return true;
+}
+
 void configLoadAudioFromNvs() {
     const uint8_t mute   = app_nvs::readUChar(kNvsNsCfg, kNvsKeyCfgSndMute, 0);
     uint8_t vol          = app_nvs::readUChar(kNvsNsCfg, kNvsKeyCfgSndVol, kAudioDefaultVolume);
