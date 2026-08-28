@@ -10,6 +10,20 @@ between the two devices.
 
 It is a tiny, always-there way to say *I'm thinking of you* without opening an app.
 
+### What the display shows
+
+Simulated 200×200 E-Ink views (same Lucide icons and layout as firmware):
+
+| Online | Offline | SoftAP setup |
+|:---:|:---:|:---:|
+| ![Online heart with RX/TX](docs/images/heart-online.png) | ![Cracked heart when offline](docs/images/heart-offline.png) | ![WIFI QR setup splash](docs/images/setup-qr.png) |
+
+| Product title | Power-off |
+|:---:|:---:|
+| ![Centered product title](docs/images/product-title.png) | ![Power-off heart-off](docs/images/power-off.png) |
+
+More detail: [docs/DISPLAY.md](docs/DISPLAY.md). Regenerate the PNGs with `node scripts/render_display_previews.mjs`.
+
 ## Bring your heart to life
 
 **Browser (recommended):** open the
