@@ -24,7 +24,7 @@ Simulated 200×200 E-Ink views (same Lucide icons and layout as firmware):
 |:---:|:---:|
 | ![Centered product title](docs/images/product-title.png) | ![Power-off heart-off](docs/images/power-off.png) |
 
-More detail: [docs/DISPLAY.md](docs/DISPLAY.md). Regenerate the PNGs with `node scripts/render_display_previews.mjs`.
+More detail: [docs/DISPLAY.md](docs/DISPLAY.md).
 
 ## Bring your heart to life
 
