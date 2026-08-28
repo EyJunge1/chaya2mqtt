@@ -3,6 +3,7 @@
 
 #include "constants.h"
 #include "device_identity.h"
+#include "device_identity_pure.h"
 #include "mqtt/backoff.h"
 #include "mqtt/counter_payload.h"
 #include "mqtt/mqtt_config.h"
@@ -31,6 +32,27 @@ void test_device_id_syntax() {
     TEST_ASSERT_FALSE(deviceIdSyntaxOk("abc"));
     TEST_ASSERT_FALSE(deviceIdSyntaxOk("a1b2c3d"));
     TEST_ASSERT_FALSE(deviceIdSyntaxOk(nullptr));
+}
+
+void test_device_id_create_mode() {
+    TEST_ASSERT_EQUAL(static_cast<int>(DeviceIdCreateMode::FromMacMigrate),
+                      static_cast<int>(deviceIdCreateMode(true)));
+    TEST_ASSERT_EQUAL(static_cast<int>(DeviceIdCreateMode::FromRandom),
+                      static_cast<int>(deviceIdCreateMode(false)));
+}
+
+void test_device_id_format_from_bytes() {
+    const uint8_t bytes[3] = {0xa1, 0xb2, 0xc3};
+    char id[kDeviceIdBufLen]{};
+    TEST_ASSERT_TRUE(deviceIdFormatFromBytes(bytes, id, sizeof(id)));
+    TEST_ASSERT_EQUAL_STRING("a1b2c3", id);
+
+    char tooSmall[kDeviceIdHexLen]{};
+    TEST_ASSERT_FALSE(deviceIdFormatFromBytes(bytes, tooSmall, sizeof(tooSmall)));
+    TEST_ASSERT_EQUAL_STRING("", tooSmall);
+
+    TEST_ASSERT_FALSE(deviceIdFormatFromBytes(nullptr, id, sizeof(id)));
+    TEST_ASSERT_FALSE(deviceIdFormatFromBytes(bytes, nullptr, sizeof(id)));
 }
 
 void test_device_sta_hostname_format() {
@@ -143,6 +165,8 @@ int main(int, char**) {
     RUN_TEST(test_mqtt_topic_syntax);
     RUN_TEST(test_mqtt_server_syntax);
     RUN_TEST(test_device_id_syntax);
+    RUN_TEST(test_device_id_create_mode);
+    RUN_TEST(test_device_id_format_from_bytes);
     RUN_TEST(test_device_sta_hostname_format);
     RUN_TEST(test_normalize_mqtt_port);
     RUN_TEST(test_pairing_topics);
