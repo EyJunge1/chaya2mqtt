@@ -34,6 +34,9 @@ static uint8_t s_qrTempBuf[qrcodegen_BUFFER_LEN_FOR_VERSION(kQrMaxVersion)];
 static uint8_t s_qrcode[qrcodegen_BUFFER_LEN_FOR_VERSION(kQrMaxVersion)];
 static char    s_wifiQrPayload[kWifiQrPayloadMaxLen];
 
+static constexpr int kDisplayRightMargin = 4;
+static constexpr int16_t kBatteryTopMargin = 4;
+
 uint16_t displayFgColor() {
     return GxEPD_BLACK;
 }
@@ -42,8 +45,56 @@ uint16_t displayBgColor() {
     return GxEPD_WHITE;
 }
 
+static void drawLucideIcon(int16_t x, int16_t y, const uint8_t* bitmap, int16_t w, int16_t h,
+                           uint16_t color) {
+    displayPanel().drawBitmap(x, y, bitmap, w, h, color);
+}
+
+static uint8_t footerTextSizeForDigitCount(size_t digitLen) {
+    return digitLen <= 3 ? 4 : 3;
+}
+
+static void drawBatteryLucide(int16_t x, int16_t y, int pct, uint16_t color) {
+    switch (displayBatteryIcon(pct)) {
+    case DisplayBatteryIcon::Full:
+        drawLucideIcon(x, y, kIconBatteryFull, kIconBatteryFullW, kIconBatteryFullH, color);
+        break;
+    case DisplayBatteryIcon::Medium:
+        drawLucideIcon(x, y, kIconBatteryMedium, kIconBatteryMediumW, kIconBatteryMediumH,
+                       color);
+        break;
+    case DisplayBatteryIcon::Low:
+        drawLucideIcon(x, y, kIconBatteryLow, kIconBatteryLowW, kIconBatteryLowH, color);
+        break;
+    case DisplayBatteryIcon::Empty:
+        drawLucideIcon(x, y, kIconBatteryEmpty, kIconBatteryEmptyW, kIconBatteryEmptyH, color);
+        break;
+    }
+}
+
+// Same top-right placement as the RX/TX heart counter view.
+static void drawBatteryTopRight() {
+    auto& epd = displayPanel();
+    const int batPct = batteryPercent();
+    uint16_t batColor = displayFgColor();
+    switch (displayBatteryColor(batPct)) {
+    case DisplayBatteryColor::Red:
+        batColor = GxEPD_RED;
+        break;
+    case DisplayBatteryColor::Yellow:
+        batColor = GxEPD_YELLOW;
+        break;
+    case DisplayBatteryColor::Black:
+        break;
+    }
+    const int16_t batteryX =
+        static_cast<int16_t>(epd.width() - kDisplayRightMargin - kIconBatteryFullW);
+    drawBatteryLucide(batteryX, kBatteryTopMargin, batPct, batColor);
+}
+
 // Centered text; shrink textSize down to minSize if needed.
-void drawCenteredTextScreen(const char* text, uint8_t startSize, uint8_t minSize, uint16_t color) {
+void drawCenteredTextScreen(const char* text, uint8_t startSize, uint8_t minSize, uint16_t color,
+                            bool showBattery) {
     auto& epd = displayPanel();
     const int dw = epd.width();
     const int dh = epd.height();
@@ -79,34 +130,10 @@ void drawCenteredTextScreen(const char* text, uint8_t startSize, uint8_t minSize
         epd.setTextSize(textSize);
         epd.setCursor(static_cast<int16_t>(cursorX), static_cast<int16_t>(cursorY));
         epd.print(text);
+        if (showBattery) {
+            drawBatteryTopRight();
+        }
     } while (epd.nextPage());
-}
-
-static void drawLucideIcon(int16_t x, int16_t y, const uint8_t* bitmap, int16_t w, int16_t h,
-                           uint16_t color) {
-    displayPanel().drawBitmap(x, y, bitmap, w, h, color);
-}
-
-static uint8_t footerTextSizeForDigitCount(size_t digitLen) {
-    return digitLen <= 3 ? 4 : 3;
-}
-
-static void drawBatteryLucide(int16_t x, int16_t y, int pct, uint16_t color) {
-    switch (displayBatteryIcon(pct)) {
-    case DisplayBatteryIcon::Full:
-        drawLucideIcon(x, y, kIconBatteryFull, kIconBatteryFullW, kIconBatteryFullH, color);
-        break;
-    case DisplayBatteryIcon::Medium:
-        drawLucideIcon(x, y, kIconBatteryMedium, kIconBatteryMediumW, kIconBatteryMediumH,
-                       color);
-        break;
-    case DisplayBatteryIcon::Low:
-        drawLucideIcon(x, y, kIconBatteryLow, kIconBatteryLowW, kIconBatteryLowH, color);
-        break;
-    case DisplayBatteryIcon::Empty:
-        drawLucideIcon(x, y, kIconBatteryEmpty, kIconBatteryEmptyW, kIconBatteryEmptyH, color);
-        break;
-    }
 }
 
 static void formatCappedCounterForDisplay(int rawCounter, int baseline, char* buf, size_t buflen) {
@@ -123,46 +150,31 @@ static void formatCappedCounterForDisplay(int rawCounter, int baseline, char* bu
 HeartCounterDrawSnapshot drawHeartWithNumber(DisplayHeartIcon icon) {
     displayResumeSpiForDraw();
 
-    ESP_LOGI(TAG, "Drawing Lucide heart (icon=%u) with counters...",
-             static_cast<unsigned>(icon));
+    const bool showFooter = (icon != DisplayHeartIcon::Crack);
+    ESP_LOGI(TAG, "Drawing Lucide heart (icon=%u showFooter=%d)...",
+             static_cast<unsigned>(icon), showFooter ? 1 : 0);
 
     auto& epd = displayPanel();
     const uint16_t fg = displayFgColor();
     const uint16_t bg = displayBgColor();
     const int dw = epd.width();
+    const int dh = epd.height();
 
-    char recvBuf[16];
-    char sentBuf[16];
     HeartCounterDrawSnapshot snap{};
     heartCounterFillDrawSnapshot(&snap);
-    formatCappedCounterForDisplay(snap.heartCounterRaw, snap.counterBaselineRaw, recvBuf,
-                                  sizeof(recvBuf));
-    formatCappedCounterForDisplay(snap.heartSentCounterRaw, snap.sentCountBaselineRaw, sentBuf,
-                                  sizeof(sentBuf));
-    const size_t recvLen = std::max<size_t>(strlen(recvBuf), size_t{1});
-    const size_t sentLen = std::max<size_t>(strlen(sentBuf), size_t{1});
 
-    const uint8_t recvTextSize = footerTextSizeForDigitCount(recvLen);
-    const uint8_t sentTextSize = footerTextSizeForDigitCount(sentLen);
-    const int     batPct       = batteryPercent();
-    uint16_t      batColor     = fg;
-    switch (displayBatteryColor(batPct)) {
-    case DisplayBatteryColor::Red:
-        batColor = GxEPD_RED;
-        break;
-    case DisplayBatteryColor::Yellow:
-        batColor = GxEPD_YELLOW;
-        break;
-    case DisplayBatteryColor::Black:
-        break;
-    }
+    char recvBuf[16]{};
+    char sentBuf[16]{};
+    uint8_t recvTextSize = 4;
+    uint8_t sentTextSize = 4;
+    int recvTextCursorX = 0;
+    int sentTextCursorX = 0;
 
-    static constexpr int     kFooterTextTop = 167;
-    static constexpr int     kLeftMargin    = 4;
-    static constexpr int     kRightMargin   = 4;
+    static constexpr int kFooterTextTop = 167;
+    static constexpr int kLeftMargin    = 4;
     // 14 px move icon + exactly 5 px gap to the counter.
-    static constexpr int     kArrowLane     = kIconMoveDownW + 5;
-    static constexpr int16_t kBatteryTopMargin = 4;
+    static constexpr int kArrowLane = kIconMoveDownW + 5;
+    static constexpr int16_t kHeartFooterGap = 4;
 
     const int16_t heartW =
         icon == DisplayHeartIcon::Crack ? kIconHeartCrackW : kIconHeartW;
@@ -171,42 +183,48 @@ HeartCounterDrawSnapshot drawHeartWithNumber(DisplayHeartIcon icon) {
     const uint8_t* heartBmp =
         icon == DisplayHeartIcon::Crack ? kIconHeartCrack : kIconHeart;
     const int16_t heartX = static_cast<int16_t>((dw - heartW) / 2);
-    // Leave a little visual breathing room above the RX/TX footer.
-    static constexpr int16_t kHeartFooterGap = 4;
     const int16_t heartY =
-        static_cast<int16_t>(kFooterTextTop - heartH - kHeartFooterGap);
+        showFooter ? static_cast<int16_t>(kFooterTextTop - heartH - kHeartFooterGap)
+                   : static_cast<int16_t>((dh - heartH) / 2);
 
     const int16_t downArrowX = static_cast<int16_t>(kLeftMargin);
     const int16_t downArrowY = static_cast<int16_t>(kFooterTextTop);
     const int16_t upArrowX =
-        static_cast<int16_t>(dw - kRightMargin - kIconMoveUpW);
+        static_cast<int16_t>(dw - kDisplayRightMargin - kIconMoveUpW);
     const int16_t upArrowY = static_cast<int16_t>(kFooterTextTop);
-    const int16_t batteryX =
-        static_cast<int16_t>(dw - kRightMargin - kIconBatteryFullW);
 
-    int16_t rx1 = 0;
-    int16_t ry1 = 0;
-    uint16_t rw = 0;
-    [[maybe_unused]] uint16_t rh = 0;
-    int16_t sx1 = 0;
-    int16_t sy1 = 0;
-    uint16_t sw = 0;
-    [[maybe_unused]] uint16_t sh = 0;
+    if (showFooter) {
+        formatCappedCounterForDisplay(snap.heartCounterRaw, snap.counterBaselineRaw, recvBuf,
+                                      sizeof(recvBuf));
+        formatCappedCounterForDisplay(snap.heartSentCounterRaw, snap.sentCountBaselineRaw, sentBuf,
+                                      sizeof(sentBuf));
+        const size_t recvLen = std::max<size_t>(strlen(recvBuf), size_t{1});
+        const size_t sentLen = std::max<size_t>(strlen(sentBuf), size_t{1});
+        recvTextSize = footerTextSizeForDigitCount(recvLen);
+        sentTextSize = footerTextSizeForDigitCount(sentLen);
 
-    epd.setTextColor(fg);
+        int16_t rx1 = 0;
+        int16_t ry1 = 0;
+        uint16_t rw = 0;
+        [[maybe_unused]] uint16_t rh = 0;
+        int16_t sx1 = 0;
+        int16_t sy1 = 0;
+        uint16_t sw = 0;
+        [[maybe_unused]] uint16_t sh = 0;
 
-    epd.setTextSize(recvTextSize);
-    epd.getTextBounds(recvBuf, 0, 0, &rx1, &ry1, &rw, &rh);
-    const int recvTextCursorX = kLeftMargin + kArrowLane - static_cast<int>(rx1);
+        epd.setTextColor(fg);
+        epd.setTextSize(recvTextSize);
+        epd.getTextBounds(recvBuf, 0, 0, &rx1, &ry1, &rw, &rh);
+        recvTextCursorX = kLeftMargin + kArrowLane - static_cast<int>(rx1);
 
-    epd.setTextSize(sentTextSize);
-    epd.getTextBounds(sentBuf, 0, 0, &sx1, &sy1, &sw, &sh);
-    // The classic GFX font reports one trailing blank column per text size.
-    // Compensate it so the visible rightmost digit is also 5 px from the icon.
-    const int sentTrailingBlankPx = sentTextSize;
-    const int sentTextCursorX =
-        dw - kRightMargin - kArrowLane - static_cast<int>(sw) - static_cast<int>(sx1)
-        + sentTrailingBlankPx;
+        epd.setTextSize(sentTextSize);
+        epd.getTextBounds(sentBuf, 0, 0, &sx1, &sy1, &sw, &sh);
+        // The classic GFX font reports one trailing blank column per text size.
+        // Compensate it so the visible rightmost digit is also 5 px from the icon.
+        const int sentTrailingBlankPx = sentTextSize;
+        sentTextCursorX = dw - kDisplayRightMargin - kArrowLane - static_cast<int>(sw)
+                          - static_cast<int>(sx1) + sentTrailingBlankPx;
+    }
 
     epd.setFullWindow();
     epd.firstPage();
@@ -215,29 +233,31 @@ HeartCounterDrawSnapshot drawHeartWithNumber(DisplayHeartIcon icon) {
 
         drawLucideIcon(heartX, heartY, heartBmp, heartW, heartH, GxEPD_RED);
 
-        drawLucideIcon(downArrowX, downArrowY, kIconMoveDown, kIconMoveDownW, kIconMoveDownH,
-                       fg);
-        drawLucideIcon(upArrowX, upArrowY, kIconMoveUp, kIconMoveUpW, kIconMoveUpH, fg);
+        if (showFooter) {
+            drawLucideIcon(downArrowX, downArrowY, kIconMoveDown, kIconMoveDownW, kIconMoveDownH,
+                           fg);
+            drawLucideIcon(upArrowX, upArrowY, kIconMoveUp, kIconMoveUpW, kIconMoveUpH, fg);
 
-        epd.setTextColor(fg);
-        epd.setTextSize(recvTextSize);
-        epd.setCursor(static_cast<int16_t>(recvTextCursorX),
-                      static_cast<int16_t>(kFooterTextTop));
-        epd.print(recvBuf);
+            epd.setTextColor(fg);
+            epd.setTextSize(recvTextSize);
+            epd.setCursor(static_cast<int16_t>(recvTextCursorX),
+                          static_cast<int16_t>(kFooterTextTop));
+            epd.print(recvBuf);
 
-        epd.setTextSize(sentTextSize);
-        epd.setCursor(static_cast<int16_t>(sentTextCursorX),
-                      static_cast<int16_t>(kFooterTextTop));
-        epd.print(sentBuf);
+            epd.setTextSize(sentTextSize);
+            epd.setCursor(static_cast<int16_t>(sentTextCursorX),
+                          static_cast<int16_t>(kFooterTextTop));
+            epd.print(sentBuf);
+        }
 
-        drawBatteryLucide(batteryX, kBatteryTopMargin, batPct, batColor);
+        drawBatteryTopRight();
 
     } while (epd.nextPage());
 
     epd.hibernate();
     displaySuspendSpiLowPower();
 
-    ESP_LOGI(TAG, "Lucide heart with counters drawn");
+    ESP_LOGI(TAG, "Lucide heart drawn (showFooter=%d)", showFooter ? 1 : 0);
     return snap;
 }
 
@@ -267,7 +287,8 @@ DisplayView drawSplashScreen() {
         static_cast<void>(apIp);
         if (!wifiQrBuildWpaPayload(apSsid, apPass, s_wifiQrPayload, sizeof(s_wifiQrPayload))) {
             ESP_LOGE(TAG, "AP WIFI QR payload failed");
-            drawCenteredTextScreen(kSetupApSsid, 3, 1, GxEPD_RED);
+            // AP-mode fallback: no battery icon.
+            drawCenteredTextScreen(kSetupApSsid, 3, 1, GxEPD_RED, false);
             displayPanel().hibernate();
             displaySuspendSpiLowPower();
             return DisplayView::ProductTitle;
@@ -279,7 +300,8 @@ DisplayView drawSplashScreen() {
             qrcodegen_Mask_AUTO, true);
         if (!ok) {
             ESP_LOGE(TAG, "AP WIFI QR encode failed");
-            drawCenteredTextScreen(kSetupApSsid, 3, 1, GxEPD_RED);
+            // AP-mode fallback: no battery icon.
+            drawCenteredTextScreen(kSetupApSsid, 3, 1, GxEPD_RED, false);
             displayPanel().hibernate();
             displaySuspendSpiLowPower();
             return DisplayView::ProductTitle;
@@ -346,6 +368,7 @@ DisplayView drawSplashScreen() {
                                  static_cast<int16_t>(scale), static_cast<int16_t>(scale), dark);
                 }
             }
+            // SoftAP/setup splash intentionally omits the battery icon.
         } while (epd.nextPage());
         [[maybe_unused]] const uint32_t drawMs = millis() - drawStartedMs;
         epd.hibernate();
@@ -356,7 +379,7 @@ DisplayView drawSplashScreen() {
     }
 
     static constexpr const char kTitle[] = "Chaya2MQTT";
-    drawCenteredTextScreen(kTitle, 3, 1, GxEPD_RED);
+    drawCenteredTextScreen(kTitle, 3, 1, GxEPD_RED, true);
     displayPanel().hibernate();
     displaySuspendSpiLowPower();
 

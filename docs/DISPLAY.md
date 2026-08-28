@@ -1,6 +1,6 @@
 # Display
 
-The E-Ink display shows a **Lucide heart** with **RX and TX counters** (delta display), Lucide **arrow** glyphs, and a Lucide **battery** icon (same thresholds as the web dashboard). All drawing takes place exclusively in the **display task**—other tasks send commands via `g_displayCmdQueue`. The user LED pulses for the duration of a heart/splash refresh.
+The E-Ink display shows a **Lucide heart** with **RX and TX counters** (delta display), Lucide **arrow** glyphs, and a Lucide **battery** icon (same thresholds as the web dashboard). The offline cracked-heart view omits the counters. The battery appears top-right on the filled-heart, cracked-heart, and centered product-title screens, but not on SoftAP/setup or power-off. All drawing takes place exclusively in the **display task**—other tasks send commands via `g_displayCmdQueue`. The user LED pulses for the duration of a heart/splash refresh.
 
 ## Display task
 
@@ -44,7 +44,7 @@ In STA mode the heart glyph tracks connectivity:
 | Lucide **heart** (filled, red) | Wi-Fi **and** MQTT connected, or outage shorter than grace |
 | Lucide **heart-crack** (outline, red) | Wi-Fi **or** MQTT continuously down for **5 minutes** (`kDisplayOfflineGraceMs`) |
 
-Recovery is immediate when both links are healthy again. SoftAP/setup keeps the QR splash and never switches to crack. The app task polls every ~500 ms and only queues a redraw when the glyph actually changes (still subject to the 20 s heart redraw coalescing).
+Filled heart shows RX/TX counters and battery. Cracked heart is horizontally and vertically centered with battery only (no footer counters). Recovery is immediate when both links are healthy again. SoftAP/setup keeps the QR splash and never switches to crack. The app task polls every ~500 ms and only queues a redraw when the glyph actually changes (still subject to the 20 s heart redraw coalescing).
 
 ## Counter delta vs. absolute value
 
@@ -84,10 +84,11 @@ Bitmaps are pre-rasterized from Lucide (`scripts/generate_display_icons.mjs` →
 
 | Element | Glyph | Color | Position (200×200) |
 |---------|-------|-------|--------------------|
-| Heart | `heart` / `heart-crack` | Red | Centered (~y=24) |
-| RX movement | `move-down` | Black | Bottom left |
-| TX movement | `move-up` | Black | Footer right |
-| Battery | `battery-full` / `medium` / `low` / empty `battery` | See below | Top right |
+| Heart (online) | `heart` | Red | Horizontally centered above footer (~y=24) |
+| Heart (offline) | `heart-crack` | Red | Horizontally and vertically centered |
+| RX movement | `move-down` | Black | Bottom left (online heart only) |
+| TX movement | `move-up` | Black | Footer right (online heart only) |
+| Battery | `battery-full` / `medium` / `low` / empty `battery` | See below | Top right on heart, crack, and product-title; omitted on SoftAP and power-off |
 | Power-off | `heart-off` | Black below red `Chaya2MQTT` | Centered |
 
 ### Battery thresholds (match web GUI)
@@ -99,7 +100,7 @@ Bitmaps are pre-rasterized from Lucide (`scripts/generate_display_icons.mjs` →
 | ≥ 15 | `battery-low` | Yellow |
 | < 15 | empty `battery` | Red |
 
-Palette: white background, black counters/arrows, red heart glyphs. The SoftAP splash title stays red text above the WIFI QR.
+Palette: white background, black counters/arrows, red heart glyphs. The SoftAP splash title stays red text above the WIFI QR and does not show the battery icon.
 
 ## Text rendering
 
@@ -140,7 +141,8 @@ sequenceDiagram
 
 | Screen | Content | TextSize |
 |--------|---------|----------|
-| `drawSplashScreen()` | SoftAP: red „Chaya2MQTT" above a bottom-aligned WIFI QR | Title 3 (min 1) |
+| SoftAP `SetupQr` | Red „Chaya2MQTT" above a bottom-aligned WIFI QR; no battery | Title 3 (min 1) |
+| Product `ProductTitle` | Centered red „Chaya2MQTT" with top-right battery | Title 3 (min 1) |
 
 ## Panel power / SPI
 
