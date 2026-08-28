@@ -8,6 +8,7 @@
 #include "display/draw_pure.h"
 #include "display/view_state.h"
 #include "hw/battery_pure.h"
+#include "hw/led_pattern_pure.h"
 
 void test_battery_pct_curve() {
     TEST_ASSERT_EQUAL_INT(0, batteryPctFromMilliVolts(3200));
@@ -236,6 +237,59 @@ void test_display_link_millis_wrap() {
             displayHeartIconDecide(false, false, false, 20UL, kDisplayOfflineGraceMs, st)));
 }
 
+void test_led_pattern_three_blinks() {
+    LedPatternRuntime rt{};
+    TEST_ASSERT_TRUE(ledPatternBegin(rt, 3, 200, 200));
+    TEST_ASSERT_TRUE(rt.onPhase);
+    TEST_ASSERT_EQUAL_UINT8(3, rt.onPulsesLeft);
+
+    LedPatternAdvanceResult r = ledPatternAdvance(rt);
+    TEST_ASSERT_FALSE(r.done);
+    TEST_ASSERT_FALSE(r.ledOn);
+    TEST_ASSERT_EQUAL_UINT16(200, r.durationMs);
+
+    r = ledPatternAdvance(rt);
+    TEST_ASSERT_FALSE(r.done);
+    TEST_ASSERT_TRUE(r.ledOn);
+    TEST_ASSERT_EQUAL_UINT16(200, r.durationMs);
+
+    r = ledPatternAdvance(rt);
+    TEST_ASSERT_FALSE(r.done);
+    TEST_ASSERT_FALSE(r.ledOn);
+
+    r = ledPatternAdvance(rt);
+    TEST_ASSERT_FALSE(r.done);
+    TEST_ASSERT_TRUE(r.ledOn);
+
+    r = ledPatternAdvance(rt);
+    TEST_ASSERT_FALSE(r.done);
+    TEST_ASSERT_FALSE(r.ledOn);
+    TEST_ASSERT_EQUAL_UINT16(200, r.durationMs);
+
+    r = ledPatternAdvance(rt);
+    TEST_ASSERT_TRUE(r.done);
+    TEST_ASSERT_FALSE(r.ledOn);
+}
+
+void test_led_pattern_single_pulse_no_off() {
+    LedPatternRuntime rt{};
+    TEST_ASSERT_TRUE(ledPatternBegin(rt, 1, 150, 0));
+    const LedPatternAdvanceResult r = ledPatternAdvance(rt);
+    TEST_ASSERT_TRUE(r.done);
+    TEST_ASSERT_FALSE(r.ledOn);
+    TEST_ASSERT_EQUAL_UINT16(0, r.durationMs);
+}
+
+void test_led_pattern_normalize_zero_count() {
+    uint8_t  count = 0;
+    uint16_t onMs  = 0;
+    uint16_t offMs = 50;
+    ledPatternNormalize(count, onMs, offMs);
+    TEST_ASSERT_EQUAL_UINT8(1, count);
+    TEST_ASSERT_EQUAL_UINT16(1, onMs);
+    TEST_ASSERT_EQUAL_UINT16(50, offMs);
+}
+
 int main(int, char**) {
     UNITY_BEGIN();
     RUN_TEST(test_battery_pct_curve);
@@ -249,5 +303,8 @@ int main(int, char**) {
     RUN_TEST(test_display_heart_redraw_wait_and_follow_up);
     RUN_TEST(test_display_link_offline_grace);
     RUN_TEST(test_display_link_millis_wrap);
+    RUN_TEST(test_led_pattern_three_blinks);
+    RUN_TEST(test_led_pattern_single_pulse_no_off);
+    RUN_TEST(test_led_pattern_normalize_zero_count);
     return UNITY_END();
 }

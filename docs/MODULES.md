@@ -278,19 +278,20 @@ cycle, so bursts do not grow an unbounded audio backlog.
 
 ## `hw/button` – BOOT, PWR latch, optional LED
 
-**Files:** `hw/button.h`, `hw/button_config.h`, `hw/button_internal.h`, `hw/button_input.cpp`, `hw/button_led.cpp`, `hw/pins.h`
+**Files:** `hw/button.h`, `hw/button_config.h`, `hw/button_internal.h`, `hw/button_input.cpp`, `hw/button_led.cpp`, `hw/led_pattern_pure.h`, `hw/pins.h`
 
 | File | Responsibility |
 |------|----------------|
 | `button_input.cpp` | BOOT GPIO/ISR and debounce; PWR long-press waits for shutdown draw, release, then powers off |
-| `button_led.cpp` | TX LED sequence + refresh pulse (`ledRefreshPulseBegin/End`) |
+| `button_led.cpp` | TX LED sequence, refresh pulse, finite status patterns (`ledPlayPattern` / presets) |
+| `led_pattern_pure.h` | Host-testable blink phase advance |
 
 | Constant | Value | Meaning |
 |----------|-------|---------|
 | Heart button | GPIO 0 (BOOT) | After boot; do not hold during flash |
 | `BAT_Control` | GPIO 17 | Drive HIGH at boot on battery |
 | `BAT_KEY` / PWR | GPIO 18 | Battery power button |
-| Optional LED | GPIO 3 | Header / user LED if present |
+| Optional LED | GPIO 3 | Green header user LED (active-low); charge LED is separate (red, hardware-only) |
 | `kShortPressMinMs` | 50 | Minimum short-press duration |
 
 Button task (4096 stack, priority 8, core 1):
@@ -298,13 +299,18 @@ Button task (4096 stack, priority 8, core 1):
 - BOOT press → MQTT send (optional LED blink → publish → blink)
 - No physical factory-reset gesture; reset remains available through the web admin
 
+LED priority: MQTT TX sequence > finite pattern > E-Ink/RX refresh pulse > idle.
+
 | Function | Description |
 |----------|-------------|
 | `buttonInit()` | Initialize GPIO |
 | `buttonStartTask()` | Start FreeRTOS task |
-| `buttonStartupBlink()` | Blink 3× for 200 ms (blocking, setup only) |
-| `buttonIsLedTxSequenceActive()` | TX sequence or refresh pulse running? |
+| `buttonStartupBlink()` | Boot preset 3× 200/200 ms (blocking, setup only) |
+| `buttonIsLedTxSequenceActive()` | TX sequence, pattern, or refresh pulse running? |
 | `ledRefreshPulseBegin/End` | Pulse GPIO3 during E-Ink refresh / RX ack |
+| `ledPlayPattern` / `ledPlayPreset` | Queue finite blink (count, on/off ms) or Boot/WifiUp/MqttUp/LinkDown |
+
+Presets: Boot (startup), WifiUp (STA ready / reconnect), MqttUp (broker connected), LinkDown (heart → crack).
 
 ---
 

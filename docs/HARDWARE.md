@@ -34,10 +34,10 @@ What the PCB actually has. **Chaya** is the firmware use today.
 | **PWR** (`BAT_KEY`) | GPIO18, side button | Press to start on battery; hold ~2 s = red shutdown screen, then soft-off (latch LOW). Short press ignored. |
 | **Battery latch** | GPIO17 (`BAT_Control`) | Must drive HIGH early or power dies when PWR is released |
 | **Charge IC** | ETA6098 (USB-C → cell) | No firmware |
-| **Charge LED** | Onboard status LED | Hardware only |
+| **Charge LED** | Onboard status LED (typically red while charging) | Hardware only (ETA6098 STAT); not firmware-controllable |
 | **Battery ADC** | GPIO4, divider; VBAT = VADC × 2 | Polled ~30 s; `GET /api/device` + SSE `device` + E-Ink icon |
 | **3.3 V rail** | MP1605 DC-DC | Hardware only |
-| **User LED** | GPIO3 on header, active-low | TX sequence + pulse during E-Ink refresh / RX ack; off via `cfg/led_en` |
+| **User LED** | GPIO3 on header, **green**, active-low | TX sequence, status blink patterns, pulse during E-Ink refresh / RX ack; off via `cfg/led_en` |
 | **TF / microSD** | Slot, **1-bit** SDIO (CLK/CMD/DAT0), **FAT32** | Permanently off (GPIO 39/40/41 held LOW; no SDIO/FAT) |
 | **UART0** | GPIO43 TX / GPIO44 RX on header | Unused (debug if needed) |
 | **Audio codec** | ES8311 (I2C `0x18`) | Playback only (synthetic TX/RX click). Capture path off at boot. |
@@ -131,7 +131,7 @@ SKU **34586** includes a **3.7 V** single-cell Li-ion on an **MX1.25 2-pin** h
 | **Cell** | 3.7 V Li-ion, in-box with 34586 | Primary portable power |
 | **Connector** | MX1.25 2-pin (Waveshare also labels the charge path GH1.25) | Plug in; no code |
 | **Charge** | ETA6098 from USB-C; [FAQ](https://docs.waveshare.com/ESP32-S3-ePaper-1.54G/FAQ): ~30 min to 4.1 V, ~44 min full | Automatic charge termination and recharge; no firmware control |
-| **Charge LED** | Onboard | Hardware only |
+| **Charge LED** | Onboard | Hardware only (red while charging; not controllable) |
 | **3.3 V** | MP1605 DC-DC (`VCC3V3`) | Hardware only |
 | **USB-C** | Power, charge, flash, serial | Same as desktop use |
 | **BAT_KEY** | GPIO**18** | Press PWR to start on battery. Hold ~2 s after boot for the controlled shutdown; active-low deep-sleep wake on USB. |

@@ -26,6 +26,8 @@ enum class LedTxPhase : uint8_t {
     FailOff3,
     RefreshOn,
     RefreshOff,
+    PatternOn,
+    PatternOff,
 };
 
 extern std::atomic<TaskHandle_t> s_buttonTaskHandle;

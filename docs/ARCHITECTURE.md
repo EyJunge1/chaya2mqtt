@@ -37,7 +37,7 @@ flowchart TB
 | Task | Stack | Priority | Core | File | Responsibility |
 |------|-------|----------|------|------|----------------|
 | **network** | 7168 | 5 | 1 | `network/network_task.cpp` | `wlanLoop()` (including recovery), `mqttLoop()`, `NetCmd` queue |
-| **button** | 4096 | 8 | 1 | `hw/button_input.cpp`, `hw/button_led.cpp` | BOOT debounce, optional LED, MQTT send |
+| **button** | 4096 | 8 | 1 | `hw/button_input.cpp`, `hw/button_led.cpp` | BOOT debounce, LED patterns, MQTT send |
 | **app** | 4096 | 4 | 1 | `async/app_task.cpp` | `webAdminLoop()`, OTA health, counter resets/NVS saves, battery poll |
 | **ota** | 8192 | 4 | 1 | `ota/ota_task.cpp` | `otaLoop()` (GitHub + Download) |
 | **display** | 8192 | 3 | 1 | `display/display.cpp` | Exclusive SPI/EPD access |

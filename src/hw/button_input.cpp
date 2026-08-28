@@ -206,15 +206,19 @@ void buttonStartTask() {
 }
 
 void buttonStartupBlink() {
+    // Blocking before the button task starts (avoids racing ledOutput with the task).
+    // Uses the same Boot preset timings as ledPlayPreset(LedPreset::Boot).
     if (!configGetLedEnabled()) {
         ledOutput(LOW);
         return;
     }
-    for (int i = 0; i < kButtonStartupBlinkCount; i++) {
+    for (uint8_t i = 0; i < kLedPresetBootCount; i++) {
         ledOutput(HIGH);
-        vTaskDelay(pdMS_TO_TICKS(kButtonStartupBlinkMs));
+        vTaskDelay(pdMS_TO_TICKS(kLedPresetBootOnMs));
         ledOutput(LOW);
-        vTaskDelay(pdMS_TO_TICKS(kButtonStartupBlinkMs));
+        if (kLedPresetBootOffMs > 0) {
+            vTaskDelay(pdMS_TO_TICKS(kLedPresetBootOffMs));
+        }
     }
 }
 

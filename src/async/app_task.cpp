@@ -8,6 +8,7 @@
 #include "display/display_link_pure.h"
 #include "hw/battery.h"
 #include "hw/battery_config.h"
+#include "hw/button.h"
 #include "mqtt/mqtt.h"
 #include "web/admin.h"
 #include "ota/ota.h"
@@ -58,6 +59,9 @@ static void appTaskPollDisplayLinkStatus() {
     s_lastIcon = icon;
     displaySetDesiredHeartIcon(icon);
     requestHeartRedraw();
+    if (icon == DisplayHeartIcon::Crack) {
+        ledPlayPreset(LedPreset::LinkDown);
+    }
     ESP_LOGI(TAG, "display heart icon -> %s",
              icon == DisplayHeartIcon::Crack ? "crack" : "filled");
 }
