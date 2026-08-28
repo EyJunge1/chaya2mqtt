@@ -6,7 +6,7 @@
 #include "draw_pure.h"
 #include "heart/counter.h"
 #include "heart/counter_pure.h"
-#include "hw/battery.h"
+#include "battery/battery.h"
 #include "hw/pins.h"
 #include "icons_lucide.h"
 #include "wifi/wifi_qr_pure.h"

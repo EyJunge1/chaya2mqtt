@@ -1,8 +1,8 @@
-#include "device_identity.h"
+#include "identity/device_identity.h"
 
 #include "config/nvs_keys.h"
 #include "config/nvs_utils.h"
-#include "device_identity_pure.h"
+#include "identity/device_identity_pure.h"
 #include "util/log_tag.h"
 
 #include <cstdint>

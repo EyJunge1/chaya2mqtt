@@ -4,7 +4,7 @@
 
 #include "async/task_handles.h"
 #include "constants.h"
-#include "device_identity.h"
+#include "identity/device_identity.h"
 #include "web/deferred_reboot.h"
 #include "wlan.h"
 #include "wlan_internal.h"

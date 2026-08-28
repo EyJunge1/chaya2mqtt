@@ -7,8 +7,8 @@
 #include "display/display_refresh_pure.h"
 #include "display/draw_pure.h"
 #include "display/view_state.h"
-#include "hw/battery_pure.h"
-#include "hw/led_pattern_pure.h"
+#include "battery/battery_pure.h"
+#include "led/led_pattern_pure.h"
 
 void test_battery_pct_curve() {
     TEST_ASSERT_EQUAL_INT(0, batteryPctFromMilliVolts(3200));

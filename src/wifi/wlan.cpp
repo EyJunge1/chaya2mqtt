@@ -8,7 +8,7 @@
 #include "config/nvs_keys.h"
 #include "config/nvs_utils.h"
 #include "constants.h"
-#include "device_identity.h"
+#include "identity/device_identity.h"
 #include "heart/counter.h"
 #include "hw/pins.h"
 #include "util/ip_format.h"

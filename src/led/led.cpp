@@ -1,9 +1,10 @@
-#include "button.h"
+#include "led.h"
 
-#include "button_config.h"
-#include "button_internal.h"
+#include "led_config.h"
+#include "led_internal.h"
 #include "led_pattern_pure.h"
 
+#include "button/button.h"
 #include "config/app_config.h"
 #include "mqtt/mqtt.h"
 #include "util/time_helpers.h"
@@ -17,7 +18,7 @@
 
 #include "util/log_tag.h"
 
-DEFINE_LOG_TAG("BTN");
+DEFINE_LOG_TAG("LED");
 
 std::atomic<LedTxPhase> ledTxPhase{LedTxPhase::Idle};
 unsigned long           ledPhaseStartMs    = 0;
@@ -33,13 +34,6 @@ static std::atomic<uint8_t>  s_patternCount{0};
 static std::atomic<uint16_t> s_patternOnMs{0};
 static std::atomic<uint16_t> s_patternOffMs{0};
 static LedPatternRuntime     s_patternRt{};
-
-static void notifyButtonTask() {
-    const TaskHandle_t h = s_buttonTaskHandle.load(std::memory_order_acquire);
-    if (h != nullptr) {
-        xTaskNotifyGive(h);
-    }
-}
 
 static bool ledIsRefreshPhase(LedTxPhase p) {
     return p == LedTxPhase::RefreshOn || p == LedTxPhase::RefreshOff;
@@ -85,20 +79,20 @@ void ledRefreshPulseBegin() {
     s_refreshHasDeadline.store(false, std::memory_order_relaxed);
     s_refreshWanted.store(true, std::memory_order_release);
     startRefreshIfIdle();
-    notifyButtonTask();
+    buttonNotifyTask();
 }
 
 void ledRefreshPulseEnd() {
     s_refreshWanted.store(false, std::memory_order_release);
     s_refreshHasDeadline.store(false, std::memory_order_relaxed);
-    notifyButtonTask();
+    buttonNotifyTask();
 }
 
 void ledRefreshPulseEndAfter(unsigned long durationMs) {
     s_refreshDeadlineStartMs.store(static_cast<uint32_t>(millis()), std::memory_order_relaxed);
     s_refreshDeadlineDurMs.store(static_cast<uint32_t>(durationMs), std::memory_order_relaxed);
     s_refreshHasDeadline.store(true, std::memory_order_release);
-    notifyButtonTask();
+    buttonNotifyTask();
 }
 
 void armLedPhase(unsigned long durationMs) {
@@ -120,11 +114,20 @@ void ledOutput(int level) {
     ledOutputForced(level);
 }
 
-void buttonApplyLedEnabled() {
+void ledInit() {
+    pinMode(kButtonLedPin, OUTPUT);
+    ledOutput(LOW);  // active-low LED off
+}
+
+void ledApplyEnabled() {
     if (!configGetLedEnabled()) {
         ledOutputForced(LOW);
         ledHoldWhenIdle();
     }
+}
+
+void ledEnableGpioHoldForLightSleep() {
+    ledHoldWhenIdle();
 }
 
 void ledHoldWhenIdle() {
@@ -135,16 +138,16 @@ bool ledActivityActive() {
     return ledTxPhase.load(std::memory_order_relaxed) != LedTxPhase::Idle;
 }
 
+bool ledIsActivityActive() {
+    return ledActivityActive();
+}
+
 bool ledTxBusy() {
     const LedTxPhase p = ledTxPhase.load(std::memory_order_relaxed);
     return p != LedTxPhase::Idle && !ledIsRefreshPhase(p) && !ledIsPatternPhase(p);
 }
 
 bool ledSendSequenceActive() {
-    return ledActivityActive();
-}
-
-bool buttonIsLedTxSequenceActive() {
     return ledActivityActive();
 }
 
@@ -171,7 +174,7 @@ void ledPlayPattern(LedBlinkPattern pattern) {
     s_patternOffMs.store(pattern.offMs, std::memory_order_relaxed);
     s_patternWanted.store(true, std::memory_order_release);
     startPatternIfAllowed();
-    notifyButtonTask();
+    buttonNotifyTask();
 }
 
 void ledPlayPreset(LedPreset preset) {

@@ -11,11 +11,11 @@
 #include "async/task_handles.h"
 #include "config/app_config.h"
 #include "heart/counter.h"
-#include "hw/button.h"
+#include "led/led.h"
 #include "ota/ota.h"
 #include "wifi/wlan.h"
 #include "csrf.h"
-#include "web_events.h"
+#include "events.h"
 
 #include <ESPAsyncWebServer.h>
 #include <climits>
@@ -100,7 +100,7 @@ void webAdminLoop() {
                         && configSetAudioTones(txHzApply, txMsApply, rxHzApply, rxMsApply);
         g_webAdminSettingsNvsWriteFailed.store(!ok, std::memory_order_release);
         if (ok) {
-            buttonApplyLedEnabled();
+            ledApplyEnabled();
         }
     }
 

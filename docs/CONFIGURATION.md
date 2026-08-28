@@ -184,7 +184,7 @@ Module-specific defaults and limits are located in `*_config.h` (no longer centr
 | `mqtt/mqtt_config.h` | MQTT topic prefix, port, keepalive, outbox |
 | `wifi/wlan_config.h` | SSID/password limits, STA tuning, scan/reconnect |
 | `display/display_config.h` | `kDisplayCounterMax` |
-| `hw/button_config.h` | Button debounce, soft-off and LED timing |
+| `button/button_config.h + led/led_config.h` | Button debounce, soft-off and LED timing |
 | `async/task_config.h` | Task stacks, queue depths |
 
 ## Further documentation

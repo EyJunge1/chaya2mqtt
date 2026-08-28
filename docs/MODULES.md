@@ -2,6 +2,67 @@
 
 Overview of all source modules under `src/`, with correct paths, responsibilities, and important APIs.
 
+## Theme map (`src/`)
+
+**Folder = theme.** Pick the domain folder first; use ownership below when unsure.
+
+```text
+src/
+  main.cpp                 Bootstrap: init order, start tasks
+  constants.h              Cross-cutting device constants
+
+  identity/                Stable device ID, hostname (NVS cfg/device_id)
+  button/                  BOOT/PWR, debounce, send gesture (calls led/)
+  led/                     Blink/presets, refresh pulse, GPIO LED
+  battery/                 ADC, percent, power-off
+  hw/                      Power-save hold-off (sd_hold) + pin map (pins*)
+
+  display/                 E-Ink, draw, QR, display task
+  audio/                   ES8311 playback, audio task
+
+  wifi/                    STA/AP, captive DNS, scan, recovery, NVS
+  mqtt/                    Client, pub/sub, reconnect, broker config (mqtt/config.*)
+  network/                 One task: wlanLoop + mqttLoop + NetCmd
+  tls/                     Embedded CA bundle (MQTT + OTA)
+  ota/                     Update check, download, flash, health
+
+  heart/                   RX/TX counters, baselines, NVS chaya
+  config/                  App prefs, NVS utils/keys, version (not MQTT broker)
+
+  web/                     Admin site: server, CSRF, middleware, SPA, assets
+    routes/                HTTP routes (JSON /api/*, captive, SPA)
+    events.*               SSE /events
+
+  async/                   FreeRTOS queues, mutexes, event types, app task
+  diag/                    Watchdog, stack monitor
+  util/                    Log macro, time, IP, small helpers
+```
+
+### Ownership
+
+| Put it in | When |
+|-----------|------|
+| Domain folder | Domain state + persistence; NVS writes via `app_nvs` + keys in `config/nvs_keys.h` |
+| `config/` | NVS infra (`nvs_utils`, `nvs_keys`) + app prefs (`cfg`) — not MQTT/WiFi/heart payloads |
+| `web/` | HTTP adapter only (calls domain APIs) |
+| `async/` | FreeRTOS queues/handles (not HTTP) |
+| `button/` / `led/` / `battery/` | Input / light / power |
+| `hw/` | Disable peripherals (hold-off) + board pin map |
+| `util/` | Helpers with no domain |
+
+### NVS model
+
+One infra, many domain writers:
+
+| Layer | Where | Role |
+|-------|--------|------|
+| NVS infra | `config/nvs_utils.h`, `config/nvs_keys.h` | Mutex/helpers + all namespace/key names |
+| Domain writers | `mqtt/config.cpp`, `wifi/wlan_nvs.cpp`, `heart/counter_nvs.cpp`, `config/app_config.cpp`, `identity/`, … | Domain logic; only `app_nvs::…(kNvsNs…, kNvsKey…)` |
+
+Namespaces stay separate (`wifi` / `mqtt` / `cfg` / `chaya`). Do not fold MQTT/WiFi/heart persistence into `app_config`.
+
+**Notes:** Pins live in `hw/` (shared board map). `button/` and `led/` are separate folders; other packages may call `led/`. `mqtt/config.*` is broker config only; `config/` is app prefs + NVS infra.
+
 ---
 
 ## `main.cpp`
@@ -21,7 +82,7 @@ Overview of all source modules under `src/`, with correct paths, responsibilitie
 10. `mqttSetup()`
 11. `buttonStartupBlink()` (before the button task!)
 12. `audioStartTask()`, `buttonStartTask()`, `networkTaskStart()`, `otaTaskStart()`, `appTaskStart()`
-13. `buttonEnableLedGpioHoldForLightSleep()`
+13. `ledEnableGpioHoldForLightSleep()`
 
 **`loop()`:** `vTaskDelete(nullptr)`—terminates immediately.
 
@@ -111,9 +172,9 @@ NVS debouncing: saves only every **≥30 s** (`kHeartCounterSaveMinIntervalMs`).
 
 ---
 
-## `device_identity` – stable device and network identity
+## `identity/` – stable device and network identity
 
-**Files:** `device_identity.h`, `device_identity.cpp`, `device_identity_pure.h`
+**Files:** `identity/device_identity.h`, `identity/device_identity.cpp`, `identity/device_identity_pure.h`
 
 `buildDeviceId()` loads or creates the six-character ID in NVS `cfg/device_id` (random via
 `esp_fill_random`; one-time STA-MAC seed when upgrading a device that already has WiFi/MQTT
@@ -256,17 +317,17 @@ Geometry details: [DISPLAY.md](DISPLAY.md)
 
 ---
 
-## `hw/battery` – ADC + controlled power-off
+## `battery/` – ADC + controlled power-off
 
-**Files:** `hw/battery.h`, `hw/battery.cpp`, `hw/battery_pure.h`, `hw/battery_config.h`
+**Files:** `battery/battery.h`, `battery/battery.cpp`, `battery/battery_pure.h`, `battery/battery_config.h`
 
 GPIO4 ADC, `VBAT = VADC × 2`, averaged in the app task about every 30 s. Always treated as a LiPo. `batteryPowerOffAndSleep()` arms active-low PWR wake, drives `kBatControl` LOW, and enters deep sleep if USB still powers the ESP32. ETA6098 charge termination/recharge is autonomous and is not controlled from firmware.
 
-## `hw/sd_hold` – microSD hold-off
+## `hw/` – power-save hold-off + pin map
 
-**Files:** `hw/sd_hold.h`, `hw/sd_hold.cpp`
+**Files:** `hw/sd_hold.h`, `hw/sd_hold.cpp`, `hw/pins.h`, `hw/pins_esp32_waveshare.h`
 
-`sdHoldOff()` at boot drives SD CLK/DAT0/CMD (GPIO 39/40/41) OUTPUT LOW. No SDIO/FAT driver is started.
+`sdHoldOff()` at boot drives SD CLK/DAT0/CMD (GPIO 39/40/41) OUTPUT LOW. No SDIO/FAT driver is started. Pin map is shared board GPIO definitions for hold-offs and other hardware themes.
 
 ## `audio/` – ES8311 playback
 
@@ -276,41 +337,52 @@ Dedicated task + `g_audioCmdQueue`. Capture/mic path is disabled at boot. Playba
 Queue overflow sets separate TX/RX pending flags; each kind is replayed at most once per drain
 cycle, so bursts do not grow an unbounded audio backlog.
 
-## `hw/button` – BOOT, PWR latch, optional LED
+## `button/` – BOOT, PWR latch
 
-**Files:** `hw/button.h`, `hw/button_config.h`, `hw/button_internal.h`, `hw/button_input.cpp`, `hw/button_led.cpp`, `hw/led_pattern_pure.h`, `hw/pins.h`
+**Files:** `button/button.h`, `button/button_config.h`, `button/button_internal.h`, `button/button_input.cpp`
 
 | File | Responsibility |
 |------|----------------|
-| `button_input.cpp` | BOOT GPIO/ISR and debounce; PWR arms soft-off after ≥2 s (LED), runs shutdown on release, then power off |
-| `button_led.cpp` | TX LED sequence, refresh pulse, finite status patterns (`ledPlayPattern` / presets) |
-| `led_pattern_pure.h` | Host-testable blink phase advance |
+| `button_input.cpp` | BOOT GPIO/ISR and debounce; PWR arms soft-off after ≥2 s (LED ack via `led/`), runs shutdown on release |
 
 | Constant | Value | Meaning |
 |----------|-------|---------|
 | Heart button | GPIO 0 (BOOT) | After boot; do not hold during flash |
 | `BAT_Control` | GPIO 17 | Drive HIGH at boot on battery |
 | `BAT_KEY` / PWR | GPIO 18 | Battery power button |
-| Optional LED | GPIO 3 | Green header user LED (active-low); charge LED is separate (red, hardware-only) |
 | `kShortPressMinMs` | 50 | Minimum short-press duration |
 
 Button task (4096 stack, priority 8, core 1):
 - Debounce (~20 ms)
-- BOOT press → MQTT send (optional LED blink → publish → blink)
+- BOOT press → MQTT send (LED sequence via `led/`)
+- Advances LED state machine each poll (`advanceLedSequence`)
 - No physical factory-reset gesture; reset remains available through the web admin
+
+| Function | Description |
+|----------|-------------|
+| `buttonInit()` | Initialize GPIO (+ `ledInit()`) |
+| `buttonStartTask()` | Start FreeRTOS task |
+| `buttonStartupBlink()` | Boot preset 3× 200/200 ms (blocking, setup only) |
+| `buttonNotifyTask()` | Wake button task (used by `led/`) |
+
+## `led/` – header user LED
+
+**Files:** `led/led.h`, `led/led.cpp`, `led/led_config.h`, `led/led_internal.h`, `led/led_pattern_pure.h`
+
+Optional green header LED (GPIO 3, active-low); charge LED is separate (red, hardware-only).
 
 LED priority: MQTT TX sequence > finite pattern > E-Ink/RX refresh pulse > idle.
 
 | Function | Description |
 |----------|-------------|
-| `buttonInit()` | Initialize GPIO |
-| `buttonStartTask()` | Start FreeRTOS task |
-| `buttonStartupBlink()` | Boot preset 3× 200/200 ms (blocking, setup only) |
-| `buttonIsLedTxSequenceActive()` | TX sequence, pattern, or refresh pulse running? |
+| `ledInit()` | Configure GPIO |
+| `ledApplyEnabled()` | Force off when user disabled LED in settings |
+| `ledEnableGpioHoldForLightSleep()` | Hold LED level for light sleep |
+| `ledIsActivityActive()` | TX sequence, pattern, or refresh pulse running? |
 | `ledRefreshPulseBegin/End` | Pulse GPIO3 during E-Ink refresh / RX ack |
-| `ledPlayPattern` / `ledPlayPreset` | Queue finite blink (count, on/off ms) or Boot/WifiUp/MqttUp/LinkDown |
+| `ledPlayPattern` / `ledPlayPreset` | Queue finite blink or Boot/WifiUp/MqttUp/LinkDown/SoftOff |
 
-Presets: Boot (startup), WifiUp (STA ready / reconnect), MqttUp (broker connected), LinkDown (heart → crack).
+Presets: Boot (startup), WifiUp (STA ready / reconnect), MqttUp (broker connected), LinkDown (heart → crack), SoftOff (PWR armed).
 
 ---
 
@@ -325,8 +397,9 @@ Presets: Boot (startup), WifiUp (STA ready / reconnect), MqttUp (broker connecte
 | `web_utils.h` / `web_utils.cpp` | Redirects, security headers |
 | `web_middleware.h` / `web_middleware.cpp` | Host/CSRF middleware for API routes |
 | `csrf.h` / `csrf.cpp` | Generate and validate CSRF tokens |
-| `web_events.h` / `web_events.cpp` | SSE `/events` |
-| `routes/admin_routes_api.cpp` | JSON API `/api/*` for the Svelte SPA |
+| `events.h` / `events.cpp` | SSE `/events` |
+| `routes/admin_routes_api.cpp` | Register entry + shared `sendOk`/`sendErr` |
+| `routes/admin_routes_api_*.cpp` | Thematic JSON API `/api/*` (device, chaya, wifi, mqtt, settings, system, ota) |
 | `routes/admin_routes_captive.cpp` | Captive-portal probes, redirects, and setup entry points |
 | `routes/admin_routes_spa.cpp` | Generic SPA blob lookup + SPA fallback |
 | `spa_asset_lookup.h` | Path/MIME/cache helpers (natively testable) |
@@ -403,7 +476,8 @@ Thread-safe `Preferences` wrapper with `g_nvsMutex`:
 | `mqtt/mqtt_timing.h` | MQTT backoff, lock timeouts |
 | `wifi/wlan_config.h` | WiFi limits, connection tuning, scan/reconnect intervals |
 | `display/display_config.h` | Display limits (`kDisplayCounterMax`) |
-| `hw/button_config.h` | Button/LED timing |
+| `led/led_config.h` | LED timing |
+| `button/button_config.h` | Button debounce / soft-off timing |
 | `config/version.h` | `APP_VERSION` (release workflow sets it from the Git tag) |
 | `util/log_tag.h` | `DEFINE_LOG_TAG` macro |
 | `util/ip_format.h` | IP address formatting |

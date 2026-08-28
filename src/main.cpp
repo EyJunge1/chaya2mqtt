@@ -13,8 +13,9 @@
 #include "audio/audio.h"
 #include "config/app_config.h"
 #include "config/version.h"
-#include "hw/battery.h"
-#include "hw/button.h"
+#include "battery/battery.h"
+#include "button/button.h"
+#include "led/led.h"
 #include "hw/sd_hold.h"
 #include "heart/counter.h"
 #include "display/display.h"
@@ -106,7 +107,7 @@ void setup() {
 
     ESP_LOGI(TAG, "Setup complete");
 
-    buttonEnableLedGpioHoldForLightSleep();
+    ledEnableGpioHoldForLightSleep();
 }
 
 void loop() {

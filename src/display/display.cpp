@@ -8,8 +8,8 @@
 #include "display_refresh_pure.h"
 #include "draw_pure.h"
 #include "heart/counter.h"
-#include "hw/battery.h"
-#include "hw/button.h"
+#include "battery/battery.h"
+#include "led/led.h"
 #include "hw/pins.h"
 
 #include "async/task_config.h"

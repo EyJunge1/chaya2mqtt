@@ -37,7 +37,7 @@ flowchart TB
 | Task | Stack | Priority | Core | File | Responsibility |
 |------|-------|----------|------|------|----------------|
 | **network** | 7168 | 5 | 1 | `network/network_task.cpp` | `wlanLoop()` (including recovery), `mqttLoop()`, `NetCmd` queue |
-| **button** | 4096 | 8 | 1 | `hw/button_input.cpp`, `hw/button_led.cpp` | BOOT debounce, LED patterns, MQTT send |
+| **button** | 4096 | 8 | 1 | `button/button_input.cpp`, `led/led.cpp` | BOOT debounce, LED patterns, MQTT send |
 | **app** | 4096 | 4 | 1 | `async/app_task.cpp` | `webAdminLoop()`, OTA health, counter resets/NVS saves, battery poll |
 | **ota** | 8192 | 4 | 1 | `ota/ota_task.cpp` | `otaLoop()` (GitHub + Download) |
 | **display** | 8192 | 3 | 1 | `display/display.cpp` | Exclusive SPI/EPD access |
@@ -113,12 +113,15 @@ senders without requiring HIL in CI.
 | **WiFi** | `src/wifi/wlan*.cpp` | STA/AP, captive DNS, mDNS, NTP, reconnect |
 | **Network task** | `src/network/network_task.*` | Orchestrates WiFi + MQTT + NetCmd |
 | **Display** | `src/display/*` | E-paper, dedicated drawing task |
-| **Button** | `src/hw/button_*.cpp` | BOOT (GPIO0), controlled PWR shutdown, LED TX + refresh pulse |
-| **Battery** | `src/hw/battery.*` | GPIO4 ADC, percent, power latch + USB deep-sleep fallback |
+| **Identity** | `src/identity/*` | Stable device ID + hostname |
+| **Button** | `src/button/*` | BOOT (GPIO0), controlled PWR shutdown |
+| **LED** | `src/led/*` | Header LED TX/pattern/refresh pulse |
+| **Battery** | `src/battery/*` | GPIO4 ADC, percent, power latch + USB deep-sleep fallback |
+| **HW** | `src/hw/*` | SD hold-off + board pin map |
 | **Audio** | `src/audio/*` | ES8311 DAC click; capture disabled |
 | **Web admin** | `src/web/*` | HTTP routes, CSRF, SSE, SPA |
 | **OTA** | `src/ota/*` | GitHub stable/beta check, HTTPUpdate + SHA-256 sidecar, status/SSE |
-| **App configuration** | `src/config/app_config.*` | Reset period, UI/LED/audio prefs |
+| **App configuration** | `src/config/app_config.*` | Reset period, UI/LED/audio prefs; NVS utils/keys |
 | **TLS** | `src/tls/*` | Embedded CA bundle (MQTT + OTA) |
 | **Diagnostics** | `src/diag/*` | Stack monitor, task WDT |
 

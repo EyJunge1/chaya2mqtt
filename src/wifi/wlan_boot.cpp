@@ -5,9 +5,9 @@
 #include "wlan_internal.h"
 
 #include "constants.h"
-#include "device_identity.h"
+#include "identity/device_identity.h"
 #include "display/display.h"
-#include "hw/button.h"
+#include "led/led.h"
 #include "mqtt/config.h"
 #include "util/ip_format.h"
 #include "web/admin.h"

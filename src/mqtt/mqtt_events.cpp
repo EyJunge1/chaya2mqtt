@@ -9,8 +9,8 @@
 #include "audio/audio.h"
 #include "display/display.h"
 #include "heart/counter.h"
-#include "hw/button.h"
-#include "hw/button_config.h"
+#include "led/led.h"
+#include "led/led_config.h"
 #include "wifi/wlan.h"
 
 #include <Arduino.h>

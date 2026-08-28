@@ -4,10 +4,14 @@
 #include "button_internal.h"
 
 #include "async/task_config.h"
+#include "battery/battery.h"
 #include "config/app_config.h"
 #include "display/display.h"
 #include "heart/counter.h"
-#include "hw/battery.h"
+#include "hw/pins.h"
+#include "led/led.h"
+#include "led/led_config.h"
+#include "led/led_internal.h"
 #include "mqtt/config.h"
 #include "ota/ota.h"
 #include "web/admin_globals.h"
@@ -205,11 +209,17 @@ static void buttonTaskFn(void*) {
     }
 }
 
+void buttonNotifyTask() {
+    const TaskHandle_t h = s_buttonTaskHandle.load(std::memory_order_acquire);
+    if (h != nullptr) {
+        xTaskNotifyGive(h);
+    }
+}
+
 void buttonInit() {
     pinMode(kButtonGpio, INPUT_PULLUP);
     pinMode(pins::kPwrButton, INPUT_PULLUP);
-    pinMode(kButtonLedPin, OUTPUT);
-    ledOutput(LOW);  // active-low LED off
+    ledInit();
     btn.lastRawReading       = digitalRead(kButtonGpio);
     btn.debouncedLevel       = btn.lastRawReading;
     btn.lastDebounceChangeMs = millis();
@@ -255,6 +265,3 @@ void buttonStartupBlink() {
     }
 }
 
-void buttonEnableLedGpioHoldForLightSleep() {
-    ledHoldWhenIdle();
-}
