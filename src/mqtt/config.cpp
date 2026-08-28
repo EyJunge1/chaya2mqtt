@@ -167,22 +167,28 @@ bool mqttCfgMatchesNvs() {
     MqttConfig active{};
     mqttCfgSnapshot(&active);
 
-    app_nvs::ScopedNvsLock lock;
-    Preferences prefs;
-    if (!prefs.begin(kNvsNsMqtt, true)) {
-        return active.server[0] == '\0';
+    MqttConfig stored{};
+    bool       nvsPresent = false;
+    {
+        app_nvs::ScopedNvsLock lock;
+        Preferences            prefs;
+        if (!prefs.begin(kNvsNsMqtt, true)) {
+            return active.server[0] == '\0';
+        }
+        nvsPresent = true;
+        prefs.getString(kNvsKeyMqttServer, stored.server, sizeof(stored.server));
+        stored.port =
+            static_cast<uint16_t>(prefs.getInt(kNvsKeyMqttPort, static_cast<int>(kMqttDefaultTlsPort)));
+        prefs.getString(kNvsKeyMqttUser, stored.username, sizeof(stored.username));
+        prefs.getString(kNvsKeyMqttPass, stored.password, sizeof(stored.password));
+        prefs.getString(kNvsKeyMqttPartnerId, stored.partnerDeviceId, sizeof(stored.partnerDeviceId));
+        prefs.end();
     }
 
-    MqttConfig stored{};
-    prefs.getString(kNvsKeyMqttServer, stored.server, sizeof(stored.server));
-    stored.port =
-        static_cast<uint16_t>(prefs.getInt(kNvsKeyMqttPort, static_cast<int>(kMqttDefaultTlsPort)));
-    prefs.getString(kNvsKeyMqttUser, stored.username, sizeof(stored.username));
-    prefs.getString(kNvsKeyMqttPass, stored.password, sizeof(stored.password));
-    prefs.getString(kNvsKeyMqttPartnerId, stored.partnerDeviceId, sizeof(stored.partnerDeviceId));
-    prefs.end();
-
-    mqttCfgSanitizeAfterNvsLoad(stored);
+    // Sanitize outside the NVS lock: buildDeviceId() also takes g_nvsMutex.
+    if (nvsPresent) {
+        mqttCfgSanitizeAfterNvsLoad(stored);
+    }
     return memcmp(&active, &stored, sizeof(MqttConfig)) == 0;
 }
 
@@ -191,43 +197,30 @@ void loadMQTTConfig() {
 
     {
         app_nvs::ScopedNvsLock lock;
-        Preferences prefs;
+        Preferences            prefs;
         if (!prefs.begin(kNvsNsMqtt, true)) {
             ESP_LOGI(TAG, "NVS mqtt namespace not present, using MQTT defaults");
             loaded.server[0]   = '\0';
             loaded.username[0] = '\0';
             loaded.password[0] = '\0';
             loaded.port        = kMqttDefaultTlsPort;
-            mqttCfgSanitizeAfterNvsLoad(loaded);
-            mqttCfgLock();
-            mqttCfg = loaded;
-            s_mqttPendingCfg = loaded;
-            mqttCfgUnlock();
-            mqttCfgMarkDirty();
-            return;
-        }
-        if (!prefs.isKey(kNvsKeyMqttServer)) {
+        } else if (!prefs.isKey(kNvsKeyMqttServer)) {
             ESP_LOGI(TAG, "MQTT not configured yet in NVS, using defaults");
             loaded.server[0] = '\0';
             prefs.end();
-            mqttCfgSanitizeAfterNvsLoad(loaded);
-            mqttCfgLock();
-            mqttCfg = loaded;
-            s_mqttPendingCfg = loaded;
-            mqttCfgUnlock();
-            mqttCfgMarkDirty();
-            return;
+        } else {
+            prefs.getString(kNvsKeyMqttServer, loaded.server, sizeof(loaded.server));
+            loaded.port = normalizeMqttPort(
+                prefs.getInt(kNvsKeyMqttPort, static_cast<int>(kMqttDefaultTlsPort)));
+            prefs.getString(kNvsKeyMqttUser, loaded.username, sizeof(loaded.username));
+            prefs.getString(kNvsKeyMqttPass, loaded.password, sizeof(loaded.password));
+            prefs.getString(kNvsKeyMqttPartnerId, loaded.partnerDeviceId,
+                            sizeof(loaded.partnerDeviceId));
+            prefs.end();
         }
-
-        prefs.getString(kNvsKeyMqttServer, loaded.server, sizeof(loaded.server));
-        loaded.port =
-            normalizeMqttPort(prefs.getInt(kNvsKeyMqttPort, static_cast<int>(kMqttDefaultTlsPort)));
-        prefs.getString(kNvsKeyMqttUser, loaded.username, sizeof(loaded.username));
-        prefs.getString(kNvsKeyMqttPass, loaded.password, sizeof(loaded.password));
-        prefs.getString(kNvsKeyMqttPartnerId, loaded.partnerDeviceId, sizeof(loaded.partnerDeviceId));
-        prefs.end();
     }
 
+    // Sanitize outside the NVS lock: buildDeviceId() also takes g_nvsMutex (non-recursive).
     mqttCfgSanitizeAfterNvsLoad(loaded);
     mqttCfgLock();
     mqttCfg = loaded;
