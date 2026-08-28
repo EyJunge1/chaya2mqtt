@@ -25,10 +25,14 @@ Topics are **not** user-editable. They are derived from the device's own ID and 
 
 Without a partner, the device still connects to the broker and publishes to its own topic, **but does not subscribe to a device topic**.
 
-The device ID consists of the last 3 bytes of the WiFi MAC as 6 lowercase hexadecimal characters:
+The device ID is a random 6-character lowercase hex string stored in NVS (`cfg/device_id`).
+Factory reset and flash erase clear that key so the next boot gets a **new** ID (and therefore
+new MQTT topics), which avoids picking up old retained broker state after a wipe. On OTA from
+older firmware without `device_id`, the previous MAC-derived ID is written once when WiFi/MQTT
+config already exists.
 
 ```
-Device-ID = sprintf("%02x%02x%02x", mac[3], mac[4], mac[5])
+Device-ID = sprintf("%02x%02x%02x", random_byte0, random_byte1, random_byte2)  // persisted in NVS
 ```
 
 Multiple pairs can use the same broker without topic collisions as long as their device IDs are unique. The six-character ID has a 24-bit namespace; a duplicate is unlikely for a few home devices, but would also duplicate MQTT client IDs and topics. The same ID is used as the suffix of the unique LAN hostname `chaya2mqtt-<deviceId>.local`.

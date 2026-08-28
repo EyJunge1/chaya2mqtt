@@ -5,7 +5,11 @@
 
 #include "constants.h"
 
-/** Build this device's 6-char lowercase hex ID from the ESP32 STA MAC. */
+/**
+ * Build this device's 6-char lowercase hex ID (NVS `cfg/device_id`).
+ * Created randomly on first boot / after factory reset; OTA upgrades without
+ * that key seed once from the STA MAC when WiFi/MQTT config already exists.
+ */
 void buildDeviceId(char* out, size_t outLen);
 
 /** Format the unique station / mDNS hostname from a validated device ID. */

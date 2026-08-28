@@ -15,7 +15,7 @@ servers:
     variables:
       deviceId:
         default: abc123
-        description: Six-character lowercase device ID derived from the STA MAC address
+        description: Six-character lowercase device ID from NVS (random; MAC-seeded once on OTA migration)
     security:
       - $ref: "#/components/securitySchemes/lanHostAllowlist"
   setup:

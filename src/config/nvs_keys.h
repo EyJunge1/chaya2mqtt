@@ -12,6 +12,7 @@ constexpr const char kNvsKeyWifiSsid[]   = "ssid";
 constexpr const char kNvsKeyWifiPass[]   = "pass";
 constexpr const char kNvsKeyWifiApPin[]  = "ap_pin";
 
+constexpr const char kNvsKeyCfgDeviceId[]  = "device_id";
 constexpr const char kNvsKeyCfgRstPeriod[] = "rstPeriod";
 constexpr const char kNvsKeyCfgUiLang[]    = "ui_lang";
 constexpr const char kNvsKeyCfgUiTheme[]   = "ui_theme";
