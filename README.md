@@ -1,4 +1,6 @@
-# Chaya2MQTT
+<p align="center">
+  <img src="docs/images/social-preview.png" alt="Chaya2MQTT – send a little heart" width="640">
+</p>
 
 Send a little heart to someone special—no matter how far away they are. ❤️
 
