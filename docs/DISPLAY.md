@@ -2,6 +2,18 @@
 
 The E-Ink display shows a **Lucide heart** with **RX and TX counters** (delta display), Lucide **arrow** glyphs, and a Lucide **battery** icon (same thresholds as the web dashboard). The offline cracked-heart view omits the counters. The battery appears top-right on the filled-heart, cracked-heart, and centered product-title screens, but not on SoftAP/setup or power-off. All drawing takes place exclusively in the **display task**—other tasks send commands via `g_displayCmdQueue`. The user LED pulses for the duration of a heart/splash refresh.
 
+## Views (simulated)
+
+Pixel-accurate host previews of the 200×200 panel (scaled 4×). Generated from firmware Lucide bitmaps and the Adafruit GFX classic font via `node scripts/render_display_previews.mjs` — no device photo required.
+
+| Online heart | Offline (crack) | SoftAP WIFI QR |
+|:---:|:---:|:---:|
+| ![Online heart](images/heart-online.png) | ![Cracked heart](images/heart-offline.png) | ![Setup QR](images/setup-qr.png) |
+
+| Product title | Power-off |
+|:---:|:---:|
+| ![Product title](images/product-title.png) | ![Power-off](images/power-off.png) |
+
 ## Display task
 
 | Parameter | Value |
