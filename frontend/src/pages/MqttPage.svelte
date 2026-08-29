@@ -241,13 +241,12 @@
         <Field label={i18n.t("mqtt.port")} hint={i18n.t("mqtt.port-hint")} required>
           <TextInput type="number" min={1} max={65535} bind:value={cfg.port} required />
         </Field>
-        <Field label={i18n.t("mqtt.user")} hint={i18n.t("mqtt.user-hint")} optional>
+        <Field label={i18n.t("mqtt.user")} hint={i18n.t("mqtt.user-hint")}>
           <TextInput bind:value={cfg.username} maxlength={63} />
         </Field>
         <Field
           label={i18n.t("mqtt.pass")}
           hint={cfg.hasPassword ? i18n.t("mqtt.pass-hint") : i18n.t("mqtt.pass-hint-empty")}
-          optional
         >
           <TextInput
             type="password"
