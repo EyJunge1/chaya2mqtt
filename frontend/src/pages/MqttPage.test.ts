@@ -69,15 +69,15 @@ describe("MqttPage", () => {
     expect(onDeviceRefresh).toHaveBeenCalled();
   });
 
-  it("saves broker without username, password, or partner", async () => {
+  it("saves broker without username or password when partner is set", async () => {
     const onToast = vi.fn();
     getMqttConfig.mockResolvedValue(
-      cfg({ username: "", hasPassword: false, partnerId: "", topicSub: "" }),
+      cfg({ username: "", hasPassword: false, partnerId: "f5e6d7", topicSub: "chaya2mqtt/f5e6d7" }),
     );
     render(MqttPage, { props: { mqtt: { connected: false }, onToast } });
 
     await screen.findByDisplayValue("mqtt.example.com");
-    expect(screen.getAllByText("(common.optional)").length).toBeGreaterThanOrEqual(3);
+    expect(screen.getAllByText("(common.optional)").length).toBe(2);
     fireEvent.click(screen.getByRole("button", { name: "common.save" }));
 
     await waitFor(() => {
@@ -86,7 +86,7 @@ describe("MqttPage", () => {
         mqtt_port: 8883,
         mqtt_user: "",
         mqtt_pass: undefined,
-        partner_id: "",
+        partner_id: "f5e6d7",
       });
     });
     expect(onToast).toHaveBeenCalledWith("toast.mqtt-saved", "success");

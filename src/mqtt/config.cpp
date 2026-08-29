@@ -122,6 +122,20 @@ bool mqttCfgIsBrokerConfigured() {
     return ok;
 }
 
+bool mqttCfgIsPaired() {
+    mqttCfgLock();
+    const bool ok = mqttCfg.partnerDeviceId[0] != '\0';
+    mqttCfgUnlock();
+    return ok;
+}
+
+bool mqttCfgIsHeartReady() {
+    mqttCfgLock();
+    const bool ok = mqttCfg.server[0] != '\0' && mqttCfg.partnerDeviceId[0] != '\0';
+    mqttCfgUnlock();
+    return ok;
+}
+
 void mqttCfgTopicPubLockedCopy(char* out, size_t outLen) {
     if (out == nullptr || outLen == 0U) {
         return;

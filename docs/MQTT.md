@@ -180,7 +180,7 @@ Namespace `mqtt`:
 | `port` | Int | Port (default 8883; **required**) |
 | `user` | String | MQTT username (optional; empty = anonymous) |
 | `pass` | String | MQTT password (optional) |
-| `partner_id` | String | Partner device ID, 6 hex (optional; empty = unpaired) |
+| `partner_id` | String | Partner device ID, 6 hex (required for heart display; empty = unpaired / waiting title) |
 
 Topics are no longer persisted in NVS; legacy keys `topic_pub` / `topic_sub` are removed when saving.
 

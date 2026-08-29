@@ -27,8 +27,8 @@ bool displayRequest(DisplayMsg::Cmd cmd, DisplayRequestMode mode, uint32_t waitM
             ESP_LOGW(TAG, "displayRequest Content only supports DrawHeart");
             return false;
         }
-        // SoftAP QR and waiting title (no broker yet): never overlay heart content.
-        if (configIsApMode() || !mqttCfgIsBrokerConfigured()) {
+        // SoftAP QR and waiting title (no broker/partner yet): never overlay heart content.
+        if (configIsApMode() || !mqttCfgIsHeartReady()) {
             return true;
         }
         return displayPostHeartRedraw(pdMS_TO_TICKS(waitMs));

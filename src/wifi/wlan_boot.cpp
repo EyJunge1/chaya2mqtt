@@ -138,8 +138,8 @@ void setupWifiFinishStaConnected() {
     ledPlayPreset(LedPreset::WifiUp);
 
     // The setup QR remains until STA connectivity is proven. Only then show
-    // the waiting title or the operational heart.
-    if (mqttCfgIsBrokerConfigured()) {
+    // the waiting title or the operational heart (broker + partner required).
+    if (mqttCfgIsHeartReady()) {
         (void)displayRequest(DisplayMsg::Cmd::DrawHeart, DisplayRequestMode::BootIfChanged);
     } else {
         (void)displayRequest(DisplayMsg::Cmd::DrawSplash, DisplayRequestMode::BootIfChanged);

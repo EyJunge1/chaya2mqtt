@@ -28,6 +28,10 @@ bool saveMQTTConfig();
 
 void mqttCfgSnapshot(MqttConfig* out);
 bool mqttCfgIsBrokerConfigured();
+/** True when a partner device ID is set (non-empty after sanitization). */
+bool mqttCfgIsPaired();
+/** True when broker and partner are set — ready for the operational heart view. */
+bool mqttCfgIsHeartReady();
 void mqttCfgTopicPubLockedCopy(char* out, size_t outLen);
 
 void mqttCfgStorePending(const MqttConfig* pending);

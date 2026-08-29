@@ -65,7 +65,7 @@ If `pio: command not found` appears, PlatformIO is located at `~/.platformio/pen
    - **MQTT server** (hostname or IP) — required
    - **MQTT port** (default: **8883**) — required
    - **MQTT username / password** (optional; leave empty for anonymous brokers)
-   - **Partner ID** of the other device (optional for broker connect; 6 hex characters, needed for pairing)
+   - **Partner ID** of the other device (required for the heart display; 6 hex characters). Use Unpair to clear.
 5. In AP mode, the WiFi connection is **tested** before the credentials are saved.
 6. After a successful connection, the admin UI is available at **`http://chaya2mqtt-<deviceId>.local`**, for example `http://chaya2mqtt-a1b2c3.local`. The address and ID are shown on the dashboard.
 
@@ -82,7 +82,7 @@ Flash both devices with the **same firmware version**. Broker credentials must b
    - **Publish topic:** `chaya2mqtt/<own_id>` (e.g. `chaya2mqtt/a1b2c3`)
    - **Subscribe topic:** `chaya2mqtt/<partner_id>` (e.g. `chaya2mqtt/f5e6d7`)
 
-This allows **multiple pairs** to use the same broker without topic collisions. Without a partner, the device remains connected to the broker but does not subscribe to a device topic.
+This allows **multiple pairs** to use the same broker without topic collisions. Without a partner, the device can still connect to the broker but does not subscribe and keeps the waiting title (no heart with counters) until a partner is set.
 
 Details: [MQTT.md](MQTT.md)
 

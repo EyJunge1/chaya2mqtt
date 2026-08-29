@@ -60,8 +60,12 @@ static void handleNetCommand(NetCmd cmd) {
             mqttPostponeConnect(3000UL);
             mqttEndSettingsApply();
             chayaTaskWatchdogReset();
-            // Waiting title → operational heart (view change; bypass Content coalesce).
-            (void)displayRequest(DisplayMsg::Cmd::DrawHeart, DisplayRequestMode::BootIfChanged);
+            // Waiting title ↔ operational heart (view change; bypass Content coalesce).
+            if (mqttCfgIsHeartReady()) {
+                (void)displayRequest(DisplayMsg::Cmd::DrawHeart, DisplayRequestMode::BootIfChanged);
+            } else {
+                (void)displayRequest(DisplayMsg::Cmd::DrawSplash, DisplayRequestMode::BootIfChanged);
+            }
             ESP_LOGI(TAG, "MQTT settings apply: done (matches NVS, postpone=3000)");
             break;
         }
@@ -77,8 +81,12 @@ static void handleNetCommand(NetCmd cmd) {
         mqttPostponeConnect(3000UL);
         mqttEndSettingsApply();
         chayaTaskWatchdogReset();
-        // Waiting title → operational heart (view change; bypass Content coalesce).
-        (void)displayRequest(DisplayMsg::Cmd::DrawHeart, DisplayRequestMode::BootIfChanged);
+        // Waiting title ↔ operational heart (view change; bypass Content coalesce).
+        if (mqttCfgIsHeartReady()) {
+            (void)displayRequest(DisplayMsg::Cmd::DrawHeart, DisplayRequestMode::BootIfChanged);
+        } else {
+            (void)displayRequest(DisplayMsg::Cmd::DrawSplash, DisplayRequestMode::BootIfChanged);
+        }
         ESP_LOGI(TAG, "MQTT settings apply: done (saved, postpone=3000)");
         break;
     }

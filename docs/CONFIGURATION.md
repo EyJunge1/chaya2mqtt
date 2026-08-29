@@ -55,7 +55,7 @@ exists, so pairings and hostnames stay stable until the next reset. The setup So
 | `port` | Int | `8883` | MQTT port |
 | `user` | String | `""` | MQTT username |
 | `pass` | String | `""` | MQTT password |
-| `partner_id` | String | `""` | Partner device ID (6 hexadecimal characters) |
+| `partner_id` | String | `""` | Partner device ID (6 hexadecimal characters; required for heart display) |
 
 Legacy keys `topic_pub` / `topic_sub` are removed when saving. Topics now exist only as derived values in RAM.
 
