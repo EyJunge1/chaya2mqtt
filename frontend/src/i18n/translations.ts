@@ -124,6 +124,7 @@ export const translations = {
     "mqtt.topic-pub": "Publish topic",
     "mqtt.topic-sub": "Subscribe topic",
     "mqtt.device-id": "Device ID",
+    "mqtt.copy-device-id": "Copy device ID",
     "mqtt.partner-id": "Partner ID",
     "mqtt.partner-hint":
       "Needed only for pairing: 6 hex characters from the other device, e.g. f5e6d7. Leave empty to unpair.",
@@ -134,6 +135,7 @@ export const translations = {
     "toast.mqtt-load-failed": "Failed to load MQTT config",
     "toast.mqtt-saved": "Saved. MQTT is reconnecting.",
     "toast.partner-invalid": "Invalid partner ID",
+    "toast.device-id-copy-failed": "Could not copy device ID",
     "settings.general": "General",
     "settings.reset-days": "Reset period",
     "settings.reset-hint": "0 = off, 1–30 days",
@@ -350,6 +352,7 @@ export const translations = {
     "mqtt.topic-pub": "Sende-Topic",
     "mqtt.topic-sub": "Empfangs-Topic",
     "mqtt.device-id": "Geräte-ID",
+    "mqtt.copy-device-id": "Geräte-ID kopieren",
     "mqtt.partner-id": "Partner-ID",
     "mqtt.partner-hint":
       "Nur fürs Pairing nötig: 6 Hex-Zeichen vom anderen Gerät, z. B. f5e6d7. Leer lassen zum Entkoppeln.",
@@ -360,6 +363,7 @@ export const translations = {
     "toast.mqtt-load-failed": "MQTT-Konfiguration laden fehlgeschlagen",
     "toast.mqtt-saved": "Gespeichert. MQTT verbindet neu.",
     "toast.partner-invalid": "Partner-ID ungültig",
+    "toast.device-id-copy-failed": "Geräte-ID konnte nicht kopiert werden",
     "settings.general": "Allgemein",
     "settings.reset-days": "Reset-Zeitraum",
     "settings.reset-hint": "0 = aus, 1–30 Tage",
