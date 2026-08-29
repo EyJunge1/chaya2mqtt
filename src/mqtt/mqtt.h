@@ -1,5 +1,7 @@
 #pragma once
 
+#include <cstdint>
+
 /** ESP-IDF MQTT client + heart publish.
  *  Lock order when acquiring multiple mutexes (never reverse):
  *   1. g_chayaPublishMutex (`mqttPublishChaya*`),
@@ -27,3 +29,16 @@ bool mqttPublishChayaAndApplySentCounters();
 
 /** True while broker settings are being torn down/reapplied (blocks publish). */
 bool mqttPublishBlocked();
+
+/** Result of requesting a heart/Chaya TX (button and web share this entry). */
+enum class ChayaSendResult : uint8_t {
+    Started,      // LED TX sequence armed; publish runs in button/LED task
+    Unavailable,  // shutdown, SoftAP, or broker not configured
+    Busy,         // TX sequence already running or publish blocked (settings apply)
+};
+
+/**
+ * Single entry for Chaya send: same LED TX sequence + publish path for button and web.
+ * Safe from any task.
+ */
+ChayaSendResult chayaRequestSend();

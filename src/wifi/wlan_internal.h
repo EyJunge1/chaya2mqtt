@@ -17,6 +17,7 @@ extern portMUX_TYPE g_lastFailedBootSsidMux;
 
 extern DNSServer              g_dnsServer;
 extern std::atomic<bool>      g_apMode;
+extern std::atomic<bool>      s_captiveDnsStarted;
 
 extern std::atomic<unsigned long> s_wifiReconnectNextAllowedMs;
 extern std::atomic<uint32_t>      s_wifiReconnectFailCount;

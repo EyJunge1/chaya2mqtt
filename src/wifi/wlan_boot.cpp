@@ -5,8 +5,9 @@
 #include "wlan_internal.h"
 
 #include "constants.h"
-#include "device_identity.h"
+#include "identity/device_identity.h"
 #include "display/display.h"
+#include "led/led.h"
 #include "mqtt/config.h"
 #include "util/ip_format.h"
 #include "web/admin.h"
@@ -134,12 +135,14 @@ void setupWifiFinishStaConnected() {
         ESP_LOGI(TAG, "WLAN STA ready (%s / %s)", staHostname, ipStr);
     }
 
+    ledPlayPreset(LedPreset::WifiUp);
+
     // The setup QR remains until STA connectivity is proven. Only then show
     // the waiting title or the operational heart.
     if (mqttCfgIsBrokerConfigured()) {
-        requestDeferredDrawHeartScreen();
+        (void)displayRequest(DisplayMsg::Cmd::DrawHeart, DisplayRequestMode::BootIfChanged);
     } else {
-        requestDeferredDrawSplashScreen();
+        (void)displayRequest(DisplayMsg::Cmd::DrawSplash, DisplayRequestMode::BootIfChanged);
     }
 }
 
@@ -297,7 +300,7 @@ void setupWifiStartApFallback(const char* attemptedSsid) {
     }
     (void)wlanFinishSetupSoftAp(apAuth);
     if (!splashAlreadyDrawn) {
-        requestDeferredDrawSplashScreen();
+        (void)displayRequest(DisplayMsg::Cmd::DrawSplash, DisplayRequestMode::BootIfChanged);
     }
 }
 
@@ -316,7 +319,9 @@ void wlanHandleStaGotIpNetCmd() {
     }
 
     bool finishedBoot = false;
-    if (s_bootStaConnectPending.exchange(false, std::memory_order_acq_rel)) {
+    const bool wasBootPending =
+        s_bootStaConnectPending.exchange(false, std::memory_order_acq_rel);
+    if (wasBootPending) {
         bool expectedFinish = false;
         if (s_bootStaFinishDone.compare_exchange_strong(expectedFinish, true,
                                                        std::memory_order_acq_rel)) {
@@ -337,6 +342,10 @@ void wlanHandleStaGotIpNetCmd() {
             ESP_LOGW(TAG, "Deferred GOT_IP: WiFi API mutex timeout");
         }
         s_mdnsRestartNeeded.store(true, std::memory_order_release);
+        // Mid-session reconnect (not the boot-finish race where WifiUp already ran).
+        if (!wasBootPending) {
+            ledPlayPreset(LedPreset::WifiUp);
+        }
     }
 }
 

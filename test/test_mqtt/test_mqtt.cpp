@@ -2,8 +2,8 @@
 #include <unity.h>
 
 #include "constants.h"
-#include "device_identity.h"
-#include "device_identity_pure.h"
+#include "identity/device_identity.h"
+#include "identity/device_identity_pure.h"
 #include "mqtt/backoff.h"
 #include "mqtt/counter_payload.h"
 #include "mqtt/mqtt_config.h"

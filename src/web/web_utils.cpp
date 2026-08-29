@@ -4,7 +4,7 @@
 #include "host_validate.h"
 #include "config/app_config.h"
 #include "constants.h"
-#include "device_identity.h"
+#include "identity/device_identity.h"
 #include "wifi/wlan.h"
 
 #include <ESPAsyncWebServer.h>

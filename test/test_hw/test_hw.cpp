@@ -2,12 +2,14 @@
 
 #include "audio/audio_pure.h"
 #include "async/queue_coalesce_pure.h"
+#include "button/button_debounce_pure.h"
 #include "display/display_config.h"
 #include "display/display_link_pure.h"
 #include "display/display_refresh_pure.h"
 #include "display/draw_pure.h"
 #include "display/view_state.h"
-#include "hw/battery_pure.h"
+#include "battery/battery_pure.h"
+#include "led/led_pattern_pure.h"
 
 void test_battery_pct_curve() {
     TEST_ASSERT_EQUAL_INT(0, batteryPctFromMilliVolts(3200));
@@ -236,6 +238,91 @@ void test_display_link_millis_wrap() {
             displayHeartIconDecide(false, false, false, 20UL, kDisplayOfflineGraceMs, st)));
 }
 
+void test_led_pattern_three_blinks() {
+    LedPatternRuntime rt{};
+    TEST_ASSERT_TRUE(ledPatternBegin(rt, 3, 200, 200));
+    TEST_ASSERT_TRUE(rt.onPhase);
+    TEST_ASSERT_EQUAL_UINT8(3, rt.onPulsesLeft);
+
+    LedPatternAdvanceResult r = ledPatternAdvance(rt);
+    TEST_ASSERT_FALSE(r.done);
+    TEST_ASSERT_FALSE(r.ledOn);
+    TEST_ASSERT_EQUAL_UINT16(200, r.durationMs);
+
+    r = ledPatternAdvance(rt);
+    TEST_ASSERT_FALSE(r.done);
+    TEST_ASSERT_TRUE(r.ledOn);
+    TEST_ASSERT_EQUAL_UINT16(200, r.durationMs);
+
+    r = ledPatternAdvance(rt);
+    TEST_ASSERT_FALSE(r.done);
+    TEST_ASSERT_FALSE(r.ledOn);
+
+    r = ledPatternAdvance(rt);
+    TEST_ASSERT_FALSE(r.done);
+    TEST_ASSERT_TRUE(r.ledOn);
+
+    r = ledPatternAdvance(rt);
+    TEST_ASSERT_FALSE(r.done);
+    TEST_ASSERT_FALSE(r.ledOn);
+    TEST_ASSERT_EQUAL_UINT16(200, r.durationMs);
+
+    r = ledPatternAdvance(rt);
+    TEST_ASSERT_TRUE(r.done);
+    TEST_ASSERT_FALSE(r.ledOn);
+}
+
+void test_led_pattern_single_pulse_no_off() {
+    LedPatternRuntime rt{};
+    TEST_ASSERT_TRUE(ledPatternBegin(rt, 1, 150, 0));
+    const LedPatternAdvanceResult r = ledPatternAdvance(rt);
+    TEST_ASSERT_TRUE(r.done);
+    TEST_ASSERT_FALSE(r.ledOn);
+    TEST_ASSERT_EQUAL_UINT16(0, r.durationMs);
+}
+
+void test_led_pattern_normalize_zero_count() {
+    uint8_t  count = 0;
+    uint16_t onMs  = 0;
+    uint16_t offMs = 50;
+    ledPatternNormalize(count, onMs, offMs);
+    TEST_ASSERT_EQUAL_UINT8(1, count);
+    TEST_ASSERT_EQUAL_UINT16(1, onMs);
+    TEST_ASSERT_EQUAL_UINT16(50, offMs);
+}
+
+void test_debounce_commits_after_stable_ms() {
+    DebouncedGpioState st{};
+    st.lastRawReading       = 1;
+    st.debouncedLevel       = 1;
+    st.lastDebounceChangeMs = 1000;
+
+    debounceUpdate(st, 0, 1000, 20);
+    TEST_ASSERT_EQUAL_INT(0, st.lastRawReading);
+    TEST_ASSERT_EQUAL_INT(1, st.debouncedLevel);
+
+    debounceUpdate(st, 0, 1019, 20);
+    TEST_ASSERT_EQUAL_INT(1, st.debouncedLevel);
+
+    debounceUpdate(st, 0, 1020, 20);
+    TEST_ASSERT_EQUAL_INT(0, st.debouncedLevel);
+}
+
+void test_debounce_resets_timer_on_bounce() {
+    DebouncedGpioState st{};
+    st.lastRawReading       = 1;
+    st.debouncedLevel       = 1;
+    st.lastDebounceChangeMs = 0;
+
+    debounceUpdate(st, 0, 100, 20);
+    debounceUpdate(st, 1, 110, 20);
+    debounceUpdate(st, 0, 120, 20);
+    TEST_ASSERT_EQUAL_INT(1, st.debouncedLevel);
+
+    debounceUpdate(st, 0, 140, 20);
+    TEST_ASSERT_EQUAL_INT(0, st.debouncedLevel);
+}
+
 int main(int, char**) {
     UNITY_BEGIN();
     RUN_TEST(test_battery_pct_curve);
@@ -249,5 +336,10 @@ int main(int, char**) {
     RUN_TEST(test_display_heart_redraw_wait_and_follow_up);
     RUN_TEST(test_display_link_offline_grace);
     RUN_TEST(test_display_link_millis_wrap);
+    RUN_TEST(test_led_pattern_three_blinks);
+    RUN_TEST(test_led_pattern_single_pulse_no_off);
+    RUN_TEST(test_led_pattern_normalize_zero_count);
+    RUN_TEST(test_debounce_commits_after_stable_ms);
+    RUN_TEST(test_debounce_resets_timer_on_bounce);
     return UNITY_END();
 }

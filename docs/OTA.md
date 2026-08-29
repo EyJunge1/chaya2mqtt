@@ -138,7 +138,7 @@ On a SHA-256 mismatch, sidecar error, or flash error: **no reboot**.
 | WDT | Registered (temporarily unregistered during `otaLoop()`) |
 
 Before rebooting after a successful flash:
-- `flushHeartCounterIfDirty()` / `flushHeartSentCounterIfDirty()`
+- `flushAllHeartCountersIfDirty()`
 - `releaseGpioHoldBeforeRestart()`
 - `ESP.restart()`
 

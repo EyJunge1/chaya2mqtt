@@ -1,7 +1,7 @@
-#include "web_events.h"
+#include "events.h"
 
 #include "heart/counter.h"
-#include "hw/battery.h"
+#include "battery/battery.h"
 #include "mqtt/config.h"
 #include "mqtt/mqtt.h"
 #include "ota/ota.h"

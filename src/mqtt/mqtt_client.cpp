@@ -2,7 +2,7 @@
 
 #include "async/task_config.h"
 #include "constants.h"
-#include "device_identity.h"
+#include "identity/device_identity.h"
 #include "mqtt_config.h"
 #include "tls/tls_bundle.h"
 #include "tls/tls_bundle_setup.h"

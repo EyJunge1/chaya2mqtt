@@ -18,11 +18,7 @@ DEFINE_LOG_TAG("WIFI");
 
 static void queueWifiReconnect() {
     s_staReconnectWorkPending.store(true, std::memory_order_release);
-    if (g_netCmdQueue == nullptr) {
-        return;
-    }
-    const NetCmd cmd = NetCmd::WifiReconnect;
-    if (xQueueSend(g_netCmdQueue, &cmd, 0) != pdTRUE) {
+    if (!netCmdTrySend(NetCmd::WifiReconnect)) {
         // wlanLoop() consumes s_staReconnectWorkPending even if this wake-up is lost.
         ESP_LOGD(TAG, "netCmd queue full (WifiReconnect) — coalesced");
     }
@@ -30,11 +26,7 @@ static void queueWifiReconnect() {
 
 static void queueWifiGotIp() {
     s_staGotIpWorkPending.store(true, std::memory_order_release);
-    if (g_netCmdQueue == nullptr) {
-        return;
-    }
-    const NetCmd cmd = NetCmd::WifiGotIp;
-    if (xQueueSend(g_netCmdQueue, &cmd, 0) != pdTRUE) {
+    if (!netCmdTrySend(NetCmd::WifiGotIp)) {
         // wlanLoop() consumes s_staGotIpWorkPending even if this wake-up is lost.
         ESP_LOGD(TAG, "netCmd queue full (WifiGotIp) — coalesced");
     }

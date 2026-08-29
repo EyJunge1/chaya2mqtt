@@ -37,10 +37,10 @@ flowchart TB
 | Task | Stack | Priority | Core | File | Responsibility |
 |------|-------|----------|------|------|----------------|
 | **network** | 7168 | 5 | 1 | `network/network_task.cpp` | `wlanLoop()` (including recovery), `mqttLoop()`, `NetCmd` queue |
-| **button** | 4096 | 8 | 1 | `hw/button_input.cpp`, `hw/button_led.cpp` | BOOT debounce, optional LED, MQTT send |
+| **button** | 4096 | 8 | 1 | `button/button_input.cpp`, `led/led.cpp` | BOOT debounce, LED patterns, MQTT send |
 | **app** | 4096 | 4 | 1 | `async/app_task.cpp` | `webAdminLoop()`, OTA health, counter resets/NVS saves, battery poll |
 | **ota** | 8192 | 4 | 1 | `ota/ota_task.cpp` | `otaLoop()` (GitHub + Download) |
-| **display** | 8192 | 3 | 1 | `display/display.cpp` | Exclusive SPI/EPD access |
+| **display** | 8192 | 3 | 1 | `display/display_task.cpp` | Exclusive SPI/EPD access |
 | **audio** | 6144 | 3 | 1 | `audio/audio.cpp` | ES8311 playback queue (mic stays off) |
 
 **Task watchdog:** Network, app, audio, and button are registered with the ESP task WDT. OTA
@@ -113,12 +113,15 @@ senders without requiring HIL in CI.
 | **WiFi** | `src/wifi/wlan*.cpp` | STA/AP, captive DNS, mDNS, NTP, reconnect |
 | **Network task** | `src/network/network_task.*` | Orchestrates WiFi + MQTT + NetCmd |
 | **Display** | `src/display/*` | E-paper, dedicated drawing task |
-| **Button** | `src/hw/button_*.cpp` | BOOT (GPIO0), controlled PWR shutdown, LED TX + refresh pulse |
-| **Battery** | `src/hw/battery.*` | GPIO4 ADC, percent, power latch + USB deep-sleep fallback |
+| **Identity** | `src/identity/*` | Stable device ID + hostname |
+| **Button** | `src/button/*` | BOOT (GPIO0), controlled PWR shutdown |
+| **LED** | `src/led/*` | Header LED TX/pattern/refresh pulse |
+| **Battery** | `src/battery/*` | GPIO4 ADC, percent, power latch + USB deep-sleep fallback |
+| **HW** | `src/hw/*` | SD hold-off + board pin map |
 | **Audio** | `src/audio/*` | ES8311 DAC click; capture disabled |
 | **Web admin** | `src/web/*` | HTTP routes, CSRF, SSE, SPA |
 | **OTA** | `src/ota/*` | GitHub stable/beta check, HTTPUpdate + SHA-256 sidecar, status/SSE |
-| **App configuration** | `src/config/app_config.*` | Reset period, UI/LED/audio prefs |
+| **App configuration** | `src/config/app_config.*` | Reset period, UI/LED/audio prefs; NVS utils/keys |
 | **TLS** | `src/tls/*` | Embedded CA bundle (MQTT + OTA) |
 | **Diagnostics** | `src/diag/*` | Stack monitor, task WDT |
 
@@ -180,7 +183,7 @@ The `NetCmd` enum (`async/event_types.h`) serializes network-related actions:
 | `MqttKillClient` | Internal | `mqttDisconnect()` |
 | `WifiGotIp` | `WiFi.onEvent` (`GOT_IP`) | Finish STA boot, apply power/NTP/mDNS, and queue the operational screen in the network task |
 | `WifiReconnect` | `WiFi.onEvent` (disconnect / LOST_IP) | Soft reconnect, then forced reassociation (`disconnect+begin`) with backoff after the threshold |
-| `ChayaSendRequested` | Web POST `/api/chaya/send` (the button directly uses `mqttPublishChayaAndApplySentCounters()`) | `mqttPublishChayaAndApplySentCounters()` |
+| `ChayaSendRequested` | Legacy/internal (web uses `chayaRequestSend()` directly) | `chayaRequestSend()` |
 | `FactoryResetRequested` | Web POST `/api/factory-reset` | Network task calls `resetAllSettings()` outside the HTTP callback |
 
 The network task services its queue and WiFi/MQTT loops every **50 ms in setup-AP mode** (for
@@ -199,7 +202,7 @@ after the display task closes the low-interference window.
 | `DrawSplash` | `drawSplashScreen()` |
 | `DrawPowerOff` | `drawPowerOffScreen()` |
 
-Only the **display task** may access SPI/EPD directly. All other tasks use `requestDeferredDraw*()` or `requestHeartRedraw()`.
+Only the **display task** may access SPI/EPD directly. All other tasks use `displayRequest(cmd, mode, waitMs)`.
 
 ## Data flow: button press → display update
 
@@ -207,23 +210,23 @@ Only the **display task** may access SPI/EPD directly. All other tasks use `requ
 sequenceDiagram
     participant B as Button
     participant W as Web
-    participant N as network_task
     participant M as mqtt
+    participant L as led_button_task
     participant C as counter
     participant D as display_task
 
-    B->>M: mqttPublishChayaAndApplySentCounters()
+    B->>M: chayaRequestSend()
+    W->>M: chayaRequestSend()
+    M->>L: ledStartChayaSendSequence()
+    L->>M: mqttPublishChayaAndApplySentCounters()
     M->>M: retained publish to topic_pub
-    M-->>M: wait for matching PUBACK (max 5 s)
+    M-->>M: wait for matching PUBACK max 5 s
     M->>C: heartSentCounterApplyAfterSuccessfulPublish()
-    M->>D: requestHeartRedraw()
-
-    W->>N: NetCmd ChayaSendRequested
-    N->>M: mqttPublishChayaAndApplySentCounters()
+    M->>D: displayRequest DrawHeart Content
 
     Note over M: Partner device receives
     M->>C: heartCounterStoreFromRemote(payload)
-    M->>D: requestHeartRedrawNonBlocking
+    M->>D: displayRequest DrawHeart Content waitMs 0
     D->>D: drawHeartWithNumber(icon)
 ```
 

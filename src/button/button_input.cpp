@@ -4,11 +4,15 @@
 #include "button_internal.h"
 
 #include "async/task_config.h"
+#include "battery/battery.h"
 #include "config/app_config.h"
 #include "display/display.h"
 #include "heart/counter.h"
-#include "hw/battery.h"
+#include "hw/pins.h"
+#include "led/led.h"
+#include "led/led_internal.h"
 #include "mqtt/config.h"
+#include "mqtt/mqtt.h"
 #include "ota/ota.h"
 #include "web/admin_globals.h"
 #include "wifi/wlan.h"
@@ -41,7 +45,7 @@ static void waitForPwrRelease() {
         if (digitalRead(pins::kPwrButton) != LOW) {
             if (releasedSinceMs == 0) {
                 releasedSinceMs = nowMs;
-            } else if (nowMs - releasedSinceMs >= kDebounceStableMs) {
+            } else if (nowMs - releasedSinceMs >= kSoftOffReleaseSettleMs) {
                 return;
             }
         } else {
@@ -51,42 +55,53 @@ static void waitForPwrRelease() {
     }
 }
 
-static void processPowerOff() {
+/** Blocking SoftOff LED ack while still held (≥2 s). Queued patterns would stall during shutdown. */
+static void blinkSoftOffArmedLed() {
+    ledPlayPresetBlocking(LedPreset::SoftOff);
+}
+
+/**
+ * Soft-off after long-press release. Returns false if blocked (e.g. OTA).
+ * On success does not return (deep sleep / power cut).
+ */
+static bool processPowerOff() {
     if (otaBlocksDestructiveAction()) {
-        ESP_LOGW(TAG, "PWR soft-off ignored: OTA in progress");
-        return;
+        static unsigned long s_lastOtaWarnMs = 0;
+        const unsigned long nowMs = millis();
+        if (s_lastOtaWarnMs == 0 || nowMs - s_lastOtaWarnMs >= 5000UL) {
+            ESP_LOGW(TAG, "PWR soft-off ignored: OTA in progress");
+            s_lastOtaWarnMs = nowMs;
+        }
+        return false;
     }
 
-    g_systemShutdownInProgress.store(true, std::memory_order_release);
-    flushHeartCounterIfDirty();
-    flushHeartSentCounterIfDirty();
+    ESP_LOGI(TAG, "PWR long press released: soft-off");
 
-    // A four-color full refresh can take tens of seconds. This task intentionally stops all
-    // button processing while shutdown is committed, so unsubscribe it from the task watchdog.
+    g_systemShutdownInProgress.store(true, std::memory_order_release);
+    flushAllHeartCountersIfDirty();
+
+    // Already released (edge-on-release). EPD may take tens of seconds.
     chayaTaskWatchdogUnsubscribe(TAG);
-    if (!displayDrawPowerOffAndWait(kPowerOffDisplayTimeoutMs)) {
+    if (!displayRequest(DisplayMsg::Cmd::DrawPowerOff, DisplayRequestMode::PowerOffWait,
+                        kPowerOffDisplayTimeoutMs)) {
         ESP_LOGW(TAG, "Power-off screen timed out; continuing shutdown");
     }
 
-    // Deep-sleep wake is level-triggered. Sleeping while PWR is still LOW would wake immediately.
-    ESP_LOGI(TAG, "PWR released after soft-off — waiting for stable release then deep sleep");
+    // Settle before EXT1 in case of bounce / re-press during the EPD refresh.
+    ESP_LOGI(TAG, "PWR soft-off — stable release settle (%lu ms) then deep sleep",
+             kSoftOffReleaseSettleMs);
     waitForPwrRelease();
-    ESP_LOGI(TAG, "PWR released after soft-off — entering deep sleep (mv=%d pct=%d)",
-             batteryMilliVolts(), batteryPercent());
+    ESP_LOGI(TAG, "PWR soft-off — entering deep sleep (mv=%d pct=%d)", batteryMilliVolts(),
+             batteryPercent());
     batteryPowerOffAndSleep();
+    return true;
 }
 
 void pwrPollAndProcess() {
     const int raw             = digitalRead(pins::kPwrButton);
     const unsigned long nowMs = millis();
-    if (raw != pwr.lastRawReading) {
-        pwr.lastRawReading       = raw;
-        pwr.lastDebounceChangeMs = nowMs;
-    }
-    if (nowMs - pwr.lastDebounceChangeMs >= kDebounceStableMs) {
-        pwr.debouncedLevel = pwr.lastRawReading;
-    }
-    const bool pressed = (pwr.debouncedLevel == LOW);
+    debounceUpdate(pwr.debounce, raw, nowMs, kDebounceStableMs);
+    const bool pressed = (pwr.debounce.debouncedLevel == LOW);
     if (!pwr.seenRelease) {
         if (!pressed) {
             pwr.seenRelease = true;
@@ -95,32 +110,31 @@ void pwrPollAndProcess() {
     }
     if (pressed) {
         if (!pwr.heldDown) {
-            pwr.heldDown         = true;
-            pwr.softOffTriggered = false;
-            pwr.pressStartMs     = nowMs;
-        } else if (!pwr.softOffTriggered && (nowMs - pwr.pressStartMs >= kSoftOffHoldMs)) {
-            pwr.softOffTriggered = true;
-            ESP_LOGI(TAG, "PWR long press: soft-off");
-            processPowerOff();
+            pwr.heldDown     = true;
+            pwr.softOffArmed = false;
+            pwr.pressStartMs = nowMs;
+        } else if (!pwr.softOffArmed && (nowMs - pwr.pressStartMs >= kSoftOffHoldMs)) {
+            // Threshold reached — holding longer is fine; shutdown starts on release.
+            pwr.softOffArmed = true;
+            ESP_LOGI(TAG, "PWR soft-off armed (release to shut down)");
+            blinkSoftOffArmedLed();
         }
-    } else {
-        pwr.heldDown         = false;
-        pwr.softOffTriggered = false;
+    } else if (pwr.heldDown) {
+        const bool armed = pwr.softOffArmed;
+        pwr.heldDown     = false;
+        pwr.softOffArmed = false;
+        if (armed) {
+            (void)processPowerOff();
+        }
     }
 }
 
 void buttonPollAndProcess() {
     const int raw             = digitalRead(kButtonGpio);
     const unsigned long nowMs = millis();
-    if (raw != btn.lastRawReading) {
-        btn.lastRawReading       = raw;
-        btn.lastDebounceChangeMs = nowMs;
-    }
-    if (nowMs - btn.lastDebounceChangeMs >= kDebounceStableMs) {
-        btn.debouncedLevel = btn.lastRawReading;
-    }
+    debounceUpdate(btn.debounce, raw, nowMs, kDebounceStableMs);
     // BOOT / Key1 is active-low (pressed = LOW).
-    const bool pressed = (btn.debouncedLevel == LOW);
+    const bool pressed = (btn.debounce.debouncedLevel == LOW);
 
     if (pressed) {
         if (!btn.heldDown) {
@@ -131,16 +145,11 @@ void buttonPollAndProcess() {
         if (btn.heldDown) {
             const unsigned long held = nowMs - btn.pressStartMs;
             if (held >= kShortPressMinMs) {
-                if (!ledTxBusy() && !configIsApMode()) {
-                    if (mqttCfgIsBrokerConfigured()) {
-                        startMqttSendLedSequence();
-                    } else {
-                        ESP_LOGD(TAG, "BTN publish skipped: ap=0 broker=0 ledBusy=0");
-                    }
-                } else {
-                    ESP_LOGD(TAG, "BTN publish skipped: ap=%d broker=%d ledBusy=%d",
-                             configIsApMode() ? 1 : 0, mqttCfgIsBrokerConfigured() ? 1 : 0,
-                             ledTxBusy() ? 1 : 0);
+                const ChayaSendResult sendResult = chayaRequestSend();
+                if (sendResult != ChayaSendResult::Started) {
+                    ESP_LOGD(TAG, "BTN publish skipped: result=%u ap=%d broker=%d",
+                             static_cast<unsigned>(sendResult), configIsApMode() ? 1 : 0,
+                             mqttCfgIsBrokerConfigured() ? 1 : 0);
                 }
             }
             btn.heldDown = false;
@@ -162,7 +171,7 @@ static void buttonTaskFn(void*) {
     static uint32_t s_stackLogCounter = 0;
     for (;;) {
         const unsigned long waitMs =
-            ledActivityActive() ? kButtonTaskPollActiveMs : kButtonTaskPollIdleMs;
+            ledIsActivityActive() ? kButtonTaskPollActiveMs : kButtonTaskPollIdleMs;
         ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(waitMs));
         buttonPollAndProcess();
         pwrPollAndProcess();
@@ -172,18 +181,25 @@ static void buttonTaskFn(void*) {
     }
 }
 
+void buttonNotifyTask() {
+    const TaskHandle_t h = s_buttonTaskHandle.load(std::memory_order_acquire);
+    if (h != nullptr) {
+        xTaskNotifyGive(h);
+    }
+}
+
 void buttonInit() {
     pinMode(kButtonGpio, INPUT_PULLUP);
     pinMode(pins::kPwrButton, INPUT_PULLUP);
-    pinMode(kButtonLedPin, OUTPUT);
-    ledOutput(LOW);  // active-low LED off
-    btn.lastRawReading       = digitalRead(kButtonGpio);
-    btn.debouncedLevel       = btn.lastRawReading;
-    btn.lastDebounceChangeMs = millis();
-    pwr.lastRawReading       = digitalRead(pins::kPwrButton);
-    pwr.debouncedLevel       = pwr.lastRawReading;
-    pwr.lastDebounceChangeMs = millis();
-    pwr.seenRelease          = (pwr.debouncedLevel != LOW);
+    ledInit();
+    const unsigned long nowMs = millis();
+    btn.debounce.lastRawReading       = digitalRead(kButtonGpio);
+    btn.debounce.debouncedLevel       = btn.debounce.lastRawReading;
+    btn.debounce.lastDebounceChangeMs = nowMs;
+    pwr.debounce.lastRawReading       = digitalRead(pins::kPwrButton);
+    pwr.debounce.debouncedLevel       = pwr.debounce.lastRawReading;
+    pwr.debounce.lastDebounceChangeMs = nowMs;
+    pwr.seenRelease                   = (pwr.debounce.debouncedLevel != LOW);
 }
 
 void buttonStartTask() {
@@ -206,18 +222,7 @@ void buttonStartTask() {
 }
 
 void buttonStartupBlink() {
-    if (!configGetLedEnabled()) {
-        ledOutput(LOW);
-        return;
-    }
-    for (int i = 0; i < kButtonStartupBlinkCount; i++) {
-        ledOutput(HIGH);
-        vTaskDelay(pdMS_TO_TICKS(kButtonStartupBlinkMs));
-        ledOutput(LOW);
-        vTaskDelay(pdMS_TO_TICKS(kButtonStartupBlinkMs));
-    }
+    // Blocking before the button task starts (avoids racing ledOutput with the task).
+    ledPlayPresetBlocking(LedPreset::Boot);
 }
 
-void buttonEnableLedGpioHoldForLightSleep() {
-    ledHoldWhenIdle();
-}

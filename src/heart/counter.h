@@ -31,12 +31,12 @@ void heartCounterFillDrawSnapshot(HeartCounterDrawSnapshot* out);
 
 void loadHeartCounter();
 void counterSuspendNvsSavesForFactoryReset();
-bool saveHeartCounter();
-bool saveHeartSentCounter();
-void maybeSaveHeartCounter();
+/** Debounced save for RX + TX (≥30 s). */
+void maybeSaveAllHeartCounters();
+/** Debounced save for TX only (e.g. after successful publish ack). */
 void maybeSaveHeartSentCounter();
-void flushHeartCounterIfDirty();
-void flushHeartSentCounterIfDirty();
+/** Immediate flush of RX + TX if dirty (shutdown / factory / OTA). */
+void flushAllHeartCountersIfDirty();
 
 void maybePeriodicallyResetCounters();
 void maybeResetDisplayBaselinesWhenCapped();

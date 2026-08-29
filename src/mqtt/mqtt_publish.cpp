@@ -9,6 +9,9 @@
 #include "diag/task_watchdog.h"
 #include "display/display.h"
 #include "heart/counter.h"
+#include "led/led.h"
+#include "web/admin_globals.h"
+#include "wifi/wlan.h"
 
 #include <climits>
 #include <cstdio>
@@ -55,7 +58,7 @@ void mqttHandlePublishedAck(int messageId, uint32_t clientGeneration) {
     heartSentCounterApplyAfterSuccessfulPublish();
     maybeSaveHeartSentCounter();
     audioRequest(AudioMsg::Kind::Tx);
-    requestHeartRedraw();
+    (void)displayRequest(DisplayMsg::Cmd::DrawHeart, DisplayRequestMode::Content);
     if (g_chayaPubAckSemaphore != nullptr) {
         xSemaphoreGive(g_chayaPubAckSemaphore);
     }
@@ -178,4 +181,16 @@ void mqttBeginSettingsApply() {
 
 void mqttEndSettingsApply() {
     s_mqttPublishBlocked.store(false, std::memory_order_release);
+}
+
+ChayaSendResult chayaRequestSend() {
+    if (g_systemShutdownInProgress.load(std::memory_order_acquire) || configIsApMode()
+        || !mqttCfgIsBrokerConfigured()) {
+        return ChayaSendResult::Unavailable;
+    }
+    if (mqttPublishBlocked() || ledIsTxSendBusy()) {
+        return ChayaSendResult::Busy;
+    }
+    ledStartChayaSendSequence();
+    return ChayaSendResult::Started;
 }

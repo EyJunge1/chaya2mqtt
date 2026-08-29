@@ -231,8 +231,7 @@ void runInstall() {
     portEXIT_CRITICAL(&s_otaMux);
     ESP_LOGI(TAG, "Installing %s", release.version);
 
-    flushHeartCounterIfDirty();
-    flushHeartSentCounterIfDirty();
+    flushAllHeartCountersIfDirty();
 
     const bool installed = otaFlashVerifiedInstall(release.binUrl, release.sha256Url);
 
@@ -253,8 +252,7 @@ void runInstall() {
     setPhaseLocked(OtaPhase::Rebooting);
     portEXIT_CRITICAL(&s_otaMux);
 
-    flushHeartCounterIfDirty();
-    flushHeartSentCounterIfDirty();
+    flushAllHeartCountersIfDirty();
     delay(200);
     releaseGpioHoldBeforeRestart();
     ESP.restart();

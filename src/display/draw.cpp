@@ -6,7 +6,7 @@
 #include "draw_pure.h"
 #include "heart/counter.h"
 #include "heart/counter_pure.h"
-#include "hw/battery.h"
+#include "battery/battery.h"
 #include "hw/pins.h"
 #include "icons_lucide.h"
 #include "wifi/wifi_qr_pure.h"
@@ -17,6 +17,7 @@
 
 #include <Arduino.h>
 #include <algorithm>
+#include <cstddef>
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
@@ -50,26 +51,57 @@ static void drawLucideIcon(int16_t x, int16_t y, const uint8_t* bitmap, int16_t 
     displayPanel().drawBitmap(x, y, bitmap, w, h, color);
 }
 
+struct BatteryIconRow {
+    DisplayBatteryIcon icon;
+    const uint8_t*     bitmap;
+    int16_t            w;
+    int16_t            h;
+};
+
+static constexpr BatteryIconRow kBatteryIconRows[] = {
+    {DisplayBatteryIcon::Full, kIconBatteryFull, kIconBatteryFullW, kIconBatteryFullH},
+    {DisplayBatteryIcon::Medium, kIconBatteryMedium, kIconBatteryMediumW, kIconBatteryMediumH},
+    {DisplayBatteryIcon::Low, kIconBatteryLow, kIconBatteryLowW, kIconBatteryLowH},
+    {DisplayBatteryIcon::Empty, kIconBatteryEmpty, kIconBatteryEmptyW, kIconBatteryEmptyH},
+};
+
+struct HeartIconRow {
+    DisplayHeartIcon icon;
+    const uint8_t*   bitmap;
+    int16_t          w;
+    int16_t          h;
+};
+
+static constexpr HeartIconRow kHeartIconRows[] = {
+    {DisplayHeartIcon::Filled, kIconHeart, kIconHeartW, kIconHeartH},
+    {DisplayHeartIcon::Crack, kIconHeartCrack, kIconHeartCrackW, kIconHeartCrackH},
+};
+
+template <typename Row, typename Icon, size_t N>
+static const Row* findIconRow(const Row (&table)[N], Icon icon) {
+    for (const Row& row : table) {
+        if (row.icon == icon) {
+            return &row;
+        }
+    }
+    return nullptr;
+}
+
 static uint8_t footerTextSizeForDigitCount(size_t digitLen) {
     return digitLen <= 3 ? 4 : 3;
 }
 
 static void drawBatteryLucide(int16_t x, int16_t y, int pct, uint16_t color) {
-    switch (displayBatteryIcon(pct)) {
-    case DisplayBatteryIcon::Full:
-        drawLucideIcon(x, y, kIconBatteryFull, kIconBatteryFullW, kIconBatteryFullH, color);
-        break;
-    case DisplayBatteryIcon::Medium:
-        drawLucideIcon(x, y, kIconBatteryMedium, kIconBatteryMediumW, kIconBatteryMediumH,
-                       color);
-        break;
-    case DisplayBatteryIcon::Low:
-        drawLucideIcon(x, y, kIconBatteryLow, kIconBatteryLowW, kIconBatteryLowH, color);
-        break;
-    case DisplayBatteryIcon::Empty:
-        drawLucideIcon(x, y, kIconBatteryEmpty, kIconBatteryEmptyW, kIconBatteryEmptyH, color);
-        break;
+    const DisplayBatteryIcon icon = displayBatteryIcon(pct);
+    if (const BatteryIconRow* row = findIconRow(kBatteryIconRows, icon)) {
+        drawLucideIcon(x, y, row->bitmap, row->w, row->h, color);
     }
+}
+
+static bool splashApSetupSnapshot(char* ssid, size_t ssidLen, char* ip, size_t ipLen, char* pass,
+                                  size_t passLen) {
+    return configIsApMode() && wlanApSetupSnapshot(ssid, ssidLen, ip, ipLen)
+           && wlanApSetupPassSnapshot(pass, passLen);
 }
 
 // Same top-right placement as the RX/TX heart counter view.
@@ -176,12 +208,13 @@ HeartCounterDrawSnapshot drawHeartWithNumber(DisplayHeartIcon icon) {
     static constexpr int kArrowLane = kIconMoveDownW + 5;
     static constexpr int16_t kHeartFooterGap = 4;
 
-    const int16_t heartW =
-        icon == DisplayHeartIcon::Crack ? kIconHeartCrackW : kIconHeartW;
-    const int16_t heartH =
-        icon == DisplayHeartIcon::Crack ? kIconHeartCrackH : kIconHeartH;
-    const uint8_t* heartBmp =
-        icon == DisplayHeartIcon::Crack ? kIconHeartCrack : kIconHeart;
+    const HeartIconRow* heartRow = findIconRow(kHeartIconRows, icon);
+    if (heartRow == nullptr) {
+        heartRow = &kHeartIconRows[0];
+    }
+    const int16_t heartW   = heartRow->w;
+    const int16_t heartH   = heartRow->h;
+    const uint8_t* heartBmp = heartRow->bitmap;
     const int16_t heartX = static_cast<int16_t>((dw - heartW) / 2);
     const int16_t heartY =
         showFooter ? static_cast<int16_t>(kFooterTextTop - heartH - kHeartFooterGap)
@@ -265,9 +298,7 @@ DisplayView displaySplashTargetView() {
     char apSsid[kWifiSsidMaxLen]{};
     char apIp[16]{};
     char apPass[kSetupApPassBufLen]{};
-    if (configIsApMode()
-        && wlanApSetupSnapshot(apSsid, sizeof(apSsid), apIp, sizeof(apIp))
-        && wlanApSetupPassSnapshot(apPass, sizeof(apPass))) {
+    if (splashApSetupSnapshot(apSsid, sizeof(apSsid), apIp, sizeof(apIp), apPass, sizeof(apPass))) {
         return DisplayView::SetupQr;
     }
     return DisplayView::ProductTitle;
@@ -281,9 +312,7 @@ DisplayView drawSplashScreen() {
     char apSsid[kWifiSsidMaxLen]{};
     char apIp[16]{};
     char apPass[kSetupApPassBufLen]{};
-    if (configIsApMode()
-        && wlanApSetupSnapshot(apSsid, sizeof(apSsid), apIp, sizeof(apIp))
-        && wlanApSetupPassSnapshot(apPass, sizeof(apPass))) {
+    if (splashApSetupSnapshot(apSsid, sizeof(apSsid), apIp, sizeof(apIp), apPass, sizeof(apPass))) {
         static_cast<void>(apIp);
         if (!wifiQrBuildWpaPayload(apSsid, apPass, s_wifiQrPayload, sizeof(s_wifiQrPayload))) {
             ESP_LOGE(TAG, "AP WIFI QR payload failed");

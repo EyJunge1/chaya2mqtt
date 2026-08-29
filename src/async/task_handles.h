@@ -1,5 +1,7 @@
 #pragma once
 
+#include "async/event_types.h"
+
 #include <freertos/FreeRTOS.h>
 #include <freertos/queue.h>
 #include <freertos/semphr.h>
@@ -22,3 +24,9 @@ extern SemaphoreHandle_t  g_wifiApiMutex;
 
 /** Allocate queues and mutexes; call once from setup. */
 void asyncInfraInit();
+
+/**
+ * Enqueue a network-task command. Returns false if the queue is missing or full.
+ * waitTicks defaults to 0 (non-blocking).
+ */
+bool netCmdTrySend(NetCmd cmd, TickType_t waitTicks = 0);

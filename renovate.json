@@ -40,11 +40,25 @@
   ],
   "packageRules": [
     {
-      "description": "Group PlatformIO library updates",
+      "description": "Group PlatformIO library minor/patch updates",
       "matchDatasources": [
         "custom.platformio-library"
       ],
+      "matchUpdateTypes": [
+        "minor",
+        "patch"
+      ],
       "groupName": "PlatformIO libraries"
+    },
+    {
+      "description": "Group PlatformIO library major updates",
+      "matchDatasources": [
+        "custom.platformio-library"
+      ],
+      "matchUpdateTypes": [
+        "major"
+      ],
+      "groupName": "PlatformIO libraries (major)"
     }
   ]
 }

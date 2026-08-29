@@ -2,6 +2,67 @@
 
 Overview of all source modules under `src/`, with correct paths, responsibilities, and important APIs.
 
+## Theme map (`src/`)
+
+**Folder = theme.** Pick the domain folder first; use ownership below when unsure.
+
+```text
+src/
+  main.cpp                 Bootstrap: init order, start tasks
+  constants.h              Cross-cutting device constants
+
+  identity/                Stable device ID, hostname (NVS cfg/device_id)
+  button/                  BOOT/PWR, debounce, send gesture (calls led/)
+  led/                     Blink/presets, refresh pulse, GPIO LED
+  battery/                 ADC, percent, power-off
+  hw/                      Power-save hold-off (sd_hold) + pin map (pins*)
+
+  display/                 E-Ink, draw, QR, display task
+  audio/                   ES8311 playback, audio task
+
+  wifi/                    STA/AP, captive DNS, scan, recovery, NVS
+  mqtt/                    Client, pub/sub, reconnect, broker config (mqtt/config.*)
+  network/                 One task: wlanLoop + mqttLoop + NetCmd
+  tls/                     Embedded CA bundle (MQTT + OTA)
+  ota/                     Update check, download, flash, health
+
+  heart/                   RX/TX counters, baselines, NVS chaya
+  config/                  App prefs, NVS utils/keys, version (not MQTT broker)
+
+  web/                     Admin site: server, CSRF, middleware, SPA, assets
+    routes/                HTTP routes (JSON /api/*, captive, SPA)
+    events.*               SSE /events
+
+  async/                   FreeRTOS queues, mutexes, event types, app task
+  diag/                    Watchdog, stack monitor
+  util/                    Log macro, time, IP, small helpers
+```
+
+### Ownership
+
+| Put it in | When |
+|-----------|------|
+| Domain folder | Domain state + persistence; NVS writes via `app_nvs` + keys in `config/nvs_keys.h` |
+| `config/` | NVS infra (`nvs_utils`, `nvs_keys`) + app prefs (`cfg`) — not MQTT/WiFi/heart payloads |
+| `web/` | HTTP adapter only (calls domain APIs) |
+| `async/` | FreeRTOS queues/handles (not HTTP) |
+| `button/` / `led/` / `battery/` | Input / light / power |
+| `hw/` | Disable peripherals (hold-off) + board pin map |
+| `util/` | Helpers with no domain |
+
+### NVS model
+
+One infra, many domain writers:
+
+| Layer | Where | Role |
+|-------|--------|------|
+| NVS infra | `config/nvs_utils.h`, `config/nvs_keys.h` | Mutex/helpers + all namespace/key names |
+| Domain writers | `mqtt/config.cpp`, `wifi/wlan_nvs.cpp`, `heart/counter_nvs.cpp`, `config/app_config.cpp`, `identity/`, … | Domain logic; only `app_nvs::…(kNvsNs…, kNvsKey…)` |
+
+Namespaces stay separate (`wifi` / `mqtt` / `cfg` / `chaya`). Do not fold MQTT/WiFi/heart persistence into `app_config`.
+
+**Notes:** Pins live in `hw/` (shared board map). `button/` and `led/` are separate folders; other packages may call `led/`. `mqtt/config.*` is broker config only; `config/` is app prefs + NVS infra.
+
 ---
 
 ## `main.cpp`
@@ -21,7 +82,7 @@ Overview of all source modules under `src/`, with correct paths, responsibilitie
 10. `mqttSetup()`
 11. `buttonStartupBlink()` (before the button task!)
 12. `audioStartTask()`, `buttonStartTask()`, `networkTaskStart()`, `otaTaskStart()`, `appTaskStart()`
-13. `buttonEnableLedGpioHoldForLightSleep()`
+13. `ledEnableGpioHoldForLightSleep()`
 
 **`loop()`:** `vTaskDelete(nullptr)`—terminates immediately.
 
@@ -57,7 +118,21 @@ Global queues and mutexes. `asyncInfraInit()` creates:
 - `g_audioCmdQueue` (4 × `AudioMsg`)
 - 6 mutexes and the button-completion binary semaphore (see [ARCHITECTURE.md](ARCHITECTURE.md))
 
+`netCmdTrySend(NetCmd, waitTicks=0)` is the single enqueue helper for the network-task command queue (Wi‑Fi events, MQTT kill, factory reset, MQTT settings apply).
+
 The TLS bundle and MQTT configuration modules own additional internal mutexes.
+
+### Preset APIs (domain entry points)
+
+Prefer a small enum + one function over parallel wrappers that do “the same thing a bit differently”:
+
+| Domain | Preset / cmd | Entry |
+|--------|--------------|--------|
+| LED | `LedPreset` (Boot, WifiUp, MqttUp, LinkDown, SoftOff) | `ledPlayPreset` / Blocking |
+| Display | `DisplayMsg::Cmd` + `DisplayRequestMode` | `displayRequest(cmd, mode, waitMs)` |
+| Audio | `AudioMsg::Kind` (Tx, Rx) | `audioRequest(kind)` |
+| Chaya send | — | `chayaRequestSend()` (button + web; same LED TX sequence) |
+| NetCmd | `NetCmd` | `netCmdTrySend(cmd)` |
 
 ### `async/app_task.cpp`
 
@@ -66,7 +141,7 @@ App task (4096 stack, priority 4, core 1), loop every 500 ms:
 - `webAdminLoop()`—deferred web work, SSE
 - `maybePeriodicallyResetCounters()`—STA mode only
 - `maybeResetDisplayBaselinesWhenCapped()`—STA mode only
-- `maybeSaveHeartCounter()` / `maybeSaveHeartSentCounter()`
+- `maybeSaveAllHeartCounters()`
 - Battery ADC sample (~every 30 s)
 - Periodic heap logging (free/min/largest)
 
@@ -99,10 +174,11 @@ App task (4096 stack, priority 4, core 1), loop every 500 ms:
 | `heartCounterStoreFromRemote(int)` | Set received value (thread-safe) |
 | `heartSentCounterApplyAfterSuccessfulPublish()` | Increment TX counter |
 | `heartCounterFillDrawSnapshot(...)` | Atomic snapshot for the display |
-| `loadHeartCounter()` / `saveHeartCounter()` | Read/write NVS `chaya` |
+| `loadHeartCounter()` | Read NVS `chaya` |
 | `persistCounterBaselineState()` | Write packed `baseBlob` (baselines + reset day) |
-| `maybeSaveHeartCounter()` | Debounced save (≥30 s) |
-| `flushHeartCounterIfDirty()` | Save immediately if changed |
+| `maybeSaveAllHeartCounters()` | Debounced save for RX + TX (≥30 s) |
+| `maybeSaveHeartSentCounter()` | Debounced save for TX only (publish ack) |
+| `flushAllHeartCountersIfDirty()` | Flush RX + TX if dirty |
 | `maybePeriodicallyResetCounters()` | Periodic baseline roll (UTC days) |
 | `maybeResetDisplayBaselinesWhenCapped()` | Baseline roll when display reaches ≥999 |
 | `counterResetRamAfterFactoryClear()` | Reset RAM after factory reset |
@@ -111,9 +187,9 @@ NVS debouncing: saves only every **≥30 s** (`kHeartCounterSaveMinIntervalMs`).
 
 ---
 
-## `device_identity` – stable device and network identity
+## `identity/` – stable device and network identity
 
-**Files:** `device_identity.h`, `device_identity.cpp`, `device_identity_pure.h`
+**Files:** `identity/device_identity.h`, `identity/device_identity.cpp`, `identity/device_identity_pure.h`
 
 `buildDeviceId()` loads or creates the six-character ID in NVS `cfg/device_id` (random via
 `esp_fill_random`; one-time STA-MAC seed when upgrading a device that already has WiFi/MQTT
@@ -159,6 +235,7 @@ ESP-IDF `esp_mqtt_client` over `mqtts://` with a TLS bundle (`tls/`).
 | `mqttSetup()` | Reset client and backoff |
 | `mqttLoop()` | Reconnect logic, prechecks, client initialization |
 | `mqttDisconnect()` | Stop and destroy client |
+| `chayaRequestSend()` | Single send entry (button + web): guards + LED TX sequence → publish |
 | `mqttPublishChayaAndApplySentCounters()` | Publish retained QoS 1; return after matching PUBACK or 5 s timeout |
 | `mqttIsConnected()` | Connection status |
 | `mqttPublishBlocked()` | True while applying settings |
@@ -170,11 +247,12 @@ Event handler (`MQTT_EVENT_DATA`): parse payload → `heartCounterStoreFromRemot
 
 ## `wifi/wlan` – WiFi & captive portal
 
-**Files:** `wifi/wlan.h`, `wifi/wlan_config.h`, `wifi/wlan_internal.h`, `wifi/wlan.cpp`, `wifi/wlan_boot.cpp`, `wifi/wlan_events.cpp`, `wifi/wlan_nvs.cpp`, `wifi/wlan_scan.cpp`
+**Files:** `wifi/wlan.h`, `wifi/wlan_config.h`, `wifi/wlan_internal.h`, `wifi/wlan.cpp`, `wifi/wlan_reset.cpp`, `wifi/wlan_boot.cpp`, `wifi/wlan_events.cpp`, `wifi/wlan_nvs.cpp`, `wifi/wlan_scan.cpp`
 
 | File | Responsibility |
 |------|----------------|
-| `wlan.cpp` | Global state, `wlanLoop()`, factory reset, SoftAP snapshot, API lock |
+| `wlan.cpp` | Global state, `wlanLoop()`, SoftAP snapshot, API lock, STA snapshots |
+| `wlan_reset.cpp` | Factory reset, controlled restart, forced STA reassociation |
 | `wlan_boot.cpp` | `setupWiFi()`, STA/AP fallback (WPA2/WPA3 setup AP), mDNS/NTP |
 | `wlan_events.cpp` | STA events, reconnect backoff |
 | `wlan_recovery.cpp` / `wlan_recovery.h` | Stage 2 recovery (forced reassociation / restart with OTA guard) |
@@ -222,7 +300,7 @@ Network task (7168 stack, priority 5, core 1):
 
 ## `display/` – E-Ink
 
-**Files:** `display/display.h`, `display/display_config.h`, `display/display.cpp`, `display/draw.cpp`, `display/internal.h`, `display/qr/qrcodegen.{c,h}`
+**Files:** `display/display.h`, `display/display_config.h`, `display/display.cpp`, `display/display_hw.cpp`, `display/display_task.cpp`, `display/display_task_internal.h`, `display/draw.cpp`, `display/internal.h`, `display/qr/qrcodegen.{c,h}`
 
 ### Display task
 
@@ -236,11 +314,10 @@ counters after the active display command. Splash and power-off commands keep pr
 | `displayStartTask()` | FreeRTOS task (8192 stack, priority 3) |
 | `drawHeartWithNumber(icon)` | Lucide heart / heart-crack + RX/TX deltas + arrows + battery |
 | `drawSplashScreen()` | SoftAP: red title + bottom-aligned WIFI QR for phone camera join |
-| `requestHeartRedraw()` | Redraw heart (blocking, 100 ms queue timeout) |
-| `requestHeartRedrawNonBlocking()` | Redraw heart (0 ms timeout, for MQTT callback) |
-| `requestDeferredDrawSplashScreen()` | Queue SoftAP WIFI QR splash |
-| `requestDeferredDrawHeartScreen()` | Heart after setup |
-| `displayDrawPowerOffAndWait()` | Block normal redraws; queue and await the red shutdown title |
+| `displayRequest(cmd, mode, waitMs)` | Single entry: Content / BootIfChanged / PowerOffWait |
+| `displayWaitDrawIdle()` | Wait until the display task finishes the next draw |
+
+`DisplayRequestMode::Content` — heart content redraw (`waitMs` 100 default, `0` non-blocking). `BootIfChanged` — splash or heart after setup (skip if NVS view matches). `PowerOffWait` — shutdown screen and wait for that refresh.
 
 Geometry details: [DISPLAY.md](DISPLAY.md)
 
@@ -256,17 +333,17 @@ Geometry details: [DISPLAY.md](DISPLAY.md)
 
 ---
 
-## `hw/battery` – ADC + controlled power-off
+## `battery/` – ADC + controlled power-off
 
-**Files:** `hw/battery.h`, `hw/battery.cpp`, `hw/battery_pure.h`, `hw/battery_config.h`
+**Files:** `battery/battery.h`, `battery/battery.cpp`, `battery/battery_pure.h`, `battery/battery_config.h`
 
 GPIO4 ADC, `VBAT = VADC × 2`, averaged in the app task about every 30 s. Always treated as a LiPo. `batteryPowerOffAndSleep()` arms active-low PWR wake, drives `kBatControl` LOW, and enters deep sleep if USB still powers the ESP32. ETA6098 charge termination/recharge is autonomous and is not controlled from firmware.
 
-## `hw/sd_hold` – microSD hold-off
+## `hw/` – power-save hold-off + pin map
 
-**Files:** `hw/sd_hold.h`, `hw/sd_hold.cpp`
+**Files:** `hw/sd_hold.h`, `hw/sd_hold.cpp`, `hw/pins.h`, `hw/pins_esp32_waveshare.h`
 
-`sdHoldOff()` at boot drives SD CLK/DAT0/CMD (GPIO 39/40/41) OUTPUT LOW. No SDIO/FAT driver is started.
+`sdHoldOff()` at boot drives SD CLK/DAT0/CMD (GPIO 39/40/41) OUTPUT LOW. No SDIO/FAT driver is started. Pin map is shared board GPIO definitions for hold-offs and other hardware themes.
 
 ## `audio/` – ES8311 playback
 
@@ -276,35 +353,55 @@ Dedicated task + `g_audioCmdQueue`. Capture/mic path is disabled at boot. Playba
 Queue overflow sets separate TX/RX pending flags; each kind is replayed at most once per drain
 cycle, so bursts do not grow an unbounded audio backlog.
 
-## `hw/button` – BOOT, PWR latch, optional LED
+## `button/` – BOOT, PWR latch
 
-**Files:** `hw/button.h`, `hw/button_config.h`, `hw/button_internal.h`, `hw/button_input.cpp`, `hw/button_led.cpp`, `hw/pins.h`
+**Files:** `button/button.h`, `button/button_config.h`, `button/button_internal.h`, `button/button_debounce_pure.h`, `button/button_input.cpp`
 
 | File | Responsibility |
 |------|----------------|
-| `button_input.cpp` | BOOT GPIO/ISR and debounce; PWR long-press waits for shutdown draw, release, then powers off |
-| `button_led.cpp` | TX LED sequence + refresh pulse (`ledRefreshPulseBegin/End`) |
+| `button_input.cpp` | BOOT GPIO/ISR and debounce; PWR arms soft-off after ≥2 s (LED ack via `led/`), runs shutdown on release |
 
 | Constant | Value | Meaning |
 |----------|-------|---------|
 | Heart button | GPIO 0 (BOOT) | After boot; do not hold during flash |
 | `BAT_Control` | GPIO 17 | Drive HIGH at boot on battery |
 | `BAT_KEY` / PWR | GPIO 18 | Battery power button |
-| Optional LED | GPIO 3 | Header / user LED if present |
 | `kShortPressMinMs` | 50 | Minimum short-press duration |
 
 Button task (4096 stack, priority 8, core 1):
 - Debounce (~20 ms)
-- BOOT press → MQTT send (optional LED blink → publish → blink)
+- BOOT press → `chayaRequestSend()` (same path as web send)
+- Advances LED state machine each poll (`advanceLedSequence`)
 - No physical factory-reset gesture; reset remains available through the web admin
 
 | Function | Description |
 |----------|-------------|
-| `buttonInit()` | Initialize GPIO |
+| `buttonInit()` | Initialize GPIO (+ `ledInit()`) |
 | `buttonStartTask()` | Start FreeRTOS task |
-| `buttonStartupBlink()` | Blink 3× for 200 ms (blocking, setup only) |
-| `buttonIsLedTxSequenceActive()` | TX sequence or refresh pulse running? |
+| `buttonStartupBlink()` | Boot preset 3× 200/200 ms (blocking, setup only) |
+| `buttonNotifyTask()` | Wake button task (used by `led/`) |
+
+## `led/` – header user LED
+
+**Files:** `led/led.h`, `led/led.cpp`, `led/led_config.h`, `led/led_internal.h`, `led/led_pattern_pure.h`
+
+Optional green header LED (GPIO 3, active-low); charge LED is separate (red, hardware-only).
+
+LED priority: MQTT TX sequence > finite pattern > E-Ink/RX refresh pulse > idle.
+
+| Function | Description |
+|----------|-------------|
+| `ledInit()` | Configure GPIO |
+| `ledApplyEnabled()` | Force off when user disabled LED in settings |
+| `ledEnableGpioHoldForLightSleep()` | Hold LED level for light sleep |
+| `ledIsActivityActive()` | TX sequence, pattern, or refresh pulse running? |
+| `ledIsTxSendBusy()` | MQTT TX send sequence running (blocks a second send) |
+| `ledStartChayaSendSequence()` | Arm TX sequence (prefer `chayaRequestSend()`) |
 | `ledRefreshPulseBegin/End` | Pulse GPIO3 during E-Ink refresh / RX ack |
+| `ledPlayPattern` / `ledPlayPreset` | Queue finite blink or Boot/WifiUp/MqttUp/LinkDown/SoftOff |
+| `ledPlayPatternBlocking` / `ledPlayPresetBlocking` | Blocking blink (boot / soft-off ack; same timings as queued) |
+
+Presets: Boot (startup), WifiUp (STA ready / reconnect), MqttUp (broker connected), LinkDown (heart → crack), SoftOff (PWR armed).
 
 ---
 
@@ -313,14 +410,15 @@ Button task (4096 stack, priority 8, core 1):
 | File | Purpose |
 |------|---------|
 | `admin.h` / `admin.cpp` | Server singleton, route registration, `webAdminLoop()` |
-| `admin_globals.h` / `admin_globals.cpp` | Shared atomics/flags |
+| `admin_globals.h` / `admin_globals.cpp` | Shared atomics/flags; `adminApplyOptional*` form helpers |
 | `admin_json.h` | JSON helper for small responses |
 | `deferred_reboot.h` / `deferred_reboot.cpp` | Reboot after saving WiFi |
 | `web_utils.h` / `web_utils.cpp` | Redirects, security headers |
 | `web_middleware.h` / `web_middleware.cpp` | Host/CSRF middleware for API routes |
 | `csrf.h` / `csrf.cpp` | Generate and validate CSRF tokens |
-| `web_events.h` / `web_events.cpp` | SSE `/events` |
-| `routes/admin_routes_api.cpp` | JSON API `/api/*` for the Svelte SPA |
+| `events.h` / `events.cpp` | SSE `/events` |
+| `routes/admin_routes_api.cpp` | Register entry + shared `sendOk`/`sendErr` |
+| `routes/admin_routes_api_*.cpp` | Thematic JSON API `/api/*` (device, chaya, wifi, mqtt, settings, system, ota) |
 | `routes/admin_routes_captive.cpp` | Captive-portal probes, redirects, and setup entry points |
 | `routes/admin_routes_spa.cpp` | Generic SPA blob lookup + SPA fallback |
 | `spa_asset_lookup.h` | Path/MIME/cache helpers (natively testable) |
@@ -397,7 +495,8 @@ Thread-safe `Preferences` wrapper with `g_nvsMutex`:
 | `mqtt/mqtt_timing.h` | MQTT backoff, lock timeouts |
 | `wifi/wlan_config.h` | WiFi limits, connection tuning, scan/reconnect intervals |
 | `display/display_config.h` | Display limits (`kDisplayCounterMax`) |
-| `hw/button_config.h` | Button/LED timing |
+| `led/led_config.h` | LED timing |
+| `button/button_config.h` | Button debounce / soft-off timing |
 | `config/version.h` | `APP_VERSION` (release workflow sets it from the Git tag) |
 | `util/log_tag.h` | `DEFINE_LOG_TAG` macro |
 | `util/ip_format.h` | IP address formatting |

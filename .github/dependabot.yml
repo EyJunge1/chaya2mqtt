@@ -24,6 +24,11 @@ updates:
         update-types:
           - minor
           - patch
+      github-actions-major:
+        patterns:
+          - "*"
+        update-types:
+          - major
 
   - package-ecosystem: npm
     directory: /frontend
@@ -42,6 +47,11 @@ updates:
         update-types:
           - minor
           - patch
+      frontend-major:
+        patterns:
+          - "*"
+        update-types:
+          - major
 
   - package-ecosystem: npm
     directory: /flasher
@@ -60,3 +70,8 @@ updates:
         update-types:
           - minor
           - patch
+      flasher-major:
+        patterns:
+          - "*"
+        update-types:
+          - major

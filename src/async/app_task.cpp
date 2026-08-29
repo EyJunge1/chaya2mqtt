@@ -6,8 +6,9 @@
 #include "display/display.h"
 #include "display/display_config.h"
 #include "display/display_link_pure.h"
-#include "hw/battery.h"
-#include "hw/battery_config.h"
+#include "battery/battery.h"
+#include "battery/battery_config.h"
+#include "led/led.h"
 #include "mqtt/mqtt.h"
 #include "web/admin.h"
 #include "ota/ota.h"
@@ -57,7 +58,10 @@ static void appTaskPollDisplayLinkStatus() {
     }
     s_lastIcon = icon;
     displaySetDesiredHeartIcon(icon);
-    requestHeartRedraw();
+    (void)displayRequest(DisplayMsg::Cmd::DrawHeart, DisplayRequestMode::Content);
+    if (icon == DisplayHeartIcon::Crack) {
+        ledPlayPreset(LedPreset::LinkDown);
+    }
     ESP_LOGI(TAG, "display heart icon -> %s",
              icon == DisplayHeartIcon::Crack ? "crack" : "filled");
 }
@@ -81,8 +85,7 @@ static void appTaskFn(void*) {
             maybePeriodicallyResetCounters();
             maybeResetDisplayBaselinesWhenCapped();
         }
-        maybeSaveHeartCounter();
-        maybeSaveHeartSentCounter();
+        maybeSaveAllHeartCounters();
 
         appTaskPollDisplayLinkStatus();
 
@@ -90,8 +93,11 @@ static void appTaskFn(void*) {
         if (s_batterySkip >= (kBatteryPollMs / 500UL)) {
             s_batterySkip = 0U;
             batteryPoll();
-            // Heart redraw decide skips when battery icon level is unchanged.
-            requestHeartRedraw();
+            // SoftAP keeps the WIFI QR / title splash — never overlay the heart there.
+            if (!configIsApMode()) {
+                // Heart redraw decide skips when battery icon level is unchanged.
+                (void)displayRequest(DisplayMsg::Cmd::DrawHeart, DisplayRequestMode::Content);
+            }
         }
 
         ++s_heapLogCounter;

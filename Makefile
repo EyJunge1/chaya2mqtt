@@ -4,6 +4,8 @@ ENV ?= esp32s3
 PIO ?= $(HOME)/.platformio/penv/bin/pio
 FRONTEND_NPM_CI ?= npm ci
 FLASHER_NPM_CI ?= npm ci
+# Optional: make upload UPLOAD_PORT=/dev/cu.usbmodem101
+UPLOAD_PORT_FLAG := $(if $(UPLOAD_PORT),--upload-port $(UPLOAD_PORT),)
 
 .PHONY: help check check-frontend check-flasher check-firmware check-firmware-tests check-firmware-build upload upload-erase monitor dev clean flasher
 
@@ -18,6 +20,7 @@ help:
 	@echo "  make dev      # start the web interface locally"
 	@echo "  make flasher  # build local web-flasher site (needs RELEASES_DIR)"
 	@echo "  make clean    # remove build artifacts"
+	@echo "  UPLOAD_PORT=/dev/cu.usbmodem101  # pin erase/upload/monitor to a port"
 
 check: check-frontend check-flasher check-firmware
 
@@ -52,14 +55,14 @@ flasher:
 	python3 scripts/generate_flasher_site.py --releases-dir "$(RELEASES_DIR)"
 
 upload:
-	"$(PIO)" run -e $(ENV) -t upload
+	"$(PIO)" run -e $(ENV) -t upload $(UPLOAD_PORT_FLAG)
 
 upload-erase:
-	"$(PIO)" run -e $(ENV) -t erase
-	"$(PIO)" run -e $(ENV) -t upload
+	"$(PIO)" run -e $(ENV) -t erase $(UPLOAD_PORT_FLAG)
+	"$(PIO)" run -e $(ENV) -t upload $(UPLOAD_PORT_FLAG)
 
 monitor:
-	"$(PIO)" run -e $(ENV) -t monitor
+	"$(PIO)" run -e $(ENV) -t monitor $(UPLOAD_PORT_FLAG)
 
 dev:
 	cd frontend && npm run dev

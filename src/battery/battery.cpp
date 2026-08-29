@@ -2,7 +2,7 @@
 
 #include "battery_config.h"
 #include "battery_pure.h"
-#include "pins.h"
+#include "hw/pins.h"
 
 #include <Arduino.h>
 #include <atomic>

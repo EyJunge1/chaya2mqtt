@@ -13,8 +13,9 @@
 #include "audio/audio.h"
 #include "config/app_config.h"
 #include "config/version.h"
-#include "hw/battery.h"
-#include "hw/button.h"
+#include "battery/battery.h"
+#include "button/button.h"
+#include "led/led.h"
 #include "hw/sd_hold.h"
 #include "heart/counter.h"
 #include "display/display.h"
@@ -84,7 +85,7 @@ void setup() {
     const bool haveSta = wlanLoadConfigFromNvs(&bootWlan) && bootWlan.ssid[0] != '\0';
     if (!haveSta) {
         if (wlanArmSetupApMode()) {
-            requestDeferredDrawSplashScreen();
+            (void)displayRequest(DisplayMsg::Cmd::DrawSplash, DisplayRequestMode::BootIfChanged);
             if (!displayWaitDrawIdle(90000U)) {
                 ESP_LOGW(TAG, "E-Ink splash wait timed out");
             }
@@ -106,7 +107,7 @@ void setup() {
 
     ESP_LOGI(TAG, "Setup complete");
 
-    buttonEnableLedGpioHoldForLightSleep();
+    ledEnableGpioHoldForLightSleep();
 }
 
 void loop() {

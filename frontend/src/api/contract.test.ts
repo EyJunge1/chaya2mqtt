@@ -1,4 +1,4 @@
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import { API_GET_PATHS, API_POST_PATHS, SSE_EVENT_TYPES, SPA_UI_PATHS } from "./contract";
@@ -21,6 +21,16 @@ function read(rel: string): string {
   return readFileSync(resolve(root, rel), "utf8");
 }
 
+/** Concatenate split firmware API route sources (admin_routes_api*.cpp). */
+function readFirmwareApiRoutes(): string {
+  const dir = resolve(root, "src/web/routes");
+  return readdirSync(dir)
+    .filter((name) => name.startsWith("admin_routes_api") && name.endsWith(".cpp"))
+    .sort()
+    .map((name) => readFileSync(resolve(dir, name), "utf8"))
+    .join("\n");
+}
+
 describe("api contract", () => {
   it("exposes expected client methods", () => {
     expect(typeof api.getDevice).toBe("function");
@@ -39,14 +49,14 @@ describe("api contract", () => {
   });
 
   it("keeps firmware API routes aligned", () => {
-    const apiCpp = read("src/web/routes/admin_routes_api.cpp");
+    const apiCpp = readFirmwareApiRoutes();
     for (const path of [...API_GET_PATHS, ...API_POST_PATHS]) {
       expect(apiCpp).toContain(`"${path}"`);
     }
   });
 
   it("keeps the device-specific STA hostname aligned", () => {
-    const firmware = read("src/web/routes/admin_routes_api.cpp");
+    const firmware = readFirmwareApiRoutes();
     const mock = read("frontend/mock/deviceState.ts");
     const openapi = read("docs/openapi.yaml");
     expect(firmware).toContain("formatDeviceStaHostname");
@@ -72,7 +82,7 @@ describe("api contract", () => {
   });
 
   it("keeps Wi-Fi continuation URLs aligned", () => {
-    const firmware = read("src/web/routes/admin_routes_api.cpp");
+    const firmware = readFirmwareApiRoutes();
     const mock = read("frontend/mock/mockPlugin.ts");
     const openapi = read("docs/openapi.yaml");
     expect(firmware).toContain('\\"next\\"');
@@ -84,7 +94,7 @@ describe("api contract", () => {
     const client = read("frontend/src/api/client.ts");
     const mock = read("frontend/mock/mockPlugin.ts");
     const openapi = read("docs/openapi.yaml");
-    const firmware = read("src/web/routes/admin_routes_api.cpp");
+    const firmware = readFirmwareApiRoutes();
     for (const field of ["mqtt_server", "mqtt_port", "mqtt_user", "mqtt_pass", "partner_id"]) {
       expect(client).toContain(field);
       expect(mock).toContain(field);

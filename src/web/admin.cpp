@@ -11,11 +11,11 @@
 #include "async/task_handles.h"
 #include "config/app_config.h"
 #include "heart/counter.h"
-#include "hw/button.h"
+#include "led/led.h"
 #include "ota/ota.h"
 #include "wifi/wlan.h"
 #include "csrf.h"
-#include "web_events.h"
+#include "events.h"
 
 #include <ESPAsyncWebServer.h>
 #include <climits>
@@ -100,14 +100,13 @@ void webAdminLoop() {
                         && configSetAudioTones(txHzApply, txMsApply, rxHzApply, rxMsApply);
         g_webAdminSettingsNvsWriteFailed.store(!ok, std::memory_order_release);
         if (ok) {
-            buttonApplyLedEnabled();
+            ledApplyEnabled();
         }
     }
 
     if (g_webAdminMqttApplyVersion.load(std::memory_order_acquire) > s_webAdminMqttApplyQueuedVersion
         && !g_systemShutdownInProgress.load(std::memory_order_acquire)) {
-        NetCmd cmd = NetCmd::MqttSettingsChanged;
-        if (xQueueSend(g_netCmdQueue, &cmd, pdMS_TO_TICKS(500)) == pdTRUE) {
+        if (netCmdTrySend(NetCmd::MqttSettingsChanged, pdMS_TO_TICKS(500))) {
             s_webAdminMqttApplyQueuedVersion =
                 g_webAdminMqttApplyVersion.load(std::memory_order_acquire);
         } else {
@@ -129,8 +128,7 @@ void webAdminLoop() {
                  wifiReconnectReq ? 1 : 0);
         g_webAdminRebootRequested.store(false, std::memory_order_release);
         g_webAdminWifiReconnectRequested.store(false, std::memory_order_release);
-        flushHeartCounterIfDirty();
-        flushHeartSentCounterIfDirty();
+        flushAllHeartCountersIfDirty();
         delay(200);
         releaseGpioHoldBeforeRestart();
         ESP.restart();
