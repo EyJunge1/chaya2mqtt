@@ -120,6 +120,23 @@ bool displayPostHeartRedraw(TickType_t waitTicks) {
     return true;
 }
 
+bool displayPostHeartBootIfChanged(TickType_t waitTicks) {
+    if (s_powerOffPending.load(std::memory_order_acquire)) {
+        return false;
+    }
+    // Share the Content coalesce flag so a concurrent Content post only sets pending
+    // instead of queuing a second full-window heart refresh.
+    if (s_heartDrawQueued.exchange(true, std::memory_order_acq_rel)) {
+        return true;
+    }
+    if (!displayPostMsg(DisplayMsg::Cmd::DrawHeart, kDrawOnlyIfViewChanged, waitTicks)) {
+        s_heartDrawQueued.store(false, std::memory_order_release);
+        return false;
+    }
+    s_lastHeartRedrawEnqueueMs.store(millis(), std::memory_order_relaxed);
+    return true;
+}
+
 static TickType_t displayHeartPendingWaitTicks() {
     constexpr unsigned long kIdlePollMs = 1000UL;
     const unsigned long waitMs = displayHeartRedrawWaitMs(

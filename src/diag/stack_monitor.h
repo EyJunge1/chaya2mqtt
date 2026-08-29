@@ -13,7 +13,7 @@ inline void logTaskStackHighWaterPeriodic(const char* tag, uint32_t& counter, ui
     }
 #if defined(CORE_DEBUG_LEVEL) && CORE_DEBUG_LEVEL > 0
     const UBaseType_t h = uxTaskGetStackHighWaterMark(nullptr);
-    ESP_LOGI(tag, "task stack high-water: %u words", static_cast<unsigned>(h));
+    ESP_LOGI(tag, "task stack high-water: %u bytes", static_cast<unsigned>(h));
 #else
     static_cast<void>(tag);
 #endif

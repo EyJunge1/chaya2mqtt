@@ -39,8 +39,7 @@ bool displayRequest(DisplayMsg::Cmd cmd, DisplayRequestMode mode, uint32_t waitM
                 return true;
             }
             displayTaskDrainDrawIdleSem();
-            return displayPostMsg(DisplayMsg::Cmd::DrawHeart, kDrawOnlyIfViewChanged,
-                                 pdMS_TO_TICKS(waitMs));
+            return displayPostHeartBootIfChanged(pdMS_TO_TICKS(waitMs));
         }
         if (cmd == DisplayMsg::Cmd::DrawSplash) {
             displayTaskDrainDrawIdleSem();
