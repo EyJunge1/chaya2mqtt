@@ -156,7 +156,12 @@
               onclick={() => void copyDeviceId()}
             >
               {#if copied}
-                <Check size={14} strokeWidth={2.25} class="pointer-events-none" aria-hidden="true" />
+                <Check
+                  size={14}
+                  strokeWidth={2.25}
+                  class="pointer-events-none"
+                  aria-hidden="true"
+                />
               {:else}
                 <Copy size={14} strokeWidth={2.25} class="pointer-events-none" aria-hidden="true" />
               {/if}
