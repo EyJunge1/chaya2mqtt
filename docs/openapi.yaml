@@ -390,16 +390,22 @@ paths:
                         enum: [0, 1],
                         description: Header user LED activity (0 = off),
                       }
-                    audio_muted: { type: integer, enum: [0, 1], description: Mute heart-click audio }
-                    audio_volume: { type: integer, minimum: 0, maximum: 100 }
-                    quiet_hour_start: { type: integer, minimum: 0, maximum: 23 }
-                    quiet_hour_end: { type: integer, minimum: 0, maximum: 23 }
-                    audio_custom:
+                    audio_tx_enabled:
                       {
                         type: integer,
                         enum: [0, 1],
-                        description: Use custom TX/RX Hz/ms; otherwise built-in tone,
+                        description: Enable click when a heart is sent (default off),
                       }
+                    audio_rx_enabled:
+                      {
+                        type: integer,
+                        enum: [0, 1],
+                        description: Enable click when a heart is received (default off),
+                      }
+                    audio_tx_volume: { type: integer, minimum: 0, maximum: 100, description: TX click volume }
+                    audio_rx_volume: { type: integer, minimum: 0, maximum: 100, description: RX click volume }
+                    quiet_hour_start: { type: integer, minimum: 0, maximum: 23 }
+                    quiet_hour_end: { type: integer, minimum: 0, maximum: 23 }
                     tx_hz: { type: integer, minimum: 40, maximum: 2000, description: Send click frequency Hz }
                     tx_ms: { type: integer, minimum: 20, maximum: 500, description: Send click duration ms }
                     rx_hz: { type: integer, minimum: 40, maximum: 2000, description: Receive click frequency Hz }
@@ -671,11 +677,12 @@ components:
           lang,
           theme,
           ledEnabled,
-          audioMuted,
-          audioVolume,
+          audioTxEnabled,
+          audioRxEnabled,
+          audioTxVolume,
+          audioRxVolume,
           quietHourStart,
           quietHourEnd,
-          audioCustom,
           txHz,
           txMs,
           rxHz,
@@ -688,25 +695,31 @@ components:
         ledEnabled:
           type: boolean
           description: Header user LED activity (false = dark except factory reset)
-        audioMuted:
+        audioTxEnabled:
           type: boolean
-          description: Mute TX/RX click
-        audioVolume:
+          description: Click when a heart is sent (default false)
+        audioRxEnabled:
+          type: boolean
+          description: Click when a heart is received (default false)
+        audioTxVolume:
           type: integer
           minimum: 0
           maximum: 100
+          description: TX click volume (default 70)
+        audioRxVolume:
+          type: integer
+          minimum: 0
+          maximum: 100
+          description: RX click volume (default 70)
         quietHourStart:
           type: integer
           minimum: 0
           maximum: 23
-          description: Quiet hours start (local, after NTP). Equal to quietHourEnd = off
+          description: Quiet hours start (local, after NTP). Equal to quietHourEnd = off (default both 0)
         quietHourEnd:
           type: integer
           minimum: 0
           maximum: 23
-        audioCustom:
-          type: boolean
-          description: When true, play configured TX/RX Hz/ms; otherwise built-in tone
         txHz:
           type: integer
           minimum: 40

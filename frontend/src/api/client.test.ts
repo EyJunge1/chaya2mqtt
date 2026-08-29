@@ -213,10 +213,12 @@ describe("api client", () => {
     await expect(
       api.saveSettings({
         reset_days: 7,
-        audio_muted: 0,
-        audio_volume: 70,
-        quiet_hour_start: 23,
-        quiet_hour_end: 8,
+        audio_tx_enabled: 0,
+        audio_rx_enabled: 0,
+        audio_tx_volume: 70,
+        audio_rx_volume: 70,
+        quiet_hour_start: 0,
+        quiet_hour_end: 0,
       }),
     ).resolves.toEqual({
       ok: true,
@@ -226,7 +228,7 @@ describe("api client", () => {
       "/api/settings",
       expect.objectContaining({
         method: "POST",
-        body: "csrf_token=abc123&reset_days=7&audio_muted=0&audio_volume=70&quiet_hour_start=23&quiet_hour_end=8",
+        body: "csrf_token=abc123&reset_days=7&audio_tx_enabled=0&audio_rx_enabled=0&audio_tx_volume=70&audio_rx_volume=70&quiet_hour_start=0&quiet_hour_end=0",
       }),
     );
     await expect(api.saveSettings({ led_enabled: 0 })).resolves.toEqual({

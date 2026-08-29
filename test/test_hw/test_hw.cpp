@@ -32,11 +32,11 @@ void test_audio_quiet_hours() {
 }
 
 void test_audio_playback_gates() {
-    TEST_ASSERT_FALSE(audioPlaybackAllowed(true, 70, false, 12, 23, 8));
-    TEST_ASSERT_FALSE(audioPlaybackAllowed(false, 0, false, 12, 23, 8));
-    TEST_ASSERT_TRUE(audioPlaybackAllowed(false, 70, false, 2, 23, 8));
-    TEST_ASSERT_FALSE(audioPlaybackAllowed(false, 70, true, 2, 23, 8));
-    TEST_ASSERT_TRUE(audioPlaybackAllowed(false, 70, true, 12, 23, 8));
+    TEST_ASSERT_FALSE(audioPlaybackAllowed(false, 70, false, 12, 23, 8));
+    TEST_ASSERT_FALSE(audioPlaybackAllowed(true, 0, false, 12, 23, 8));
+    TEST_ASSERT_TRUE(audioPlaybackAllowed(true, 70, false, 2, 23, 8));
+    TEST_ASSERT_FALSE(audioPlaybackAllowed(true, 70, true, 2, 23, 8));
+    TEST_ASSERT_TRUE(audioPlaybackAllowed(true, 70, true, 12, 23, 8));
 }
 
 void test_display_battery_colors() {

@@ -92,7 +92,7 @@ Onboard **ES8311** (low-power codec): mic in, speaker out. Waveshare ships an on
 | PA_EN | 42 | Audio power enable (**LOW** = on; Waveshare `Audio_PWR_PIN`) |
 | PA_CTRL | 46 | Amplifier enable (**HIGH** while playing) |
 
-Chaya plays a short synthetic click on heart send/receive (mute, volume, and quiet hours in settings). The microphone / capture path is disabled at boot and never used.
+Chaya plays a short synthetic click on heart send/receive when TX and/or RX sound is enabled (volume and quiet hours in settings; both kinds off by default). The microphone / capture path is disabled at boot and never used.
 
 ## TF / microSD
 

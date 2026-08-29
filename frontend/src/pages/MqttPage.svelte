@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { Radio, RadioOff } from "@lucide/svelte";
+  import { Check, Copy, Radio, RadioOff } from "@lucide/svelte";
   import { untrack } from "svelte";
   import { api } from "../api/client.ts";
   import type { MqttConfigView, MqttStatus } from "../api/types.ts";
@@ -15,7 +15,8 @@
   import TextInput from "../components/TextInput.svelte";
   import type { ShowToast } from "../components/toastStack.ts";
   import { i18n } from "../i18n/i18n.svelte.ts";
-  import { dash } from "../ui/styles.ts";
+  import { cn } from "../ui/cn.ts";
+  import { dash, HOVER_SURFACE } from "../ui/styles.ts";
 
   let {
     mqtt,
@@ -34,6 +35,8 @@
   let partner = $state("");
   let busy = $state(false);
   let loadError = $state(false);
+  let copied = $state(false);
+  let copiedReset: ReturnType<typeof setTimeout> | undefined;
 
   async function load() {
     loadError = false;
@@ -96,9 +99,25 @@
     await persist("");
   }
 
+  async function copyDeviceId() {
+    const id = cfg?.deviceId?.trim();
+    if (!id) return;
+    try {
+      await navigator.clipboard.writeText(id);
+      copied = true;
+      clearTimeout(copiedReset);
+      copiedReset = setTimeout(() => {
+        copied = false;
+      }, 1500);
+    } catch {
+      onToast(i18n.t("toast.device-id-copy-failed"), "error");
+    }
+  }
+
   const brokerConfigured = $derived(Boolean(cfg?.server.trim()));
   const paired = $derived(Boolean(cfg?.partnerId));
   const MqttIcon = $derived(brokerConfigured ? Radio : RadioOff);
+  const hasDeviceId = $derived(Boolean(cfg?.deviceId?.trim()));
 </script>
 
 {#if loadError}
@@ -123,12 +142,38 @@
           detailBad={i18n.t(brokerConfigured ? "status.mqtt-bad" : "status.mqtt-unconfigured")}
         />
       {/snippet}
+      {#snippet deviceIdValue()}
+        <span class="inline-flex items-center gap-1.5 tracking-widest">
+          {dash(cfg.deviceId)}
+          {#if hasDeviceId}
+            <button
+              type="button"
+              aria-label={i18n.t("mqtt.copy-device-id")}
+              class={cn(
+                "inline-flex size-7 shrink-0 items-center justify-center rounded-full text-muted transition focus-ring",
+                HOVER_SURFACE,
+              )}
+              onclick={() => void copyDeviceId()}
+            >
+              {#if copied}
+                <Check
+                  size={14}
+                  strokeWidth={2.25}
+                  class="pointer-events-none"
+                  aria-hidden="true"
+                />
+              {:else}
+                <Copy size={14} strokeWidth={2.25} class="pointer-events-none" aria-hidden="true" />
+              {/if}
+            </button>
+          {/if}
+        </span>
+      {/snippet}
       <KeyValueGrid
         items={[
           {
             label: i18n.t("mqtt.device-id"),
-            value: dash(cfg.deviceId),
-            valueClass: "tracking-widest",
+            value: deviceIdValue,
           },
           { label: i18n.t("mqtt.partner-id"), value: dash(cfg.partnerId) },
           {

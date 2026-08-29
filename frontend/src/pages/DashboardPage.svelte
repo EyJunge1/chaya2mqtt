@@ -37,6 +37,10 @@
   } = $props();
 
   let busy = $state(false);
+  let sendCooldownTimer: ReturnType<typeof setTimeout> | undefined;
+
+  /** Matches device LED TX single-flight (~1–2s + PUBACK). */
+  const kHeartSendCooldownMs = 2000;
 
   const WifiIcon = $derived(wifiSignalIcon(wifi));
   const MqttIcon = $derived(chaya.configured ? Radio : RadioOff);
@@ -61,20 +65,42 @@
   });
 
   async function sendHeart() {
+    if (busy) {
+      return;
+    }
     busy = true;
     try {
       const res = await api.sendChaya();
       if (!res.ok) {
-        onToast(i18n.t("toast.heart-offline"), "error");
-      } else {
-        onToast(i18n.t("toast.heart-sent"), "success");
+        if (res.error === "busy") {
+          onToast(i18n.t("toast.heart-busy"), "error");
+        } else if (res.error === "unavailable") {
+          onToast(i18n.t("toast.heart-offline"), "error");
+        } else {
+          onToast(i18n.t("toast.heart-failed"), "error");
+        }
+        return;
       }
+      onToast(i18n.t("toast.heart-sent"), "success");
+      // Keep the button disabled while the device finishes the TX sequence.
+      await new Promise<void>((resolve) => {
+        sendCooldownTimer = setTimeout(resolve, kHeartSendCooldownMs);
+      });
     } catch {
       onToast(i18n.t("toast.heart-failed"), "error");
     } finally {
+      sendCooldownTimer = undefined;
       busy = false;
     }
   }
+
+  $effect(() => {
+    return () => {
+      if (sendCooldownTimer !== undefined) {
+        clearTimeout(sendCooldownTimer);
+      }
+    };
+  });
 </script>
 
 {#if device.mode === "ap"}

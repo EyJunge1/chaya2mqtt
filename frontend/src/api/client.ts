@@ -150,11 +150,12 @@ export const api = {
     lang?: string;
     theme?: string;
     led_enabled?: boolean | number;
-    audio_muted?: boolean | number;
-    audio_volume?: number;
+    audio_tx_enabled?: boolean | number;
+    audio_rx_enabled?: boolean | number;
+    audio_tx_volume?: number;
+    audio_rx_volume?: number;
     quiet_hour_start?: number;
     quiet_hour_end?: number;
-    audio_custom?: boolean | number;
     tx_hz?: number;
     tx_ms?: number;
     rx_hz?: number;

@@ -76,7 +76,7 @@ Mutations expect `application/x-www-form-urlencoded`, including `csrf_token`.
 | `/api/wifi/connect-abort` | POST | AP + CSRF | Abort test |
 | `/api/mqtt` | GET/POST | Host/CSRF + STA | Broker + partner ID (topics derived; password never included in GET) |
 | `/api/mqtt/status` | GET | Host + STA | `{connected}` |
-| `/api/settings` | GET/POST | Host/CSRF + STA | Reset days, UI preferences, mute/volume/quiet hours, optional custom tone Hz/ms |
+| `/api/settings` | GET/POST | Host/CSRF + STA | Reset days, UI preferences, TX/RX sound enable, per-kind volume/Hz/ms, quiet hours |
 | `/api/reboot` | POST | CSRF + STA | Reboot (deferred) |
 | `/api/factory-reset` | POST | CSRF + STA | Delete all NVS data and restart in AP setup mode |
 | `/api/update/status` | GET | Host + STA | OTA status (phase, channel, versions, progress) |

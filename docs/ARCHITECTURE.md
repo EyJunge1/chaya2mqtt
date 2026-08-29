@@ -170,7 +170,7 @@ sequenceDiagram
 9. **WiFi:** STA with stored credentials or `Chaya2MQTT` SoftAP + captive DNS
 10. **MQTT:** Configure client (do not connect yet)
 11. **Start tasks:** Audio, button, network, OTA, app
-12. **Operational drawing:** After STA `GOT_IP` (broker configured → heart; otherwise splash) or when SoftAP setup finishes
+12. **Operational drawing:** After STA `GOT_IP` (broker configured → heart; otherwise splash/waiting title) or when SoftAP setup finishes. Content heart redraws are no-ops until a broker is configured. Applying MQTT settings queues `DrawHeart` with `BootIfChanged` so the waiting title switches to the operational heart immediately.
 13. **OTA verification (deferred):** In the app task, only after 30 s of stable runtime since WiFi boot settlement (`ota_health.h` → `otaTryMarkValidAfterHealthCheck()`; no immediate marking in `setup()`)
 
 ## NetCmd – network command queue
@@ -179,7 +179,7 @@ The `NetCmd` enum (`async/event_types.h`) serializes network-related actions:
 
 | Command | Trigger | Effect |
 |---------|---------|--------|
-| `MqttSettingsChanged` | Web POST `/api/mqtt` | Kill client, pending → active, save NVS, `mqttSetup`, delay connection by 3 s |
+| `MqttSettingsChanged` | Web POST `/api/mqtt` | Kill client, pending → active, save NVS, `mqttSetup`, delay connection by 3 s, queue heart via `BootIfChanged` |
 | `MqttKillClient` | Internal | `mqttDisconnect()` |
 | `WifiGotIp` | `WiFi.onEvent` (`GOT_IP`) | Finish STA boot, apply power/NTP/mDNS, and queue the operational screen in the network task |
 | `WifiReconnect` | `WiFi.onEvent` (disconnect / LOST_IP) | Soft reconnect, then forced reassociation (`disconnect+begin`) with backoff after the threshold |

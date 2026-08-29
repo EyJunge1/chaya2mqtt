@@ -2,6 +2,7 @@
 #include "display_task_internal.h"
 #include "internal.h"
 
+#include "mqtt/config.h"
 #include "util/log_tag.h"
 #include "wifi/wlan.h"
 
@@ -26,7 +27,8 @@ bool displayRequest(DisplayMsg::Cmd cmd, DisplayRequestMode mode, uint32_t waitM
             ESP_LOGW(TAG, "displayRequest Content only supports DrawHeart");
             return false;
         }
-        if (configIsApMode()) {
+        // SoftAP QR and waiting title (no broker yet): never overlay heart content.
+        if (configIsApMode() || !mqttCfgIsBrokerConfigured()) {
             return true;
         }
         return displayPostHeartRedraw(pdMS_TO_TICKS(waitMs));

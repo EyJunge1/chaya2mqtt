@@ -42,6 +42,7 @@ enum class DisplayRequestMode : uint8_t {
 /**
  * Single entry for display commands. Returns false when the command could not be queued
  * or (PowerOffWait) the refresh timed out. Content/Boot on SoftAP: Heart is a no-op (true).
+ * Content Heart is also a no-op until an MQTT broker is configured (waiting title).
  */
 bool displayRequest(DisplayMsg::Cmd cmd, DisplayRequestMode mode, uint32_t waitMs = 100U);
 

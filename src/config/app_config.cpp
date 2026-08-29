@@ -26,11 +26,12 @@ static char s_uiLangCached[3] = "en";
 static char s_uiThemeCached[6] = "light";
 static std::atomic<bool> s_ledEnabledCached{true};
 static std::atomic<DisplayView> s_displayViewCached{DisplayView::Unknown};
-static std::atomic<bool> s_audioMutedCached{false};
-static std::atomic<uint8_t> s_audioVolumeCached{kAudioDefaultVolume};
+static std::atomic<bool> s_audioTxEnabledCached{false};
+static std::atomic<bool> s_audioRxEnabledCached{false};
+static std::atomic<uint8_t> s_audioTxVolumeCached{kAudioDefaultVolume};
+static std::atomic<uint8_t> s_audioRxVolumeCached{kAudioDefaultVolume};
 static std::atomic<uint8_t> s_audioQuiet0Cached{kAudioDefaultQuiet0};
 static std::atomic<uint8_t> s_audioQuiet1Cached{kAudioDefaultQuiet1};
-static std::atomic<bool> s_audioCustomCached{false};
 static std::atomic<uint16_t> s_audioTxHzCached{kAudioDefaultTxHz};
 static std::atomic<uint16_t> s_audioTxMsCached{kAudioDefaultTxMs};
 static std::atomic<uint16_t> s_audioRxHzCached{kAudioDefaultRxHz};
@@ -209,11 +210,8 @@ bool configInvalidateDisplayView() {
 }
 
 void configLoadAudioFromNvs() {
-    const uint8_t mute   = app_nvs::readUChar(kNvsNsCfg, kNvsKeyCfgSndMute, 0);
-    uint8_t vol          = app_nvs::readUChar(kNvsNsCfg, kNvsKeyCfgSndVol, kAudioDefaultVolume);
-    uint8_t q0           = app_nvs::readUChar(kNvsNsCfg, kNvsKeyCfgSndQ0, kAudioDefaultQuiet0);
-    uint8_t q1           = app_nvs::readUChar(kNvsNsCfg, kNvsKeyCfgSndQ1, kAudioDefaultQuiet1);
-    const uint8_t custom = app_nvs::readUChar(kNvsNsCfg, kNvsKeyCfgSndCustom, 0);
+    uint8_t q0 = app_nvs::readUChar(kNvsNsCfg, kNvsKeyCfgSndQ0, kAudioDefaultQuiet0);
+    uint8_t q1 = app_nvs::readUChar(kNvsNsCfg, kNvsKeyCfgSndQ1, kAudioDefaultQuiet1);
     const uint16_t txHz =
         clampAudioToneHz(app_nvs::readUInt(kNvsNsCfg, kNvsKeyCfgSndTxHz, kAudioDefaultTxHz),
                          kAudioDefaultTxHz);
@@ -226,45 +224,108 @@ void configLoadAudioFromNvs() {
     const uint16_t rxMs =
         clampAudioToneMs(app_nvs::readUInt(kNvsNsCfg, kNvsKeyCfgSndRxMs, kAudioDefaultRxMs),
                          kAudioDefaultRxMs);
-    if (vol > kAudioVolumeMax) {
-        vol = kAudioDefaultVolume;
+
+    bool txEn = false;
+    bool rxEn = false;
+    const bool hasTxEn = app_nvs::hasKey(kNvsNsCfg, kNvsKeyCfgSndTxEn);
+    const bool hasRxEn = app_nvs::hasKey(kNvsNsCfg, kNvsKeyCfgSndRxEn);
+    if (hasTxEn || hasRxEn) {
+        txEn = hasTxEn && app_nvs::readUChar(kNvsNsCfg, kNvsKeyCfgSndTxEn, 0) != 0U;
+        rxEn = hasRxEn && app_nvs::readUChar(kNvsNsCfg, kNvsKeyCfgSndRxEn, 0) != 0U;
+    } else if (app_nvs::hasKey(kNvsNsCfg, kNvsKeyCfgSndMute)) {
+        // One-time migration from legacy global mute: unmuted → both kinds on.
+        const bool unmuted = app_nvs::readUChar(kNvsNsCfg, kNvsKeyCfgSndMute, 0) == 0U;
+        txEn               = unmuted;
+        rxEn               = unmuted;
+        if (!app_nvs::writeUChar(kNvsNsCfg, kNvsKeyCfgSndTxEn, txEn ? 1U : 0U)
+            || !app_nvs::writeUChar(kNvsNsCfg, kNvsKeyCfgSndRxEn, rxEn ? 1U : 0U)) {
+            ESP_LOGE(TAG, "NVS cfg: failed to migrate snd_mute → snd_tx_en/snd_rx_en");
+        }
     }
+
+    uint8_t txVol = kAudioDefaultVolume;
+    uint8_t rxVol = kAudioDefaultVolume;
+    const bool hasTxVol = app_nvs::hasKey(kNvsNsCfg, kNvsKeyCfgSndTxVol);
+    const bool hasRxVol = app_nvs::hasKey(kNvsNsCfg, kNvsKeyCfgSndRxVol);
+    if (hasTxVol || hasRxVol) {
+        txVol = hasTxVol ? app_nvs::readUChar(kNvsNsCfg, kNvsKeyCfgSndTxVol, kAudioDefaultVolume)
+                         : kAudioDefaultVolume;
+        rxVol = hasRxVol ? app_nvs::readUChar(kNvsNsCfg, kNvsKeyCfgSndRxVol, kAudioDefaultVolume)
+                         : kAudioDefaultVolume;
+    } else if (app_nvs::hasKey(kNvsNsCfg, kNvsKeyCfgSndVol)) {
+        const uint8_t legacy = app_nvs::readUChar(kNvsNsCfg, kNvsKeyCfgSndVol, kAudioDefaultVolume);
+        txVol                = legacy;
+        rxVol                = legacy;
+        if (!app_nvs::writeUChar(kNvsNsCfg, kNvsKeyCfgSndTxVol, txVol)
+            || !app_nvs::writeUChar(kNvsNsCfg, kNvsKeyCfgSndRxVol, rxVol)) {
+            ESP_LOGE(TAG, "NVS cfg: failed to migrate snd_vol → snd_tx_vol/snd_rx_vol");
+        }
+    }
+    if (txVol > kAudioVolumeMax) {
+        txVol = kAudioDefaultVolume;
+    }
+    if (rxVol > kAudioVolumeMax) {
+        rxVol = kAudioDefaultVolume;
+    }
+
     if (q0 > kAudioHourMax) {
         q0 = kAudioDefaultQuiet0;
     }
     if (q1 > kAudioHourMax) {
         q1 = kAudioDefaultQuiet1;
     }
-    s_audioMutedCached.store(mute != 0U, std::memory_order_relaxed);
-    s_audioVolumeCached.store(vol, std::memory_order_relaxed);
+    s_audioTxEnabledCached.store(txEn, std::memory_order_relaxed);
+    s_audioRxEnabledCached.store(rxEn, std::memory_order_relaxed);
+    s_audioTxVolumeCached.store(txVol, std::memory_order_relaxed);
+    s_audioRxVolumeCached.store(rxVol, std::memory_order_relaxed);
     s_audioQuiet0Cached.store(q0, std::memory_order_relaxed);
     s_audioQuiet1Cached.store(q1, std::memory_order_relaxed);
-    s_audioCustomCached.store(custom != 0U, std::memory_order_relaxed);
     s_audioTxHzCached.store(txHz, std::memory_order_relaxed);
     s_audioTxMsCached.store(txMs, std::memory_order_relaxed);
     s_audioRxHzCached.store(rxHz, std::memory_order_relaxed);
     s_audioRxMsCached.store(rxMs, std::memory_order_relaxed);
 }
 
-bool configGetAudioMuted() {
-    return s_audioMutedCached.load(std::memory_order_relaxed);
+bool configGetAudioTxEnabled() {
+    return s_audioTxEnabledCached.load(std::memory_order_relaxed);
 }
 
-bool configSetAudioMuted(bool muted) {
-    return setCachedBoolAsUChar(s_audioMutedCached, muted, kNvsKeyCfgSndMute,
-                                "NVS cfg: failed to persist snd_mute");
+bool configSetAudioTxEnabled(bool enabled) {
+    return setCachedBoolAsUChar(s_audioTxEnabledCached, enabled, kNvsKeyCfgSndTxEn,
+                                "NVS cfg: failed to persist snd_tx_en");
 }
 
-uint8_t configGetAudioVolume() {
-    return s_audioVolumeCached.load(std::memory_order_relaxed);
+bool configGetAudioRxEnabled() {
+    return s_audioRxEnabledCached.load(std::memory_order_relaxed);
 }
 
-bool configSetAudioVolume(uint8_t volume) {
+bool configSetAudioRxEnabled(bool enabled) {
+    return setCachedBoolAsUChar(s_audioRxEnabledCached, enabled, kNvsKeyCfgSndRxEn,
+                                "NVS cfg: failed to persist snd_rx_en");
+}
+
+uint8_t configGetAudioTxVolume() {
+    return s_audioTxVolumeCached.load(std::memory_order_relaxed);
+}
+
+bool configSetAudioTxVolume(uint8_t volume) {
     if (volume > kAudioVolumeMax) {
         volume = kAudioVolumeMax;
     }
-    return setCachedUChar(s_audioVolumeCached, volume, kNvsKeyCfgSndVol,
-                          "NVS cfg: failed to persist snd_vol");
+    return setCachedUChar(s_audioTxVolumeCached, volume, kNvsKeyCfgSndTxVol,
+                          "NVS cfg: failed to persist snd_tx_vol");
+}
+
+uint8_t configGetAudioRxVolume() {
+    return s_audioRxVolumeCached.load(std::memory_order_relaxed);
+}
+
+bool configSetAudioRxVolume(uint8_t volume) {
+    if (volume > kAudioVolumeMax) {
+        volume = kAudioVolumeMax;
+    }
+    return setCachedUChar(s_audioRxVolumeCached, volume, kNvsKeyCfgSndRxVol,
+                          "NVS cfg: failed to persist snd_rx_vol");
 }
 
 uint8_t configGetAudioQuietStart() {
@@ -293,15 +354,6 @@ bool configSetAudioQuietHours(uint8_t startHour, uint8_t endHour) {
     s_audioQuiet0Cached.store(startHour, std::memory_order_relaxed);
     s_audioQuiet1Cached.store(endHour, std::memory_order_relaxed);
     return true;
-}
-
-bool configGetAudioCustom() {
-    return s_audioCustomCached.load(std::memory_order_relaxed);
-}
-
-bool configSetAudioCustom(bool enabled) {
-    return setCachedBoolAsUChar(s_audioCustomCached, enabled, kNvsKeyCfgSndCustom,
-                                "NVS cfg: failed to persist snd_custom");
 }
 
 uint16_t configGetAudioTxHz() {
@@ -347,11 +399,12 @@ void app_configResetRamAfterFactoryClear() {
     s_resetPeriodDaysCached.store(7, std::memory_order_relaxed);
     s_ledEnabledCached.store(true, std::memory_order_relaxed);
     s_displayViewCached.store(DisplayView::Unknown, std::memory_order_relaxed);
-    s_audioMutedCached.store(false, std::memory_order_relaxed);
-    s_audioVolumeCached.store(kAudioDefaultVolume, std::memory_order_relaxed);
+    s_audioTxEnabledCached.store(false, std::memory_order_relaxed);
+    s_audioRxEnabledCached.store(false, std::memory_order_relaxed);
+    s_audioTxVolumeCached.store(kAudioDefaultVolume, std::memory_order_relaxed);
+    s_audioRxVolumeCached.store(kAudioDefaultVolume, std::memory_order_relaxed);
     s_audioQuiet0Cached.store(kAudioDefaultQuiet0, std::memory_order_relaxed);
     s_audioQuiet1Cached.store(kAudioDefaultQuiet1, std::memory_order_relaxed);
-    s_audioCustomCached.store(false, std::memory_order_relaxed);
     s_audioTxHzCached.store(kAudioDefaultTxHz, std::memory_order_relaxed);
     s_audioTxMsCached.store(kAudioDefaultTxMs, std::memory_order_relaxed);
     s_audioRxHzCached.store(kAudioDefaultRxHz, std::memory_order_relaxed);

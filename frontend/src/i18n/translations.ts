@@ -60,6 +60,7 @@ export const translations = {
     "toast.heart-sent": "Heart sent",
     "toast.heart-failed": "Send failed",
     "toast.heart-offline": "Send failed (MQTT offline?)",
+    "toast.heart-busy": "Heart still sending — please wait",
     "wifi.status": "Status",
     "wifi.networks": "Networks",
     "wifi.scan": "Scan",
@@ -124,6 +125,7 @@ export const translations = {
     "mqtt.topic-pub": "Publish topic",
     "mqtt.topic-sub": "Subscribe topic",
     "mqtt.device-id": "Device ID",
+    "mqtt.copy-device-id": "Copy device ID",
     "mqtt.partner-id": "Partner ID",
     "mqtt.partner-hint":
       "Needed only for pairing: 6 hex characters from the other device, e.g. f5e6d7. Leave empty to unpair.",
@@ -134,6 +136,7 @@ export const translations = {
     "toast.mqtt-load-failed": "Failed to load MQTT config",
     "toast.mqtt-saved": "Saved. MQTT is reconnecting.",
     "toast.partner-invalid": "Invalid partner ID",
+    "toast.device-id-copy-failed": "Could not copy device ID",
     "settings.general": "General",
     "settings.reset-days": "Reset period",
     "settings.reset-hint": "0 = off, 1–30 days",
@@ -148,8 +151,10 @@ export const translations = {
     "settings.led-enabled-hint":
       "The LED at the bottom of the device. Off keeps it dark except during factory reset.",
     "settings.sound": "Sound",
-    "settings.audio-mute": "Mute",
-    "settings.audio-mute-hint": "No click on send or receive",
+    "settings.audio-tx": "Sound on send",
+    "settings.audio-tx-hint": "Click when a heart is sent",
+    "settings.audio-rx": "Sound on receive",
+    "settings.audio-rx-hint": "Click when a heart is received",
     "settings.audio-volume": "Volume",
     "settings.audio-volume-hint": "0–100",
     "settings.quiet": "Quiet hours",
@@ -157,9 +162,6 @@ export const translations = {
     "settings.quiet-end": "Until",
     "settings.quiet-hint":
       "Local time after NTP as HH:00 (0–23). Sound stays on until the clock is synced.",
-    "settings.sound-custom-enable": "Custom tone",
-    "settings.sound-custom-hint":
-      "Off = built-in click. On = set frequency and duration for send/receive.",
     "settings.tone-tx-hz": "Send frequency",
     "settings.tone-tx-ms": "Send duration",
     "settings.tone-rx-hz": "Receive frequency",
@@ -286,6 +288,7 @@ export const translations = {
     "toast.heart-sent": "Herz gesendet",
     "toast.heart-failed": "Senden fehlgeschlagen",
     "toast.heart-offline": "Senden fehlgeschlagen (MQTT offline?)",
+    "toast.heart-busy": "Herz wird noch gesendet – bitte warten",
     "wifi.status": "Status",
     "wifi.networks": "Netzwerke",
     "wifi.scan": "Suchen",
@@ -350,6 +353,7 @@ export const translations = {
     "mqtt.topic-pub": "Sende-Topic",
     "mqtt.topic-sub": "Empfangs-Topic",
     "mqtt.device-id": "Geräte-ID",
+    "mqtt.copy-device-id": "Geräte-ID kopieren",
     "mqtt.partner-id": "Partner-ID",
     "mqtt.partner-hint":
       "Nur fürs Pairing nötig: 6 Hex-Zeichen vom anderen Gerät, z. B. f5e6d7. Leer lassen zum Entkoppeln.",
@@ -360,6 +364,7 @@ export const translations = {
     "toast.mqtt-load-failed": "MQTT-Konfiguration laden fehlgeschlagen",
     "toast.mqtt-saved": "Gespeichert. MQTT verbindet neu.",
     "toast.partner-invalid": "Partner-ID ungültig",
+    "toast.device-id-copy-failed": "Geräte-ID konnte nicht kopiert werden",
     "settings.general": "Allgemein",
     "settings.reset-days": "Reset-Zeitraum",
     "settings.reset-hint": "0 = aus, 1–30 Tage",
@@ -374,8 +379,10 @@ export const translations = {
     "settings.led-enabled-hint":
       "Die LED unten am Gerät. Aus lässt sie dunkel, außer beim Werksreset.",
     "settings.sound": "Ton",
-    "settings.audio-mute": "Stumm",
-    "settings.audio-mute-hint": "Kein Klick bei Senden oder Empfang",
+    "settings.audio-tx": "Ton beim Senden",
+    "settings.audio-tx-hint": "Klick, wenn ein Herz gesendet wird",
+    "settings.audio-rx": "Ton beim Empfang",
+    "settings.audio-rx-hint": "Klick, wenn ein Herz empfangen wird",
     "settings.audio-volume": "Lautstärke",
     "settings.audio-volume-hint": "0–100",
     "settings.quiet": "Ruhezeiten",
@@ -383,9 +390,6 @@ export const translations = {
     "settings.quiet-end": "Bis",
     "settings.quiet-hint":
       "Lokale Zeit nach NTP als Std:00 (0–23). Ohne Zeitsync bleibt der Ton an.",
-    "settings.sound-custom-enable": "Eigener Ton",
-    "settings.sound-custom-hint":
-      "Aus = eingebauter Klick. An = Frequenz und Dauer für Senden/Empfang einstellen.",
     "settings.tone-tx-hz": "Sende-Frequenz",
     "settings.tone-tx-ms": "Sende-Dauer",
     "settings.tone-rx-hz": "Empfangs-Frequenz",
