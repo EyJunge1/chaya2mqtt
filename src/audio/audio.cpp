@@ -199,12 +199,6 @@ void writeSilence(i2s_chan_handle_t tx, uint32_t durationMs) {
     }
 }
 
-void playBuiltinKind(i2s_chan_handle_t tx, AudioMsg::Kind /*kind*/, float amp) {
-    // Amp/DAC need a short silent buffer after power-up or the first samples are lost.
-    writeSilence(tx, 80);
-    writeTone(tx, 120, 880.0f, 0.95f * amp);
-}
-
 void playConfiguredKind(i2s_chan_handle_t tx, AudioMsg::Kind kind, float amp) {
     writeSilence(tx, 80);
     if (kind == AudioMsg::Kind::Tx) {
@@ -214,7 +208,7 @@ void playConfiguredKind(i2s_chan_handle_t tx, AudioMsg::Kind kind, float amp) {
     }
 }
 
-bool playbackAllowedNow() {
+bool playbackAllowedNow(AudioMsg::Kind kind) {
     uint8_t hour = 0;
     const bool synced = wlanNtpSynced();
     if (synced) {
@@ -224,8 +218,12 @@ bool playbackAllowedNow() {
             hour = static_cast<uint8_t>(t.tm_hour);
         }
     }
-    return audioPlaybackAllowed(configGetAudioMuted(), configGetAudioVolume(), synced, hour,
-                                configGetAudioQuietStart(), configGetAudioQuietEnd());
+    const bool kindEnabled =
+        kind == AudioMsg::Kind::Tx ? configGetAudioTxEnabled() : configGetAudioRxEnabled();
+    const uint8_t volume =
+        kind == AudioMsg::Kind::Tx ? configGetAudioTxVolume() : configGetAudioRxVolume();
+    return audioPlaybackAllowed(kindEnabled, volume, synced, hour, configGetAudioQuietStart(),
+                                configGetAudioQuietEnd());
 }
 
 void playKind(AudioMsg::Kind kind) {
@@ -233,13 +231,14 @@ void playKind(AudioMsg::Kind kind) {
         ESP_LOGD(TAG, "skip %s — codec absent", kind == AudioMsg::Kind::Tx ? "Tx" : "Rx");
         return;
     }
-    if (!playbackAllowedNow()) {
-        ESP_LOGI(TAG, "skip %s — muted/vol0/quiet hours",
+    if (!playbackAllowedNow(kind)) {
+        ESP_LOGI(TAG, "skip %s — disabled/vol0/quiet hours",
                  kind == AudioMsg::Kind::Tx ? "Tx" : "Rx");
         return;
     }
     ESP_LOGI(TAG, "play %s", kind == AudioMsg::Kind::Tx ? "Tx" : "Rx");
-    const uint8_t vol = configGetAudioVolume();
+    const uint8_t vol =
+        kind == AudioMsg::Kind::Tx ? configGetAudioTxVolume() : configGetAudioRxVolume();
     // Waveshare: PA_EN LOW + PA_CTRL HIGH before codec/I2S use.
     paAudioPowerAndAmpOn();
     delay(40);
@@ -257,11 +256,7 @@ void playKind(AudioMsg::Kind kind) {
     }
     delay(30);
     const float amp = static_cast<float>(vol) / 100.0f;
-    if (configGetAudioCustom()) {
-        playConfiguredKind(tx, kind, amp);
-    } else {
-        playBuiltinKind(tx, kind, amp);
-    }
+    playConfiguredKind(tx, kind, amp);
     es8311MuteAndSleep();
     delay(4);
     paAudioPowerOff();

@@ -349,7 +349,7 @@ GPIO4 ADC, `VBAT = VADC × 2`, averaged in the app task about every 30 s. Alwa
 
 **Files:** `audio/audio.h`, `audio/audio.cpp`, `audio/audio_pure.h`, `audio/audio_config.h`
 
-Dedicated task + `g_audioCmdQueue`. Capture/mic path is disabled at boot. Playback on TX/RX heart events (mute, volume, quiet hours). Built-in sine clicks by default; optional custom Hz/ms via NVS (`snd_custom`, `snd_tx_hz`/`snd_tx_ms`, `snd_rx_hz`/`snd_rx_ms`).
+Dedicated task + `g_audioCmdQueue`. Capture/mic path is disabled at boot. Playback on TX/RX heart events (per-kind enable, volume, quiet hours; default both kinds off). Sine clicks use NVS `snd_tx_hz`/`snd_tx_ms`/`snd_tx_vol` and `snd_rx_hz`/`snd_rx_ms`/`snd_rx_vol` (defaults 880 Hz/80 ms/70 and 660 Hz/140 ms/70).
 Queue overflow sets separate TX/RX pending flags; each kind is replayed at most once per drain
 cycle, so bursts do not grow an unbounded audio backlog.
 
@@ -458,7 +458,7 @@ Details: [OTA.md](OTA.md)
 | `configSetResetPeriodDays(uint8_t)` | NVS `cfg/rstPeriod` |
 | `configLoadUiPrefsFromNvs()` / language / theme | NVS `cfg/ui_lang`, `cfg/ui_theme` |
 | `configLoadLedFromNvs()` / LED enable | NVS `cfg/led_en` |
-| `configGetAudioMuted()` / volume / quiet hours | NVS `cfg/snd_*` |
+| `configGetAudioTxEnabled()` / `configGetAudioRxEnabled()` / TX/RX volume / quiet hours | NVS `cfg/snd_*` |
 
 ### `config/nvs_utils`
 

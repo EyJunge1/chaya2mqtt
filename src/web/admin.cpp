@@ -66,11 +66,12 @@ void webAdminLoop() {
         char langApply[3];
         char themeApply[6];
         bool ledEnabledApply;
-        bool audioMutedApply;
-        uint8_t audioVolumeApply;
+        bool audioTxEnabledApply;
+        bool audioRxEnabledApply;
+        uint8_t audioTxVolumeApply;
+        uint8_t audioRxVolumeApply;
         uint8_t quiet0Apply;
         uint8_t quiet1Apply;
-        bool audioCustomApply;
         uint16_t txHzApply;
         uint16_t txMsApply;
         uint16_t rxHzApply;
@@ -79,24 +80,26 @@ void webAdminLoop() {
         daysApply = g_webAdminPendingResetDays;
         strlcpy(langApply, g_webAdminPendingUiLang, sizeof(langApply));
         strlcpy(themeApply, g_webAdminPendingUiTheme, sizeof(themeApply));
-        ledEnabledApply  = g_webAdminPendingLedEnabled;
-        audioMutedApply  = g_webAdminPendingAudioMuted;
-        audioVolumeApply = g_webAdminPendingAudioVolume;
-        quiet0Apply      = g_webAdminPendingQuiet0;
-        quiet1Apply      = g_webAdminPendingQuiet1;
-        audioCustomApply = g_webAdminPendingAudioCustom;
-        txHzApply        = g_webAdminPendingTxHz;
-        txMsApply        = g_webAdminPendingTxMs;
-        rxHzApply        = g_webAdminPendingRxHz;
-        rxMsApply        = g_webAdminPendingRxMs;
+        ledEnabledApply     = g_webAdminPendingLedEnabled;
+        audioTxEnabledApply = g_webAdminPendingAudioTxEnabled;
+        audioRxEnabledApply = g_webAdminPendingAudioRxEnabled;
+        audioTxVolumeApply  = g_webAdminPendingAudioTxVolume;
+        audioRxVolumeApply  = g_webAdminPendingAudioRxVolume;
+        quiet0Apply         = g_webAdminPendingQuiet0;
+        quiet1Apply         = g_webAdminPendingQuiet1;
+        txHzApply           = g_webAdminPendingTxHz;
+        txMsApply           = g_webAdminPendingTxMs;
+        rxHzApply           = g_webAdminPendingRxHz;
+        rxMsApply           = g_webAdminPendingRxMs;
         portEXIT_CRITICAL(&g_webAdminSettingsPendingMux);
         const bool ok = configSetResetPeriodDays(daysApply) && configSetUiLang(langApply)
                         && configSetUiTheme(themeApply)
                         && configSetLedEnabled(ledEnabledApply)
-                        && configSetAudioMuted(audioMutedApply)
-                        && configSetAudioVolume(audioVolumeApply)
+                        && configSetAudioTxEnabled(audioTxEnabledApply)
+                        && configSetAudioRxEnabled(audioRxEnabledApply)
+                        && configSetAudioTxVolume(audioTxVolumeApply)
+                        && configSetAudioRxVolume(audioRxVolumeApply)
                         && configSetAudioQuietHours(quiet0Apply, quiet1Apply)
-                        && configSetAudioCustom(audioCustomApply)
                         && configSetAudioTones(txHzApply, txMsApply, rxHzApply, rxMsApply);
         g_webAdminSettingsNvsWriteFailed.store(!ok, std::memory_order_release);
         if (ok) {

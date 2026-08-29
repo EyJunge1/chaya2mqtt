@@ -18,11 +18,16 @@ constexpr const char kNvsKeyCfgUiLang[]    = "ui_lang";
 constexpr const char kNvsKeyCfgUiTheme[]   = "ui_theme";
 constexpr const char kNvsKeyCfgLedEn[]     = "led_en";
 constexpr const char kNvsKeyCfgDispView[]  = "disp_view";
+/** Legacy mute flag; read only for one-time migration to snd_tx_en / snd_rx_en. */
 constexpr const char kNvsKeyCfgSndMute[]   = "snd_mute";
+constexpr const char kNvsKeyCfgSndTxEn[]   = "snd_tx_en";
+constexpr const char kNvsKeyCfgSndRxEn[]   = "snd_rx_en";
+/** Legacy global volume; read only for one-time migration to snd_tx_vol / snd_rx_vol. */
 constexpr const char kNvsKeyCfgSndVol[]    = "snd_vol";
+constexpr const char kNvsKeyCfgSndTxVol[]  = "snd_tx_vol";
+constexpr const char kNvsKeyCfgSndRxVol[]  = "snd_rx_vol";
 constexpr const char kNvsKeyCfgSndQ0[]     = "snd_q0";
 constexpr const char kNvsKeyCfgSndQ1[]     = "snd_q1";
-constexpr const char kNvsKeyCfgSndCustom[] = "snd_custom";
 constexpr const char kNvsKeyCfgSndTxHz[]   = "snd_tx_hz";
 constexpr const char kNvsKeyCfgSndTxMs[]   = "snd_tx_ms";
 constexpr const char kNvsKeyCfgSndRxHz[]   = "snd_rx_hz";

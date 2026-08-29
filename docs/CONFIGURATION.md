@@ -78,11 +78,12 @@ Legacy keys `topic_pub` / `topic_sub` are removed when saving. Topics now exist 
 | `ui_theme` | String | `light` | Web UI theme (`light` / `dark`) |
 | `led_en` | UChar | `1` | Header user LED (`1`=activity blinks, `0`=off) |
 | `disp_view` | UChar | `0` | Last painted E-Ink view (`0`=unknown, `1`=heart, `2`=setup QR, `3`=product title, `4`=heart-crack, `5`=power-off) |
-| `snd_mute` | UChar | `0` | Mute TX/RX click (`1` = no sound) |
-| `snd_vol` | UChar | `70` | Click volume 0–100 |
-| `snd_q0` | UChar | `23` | Quiet-hours start (local hour after NTP) |
-| `snd_q1` | UChar | `8` | Quiet-hours end (equal to `snd_q0` = off; wraps midnight) |
-| `snd_custom` | UChar | `0` | Use custom TX/RX Hz/ms (`1`); otherwise built-in tone |
+| `snd_tx_en` | UChar | `0` | TX (send) click enabled (`1` = on; default off) |
+| `snd_rx_en` | UChar | `0` | RX (receive) click enabled (`1` = on; default off) |
+| `snd_tx_vol` | UChar | `70` | TX click volume 0–100 |
+| `snd_rx_vol` | UChar | `70` | RX click volume 0–100 |
+| `snd_q0` | UChar | `0` | Quiet-hours start (local hour after NTP) |
+| `snd_q1` | UChar | `0` | Quiet-hours end (equal to `snd_q0` = off; wraps midnight; default both `0` = off) |
 | `snd_tx_hz` | UInt | `880` | Send click frequency (Hz, 40–2000) |
 | `snd_tx_ms` | UInt | `80` | Send click duration (ms, 20–500) |
 | `snd_rx_hz` | UInt | `660` | Receive click frequency (Hz, 40–2000) |
@@ -92,13 +93,16 @@ Legacy keys `topic_pub` / `topic_sub` are removed when saving. Topics now exist 
 
 **Written by:**
 - `device_id`: created by `buildDeviceId()` on first use (random, or one-time MAC seed on OTA migration)
-- `rstPeriod` / `ui_lang` / `ui_theme` / `led_en` / `snd_mute` / `snd_vol` / `snd_q0` / `snd_q1` / `snd_custom` / `snd_tx_hz` / `snd_tx_ms` / `snd_rx_hz` / `snd_rx_ms`: web POST `/api/settings` (deferred via the app task)
+- `rstPeriod` / `ui_lang` / `ui_theme` / `led_en` / `snd_tx_en` / `snd_rx_en` / `snd_tx_vol` / `snd_rx_vol` / `snd_q0` / `snd_q1` / `snd_tx_hz` / `snd_tx_ms` / `snd_rx_hz` / `snd_rx_ms`: web POST `/api/settings` (deferred via the app task)
 - `disp_view`: two-phase display transaction—`Unknown` is persisted before a full refresh and the
   completed view afterward. A reset or power loss during the waveform therefore forces a repaint.
 - `upd_day`: automatically after an OTA check
 - `upd_chan`: when selecting a channel during the update check
 
 Note: Older firmware versions could set `cfg/authEn` and `cfg/disp_dark`; these keys are ignored.
+Legacy `cfg/snd_mute` is migrated once to `snd_tx_en` / `snd_rx_en` (`unmuted` → both on) when the new keys are absent.
+Legacy `cfg/snd_vol` is migrated once to `snd_tx_vol` / `snd_rx_vol` when the new keys are absent.
+Legacy `cfg/snd_custom` is ignored; TX/RX Hz/ms always apply.
 
 ### Reset period (`rstPeriod`)
 
@@ -144,7 +148,7 @@ Some values are additionally cached in RAM (atomics):
 | `s_resetPeriodDaysCached` | `cfg/rstPeriod` | app_config |
 | `s_ledEnabledCached` | `cfg/led_en` | app_config |
 | `s_displayViewCached` | `cfg/disp_view` | app_config |
-| `s_audioMutedCached` / volume / quiet hours | `cfg/snd_*` | app_config |
+| `s_audioTxEnabledCached` / `s_audioRxEnabledCached` / TX/RX volume / quiet hours | `cfg/snd_*` | app_config |
 
 The active MQTT configuration (`mqttCfg`) exists only in `mqtt/config.cpp`—access is through the snapshot/pending API.
 

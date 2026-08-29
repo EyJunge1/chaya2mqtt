@@ -107,11 +107,12 @@ export interface SettingsInfo {
   lang: UiLang;
   theme: UiTheme;
   ledEnabled: boolean;
-  audioMuted: boolean;
-  audioVolume: number;
+  audioTxEnabled: boolean;
+  audioRxEnabled: boolean;
+  audioTxVolume: number;
+  audioRxVolume: number;
   quietHourStart: number;
   quietHourEnd: number;
-  audioCustom: boolean;
   txHz: number;
   txMs: number;
   rxHz: number;

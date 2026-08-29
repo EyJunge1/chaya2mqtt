@@ -151,8 +151,10 @@ export const translations = {
     "settings.led-enabled-hint":
       "The LED at the bottom of the device. Off keeps it dark except during factory reset.",
     "settings.sound": "Sound",
-    "settings.audio-mute": "Mute",
-    "settings.audio-mute-hint": "No click on send or receive",
+    "settings.audio-tx": "Sound on send",
+    "settings.audio-tx-hint": "Click when a heart is sent",
+    "settings.audio-rx": "Sound on receive",
+    "settings.audio-rx-hint": "Click when a heart is received",
     "settings.audio-volume": "Volume",
     "settings.audio-volume-hint": "0–100",
     "settings.quiet": "Quiet hours",
@@ -160,9 +162,6 @@ export const translations = {
     "settings.quiet-end": "Until",
     "settings.quiet-hint":
       "Local time after NTP as HH:00 (0–23). Sound stays on until the clock is synced.",
-    "settings.sound-custom-enable": "Custom tone",
-    "settings.sound-custom-hint":
-      "Off = built-in click. On = set frequency and duration for send/receive.",
     "settings.tone-tx-hz": "Send frequency",
     "settings.tone-tx-ms": "Send duration",
     "settings.tone-rx-hz": "Receive frequency",
@@ -380,8 +379,10 @@ export const translations = {
     "settings.led-enabled-hint":
       "Die LED unten am Gerät. Aus lässt sie dunkel, außer beim Werksreset.",
     "settings.sound": "Ton",
-    "settings.audio-mute": "Stumm",
-    "settings.audio-mute-hint": "Kein Klick bei Senden oder Empfang",
+    "settings.audio-tx": "Ton beim Senden",
+    "settings.audio-tx-hint": "Klick, wenn ein Herz gesendet wird",
+    "settings.audio-rx": "Ton beim Empfang",
+    "settings.audio-rx-hint": "Klick, wenn ein Herz empfangen wird",
     "settings.audio-volume": "Lautstärke",
     "settings.audio-volume-hint": "0–100",
     "settings.quiet": "Ruhezeiten",
@@ -389,9 +390,6 @@ export const translations = {
     "settings.quiet-end": "Bis",
     "settings.quiet-hint":
       "Lokale Zeit nach NTP als Std:00 (0–23). Ohne Zeitsync bleibt der Ton an.",
-    "settings.sound-custom-enable": "Eigener Ton",
-    "settings.sound-custom-hint":
-      "Aus = eingebauter Klick. An = Frequenz und Dauer für Senden/Empfang einstellen.",
     "settings.tone-tx-hz": "Sende-Frequenz",
     "settings.tone-tx-ms": "Sende-Dauer",
     "settings.tone-rx-hz": "Empfangs-Frequenz",

@@ -31,18 +31,19 @@ bool        configSetDisplayView(DisplayView view);
 /** Mark panel contents unknown (cache + NVS) so the next draw is not skipped. */
 bool        configInvalidateDisplayView();
 
-/** Heart-click audio: mute, volume 0–100, quiet hours (local, equal = off), optional custom tone. */
+/** Heart-click audio: per-kind enable, volume 0–100, quiet hours (local, equal = off), TX/RX Hz/ms. */
 void configLoadAudioFromNvs();
-bool configGetAudioMuted();
-bool configSetAudioMuted(bool muted);
-uint8_t configGetAudioVolume();
-bool configSetAudioVolume(uint8_t volume);
+bool configGetAudioTxEnabled();
+bool configSetAudioTxEnabled(bool enabled);
+bool configGetAudioRxEnabled();
+bool configSetAudioRxEnabled(bool enabled);
+uint8_t configGetAudioTxVolume();
+bool configSetAudioTxVolume(uint8_t volume);
+uint8_t configGetAudioRxVolume();
+bool configSetAudioRxVolume(uint8_t volume);
 uint8_t configGetAudioQuietStart();
 uint8_t configGetAudioQuietEnd();
 bool configSetAudioQuietHours(uint8_t startHour, uint8_t endHour);
-/** When true, play configured TX/RX Hz/ms; otherwise built-in default tone. */
-bool configGetAudioCustom();
-bool configSetAudioCustom(bool enabled);
 uint16_t configGetAudioTxHz();
 uint16_t configGetAudioTxMs();
 uint16_t configGetAudioRxHz();

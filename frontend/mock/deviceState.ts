@@ -114,11 +114,12 @@ export interface MockState {
   lang: "de" | "en";
   theme: "dark" | "light";
   ledEnabled: boolean;
-  audioMuted: boolean;
-  audioVolume: number;
+  audioTxEnabled: boolean;
+  audioRxEnabled: boolean;
+  audioTxVolume: number;
+  audioRxVolume: number;
   quietHourStart: number;
   quietHourEnd: number;
-  audioCustom: boolean;
   txHz: number;
   txMs: number;
   rxHz: number;
@@ -298,11 +299,12 @@ export function createInitialState(scenario: MockScenario = "sta-connected"): Mo
     lang: "en",
     theme: "light",
     ledEnabled: true,
-    audioMuted: false,
-    audioVolume: 70,
-    quietHourStart: 23,
-    quietHourEnd: 8,
-    audioCustom: false,
+    audioTxEnabled: false,
+    audioRxEnabled: false,
+    audioTxVolume: 70,
+    audioRxVolume: 70,
+    quietHourStart: 0,
+    quietHourEnd: 0,
     txHz: 880,
     txMs: 80,
     rxHz: 660,

@@ -403,11 +403,12 @@ export async function handleApi(req: IncomingMessage, res: ServerResponse): Prom
       lang: state.lang,
       theme: state.theme,
       ledEnabled: state.ledEnabled,
-      audioMuted: state.audioMuted,
-      audioVolume: state.audioVolume,
+      audioTxEnabled: state.audioTxEnabled,
+      audioRxEnabled: state.audioRxEnabled,
+      audioTxVolume: state.audioTxVolume,
+      audioRxVolume: state.audioRxVolume,
       quietHourStart: state.quietHourStart,
       quietHourEnd: state.quietHourEnd,
-      audioCustom: state.audioCustom,
       txHz: state.txHz,
       txMs: state.txMs,
       rxHz: state.rxHz,
@@ -442,21 +443,37 @@ export async function handleApi(req: IncomingMessage, res: ServerResponse): Prom
       sendJson(res, 400, { ok: false, error: "led_enabled" });
       return true;
     }
-    const audioMuted = params.get("audio_muted");
-    if (audioMuted === "1" || audioMuted === "true") state.audioMuted = true;
-    else if (audioMuted === "0" || audioMuted === "false") state.audioMuted = false;
-    else if (audioMuted != null) {
-      sendJson(res, 400, { ok: false, error: "audio_muted" });
+    const audioTxEnabled = params.get("audio_tx_enabled");
+    if (audioTxEnabled === "1" || audioTxEnabled === "true") state.audioTxEnabled = true;
+    else if (audioTxEnabled === "0" || audioTxEnabled === "false") state.audioTxEnabled = false;
+    else if (audioTxEnabled != null) {
+      sendJson(res, 400, { ok: false, error: "audio_tx_enabled" });
       return true;
     }
-    const audioVolume = params.get("audio_volume");
-    if (audioVolume != null) {
-      const v = Number(audioVolume);
+    const audioRxEnabled = params.get("audio_rx_enabled");
+    if (audioRxEnabled === "1" || audioRxEnabled === "true") state.audioRxEnabled = true;
+    else if (audioRxEnabled === "0" || audioRxEnabled === "false") state.audioRxEnabled = false;
+    else if (audioRxEnabled != null) {
+      sendJson(res, 400, { ok: false, error: "audio_rx_enabled" });
+      return true;
+    }
+    const audioTxVolume = params.get("audio_tx_volume");
+    if (audioTxVolume != null) {
+      const v = Number(audioTxVolume);
       if (!Number.isFinite(v) || v < 0 || v > 100) {
-        sendJson(res, 400, { ok: false, error: "audio_volume" });
+        sendJson(res, 400, { ok: false, error: "audio_tx_volume" });
         return true;
       }
-      state.audioVolume = v;
+      state.audioTxVolume = v;
+    }
+    const audioRxVolume = params.get("audio_rx_volume");
+    if (audioRxVolume != null) {
+      const v = Number(audioRxVolume);
+      if (!Number.isFinite(v) || v < 0 || v > 100) {
+        sendJson(res, 400, { ok: false, error: "audio_rx_volume" });
+        return true;
+      }
+      state.audioRxVolume = v;
     }
     const quietStart = params.get("quiet_hour_start");
     if (quietStart != null) {
@@ -475,13 +492,6 @@ export async function handleApi(req: IncomingMessage, res: ServerResponse): Prom
         return true;
       }
       state.quietHourEnd = v;
-    }
-    const audioCustom = params.get("audio_custom");
-    if (audioCustom === "1" || audioCustom === "true") state.audioCustom = true;
-    else if (audioCustom === "0" || audioCustom === "false") state.audioCustom = false;
-    else if (audioCustom != null) {
-      sendJson(res, 400, { ok: false, error: "audio_custom" });
-      return true;
     }
     const txHz = params.get("tx_hz");
     if (txHz != null) {
