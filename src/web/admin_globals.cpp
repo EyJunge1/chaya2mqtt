@@ -15,7 +15,6 @@ std::atomic<uint32_t> g_webAdminMqttApplyVersion{0};
 std::atomic<bool> g_webAdminSettingsApplyPending{false};
 std::atomic<bool> g_webAdminMqttNvsWriteFailed{false};
 std::atomic<bool> g_webAdminSettingsNvsWriteFailed{false};
-std::atomic<bool> g_systemShutdownInProgress{false};
 
 uint8_t      g_webAdminPendingResetDays    = 7;
 char         g_webAdminPendingUiLang[3]    = "en";

@@ -11,16 +11,45 @@
 
 #include <ESPAsyncWebServer.h>
 #include <algorithm>
+#include <cstdio>
 #include <cstring>
 
 namespace {
 
-void addSpaResponseHeaders(AsyncWebServerResponse* resp, const SpaAssetEntry& asset) {
+/**
+ * Safari needs ACAO when Vite emits crossorigin, even for same-origin loads.
+ * Reflect an allowed Origin, or http://<Host> — never wildcard (SEC-09).
+ */
+void addSpaCorsHeader(AsyncWebServerRequest* req, AsyncWebServerResponse* resp) {
+    if (req == nullptr || resp == nullptr) {
+        return;
+    }
+    if (req->hasHeader("Origin")) {
+        if (webRequestOriginAllowed(req)) {
+            resp->addHeader(F("Access-Control-Allow-Origin"), req->header("Origin"));
+        }
+        return;
+    }
+    if (!webRequestHostAllowed(req)) {
+        return;
+    }
+    const String& host = req->host();
+    if (host.length() == 0U || host.length() > 120U) {
+        return;
+    }
+    char origin[140]{};
+    const int n = snprintf(origin, sizeof(origin), "http://%s", host.c_str());
+    if (n > 0 && static_cast<size_t>(n) < sizeof(origin)) {
+        resp->addHeader(F("Access-Control-Allow-Origin"), origin);
+    }
+}
+
+void addSpaResponseHeaders(AsyncWebServerRequest* req, AsyncWebServerResponse* resp,
+                           const SpaAssetEntry& asset) {
     if (spaAssetUsesGzip(asset.path)) {
         resp->addHeader(F("Content-Encoding"), F("gzip"));
     }
-    // Vite may emit crossorigin; Safari then requires ACAO even for same-origin.
-    resp->addHeader(F("Access-Control-Allow-Origin"), F("*"));
+    addSpaCorsHeader(req, resp);
     webAddSecurityHeaders(resp, /*noStore=*/false);
     if (asset.cache == SpaCacheClass::Immutable) {
         resp->addHeader(F("Cache-Control"), F("public, max-age=31536000, immutable"));
@@ -43,7 +72,7 @@ void sendSpaAsset(AsyncWebServerRequest* req, const SpaAssetEntry& asset) {
             std::memcpy(buf, data + index, n);
             return n;
         });
-    addSpaResponseHeaders(resp, asset);
+    addSpaResponseHeaders(req, resp, asset);
     req->send(resp);
 }
 
@@ -51,15 +80,15 @@ bool sendSpaIndex(AsyncWebServerRequest* req) {
     // Compiler .rodata string — not a slice of the .incbin blob (quirks-mode / empty body).
     AsyncWebServerResponse* resp =
         req->beginResponse(200, "text/html; charset=utf-8", kWebUiIndexHtml);
-    resp->addHeader(F("Access-Control-Allow-Origin"), F("*"));
+    addSpaCorsHeader(req, resp);
     webAddSecurityHeaders(resp, /*noStore=*/false);
     resp->addHeader(F("Cache-Control"), F("no-cache"));
     req->send(resp);
     return true;
 }
 
-bool trySendExactAsset(AsyncWebServerRequest* req, const String& uri) {
-    const SpaAssetEntry* asset = spaFindAsset(WEB_UI_ASSETS, WEB_UI_ASSETS_COUNT, uri.c_str());
+bool trySendExactAsset(AsyncWebServerRequest* req, const char* uri) {
+    const SpaAssetEntry* asset = spaFindAsset(WEB_UI_ASSETS, WEB_UI_ASSETS_COUNT, uri);
     if (!asset) {
         return false;
     }
@@ -94,8 +123,9 @@ void adminRoutesRegisterSpa(AsyncWebServer& ws) {
             return;
         }
 
-        const String uri = rq->url();
-        if (spaIsApiOrEventsPath(uri.c_str())) {
+        // PERF-09: avoid copying the URL String; AsyncWebServer keeps the buffer alive.
+        const char* uri = rq->url().c_str();
+        if (spaIsApiOrEventsPath(uri)) {
             webSendEmpty(rq, 404);
             return;
         }
@@ -109,19 +139,19 @@ void adminRoutesRegisterSpa(AsyncWebServer& ws) {
             return;
         }
 
-        if (spaIsAssetPath(uri.c_str())) {
+        if (spaIsAssetPath(uri)) {
             webSendEmpty(rq, 404);
             return;
         }
 
-        if (spaShouldFallbackToIndex(uri.c_str())) {
-            if (configIsApMode() && spaIsCaptivePortalProbe(uri.c_str())) {
+        if (spaShouldFallbackToIndex(uri)) {
+            if (configIsApMode() && spaIsCaptivePortalProbe(uri)) {
                 // Dedicated captive routes should handle these; keep a safe fallback.
                 webRedirect(rq, kSetupApCaptiveRedirect);
                 return;
             }
-            if (configIsApMode() && uri != "/wifi-testing" && uri != "/"
-                && !uri.startsWith("/assets/")) {
+            if (configIsApMode() && strcmp(uri, "/wifi-testing") != 0 && strcmp(uri, "/") != 0
+                && strncmp(uri, "/assets/", 8) != 0) {
                 // Unknown captive / OS probes: land on AP setup SPA (root shows WifiSetup).
                 webRedirect(rq, F("/"));
                 return;

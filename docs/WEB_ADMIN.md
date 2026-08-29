@@ -9,6 +9,20 @@ The web interface is a **Svelte 5 SPA** (Vite, Tailwind CSS, Lucide) stored in t
 | AP (setup) | Captive portal / `http://chaya2mqtt.local` / `http://4.3.2.1` | WPA2/WPA3 `Chaya2MQTT` SoftAP (WIFI QR on the display) |
 | STA | `http://chaya2mqtt-<deviceId>.local` (mDNS) | Open on the local network (no login) |
 
+> **Security warning (product model):** There is intentionally **no web login**. Anyone who can
+> reach the device on the LAN (or who joins the SoftAP) can change Wi‑Fi/MQTT settings, reboot,
+> factory-reset, and trigger OTA. Treat guest Wi‑Fi and untrusted LAN hosts accordingly.
+>
+> Admin traffic is **cleartext HTTP** only — Wi‑Fi and MQTT passwords are sent unencrypted on the
+> local link (MITM risk on hostile networks). Prefer SoftAP provisioning or a trusted home LAN.
+>
+> SoftAP uses an **8-digit numeric PIN** (~10⁸ possibilities). That is enough for casual isolation
+> during setup, not for resistance to offline brute-force by an attacker in radio range.
+>
+> In **AP (captive) mode**, Host/Origin allowlisting is **disabled** so captive browsers and
+> probes with odd Host headers still reach setup. After joining SoftAP, treat the radio link as
+> the trust boundary (SEC-10). In STA mode the allowlist is enforced.
+
 In AP mode, captive portal probes (`/generate_204`, `/hotspot-detect.html`, `/ncsi.txt`, etc.) redirect to `http://4.3.2.1/` (root serves the Wi-Fi setup UI).
 
 The AP hostname remains `chaya2mqtt`. In STA mode the DHCP and mDNS hostname is derived from the stable device ID, for example `chaya2mqtt-a1b2c3`. This lets multiple devices share one LAN without hostname collisions. The dashboard shows the resulting `.local` address and device ID; direct access through the device's unique IP remains supported.
@@ -30,7 +44,7 @@ The Vite development server starts a **virtual Chaya2MQTT** under `frontend/mock
 | Connection | `sta-connected`, `sse-disconnected`, `device-unreachable` |
 | Dashboard | `battery-full`, `battery-medium`, `battery-low`, `battery-critical`, `heart-busy`, `heart-send-fail` |
 | MQTT | `sta-mqtt-offline`, `sta-mqtt-unconfigured`, `sta-mqtt-unpaired`, `mqtt-no-auth`, `mqtt-load-fail`, `mqtt-save-fail` |
-| Settings | `settings-load-fail`, `settings-save-fail`, `settings-reboot-fail`, `settings-factory-reset-fail` |
+| Settings | `settings-load-fail`, `settings-save-fail`, `settings-nvs-fail`, `settings-reboot-fail`, `settings-factory-reset-fail` |
 | Wi‑Fi | `wifi-weak`, `wifi-static`, `wifi-sta-save-fail` |
 | AP setup | `ap-setup`, `wifi-scan-empty`, `wifi-scan-fail`, `ap-test-idle`, `ap-test-testing`, `ap-test-ok`, `ap-test-failed`, `wifi-test-start-fail`, `wifi-test-save-fail`, `wifi-test-retry-fail`, `wifi-test-abort-fail` |
 | Update | `update-uptodate`, `update-available`, `update-beta`, `update-checking`, `update-busy`, `update-progress-unknown`, `update-verifying`, `update-rebooting`, `update-error`, `update-check-fail`, `update-install-fail`, `update-status-fail` |
@@ -111,13 +125,20 @@ Maximum **6** SSE clients. Tick every 500 ms in the app task.
 
 ## CSRF / security
 
-- No web login; the admin UI is accessible to participants on the local network
+- No web login; the admin UI is accessible to participants on the local network (see warning under
+  **Access** — LAN participants can fully control the device)
+- Admin is HTTP-only: credentials travel in cleartext on the LAN
+- SoftAP PIN is 8 decimal digits (shown on the E-Ink WIFI QR)
 - `/api/csrf` returns `token` plus `expiresInSeconds`; tokens rotate lazily every 24 hours and the
   previous token remains valid for a 5-minute grace period
 - Every POST includes `csrf_token`. The frontend performs a single-flight refresh and one retry
   only for idempotent settings/check operations; heart send, WiFi commit, reboot, factory reset,
   and OTA install are never repeated automatically
-- Host/origin allowlist; CSP without our inline scripts/styles (`script-src 'self'` plus exact captive-browser helper hashes; `style-src 'self'`)
+- Host/origin allowlist in STA mode; in AP/captive mode Host/Origin checks are skipped so captive
+  browsers can complete setup (see Access warning / SEC-10)
+- CSP without our inline scripts/styles (`script-src 'self'` plus exact captive-browser helper hashes; `style-src 'self'`)
+- Expensive/mutating routes (Wi‑Fi scan/connect, reboot, factory reset, OTA check/install) apply a
+  short per-route minimum interval and may respond with **429** `rate_limit`
 
 ## Build integration
 

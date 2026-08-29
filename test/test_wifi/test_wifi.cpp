@@ -7,6 +7,7 @@
 #include "wifi/wlan_config.h"
 #include "wifi/wlan_pack.h"
 #include "wifi/wlan_recovery.h"
+#include "wifi/wlan_soft_reconnect.h"
 
 void test_setup_ap_pass_syntax_and_format() {
     TEST_ASSERT_TRUE(setupApPassSyntaxOk("00000000"));
@@ -220,6 +221,10 @@ void test_wlan_recovery_decide() {
 void test_wifi_soft_reconnect_escalation_threshold() {
     TEST_ASSERT_EQUAL_UINT32(2U, kWifiSoftReconnectAttemptsBeforeForce);
     TEST_ASSERT_TRUE(kWifiSoftReconnectAttemptsBeforeForce > 0U);
+    TEST_ASSERT_FALSE(wlanSoftReconnectShouldForce(0U, kWifiSoftReconnectAttemptsBeforeForce));
+    TEST_ASSERT_FALSE(wlanSoftReconnectShouldForce(1U, kWifiSoftReconnectAttemptsBeforeForce));
+    TEST_ASSERT_TRUE(wlanSoftReconnectShouldForce(2U, kWifiSoftReconnectAttemptsBeforeForce));
+    TEST_ASSERT_TRUE(wlanSoftReconnectShouldForce(5U, kWifiSoftReconnectAttemptsBeforeForce));
 }
 
 void test_wlan_epd_tx_power_from_rssi() {

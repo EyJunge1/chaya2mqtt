@@ -184,6 +184,33 @@ void test_sim_nvs_save_failure_and_counter_path() {
     TEST_ASSERT_EQUAL_INT(12, dev.displayRxDelta());
 }
 
+void test_sim_nvs_wifi_mqtt_fault_injection() {
+    DeviceRuntime dev("a1b2c3");
+    WlanConfig cfg{};
+    wlanConfigClear(&cfg);
+    wlanConfigCopyStr(cfg.ssid, sizeof(cfg.ssid), "Home");
+    wlanConfigCopyStr(cfg.pass, sizeof(cfg.pass), "secret");
+    cfg.mode = WlanIpMode::Dhcp;
+
+    dev.nvs().failNextWifiSave = true;
+    TEST_ASSERT_FALSE(dev.nvs().saveWifi(cfg));
+    TEST_ASSERT_TRUE(dev.nvs().saveWifi(cfg));
+
+    WlanConfig loaded{};
+    dev.nvs().failNextWifiLoad = true;
+    TEST_ASSERT_FALSE(dev.nvs().loadWifi(&loaded));
+    TEST_ASSERT_TRUE(dev.nvs().loadWifi(&loaded));
+    TEST_ASSERT_EQUAL_STRING("Home", loaded.ssid);
+
+    TEST_ASSERT_TRUE(dev.pair("f5e6d7"));
+    TEST_ASSERT_TRUE(dev.persist());
+    MqttConfig mqtt{};
+    dev.nvs().failNextMqttLoad = true;
+    TEST_ASSERT_FALSE(dev.nvs().loadMqtt(&mqtt, "a1b2c3"));
+    TEST_ASSERT_TRUE(dev.nvs().loadMqtt(&mqtt, "a1b2c3"));
+    TEST_ASSERT_EQUAL_STRING("f5e6d7", mqtt.partnerDeviceId);
+}
+
 void test_sim_disconnect_aborts_pending_publish() {
     DeviceRuntime dev("a1b2c3");
     dev.configureBroker("broker.example.com", 8883, "", "");
@@ -211,6 +238,7 @@ int main(int, char**) {
     RUN_TEST(test_sim_connect_failure_backoff_grows);
     RUN_TEST(test_sim_ntp_not_ready_defers);
     RUN_TEST(test_sim_nvs_save_failure_and_counter_path);
+    RUN_TEST(test_sim_nvs_wifi_mqtt_fault_injection);
     RUN_TEST(test_sim_disconnect_aborts_pending_publish);
     return UNITY_END();
 }

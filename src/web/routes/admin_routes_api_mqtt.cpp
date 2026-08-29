@@ -99,8 +99,12 @@ bool fillMqttConfigJson(char* body, size_t bodyLen, const MqttConfig& cfg) {
     if (pos + 2U > bodyLen) {
         return false;
     }
-    body[pos++] = '}';
-    body[pos]   = '\0';
+    // Closed below after nvsOk (QUAL-01).
+    n = snprintf(body + pos, bodyLen - pos, ",\"nvsOk\":%s}",
+                 g_webAdminMqttNvsWriteFailed.load(std::memory_order_acquire) ? "false" : "true");
+    if (n < 0 || pos + static_cast<size_t>(n) >= bodyLen) {
+        return false;
+    }
     return true;
 }
 
@@ -112,7 +116,7 @@ void handleApiMqttGet(AsyncWebServerRequest* req) {
     }
     char body[768]{};
     if (!fillMqttConfigJson(body, sizeof(body), cfg)) {
-        webSendEmpty(req, 500);
+        sendErr(req, 500, "json");
         return;
     }
     webSendJson(req, 200, body);

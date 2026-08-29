@@ -2,6 +2,7 @@
 
 #include "display/view_state.h"
 
+#include <cstddef>
 #include <cstdint>
 
 void configLoadResetPeriodFromNvs();
@@ -11,12 +12,12 @@ void configLoadUiPrefsFromNvs();
 uint8_t configGetResetPeriodDays();
 bool configSetResetPeriodDays(uint8_t days);
 
-/** UI language: "en" or "de" (default "en"). */
-const char* configGetUiLang();
+/** UI language: "en" or "de" (default "en"). Snapshot under mux (QUAL-07). */
+void configCopyUiLang(char* out, size_t outLen);
 bool configSetUiLang(const char* lang);
 
-/** UI theme: "light" or "dark" (default "light"). */
-const char* configGetUiTheme();
+/** UI theme: "light" or "dark" (default "light"). Snapshot under mux (QUAL-07). */
+void configCopyUiTheme(char* out, size_t outLen);
 bool configSetUiTheme(const char* theme);
 
 /** Header user LED activity (default true = blinks on TX/RX/refresh). */

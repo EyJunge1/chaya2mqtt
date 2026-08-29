@@ -72,13 +72,17 @@
   let scanning = $state(false);
   let busy = $state(false);
   let configLoaded = $state(false);
+  let scanSeq = 0;
 
   async function scan() {
+    const seq = ++scanSeq;
     scanning = true;
     try {
       let gotResult = false;
       for (let i = 0; i < 20; i++) {
+        if (seq !== scanSeq) return;
         const result = await api.scanWifi();
+        if (seq !== scanSeq) return;
         if (result !== "pending") {
           aps = result;
           gotResult = true;
@@ -86,13 +90,15 @@
         }
         await new Promise((r) => setTimeout(r, 500));
       }
+      if (seq !== scanSeq) return;
       if (!gotResult) {
         onToast(i18n.t("toast.wifi-scan-failed"), "error");
       }
     } catch {
+      if (seq !== scanSeq) return;
       onToast(i18n.t("toast.wifi-scan-failed"), "error");
     } finally {
-      scanning = false;
+      if (seq === scanSeq) scanning = false;
     }
   }
 
@@ -104,6 +110,9 @@
     untrack(() => {
       void scan();
     });
+    return () => {
+      scanSeq += 1;
+    };
   });
 
   $effect(() => {

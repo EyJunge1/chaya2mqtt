@@ -8,6 +8,7 @@ import {
   deviceBatteryPayload,
   devicePayload,
   getState,
+  getOtaSimEpoch,
   hasFault,
   mockControlPayload,
   mqttPayload,
@@ -308,11 +309,12 @@ export async function handleApi(req: IncomingMessage, res: ServerResponse): Prom
       ntp2: state.wifiConnect.ntp2,
     };
     state.wifiConnect.state = "idle";
+    const staIp = state.wifiIp || "192.168.1.77";
     broadcastAll();
     sendJson(res, 200, {
       ok: true,
       message: "committed",
-      next: "/",
+      next: `http://${staIp}/`,
     });
     return true;
   }
@@ -384,6 +386,7 @@ export async function handleApi(req: IncomingMessage, res: ServerResponse): Prom
       topicPub: state.mqtt.topicPub,
       topicSub: state.mqtt.topicSub,
       partnerId: state.mqtt.partnerId,
+      nvsOk: state.mqttNvsOk !== false,
     });
     return true;
   }
@@ -440,6 +443,8 @@ export async function handleApi(req: IncomingMessage, res: ServerResponse): Prom
       txMs: state.txMs,
       rxHz: state.rxHz,
       rxMs: state.rxMs,
+      nvsOk: state.settingsNvsOk !== false,
+      applyPending: false,
     });
     return true;
   }
@@ -556,7 +561,7 @@ export async function handleApi(req: IncomingMessage, res: ServerResponse): Prom
       }
       state.rxMs = v;
     }
-    sendJson(res, 200, { ok: true, message: "saved" });
+    sendJson(res, 200, { ok: true, message: "accepted" });
     return true;
   }
 
@@ -609,7 +614,9 @@ export async function handleApi(req: IncomingMessage, res: ServerResponse): Prom
       bumpOta({ phase: "checking", error: "" });
     }
     sendJson(res, 200, { ok: true, message: "checking" });
+    const checkEpoch = getOtaSimEpoch();
     setTimeout(() => {
+      if (checkEpoch !== getOtaSimEpoch()) return;
       const st = getState();
       const available = st.ota.channel === "beta" ? "2026.8.2-rc.1" : "2026.8.2";
       const local = st.version.replace(/^v/i, "").toLowerCase();
@@ -652,7 +659,12 @@ export async function handleApi(req: IncomingMessage, res: ServerResponse): Prom
     bumpOta({ phase: "downloading", bytesDone: 0, bytesTotal: 1000000, error: "" });
     sendJson(res, 200, { ok: true, message: "installing" });
     let done = 0;
+    const installEpoch = getOtaSimEpoch();
     const timer = setInterval(() => {
+      if (installEpoch !== getOtaSimEpoch()) {
+        clearInterval(timer);
+        return;
+      }
       done += 200000;
       if (done < 1000000) {
         bumpOta({ phase: "downloading", bytesDone: done, bytesTotal: 1000000 });
@@ -661,8 +673,10 @@ export async function handleApi(req: IncomingMessage, res: ServerResponse): Prom
       clearInterval(timer);
       bumpOta({ phase: "verifying", bytesDone: 1000000, bytesTotal: 1000000 });
       setTimeout(() => {
+        if (installEpoch !== getOtaSimEpoch()) return;
         bumpOta({ phase: "rebooting" });
         setTimeout(() => {
+          if (installEpoch !== getOtaSimEpoch()) return;
           const st = getState();
           st.version = st.ota.availableVersion || st.version;
           bumpOta({

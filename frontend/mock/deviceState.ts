@@ -24,6 +24,7 @@ export const MOCK_SCENARIOS = [
   // Settings
   "settings-load-fail",
   "settings-save-fail",
+  "settings-nvs-fail",
   "settings-reboot-fail",
   "settings-factory-reset-fail",
   // Wi-Fi
@@ -157,6 +158,9 @@ export interface MockState {
   txMs: number;
   rxHz: number;
   rxMs: number;
+  /** QUAL-01: false after deferred settings apply failed to persist. */
+  settingsNvsOk: boolean;
+  mqttNvsOk: boolean;
   batteryMv: number;
   batteryPct: number;
   heartBusy: boolean;
@@ -315,6 +319,8 @@ function resetBaselineSettings(target: MockState): void {
   target.txMs = 80;
   target.rxHz = 660;
   target.rxMs = 140;
+  target.settingsNvsOk = true;
+  target.mqttNvsOk = true;
 }
 
 export function createInitialState(scenario: MockScenario = "sta-connected"): MockState {
@@ -362,6 +368,8 @@ export function createInitialState(scenario: MockScenario = "sta-connected"): Mo
     txMs: 80,
     rxHz: 660,
     rxMs: 140,
+    settingsNvsOk: true,
+    mqttNvsOk: true,
     batteryMv: 3900,
     batteryPct: 55,
     heartBusy: false,
@@ -566,6 +574,12 @@ export function applyScenario(state: MockState, scenario: MockScenario): void {
       state.faults["settings-save"] = true;
       setOtaIdle(state);
       break;
+    case "settings-nvs-fail":
+      applyStaOnlineDefaults(state);
+      state.mqttConnected = true;
+      state.settingsNvsOk = false;
+      setOtaIdle(state);
+      break;
     case "settings-reboot-fail":
       applyStaOnlineDefaults(state);
       state.mqttConnected = true;
@@ -735,11 +749,19 @@ export function applyScenario(state: MockState, scenario: MockScenario): void {
 
 let state = createInitialState("sta-connected");
 
+/** Bumped on every reset so async OTA sim timers stop mutating a new state. */
+let otaSimEpoch = 0;
+
+export function getOtaSimEpoch(): number {
+  return otaSimEpoch;
+}
+
 export function getState(): MockState {
   return state;
 }
 
 export function resetState(scenario?: MockScenario): MockState {
+  otaSimEpoch += 1;
   state = createInitialState(scenario ?? state.scenario);
   broadcastAll();
   return state;

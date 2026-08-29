@@ -1,4 +1,5 @@
 #include "wlan_config.h"
+#include "wlan_soft_reconnect.h"
 #include "wlan_internal.h"
 
 #include "async/event_types.h"
@@ -58,7 +59,7 @@ void wlanHandleStaReconnectNetCmd() {
     const uint8_t  reason =
         s_lastStaDisconnectReason.load(std::memory_order_relaxed);
 
-    if (fails >= kWifiSoftReconnectAttemptsBeforeForce) {
+    if (wlanSoftReconnectShouldForce(fails, kWifiSoftReconnectAttemptsBeforeForce)) {
         ESP_LOGW(TAG, "WLAN soft reconnect exhausted (fails=%u reason=%u) — force reassoc",
                  static_cast<unsigned>(fails), static_cast<unsigned>(reason));
         wlanForceStaReassoc("event-escalate");

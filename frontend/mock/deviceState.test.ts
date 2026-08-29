@@ -45,6 +45,7 @@ describe("parseScenario", () => {
       "mqtt-save-fail",
       "settings-load-fail",
       "settings-save-fail",
+      "settings-nvs-fail",
       "settings-reboot-fail",
       "settings-factory-reset-fail",
       "wifi-weak",
@@ -233,6 +234,13 @@ describe("applyScenario", () => {
       settingsSaveFault: true,
     },
     {
+      scenario: "settings-nvs-fail",
+      mode: "sta",
+      wifi: true,
+      mqtt: true,
+      settingsNvsOk: false,
+    },
+    {
       scenario: "settings-reboot-fail",
       mode: "sta",
       wifi: true,
@@ -365,6 +373,7 @@ describe("applyScenario", () => {
       mqttSaveFault,
       settingsFault,
       settingsSaveFault,
+      settingsNvsOk,
       rebootFault,
       factoryResetFault,
       heartFault,
@@ -392,6 +401,9 @@ describe("applyScenario", () => {
       if (settingsFault !== undefined) expect(state.faults.settings).toBe(settingsFault);
       if (settingsSaveFault !== undefined) {
         expect(state.faults["settings-save"]).toBe(settingsSaveFault);
+      }
+      if (settingsNvsOk !== undefined) {
+        expect(state.settingsNvsOk).toBe(settingsNvsOk);
       }
       if (rebootFault !== undefined) expect(state.faults.reboot).toBe(rebootFault);
       if (factoryResetFault !== undefined) {

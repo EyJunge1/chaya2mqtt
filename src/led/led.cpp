@@ -320,8 +320,14 @@ void advanceLedSequence() {
         break;
 
     case LedTxPhase::PublishTry: {
-        const bool ok = mqttPublishChayaAndApplySentCounters();
-        if (ok) {
+        const MqttChayaPublishAsync st = mqttRequestChayaPublishAsync();
+        if (st == MqttChayaPublishAsync::Pending || st == MqttChayaPublishAsync::Idle) {
+            // Stay in PublishTry; short poll so button/PWR keep running (STAB-02).
+            armLedPhase(50);
+            break;
+        }
+        mqttClearChayaPublishAsync();
+        if (st == MqttChayaPublishAsync::Ok) {
             ESP_LOGI(TAG, "MQTT message acknowledged by broker");
             ledTxPhase.store(LedTxPhase::PostWait, std::memory_order_relaxed);
             armLedPhase(kPostPublishWaitMs);

@@ -42,6 +42,7 @@
       items: [
         { id: "settings-load-fail", label: "Load failed", path: "/settings/device" },
         { id: "settings-save-fail", label: "Save failed", path: "/settings/device" },
+        { id: "settings-nvs-fail", label: "NVS persist failed", path: "/settings/device" },
         { id: "settings-reboot-fail", label: "Reboot failed", path: "/settings/device" },
         {
           id: "settings-factory-reset-fail",

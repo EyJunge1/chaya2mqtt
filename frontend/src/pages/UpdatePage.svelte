@@ -46,8 +46,12 @@
   let busy = $state(false);
   let confirmInstall = $state(false);
   let toastedError = $state("");
+  /** Bumps on each load / unmount so late GET results are ignored. */
+  let loadSeq = 0;
 
   function applyStatus(next: OtaStatus) {
+    // Ignore stale snapshots (late GET after fresher SSE).
+    if (status != null && next.generation < status.generation) return;
     status = next;
     channel = next.channel;
     if (next.phase === "error" && next.error) {
@@ -55,18 +59,21 @@
         toastedError = next.error;
         onToast(i18n.t("update.error-title"), "error");
       }
-    } else {
+    } else if (toastedError !== "") {
       toastedError = "";
     }
   }
 
   async function load() {
+    const seq = ++loadSeq;
     loadError = false;
     try {
-      applyStatus(await api.getUpdateStatus());
+      const next = await api.getUpdateStatus();
+      if (seq !== loadSeq) return;
+      applyStatus(next);
     } catch {
+      if (seq !== loadSeq) return;
       loadError = true;
-      onToast(i18n.t("toast.update-status-failed"), "error");
     }
   }
 
@@ -74,10 +81,16 @@
     untrack(() => {
       void load();
     });
+    return () => {
+      loadSeq += 1;
+    };
   });
 
+  // Only track the prop; apply via untrack so writing local status cannot loop (FE-04).
   $effect(() => {
-    if (otaStatus) applyStatus(otaStatus);
+    const snap = otaStatus;
+    if (!snap) return;
+    untrack(() => applyStatus(snap));
   });
 
   const installing = $derived(

@@ -7,16 +7,18 @@
 #include "ota/version_cmp.h"
 
 void test_ota_health_window() {
-    TEST_ASSERT_FALSE(otaHealthWindowElapsed(false, true, 1000UL, 40000UL));
-    TEST_ASSERT_FALSE(otaHealthWindowElapsed(true, false, 1000UL, 40000UL));
-    TEST_ASSERT_FALSE(otaHealthWindowElapsed(true, true, 0UL, 40000UL));
-    TEST_ASSERT_FALSE(otaHealthWindowElapsed(true, true, 1000UL, 1000UL + kOtaHealthStableMs - 1UL));
-    TEST_ASSERT_TRUE(otaHealthWindowElapsed(true, true, 1000UL, 1000UL + kOtaHealthStableMs));
-    // AP fallback / settled path still validates after the same window.
-    TEST_ASSERT_TRUE(otaHealthWindowElapsed(true, true, 50UL, 50UL + kOtaHealthStableMs));
+    TEST_ASSERT_FALSE(otaHealthWindowElapsed(false, true, true, 1000UL, 40000UL));
+    TEST_ASSERT_FALSE(otaHealthWindowElapsed(true, false, true, 1000UL, 40000UL));
+    TEST_ASSERT_FALSE(otaHealthWindowElapsed(true, true, true, 0UL, 40000UL));
+    // Settled offline (ContinueStaOnly): must not mark valid (STAB-03).
+    TEST_ASSERT_FALSE(otaHealthWindowElapsed(true, true, false, 1000UL, 40000UL));
+    TEST_ASSERT_FALSE(otaHealthWindowElapsed(true, true, true, 1000UL, 1000UL + kOtaHealthStableMs - 1UL));
+    TEST_ASSERT_TRUE(otaHealthWindowElapsed(true, true, true, 1000UL, 1000UL + kOtaHealthStableMs));
+    // STA linked after settle: same window from settledAt.
+    TEST_ASSERT_TRUE(otaHealthWindowElapsed(true, true, true, 50UL, 50UL + kOtaHealthStableMs));
     // Unsigned wraparound: settledAt near max, now wrapped past window.
     const unsigned long settledNearWrap = ULONG_MAX - 1000UL;
-    TEST_ASSERT_TRUE(otaHealthWindowElapsed(true, true, settledNearWrap,
+    TEST_ASSERT_TRUE(otaHealthWindowElapsed(true, true, true, settledNearWrap,
                                             settledNearWrap + kOtaHealthStableMs));
 }
 
@@ -133,6 +135,25 @@ void test_ota_download_url_allowlist() {
     TEST_ASSERT_FALSE(otaReleaseDownloadUrlAllowed(
         "https://github.com/EyJunge1/chaya2mqtt/releases/download/v2026.8.1/../firmware.bin",
         OtaDownloadAsset::Firmware));
+    TEST_ASSERT_FALSE(otaReleaseDownloadUrlAllowed(
+        "https://github.com/EyJunge1/chaya2mqtt/releases/download/v2026.8.1/firmware.bin?x=1",
+        OtaDownloadAsset::Firmware));
+    TEST_ASSERT_FALSE(otaReleaseDownloadUrlAllowed(
+        "https://github.com/EyJunge1/chaya2mqtt/releases/download/v2026.8.1/firmware.bin#frag",
+        OtaDownloadAsset::Firmware));
+
+    TEST_ASSERT_TRUE(otaReleaseDownloadRedirectUrlAllowed(
+        "https://github.com/EyJunge1/chaya2mqtt/releases/download/v2026.8.1/firmware.bin"));
+    TEST_ASSERT_TRUE(otaReleaseDownloadRedirectUrlAllowed(
+        "https://objects.githubusercontent.com/github-production-release-asset/1/abc"));
+    TEST_ASSERT_TRUE(otaReleaseDownloadRedirectUrlAllowed(
+        "https://release-assets.githubusercontent.com/github-production-release-asset/1/abc?sig=x"));
+    TEST_ASSERT_FALSE(otaReleaseDownloadRedirectUrlAllowed(
+        "http://objects.githubusercontent.com/github-production-release-asset/1/abc"));
+    TEST_ASSERT_FALSE(otaReleaseDownloadRedirectUrlAllowed(
+        "https://evil.example/objects.githubusercontent.com/x"));
+    TEST_ASSERT_FALSE(otaReleaseDownloadRedirectUrlAllowed(
+        "https://user:pass@objects.githubusercontent.com/x"));
 }
 
 int main(int, char**) {

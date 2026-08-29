@@ -5,7 +5,6 @@ import type {
   MqttConfigView,
   MqttStatus,
   OtaChannel,
-  OtaStatus,
   SettingsInfo,
   WifiConfig,
   WifiConnectFields,
@@ -13,16 +12,20 @@ import type {
   WifiScanAp,
   WifiStatus,
 } from "./types";
+import { parseOtaStatus } from "./validate";
 
 let csrfToken = "";
 let csrfRefreshPromise: Promise<string> | null = null;
 
 const csrfRetryablePosts = new Set([
   "/api/wifi/connect",
+  "/api/wifi/connect-commit",
+  "/api/wifi/connect-retry",
   "/api/wifi/connect-abort",
   "/api/mqtt",
   "/api/settings",
   "/api/update/check",
+  "/api/update/install",
 ]);
 
 export function setCsrfToken(token: string): void {
@@ -165,7 +168,7 @@ export const api = {
   }) => apiPost("/api/settings", fields),
   reboot: () => apiPost("/api/reboot"),
   factoryReset: () => apiPost("/api/factory-reset"),
-  getUpdateStatus: () => apiGet<OtaStatus>("/api/update/status"),
+  getUpdateStatus: async () => parseOtaStatus(await apiGet<unknown>("/api/update/status")),
   checkUpdate: (channel?: OtaChannel) => apiPost("/api/update/check", channel ? { channel } : {}),
   installUpdate: () => apiPost("/api/update/install"),
 };

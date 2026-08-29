@@ -6,7 +6,7 @@
 constexpr uint32_t kNetworkTaskStackBytes = 7168U;
 constexpr uint32_t kButtonTaskStackBytes  = 4096U;
 constexpr uint32_t kAppTaskStackBytes     = 4096U;
-constexpr uint32_t kOtaTaskStackBytes     = 8192U;
+constexpr uint32_t kOtaTaskStackBytes     = 12288U;
 constexpr uint32_t kDisplayTaskStackBytes = 8192U;
 constexpr uint32_t kAudioTaskStackBytes   = 6144U;
 constexpr uint32_t kMqttClientTaskStackBytes = 10240U;

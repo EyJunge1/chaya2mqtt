@@ -3,6 +3,8 @@
 #include "mqtt_internal.h"
 #include "mqtt_publish_ack.h"
 
+#include "async/event_types.h"
+#include "async/system_lifecycle.h"
 #include "async/task_handles.h"
 #include "audio/audio.h"
 #include "config.h"
@@ -10,7 +12,6 @@
 #include "display/display.h"
 #include "heart/counter.h"
 #include "led/led.h"
-#include "web/admin_globals.h"
 #include "wifi/wlan.h"
 
 #include <climits>
@@ -164,6 +165,55 @@ bool mqttPublishChayaAndApplySentCounters() {
     const bool ok = mqttPublishChayaLocked();
     xSemaphoreGive(g_chayaPublishMutex);
     return ok;
+}
+
+namespace {
+
+enum class PublishAsyncState : uint8_t { Idle = 0, Pending = 1, Ok = 2, Fail = 3 };
+std::atomic<uint8_t> s_publishAsync{static_cast<uint8_t>(PublishAsyncState::Idle)};
+
+}  // namespace
+
+MqttChayaPublishAsync mqttRequestChayaPublishAsync() {
+    uint8_t expected = static_cast<uint8_t>(PublishAsyncState::Idle);
+    if (s_publishAsync.compare_exchange_strong(expected, static_cast<uint8_t>(PublishAsyncState::Pending),
+                                               std::memory_order_acq_rel)) {
+        if (!netCmdTrySend(NetCmd::ChayaPublish)) {
+            s_publishAsync.store(static_cast<uint8_t>(PublishAsyncState::Fail),
+                                 std::memory_order_release);
+            ESP_LOGW(TAG, "ChayaPublish netCmd queue full");
+            return MqttChayaPublishAsync::Fail;
+        }
+    }
+    return mqttPollChayaPublishAsync();
+}
+
+MqttChayaPublishAsync mqttPollChayaPublishAsync() {
+    switch (static_cast<PublishAsyncState>(s_publishAsync.load(std::memory_order_acquire))) {
+    case PublishAsyncState::Pending:
+        return MqttChayaPublishAsync::Pending;
+    case PublishAsyncState::Ok:
+        return MqttChayaPublishAsync::Ok;
+    case PublishAsyncState::Fail:
+        return MqttChayaPublishAsync::Fail;
+    case PublishAsyncState::Idle:
+    default:
+        return MqttChayaPublishAsync::Idle;
+    }
+}
+
+void mqttRunChayaPublishOnNetworkTask() {
+    if (s_publishAsync.load(std::memory_order_acquire)
+        != static_cast<uint8_t>(PublishAsyncState::Pending)) {
+        return;
+    }
+    const bool ok = mqttPublishChayaAndApplySentCounters();
+    s_publishAsync.store(static_cast<uint8_t>(ok ? PublishAsyncState::Ok : PublishAsyncState::Fail),
+                         std::memory_order_release);
+}
+
+void mqttClearChayaPublishAsync() {
+    s_publishAsync.store(static_cast<uint8_t>(PublishAsyncState::Idle), std::memory_order_release);
 }
 
 bool mqttPublishBlocked() { return s_mqttPublishBlocked.load(std::memory_order_acquire); }

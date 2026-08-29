@@ -2,6 +2,7 @@
   import { Languages, Moon, Sun } from "@lucide/svelte";
   import { cycleLanguage } from "../i18n/store.ts";
   import { i18n } from "../i18n/i18n.svelte.ts";
+  import { persistUiPrefsDebounced } from "../prefs/uiPrefs.ts";
   import { themeView } from "../theme/theme.svelte.ts";
   import { toggleTheme } from "../theme/store.ts";
   import { cn } from "../ui/cn.ts";
@@ -21,12 +22,22 @@
     "focus-ring inline-flex shrink-0 items-center justify-center rounded-xl text-muted transition",
     HOVER_SURFACE,
   );
+
+  function onCycleLanguage() {
+    cycleLanguage();
+    persistUiPrefsDebounced();
+  }
+
+  function onToggleTheme() {
+    toggleTheme();
+    persistUiPrefsDebounced();
+  }
 </script>
 
 <div class={cn("flex items-center gap-1", className)}>
   <button
     type="button"
-    onclick={() => cycleLanguage()}
+    onclick={onCycleLanguage}
     class={cn(btn, "h-10 w-[4.25rem] gap-1.5")}
     aria-label={i18n.t("nav.language")}
     title={`${i18n.t("nav.language")}: ${langLabel}`}
@@ -36,7 +47,7 @@
   </button>
   <button
     type="button"
-    onclick={toggleTheme}
+    onclick={onToggleTheme}
     class={cn(btn, "size-10")}
     aria-label={themeLabel}
     title={themeLabel}

@@ -17,6 +17,7 @@ export const API_POST_PATHS = [
   "/api/chaya/send",
   "/api/wifi/connect",
   "/api/wifi/connect-commit",
+  "/api/wifi/connect-retry",
   "/api/wifi/connect-abort",
   "/api/mqtt",
   "/api/settings",

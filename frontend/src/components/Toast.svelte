@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { i18n } from "../i18n/i18n.svelte.ts";
   import type { ToastItem } from "./toastStack.ts";
   import ToastCard from "./ToastCard.svelte";
 
@@ -22,7 +23,7 @@
 {#if toasts.length > 0}
   <div
     role="region"
-    aria-label="Toasts"
+    aria-label={i18n.t("toast.region")}
     class="pointer-events-none fixed right-4 bottom-[max(4.75rem,calc(env(safe-area-inset-bottom)+3.75rem))] left-4 z-50 sm:bottom-[max(1rem,env(safe-area-inset-bottom))] sm:left-auto sm:w-88"
     onmouseenter={() => (expanded = true)}
     onmouseleave={() => (expanded = false)}

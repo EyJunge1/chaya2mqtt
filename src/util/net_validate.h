@@ -96,10 +96,10 @@ inline bool ipv4SameSubnet(const uint8_t ip[4], const uint8_t gateway[4], const 
 }
 
 /**
- * Hostname or IPv4 for NTP/DNS host fields: non-empty, printable ASCII, no spaces/wildcards.
+ * Hostname or IPv4 for NTP/DNS/MQTT host fields: non-empty, printable ASCII, no spaces/wildcards.
  * Empty string is rejected (use optional-field handling at call site).
  */
-inline bool ntpHostSyntaxOk(const char* host, size_t maxLen) {
+inline bool hostFieldSyntaxOk(const char* host, size_t maxLen) {
     if (host == nullptr || host[0] == '\0' || maxLen == 0U) {
         return false;
     }
@@ -115,6 +115,10 @@ inline bool ntpHostSyntaxOk(const char* host, size_t maxLen) {
         }
     }
     return true;
+}
+
+inline bool ntpHostSyntaxOk(const char* host, size_t maxLen) {
+    return hostFieldSyntaxOk(host, maxLen);
 }
 
 inline void formatIpv4Octets(const uint8_t ip[4], char* buf, size_t bufLen) {

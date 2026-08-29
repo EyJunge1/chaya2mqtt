@@ -13,6 +13,22 @@
   let status = $state<WifiConnectStatus>({ state: "testing", ssid: "" });
   let busy = $state(false);
   let prevState = $state<WifiConnectStatus["state"] | null>(null);
+  let redirectTimerId: ReturnType<typeof setTimeout> | undefined;
+
+  const IPV4_HOST =
+    /^(?:(?:25[0-5]|2[0-4]\d|[01]?\d{1,2})\.){3}(?:25[0-5]|2[0-4]\d|[01]?\d{1,2})$/;
+
+  function isAllowedRedirectNext(next: string): boolean {
+    if (next.startsWith("/") && !next.startsWith("//")) return true;
+    try {
+      const url = new URL(next);
+      if (url.protocol !== "http:") return false;
+      if (!IPV4_HOST.test(url.hostname)) return false;
+      return true;
+    } catch {
+      return false;
+    }
+  }
 
   $effect(() => {
     let alive = true;
@@ -36,6 +52,10 @@
     return () => {
       alive = false;
       window.clearInterval(id);
+      if (redirectTimerId !== undefined) {
+        window.clearTimeout(redirectTimerId);
+        redirectTimerId = undefined;
+      }
       // Abort only when leaving the testing route. Transient remounts (e.g. simulator
       // boot/refresh) keep pathname `/wifi-testing` and must not wipe connect state.
       if (router.pathname !== "/wifi-testing") {
@@ -53,10 +73,10 @@
         return;
       }
       onToast(i18n.t("toast.wifi-committed"), "success");
-      if (res.next) {
-        const next = res.next;
-        window.setTimeout(() => window.location.replace(next), 2000);
-      }
+      const target =
+        typeof res.next === "string" && isAllowedRedirectNext(res.next) ? res.next : "/";
+      if (redirectTimerId !== undefined) window.clearTimeout(redirectTimerId);
+      redirectTimerId = window.setTimeout(() => window.location.replace(target), 2000);
     } catch {
       onToast(i18n.t("toast.wifi-commit-failed"), "error");
     } finally {

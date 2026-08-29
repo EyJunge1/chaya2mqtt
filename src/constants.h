@@ -1,5 +1,8 @@
 #pragma once
 
+#include "audio/audio_config.h"
+#include "util/net_validate.h"
+
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
@@ -32,7 +35,9 @@ inline bool ntpTimeLooksSynced(time_t utcNow) {
     return utcNow > static_cast<time_t>(kNtpMinValidUtcEpoch);
 }
 
-/** Basic MQTT topic rules: non-empty, within maxLen (including NUL), no spaces or wildcards. */
+/**
+ * Basic MQTT topic rules: non-empty, within maxLen (including NUL), no spaces or wildcards.
+ */
 inline bool mqttTopicSyntaxOk(const char* topic, size_t maxLen) {
     if (topic == nullptr || topic[0] == '\0' || maxLen == 0U) {
         return false;
@@ -55,6 +60,10 @@ inline bool mqttTopicSyntaxOk(const char* topic, size_t maxLen) {
  * MQTT broker host field (hostname or IP literal): fits in buffer with NUL, no control chars/spaces/wildcards.
  * Not the same rules as MQTT topics (still rejects '#' / '+').
  */
+inline bool mqttServerSyntaxOk(const char* host, size_t maxLen) {
+    return hostFieldSyntaxOk(host, maxLen);
+}
+
 /** UI language preference: "de" or "en". */
 inline bool uiLangSyntaxOk(const char* lang) {
     return lang != nullptr && (strcmp(lang, "de") == 0 || strcmp(lang, "en") == 0);
@@ -78,19 +87,19 @@ inline bool formBoolFromForm(const char* value) {
 }
 
 inline bool audioVolumeInRange(int v) {
-    return v >= 0 && v <= 100;
+    return v >= 0 && v <= static_cast<int>(kAudioVolumeMax);
 }
 
 inline bool quietHourInRange(int v) {
-    return v >= 0 && v <= 23;
+    return v >= 0 && v <= static_cast<int>(kAudioHourMax);
 }
 
 inline bool audioToneHzInRange(int v) {
-    return v >= 40 && v <= 2000;
+    return v >= static_cast<int>(kAudioToneHzMin) && v <= static_cast<int>(kAudioToneHzMax);
 }
 
 inline bool audioToneMsInRange(int v) {
-    return v >= 20 && v <= 500;
+    return v >= static_cast<int>(kAudioToneMsMin) && v <= static_cast<int>(kAudioToneMsMax);
 }
 
 /** Display reset period days: 0 = off, otherwise 1–30. */
@@ -114,24 +123,6 @@ inline bool deviceIdSyntaxOk(const char* id) {
         }
     }
     return id[kDeviceIdHexLen] == '\0';
-}
-
-inline bool mqttServerSyntaxOk(const char* host, size_t maxLen) {
-    if (host == nullptr || host[0] == '\0' || maxLen == 0U) {
-        return false;
-    }
-    size_t len = 0;
-    for (const char* p = host; *p != '\0'; ++p) {
-        ++len;
-        if (len >= maxLen) {
-            return false;
-        }
-        const unsigned char c = static_cast<unsigned char>(*p);
-        if (c < 0x20U || c > 0x7EU || c == ' ' || c == '#' || c == '+') {
-            return false;
-        }
-    }
-    return true;
 }
 
 inline bool wifiSsidSyntaxOk(const char* ssid, size_t maxLen) {

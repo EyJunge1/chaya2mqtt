@@ -40,7 +40,8 @@
   let sendCooldownTimer: ReturnType<typeof setTimeout> | undefined;
 
   /** Matches device LED TX single-flight (~1–2s + PUBACK). */
-  const kHeartSendCooldownMs = 2000;
+  /** Match firmware PUBACK wait (5s) so UI does not re-enable while device is busy. */
+  const kHeartSendCooldownMs = 5000;
 
   const WifiIcon = $derived(wifiSignalIcon(wifi));
   const MqttIcon = $derived(chaya.configured ? Radio : RadioOff);

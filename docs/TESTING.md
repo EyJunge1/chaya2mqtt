@@ -33,7 +33,7 @@ Local test pyramid for chaya2mqtt based on this **principle**: real firmware log
 | Web CSRF TTL/Grace / Host / Hex / SPA | `csrf_pure.h`, `hex_codec.h`, `host_validate.h`, `spa_asset_lookup.h` | `test_web` | single-flight refresh/retry, contract |
 | OTA Version / GitHub JSON / URL allowlist | `version_cmp.h`, `github_parse.h`, `ota_url_allow.h` | `test_ota` | `UpdatePage`, E2E |
 | OTA health window (30 s) | `ota/ota_health.h` | `test_ota` (`test_ota_health_window`) | — |
-| WiFi forced-reassociation threshold | `wifi/wlan_config.h` | `test_wifi` | — |
+| WiFi Soft→Force reconnect threshold | `wifi/wlan_config.h` (`kWifiSoftReconnectAttemptsBeforeForce`) | `test_wifi` (constant assert only) | Soft-reconnect recovery loop: HIL/manual |
 | Time helpers | `util/time_helpers.h` | `test_time` | — |
 | Battery / audio gates / queue coalescing / display link + battery icons / LED patterns / button debounce | pure helpers in `hw`, `audio`, `async`, `display`, `button`, `led` | `test_hw` | Settings, dashboard |
 | Device orchestration | Pure helpers + `sim/device_runtime.h` | `test_device_sim` | Mock scenarios |
@@ -125,7 +125,7 @@ attached device and `make check` stays hardware-free.
 1. **Flash/boot**—flash the release over USB-C; on battery press PWR and confirm GPIO17 stays latched; display updates (~20 s). Do not hold BOOT except for download.
 2. **AP setup**—scan the WIFI QR on the display (phone camera); join WPA2/WPA3 `Chaya2MQTT`; confirm `chaya2mqtt.local` and captive probes reach the connected AP; on **iPhone**, confirm the Captive Network Assistant (or Safari) loads the Wi‑Fi setup SPA with gzip `/assets/*` (page renders, not a download); SSID scan; test & connect; commit.
 3. **Multi-device network identity**—start two unconfigured devices; use each display's QR/PIN to configure the two same-named but isolated setup APs. After both join the same LAN, confirm `chaya2mqtt-<id-a>.local` and `chaya2mqtt-<id-b>.local` consistently open the matching dashboards and expose matching IDs. Confirm the unsuffixed STA name does not select an arbitrary device.
-4. **WiFi change/recovery**—wrong password → error; correct password → STA; reboot retains configuration; repeated disconnects → soft reconnect, then forced reassociation; longer outage → controlled restart (no restart during OTA); LOST_IP triggers the same reconnect path.
+4. **WiFi change/recovery**—wrong password → error; correct password → STA; reboot retains configuration; repeated disconnects → soft reconnect, then forced reassociation (Soft→Force threshold is unit-asserted only; full soft-reconnect recovery loop is HIL/manual); longer outage → controlled restart (no restart during OTA); LOST_IP triggers the same reconnect path.
 5. **MQTT pairing/telemetry**—broker + partner; LWT online; send/receive heart; while MQTT is down, modem power saving is off (`WIFI_PS_NONE`), and after connection it returns to `MIN_MODEM`. Unpair → waiting `Chaya2MQTT` title stays; web send disabled and device button does not send until partner is set again.
 6. **Broker outage**—restart broker with stable WiFi → MQTT backoff/reconnect without factory reset; LWT offline → online.
 7. **WiFi interruption**—briefly turn off the access point → STA reconnect → MQTT online again.

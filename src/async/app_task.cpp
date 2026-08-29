@@ -75,7 +75,7 @@ static void appTaskFn(void*) {
         (void)ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(500));
 
         if (otaHealthWindowElapsed(wlanIsSetupComplete(), wlanIsBootWifiSettled(),
-                                   wlanBootSettledAtMs(), millis())) {
+                                   wlanStaConnectedOk(), wlanBootSettledAtMs(), millis())) {
             otaTryMarkValidAfterHealthCheck();
         }
 

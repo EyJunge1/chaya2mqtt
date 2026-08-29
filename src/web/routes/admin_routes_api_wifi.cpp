@@ -18,6 +18,7 @@
 #include "util/log_tag.h"
 #include "web/csrf.h"
 #include "web/deferred_reboot.h"
+#include "web/rate_limit.h"
 #include "web/web_middleware.h"
 #include "web/web_utils.h"
 #include "wifi/test.h"
@@ -32,6 +33,11 @@
 #include <esp_log.h>
 
 DEFINE_LOG_TAG("WEBAPI");
+
+namespace {
+WebMinIntervalLimit s_wifiScanLimit{2000U};
+WebMinIntervalLimit s_wifiConnectLimit{2000U};
+} // namespace
 
 bool appendWifiRuntimeFields(char* body, size_t bodyLen, size_t* pos, const char* ip,
                              const char* gateway, const char* netmask, const char* dns1,
@@ -73,21 +79,21 @@ void handleApiWifiStatusGet(AsyncWebServerRequest* req) {
     size_t pos = 0;
     const int h = snprintf(body, sizeof(body), "{\"connected\":true,\"ssid\":");
     if (h < 0 || static_cast<size_t>(h) >= sizeof(body)) {
-        webSendEmpty(req, 500);
+        sendErr(req, 500, "json");
         return;
     }
     pos = static_cast<size_t>(h);
     if (!appendJsonStringQuotedEscaped(ssidBuf, body, sizeof(body), &pos)) {
-        webSendEmpty(req, 500);
+        sendErr(req, 500, "json");
         return;
     }
     if (!appendWifiRuntimeFields(body, sizeof(body), &pos, ipStr, gateway, netmask, dns1, dns2,
                                  rssi)) {
-        webSendEmpty(req, 500);
+        sendErr(req, 500, "json");
         return;
     }
     if (pos + 2U > sizeof(body)) {
-        webSendEmpty(req, 500);
+        sendErr(req, 500, "json");
         return;
     }
     body[pos++] = '}';
@@ -140,7 +146,7 @@ void handleApiWifiConfigGet(AsyncWebServerRequest* req) {
     }
     char body[768]{};
     if (!fillWifiConfigJson(body, sizeof(body), cfg)) {
-        webSendEmpty(req, 500);
+        sendErr(req, 500, "json");
         return;
     }
     webSendJson(req, 200, body);
@@ -214,6 +220,10 @@ bool parseWifiConfigFromRequest(AsyncWebServerRequest* req, WlanConfig* cfg, con
 }
 
 void handleApiWifiScanGet(AsyncWebServerRequest* req) {
+    if (!webMinIntervalAllow(s_wifiScanLimit)) {
+        sendErr(req, 429, "rate_limit");
+        return;
+    }
     if (!wlanWifiScanCacheReady()) {
         wlanRequestWifiScanRefresh();
         webSendEmpty(req, 202);
@@ -241,10 +251,14 @@ void handleApiWifiScanGet(AsyncWebServerRequest* req) {
     }
     resp->print(']');
     req->send(resp);
-    wlanRequestWifiScanRefresh();
+    // PERF-07: do not re-kick after a successful cache hit; UI refresh re-requests when needed.
 }
 
 void handleApiWifiConnectPost(AsyncWebServerRequest* req) {
+    if (!webMinIntervalAllow(s_wifiConnectLimit)) {
+        sendErr(req, 429, "rate_limit");
+        return;
+    }
     WlanConfig cfg{};
     const char* err = nullptr;
     if (!parseWifiConfigFromRequest(req, &cfg, &err)) {
@@ -281,16 +295,16 @@ void handleApiWifiConnectStatusGet(AsyncWebServerRequest* req) {
     size_t pos = 0;
     const int h = snprintf(body, sizeof(body), "{\"state\":\"%s\",\"ssid\":", stStr);
     if (h < 0 || static_cast<size_t>(h) >= sizeof(body)) {
-        webSendEmpty(req, 500);
+        sendErr(req, 500, "json");
         return;
     }
     pos = static_cast<size_t>(h);
     if (!appendJsonStringQuotedEscaped(ssid, body, sizeof(body), &pos)) {
-        webSendEmpty(req, 500);
+        sendErr(req, 500, "json");
         return;
     }
     if (pos + 2U > sizeof(body)) {
-        webSendEmpty(req, 500);
+        sendErr(req, 500, "json");
         return;
     }
     body[pos++] = '}';

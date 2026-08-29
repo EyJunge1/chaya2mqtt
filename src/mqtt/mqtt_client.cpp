@@ -55,8 +55,12 @@ bool mqttClientLockTimed() {
 }
 
 void mqttClientLock() {
+    // Prefer timed take so a stuck holder cannot hang the caller forever (STAB-13).
     if (g_mqttClientMutex != nullptr) {
-        xSemaphoreTake(g_mqttClientMutex, portMAX_DELAY);
+        if (xSemaphoreTake(g_mqttClientMutex, kMqttClientLockTimeoutTicks) != pdTRUE) {
+            ESP_LOGW(TAG, "mqtt client mutex timeout — falling back to extended wait");
+            xSemaphoreTake(g_mqttClientMutex, pdMS_TO_TICKS(10000));
+        }
     }
 }
 

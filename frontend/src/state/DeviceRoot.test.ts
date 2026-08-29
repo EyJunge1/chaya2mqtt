@@ -12,6 +12,7 @@ const {
   getWifiStatus,
   getMqttStatus,
   getUpdateStatus,
+  getSettings,
   connectEvents,
 } = vi.hoisted(() => ({
   refreshCsrf: vi.fn(),
@@ -20,6 +21,7 @@ const {
   getWifiStatus: vi.fn(),
   getMqttStatus: vi.fn(),
   getUpdateStatus: vi.fn(),
+  getSettings: vi.fn(),
   connectEvents: vi.fn(),
 }));
 
@@ -30,6 +32,7 @@ vi.mock("../api/client.ts", () => ({
     getWifiStatus: () => getWifiStatus(),
     getMqttStatus: () => getMqttStatus(),
     getUpdateStatus: () => getUpdateStatus(),
+    getSettings: () => getSettings(),
   },
   refreshCsrf: () => refreshCsrf(),
 }));
@@ -60,6 +63,22 @@ describe("DeviceRoot", () => {
     getWifiStatus.mockResolvedValue({ connected: false });
     getMqttStatus.mockResolvedValue({ connected: true });
     getUpdateStatus.mockResolvedValue(null);
+    getSettings.mockResolvedValue({
+      resetDays: 7,
+      lang: "en",
+      theme: "light",
+      ledEnabled: true,
+      audioTxEnabled: false,
+      audioRxEnabled: false,
+      audioTxVolume: 70,
+      audioRxVolume: 70,
+      quietHourStart: 0,
+      quietHourEnd: 0,
+      txHz: 880,
+      txMs: 80,
+      rxHz: 660,
+      rxMs: 140,
+    });
     connectEvents.mockReturnValue(() => undefined);
   });
 

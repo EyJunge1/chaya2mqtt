@@ -9,6 +9,7 @@ enum class NetCmd : uint8_t {
     WifiGotIp,
     WifiReconnect,
     ChayaSendRequested,
+    ChayaPublish,
     FactoryResetRequested,
 };
 

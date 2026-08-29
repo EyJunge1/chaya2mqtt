@@ -705,6 +705,11 @@ components:
           type: string
           description: Derived subscribe topic chaya2mqtt/<partnerId>, or empty when unpaired
         partnerId: { type: string }
+        nvsOk:
+          {
+            type: boolean,
+            description: false when last deferred MQTT NVS persist failed (QUAL-01),
+          }
     SettingsInfo:
       type: object
       required:
@@ -776,6 +781,12 @@ components:
           minimum: 20
           maximum: 500
           description: Receive click duration (ms)
+        nvsOk:
+          type: boolean
+          description: false when last deferred settings NVS persist failed (QUAL-01)
+        applyPending:
+          type: boolean
+          description: true while settings apply is queued or retrying (QUAL-04)
     OtaStatus:
       type: object
       required:

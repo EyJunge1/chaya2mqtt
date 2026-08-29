@@ -101,6 +101,8 @@ export interface MqttConfigView {
   topicPub: string;
   topicSub: string;
   partnerId: string;
+  /** Present when firmware reports deferred MQTT NVS apply status (QUAL-01). */
+  nvsOk?: boolean;
 }
 
 export type UiLang = "de" | "en";
@@ -121,6 +123,9 @@ export interface SettingsInfo {
   txMs: number;
   rxHz: number;
   rxMs: number;
+  /** Present when firmware reports deferred-apply NVS status (QUAL-01). */
+  nvsOk?: boolean;
+  applyPending?: boolean;
 }
 
 export interface ApiOk {

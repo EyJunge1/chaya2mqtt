@@ -4,6 +4,7 @@
   import { api } from "../api/client.ts";
   import type { MqttConfigView, MqttStatus } from "../api/types.ts";
   import ActionRow from "../components/ActionRow.svelte";
+  import Alert from "../components/Alert.svelte";
   import ErrorBlock from "../components/ErrorBlock.svelte";
   import Field from "../components/Field.svelte";
   import KeyValueGrid from "../components/KeyValueGrid.svelte";
@@ -43,17 +44,20 @@
   let loadError = $state(false);
   let copied = $state(false);
   let copiedReset: ReturnType<typeof setTimeout> | undefined;
+  let loadSeq = 0;
 
   async function load() {
+    const seq = ++loadSeq;
     loadError = false;
     try {
       const next = await api.getMqttConfig();
+      if (seq !== loadSeq) return;
       cfg = next;
       partner = next.partnerId;
     } catch {
+      if (seq !== loadSeq) return;
       cfg = null;
       loadError = true;
-      onToast(i18n.t("toast.mqtt-load-failed"), "error");
     }
   }
 
@@ -62,6 +66,10 @@
     untrack(() => {
       void load();
     });
+    return () => {
+      loadSeq += 1;
+      clearTimeout(copiedReset);
+    };
   });
 
   function protocolOf(tls: boolean): MqttProtocol {
@@ -100,11 +108,15 @@
         );
         return;
       }
-      onToast(i18n.t("toast.mqtt-saved"), "success");
       password = "";
       const next = await api.getMqttConfig();
       cfg = next;
       partner = next.partnerId;
+      if (next.nvsOk === false) {
+        onToast(i18n.t("toast.save-failed"), "error");
+        return;
+      }
+      onToast(i18n.t("toast.mqtt-saved"), "success");
       await onDeviceRefresh?.();
     } catch {
       onToast(i18n.t("toast.save-failed"), "error");
@@ -158,6 +170,11 @@
   <LoadingBlock label={i18n.t("mqtt.loading")} />
 {:else}
   <div class="space-y-4">
+    {#if !cfg.tls}
+      <Alert variant="warning" title={i18n.t("mqtt.tls-warning-title")}>
+        {i18n.t("mqtt.tls-warning")}
+      </Alert>
+    {/if}
     <Panel>
       {#snippet title()}
         <StatusBadge

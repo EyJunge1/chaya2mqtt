@@ -185,6 +185,14 @@ describe("MqttPage", () => {
     expect(container.querySelector(".lucide-radio-off")).toBeInTheDocument();
   });
 
+  it("warns when TLS is disabled", async () => {
+    getMqttConfig.mockResolvedValue(cfg({ tls: false, port: 1883 }));
+    render(MqttPage, { props: { mqtt: { connected: true }, onToast: vi.fn() } });
+
+    expect(await screen.findByText("mqtt.tls-warning-title")).toBeInTheDocument();
+    expect(screen.getByText("mqtt.tls-warning")).toBeInTheDocument();
+  });
+
   it("reloads config when refreshSeq changes", async () => {
     getMqttConfig
       .mockResolvedValueOnce(cfg({ server: "", partnerId: "" }))

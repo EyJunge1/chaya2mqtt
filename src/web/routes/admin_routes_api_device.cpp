@@ -41,7 +41,7 @@ void handleApiCsrfGet(AsyncWebServerRequest* req) {
     const int n = snprintf(body, sizeof(body), "{\"token\":\"%s\",\"expiresInSeconds\":%lu}",
                            token, static_cast<unsigned long>(expiresInSeconds));
     if (n < 0 || static_cast<size_t>(n) >= sizeof(body)) {
-        webSendEmpty(req, 500);
+        sendErr(req, 500, "json");
         return;
     }
     webSendJson(req, 200, body);
@@ -62,12 +62,12 @@ void handleApiDeviceGet(AsyncWebServerRequest* req) {
                      "{\"hostname\":\"%s\",\"version\":\"%s\",\"mode\":\"%s\",\"deviceId\":",
                      hostname, APP_VERSION, ap ? "ap" : "sta");
     if (n < 0 || static_cast<size_t>(n) >= sizeof(body)) {
-        webSendEmpty(req, 500);
+        sendErr(req, 500, "json");
         return;
     }
     pos = static_cast<size_t>(n);
     if (!appendJsonStringQuotedEscaped(deviceId, body, sizeof(body), &pos)) {
-        webSendEmpty(req, 500);
+        sendErr(req, 500, "json");
         return;
     }
     if (ap) {
@@ -75,40 +75,40 @@ void handleApiDeviceGet(AsyncWebServerRequest* req) {
         char apIp[16]{};
         (void)wlanApSetupSnapshot(apSsid, sizeof(apSsid), apIp, sizeof(apIp));
         if (pos + 1U >= sizeof(body)) {
-            webSendEmpty(req, 500);
+            sendErr(req, 500, "json");
             return;
         }
         body[pos++] = ',';
         n = snprintf(body + pos, sizeof(body) - pos, "\"apSsid\":");
         if (n < 0 || pos + static_cast<size_t>(n) >= sizeof(body)) {
-            webSendEmpty(req, 500);
+            sendErr(req, 500, "json");
             return;
         }
         pos += static_cast<size_t>(n);
         if (!appendJsonStringQuotedEscaped(apSsid, body, sizeof(body), &pos)) {
-            webSendEmpty(req, 500);
+            sendErr(req, 500, "json");
             return;
         }
         n = snprintf(body + pos, sizeof(body) - pos, ",\"apIp\":");
         if (n < 0 || pos + static_cast<size_t>(n) >= sizeof(body)) {
-            webSendEmpty(req, 500);
+            sendErr(req, 500, "json");
             return;
         }
         pos += static_cast<size_t>(n);
         if (!appendJsonStringQuotedEscaped(apIp, body, sizeof(body), &pos)) {
-            webSendEmpty(req, 500);
+            sendErr(req, 500, "json");
             return;
         }
     }
     n = snprintf(body + pos, sizeof(body) - pos, ",\"batteryMv\":%d,\"batteryPct\":%d",
                  batteryMilliVolts(), batteryPercent());
     if (n < 0 || pos + static_cast<size_t>(n) >= sizeof(body)) {
-        webSendEmpty(req, 500);
+        sendErr(req, 500, "json");
         return;
     }
     pos += static_cast<size_t>(n);
     if (pos + 2U > sizeof(body)) {
-        webSendEmpty(req, 500);
+        sendErr(req, 500, "json");
         return;
     }
     body[pos++] = '}';

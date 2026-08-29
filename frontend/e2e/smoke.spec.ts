@@ -131,3 +131,68 @@ test("battery critical icon from simulator scenario @smoke", async ({ page, requ
   await expect(page.getByLabel(/Battery: 8%/i)).toBeVisible();
   await expect(page.getByText("8%")).toBeVisible();
 });
+
+test("ota install confirm starts downloading", async ({ page, request }) => {
+  await resetMock(request, "update-available");
+  await waitForAppReady(page);
+  await page.goto("/update");
+  await page.getByRole("button", { name: /Check for updates/i }).click();
+  await expect(page.getByRole("button", { name: /Install update|Update installieren/i })).toBeVisible({
+    timeout: 10_000,
+  });
+  await page.getByRole("button", { name: /Install update|Update installieren/i }).click();
+  await expect(page.getByRole("dialog")).toBeVisible();
+  await page.getByRole("dialog").getByRole("button", { name: /Install update|Update installieren/i }).click();
+  await expect(page.getByText(/Downloading|Herunterladen/i).first()).toBeVisible({
+    timeout: 10_000,
+  });
+});
+
+test("factory reset confirm posts and enters AP setup", async ({ page, request }) => {
+  await resetMock(request, "sta-connected");
+  await waitForAppReady(page);
+  await page.goto("/settings/device");
+  const resetPromise = page.waitForResponse(
+    (r) => r.url().includes("/api/factory-reset") && r.request().method() === "POST",
+  );
+  await page.getByRole("main").getByRole("button", { name: /Delete everything|Alles löschen/i }).click();
+  await expect(page.getByRole("dialog")).toBeVisible();
+  await page.getByRole("dialog").getByRole("button", { name: /Delete everything|Alles löschen/i }).click();
+  const res = await resetPromise;
+  expect(res.status()).toBe(202);
+  // Mock switches to ap-setup after reset (FE-14).
+  await expect(page.getByRole("button", { name: /Test & connect/i })).toBeVisible({
+    timeout: 15_000,
+  });
+});
+
+test("settings nvsOk false shows save-failed toast", async ({ page, request }) => {
+  await resetMock(request, "settings-nvs-fail");
+  await waitForAppReady(page);
+  await page.goto("/settings/device");
+  await page.getByRole("main").getByRole("button", { name: "Save", exact: true }).first().click();
+  await expect(page.getByText("Save failed")).toBeVisible();
+});
+
+test("wifi commit returns absolute next URL", async ({ request }) => {
+  await resetMock(request, "ap-test-ok");
+  const csrf = await request.get("/api/csrf");
+  const csrfJson = (await csrf.json()) as { token: string };
+  const commit = await request.post("/api/wifi/connect-commit", {
+    form: { csrf_token: csrfJson.token },
+  });
+  const commitBody = (await commit.json()) as { ok: boolean; next?: string };
+  expect(commitBody.ok).toBeTruthy();
+  expect(commitBody.next).toMatch(/^http:\/\/\d+\.\d+\.\d+\.\d+\//);
+});
+
+test("csrf rejection on wifi commit without token", async ({ request }) => {
+  await resetMock(request, "ap-test-ok");
+  const res = await request.post("/api/wifi/connect-commit", {
+    form: { csrf_token: "deadbeef" },
+  });
+  expect(res.status()).toBe(403);
+  const body = (await res.json()) as { ok: boolean; error?: string };
+  expect(body.ok).toBeFalsy();
+  expect(body.error).toBe("csrf");
+});

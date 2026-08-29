@@ -2,6 +2,7 @@ import { ESPLoader, Transport } from "esptool-js";
 import type { FlashManifest, FlashProgress } from "./types";
 
 const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+const SHA256_HEX_RE = /^[0-9a-fA-F]{64}$/;
 
 async function hardReset(transport: Transport, esploader: ESPLoader): Promise<void> {
   await transport.setRTS(true);
@@ -24,6 +25,38 @@ async function fetchPart(url: string): Promise<Uint8Array> {
     throw new Error(`Downloading firmware failed: ${response.status}`);
   }
   return new Uint8Array(await response.arrayBuffer());
+}
+
+async function sha256Hex(data: Uint8Array): Promise<string> {
+  const digest = await crypto.subtle.digest("SHA-256", data.buffer as ArrayBuffer);
+  return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+/** Sidecar next to the binary: firmware.factory.bin → firmware.factory.sha256 */
+function sidecarUrlForPart(partUrl: string): string {
+  if (/\.bin$/i.test(partUrl)) {
+    return partUrl.replace(/\.bin$/i, ".sha256");
+  }
+  return `${partUrl}.sha256`;
+}
+
+async function loadExpectedSha256(
+  partUrl: string,
+  manifestSha256: string | undefined,
+): Promise<string> {
+  if (manifestSha256 && SHA256_HEX_RE.test(manifestSha256)) {
+    return manifestSha256.toLowerCase();
+  }
+  const sidecarUrl = sidecarUrlForPart(partUrl);
+  const response = await fetch(sidecarUrl, { cache: "no-store" });
+  if (!response.ok) {
+    throw new Error(`Missing firmware SHA-256 sidecar (${response.status})`);
+  }
+  const text = (await response.text()).trim().split(/\s+/)[0] ?? "";
+  if (!SHA256_HEX_RE.test(text)) {
+    throw new Error("Invalid firmware SHA-256 sidecar");
+  }
+  return text.toLowerCase();
 }
 
 /**
@@ -121,12 +154,24 @@ export async function flashFirmware(options: {
     for (const part of build.parts) {
       const partUrl = new URL(part.path, manifestUrl).href;
       const data = await fetchPart(partUrl);
+      const expected = await loadExpectedSha256(partUrl, part.sha256);
+      const actual = await sha256Hex(data);
+      if (actual !== expected) {
+        throw new Error(`Firmware SHA-256 mismatch for ${part.path}`);
+      }
       fileArray.push({ data, address: part.offset });
       totalSize += data.length;
     }
   } catch (err) {
     console.error(err);
-    await fail("download_failed");
+    const message = err instanceof Error ? err.message : String(err);
+    if (/SHA-256 mismatch/i.test(message)) {
+      await fail("hash_mismatch");
+    } else if (/SHA-256|sidecar/i.test(message)) {
+      await fail("hash_missing");
+    } else {
+      await fail("download_failed");
+    }
     return;
   }
 

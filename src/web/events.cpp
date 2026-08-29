@@ -214,10 +214,14 @@ void webEventsTick() {
         s_lastMqttConfigured = mqttPageRelevant;
         s_lastMqttPaired = mqttPaired;
     }
-    wifiDirty = force || !s_haveLastWifi || s_lastWifiConnected != wifiConn || s_lastWifiRssi != rssi ||
-                strcmp(s_lastWifiSsid, curSsid) != 0 || strcmp(s_lastWifiIp, curIp) != 0 ||
-                strcmp(s_lastWifiGateway, curGateway) != 0 || strcmp(s_lastWifiNetmask, curNetmask) != 0 ||
-                strcmp(s_lastWifiDns1, curDns1) != 0 || strcmp(s_lastWifiDns2, curDns2) != 0;
+    constexpr int kWifiRssiHysteresisDbm = 3;
+    const bool wifiOtherDirty =
+        force || !s_haveLastWifi || s_lastWifiConnected != wifiConn ||
+        strcmp(s_lastWifiSsid, curSsid) != 0 || strcmp(s_lastWifiIp, curIp) != 0 ||
+        strcmp(s_lastWifiGateway, curGateway) != 0 || strcmp(s_lastWifiNetmask, curNetmask) != 0 ||
+        strcmp(s_lastWifiDns1, curDns1) != 0 || strcmp(s_lastWifiDns2, curDns2) != 0;
+    const int rssiDelta = rssi > s_lastWifiRssi ? rssi - s_lastWifiRssi : s_lastWifiRssi - rssi;
+    wifiDirty = wifiOtherDirty || rssiDelta >= kWifiRssiHysteresisDbm;
     if (wifiDirty) {
         s_haveLastWifi = true;
         s_lastWifiConnected = wifiConn;

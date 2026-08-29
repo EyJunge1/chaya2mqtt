@@ -153,6 +153,11 @@ class GenerateFlasherSiteTests(unittest.TestCase):
         manifest = self.mod.make_manifest("Chaya2MQTT", "2026.8.1", "firmware.factory.bin")
         self.assertEqual(manifest["builds"][0]["chipFamily"], "ESP32-S3")
         self.assertEqual(manifest["builds"][0]["parts"][0]["offset"], 0)
+        self.assertNotIn("sha256", manifest["builds"][0]["parts"][0])
+        with_hash = self.mod.make_manifest(
+            "Chaya2MQTT", "2026.8.1", "firmware.factory.bin", sha256="a" * 64
+        )
+        self.assertEqual(with_hash["builds"][0]["parts"][0]["sha256"], "a" * 64)
         self.assertTrue(manifest["new_install_prompt_erase"])
         self.assertEqual(manifest["new_install_improv_wait_time"], 0)
 
@@ -192,6 +197,12 @@ class GenerateFlasherSiteTests(unittest.TestCase):
             self.assertEqual(stable_manifest["version"], "2026.8.1")
             self.assertEqual(
                 stable_manifest["builds"][0]["parts"][0]["path"], "firmware.factory.bin"
+            )
+            self.assertEqual(
+                len(stable_manifest["builds"][0]["parts"][0]["sha256"]), 64
+            )
+            self.assertTrue(
+                (out / "firmware" / "stable" / "firmware.factory.sha256").is_file()
             )
 
 

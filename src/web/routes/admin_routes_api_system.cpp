@@ -18,6 +18,7 @@
 #include "util/log_tag.h"
 #include "web/csrf.h"
 #include "web/deferred_reboot.h"
+#include "web/rate_limit.h"
 #include "web/web_middleware.h"
 #include "web/web_utils.h"
 #include "wifi/test.h"
@@ -33,7 +34,16 @@
 
 DEFINE_LOG_TAG("WEBAPI");
 
+namespace {
+WebMinIntervalLimit s_rebootLimit{5000U};
+WebMinIntervalLimit s_factoryResetLimit{10000U};
+} // namespace
+
 void handleApiRebootPost(AsyncWebServerRequest* req) {
+    if (!webMinIntervalAllow(s_rebootLimit)) {
+        sendErr(req, 429, "rate_limit");
+        return;
+    }
     if (g_systemShutdownInProgress.load(std::memory_order_acquire)) {
         sendErr(req, 503, "shutdown");
         return;
@@ -44,6 +54,10 @@ void handleApiRebootPost(AsyncWebServerRequest* req) {
 }
 
 void handleApiResetPost(AsyncWebServerRequest* req, NetCmd cmd, const char* message) {
+    if (!webMinIntervalAllow(s_factoryResetLimit)) {
+        sendErr(req, 429, "rate_limit");
+        return;
+    }
     if (g_systemShutdownInProgress.load(std::memory_order_acquire)) {
         sendErr(req, 503, "shutdown");
         return;

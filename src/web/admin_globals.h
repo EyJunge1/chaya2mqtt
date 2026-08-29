@@ -2,6 +2,8 @@
 
 #include <Arduino.h>
 
+#include "async/system_lifecycle.h"
+
 #include <atomic>
 #include <cstddef>
 #include <cstdint>
@@ -14,7 +16,6 @@ extern std::atomic<uint32_t> g_webAdminMqttApplyVersion;
 extern std::atomic<bool> g_webAdminSettingsApplyPending;
 extern std::atomic<bool> g_webAdminMqttNvsWriteFailed;
 extern std::atomic<bool> g_webAdminSettingsNvsWriteFailed;
-extern std::atomic<bool> g_systemShutdownInProgress;
 
 extern uint8_t      g_webAdminPendingResetDays;
 extern char         g_webAdminPendingUiLang[3];

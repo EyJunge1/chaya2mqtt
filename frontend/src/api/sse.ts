@@ -1,4 +1,5 @@
 import type { ChayaStatus, DeviceBatteryEvent, MqttStatus, OtaStatus, WifiStatus } from "./types";
+import { parseOtaStatus } from "./validate";
 
 export type SseHandlers = {
   chaya?: (data: ChayaStatus) => void;
@@ -12,11 +13,12 @@ export type SseHandlers = {
 export function connectEvents(handlers: SseHandlers): () => void {
   const es = new EventSource("/events");
 
-  const bind = <T>(type: string, cb?: (data: T) => void) => {
+  const bind = <T>(type: string, cb?: (data: T) => void, map?: (raw: unknown) => T) => {
     if (!cb) return;
     es.addEventListener(type, (ev) => {
       try {
-        cb(JSON.parse((ev as MessageEvent<string>).data) as T);
+        const raw: unknown = JSON.parse((ev as MessageEvent<string>).data);
+        cb(map ? map(raw) : (raw as T));
       } catch {
         /* ignore malformed payloads */
       }
@@ -26,7 +28,7 @@ export function connectEvents(handlers: SseHandlers): () => void {
   bind("chaya", handlers.chaya);
   bind("wifi", handlers.wifi);
   bind("mqtt", handlers.mqtt);
-  bind("ota", handlers.ota);
+  bind("ota", handlers.ota, parseOtaStatus);
   bind("device", handlers.device);
   es.onerror = () => handlers.error?.();
 

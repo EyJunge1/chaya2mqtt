@@ -27,12 +27,29 @@ bool mqttIsConnected();
 
 bool mqttPublishChayaAndApplySentCounters();
 
+/**
+ * Non-blocking heart publish for the LED TX sequence (STAB-02).
+ * LED/button task requests work; network task runs the blocking PUBACK wait.
+ */
+enum class MqttChayaPublishAsync : uint8_t {
+    Idle,
+    Pending,
+    Ok,
+    Fail,
+};
+
+/** Arm network-task publish if idle; returns current async state after arming. */
+MqttChayaPublishAsync mqttRequestChayaPublishAsync();
+MqttChayaPublishAsync mqttPollChayaPublishAsync();
+void mqttRunChayaPublishOnNetworkTask();
+void mqttClearChayaPublishAsync();
+
 /** True while broker settings are being torn down/reapplied (blocks publish). */
 bool mqttPublishBlocked();
 
 /** Result of requesting a heart/Chaya TX (button and web share this entry). */
 enum class ChayaSendResult : uint8_t {
-    Started,      // LED TX sequence armed; publish runs in button/LED task
+    Started,      // LED TX sequence armed; publish runs on network task (STAB-02)
     Unavailable,  // shutdown, SoftAP, or broker not configured
     Busy,         // TX sequence already running or publish blocked (settings apply)
 };

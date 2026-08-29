@@ -116,6 +116,10 @@ jobs:
           npm ci
           npx playwright install --with-deps chromium
 
+      - name: npm audit (fail on high/critical)
+        working-directory: frontend
+        run: npm audit --audit-level=high
+
       - name: Run frontend quality gate
         run: "make check-frontend FRONTEND_NPM_CI=:"
 

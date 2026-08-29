@@ -126,7 +126,9 @@ void wifiScanServiceOnMainTask() {
     const size_t usable = std::min(static_cast<size_t>(n), kWlanWifiScanCacheMaxRows);
     size_t       rowCount = usable;
     uint16_t     apCount  = static_cast<uint16_t>(usable);
-    wifi_ap_record_t records[kWlanWifiScanCacheMaxRows]{};
+    // BSS: ~3–4 KB; must not live on the Network-Task stack (STAB-01).
+    static wifi_ap_record_t s_scanRecords[kWlanWifiScanCacheMaxRows]{};
+    wifi_ap_record_t* const records = s_scanRecords;
     const esp_err_t recErr = esp_wifi_scan_get_ap_records(&apCount, records);
     if (recErr == ESP_OK && apCount > 0U) {
         rowCount = std::min(static_cast<size_t>(apCount), usable);
@@ -138,11 +140,18 @@ void wifiScanServiceOnMainTask() {
         }
     } else {
         for (size_t i = 0; i < usable; ++i) {
-            const uint8_t idx = static_cast<uint8_t>(i);
-            s_wifiScanRowWork[i].rssi = static_cast<int>(WiFi.RSSI(idx));
-            s_wifiScanRowWork[i].open = (WiFi.encryptionType(idx) == WIFI_AUTH_OPEN);
-            const String ssidStr      = WiFi.SSID(idx);
-            strlcpy(s_wifiScanRowWork[i].ssid, ssidStr.c_str(), sizeof(s_wifiScanRowWork[i].ssid));
+            const auto* rec =
+                static_cast<const wifi_ap_record_t*>(WiFi.getScanInfoByIndex(static_cast<int>(i)));
+            if (rec == nullptr) {
+                s_wifiScanRowWork[i].rssi = 0;
+                s_wifiScanRowWork[i].open = false;
+                s_wifiScanRowWork[i].ssid[0] = '\0';
+                continue;
+            }
+            s_wifiScanRowWork[i].rssi = rec->rssi;
+            s_wifiScanRowWork[i].open = (rec->authmode == WIFI_AUTH_OPEN);
+            strlcpy(s_wifiScanRowWork[i].ssid, reinterpret_cast<const char*>(rec->ssid),
+                    sizeof(s_wifiScanRowWork[i].ssid));
         }
     }
     portENTER_CRITICAL(&s_wifiScanCacheMux);

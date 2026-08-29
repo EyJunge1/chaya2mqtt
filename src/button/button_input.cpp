@@ -15,6 +15,7 @@
 #include "mqtt/mqtt.h"
 #include "ota/ota.h"
 #include "web/admin_globals.h"
+#include "async/system_lifecycle.h"
 #include "wifi/wlan.h"
 
 #include "diag/stack_monitor.h"
@@ -40,8 +41,14 @@ PwrButtonState pwr{};
 
 static void waitForPwrRelease() {
     unsigned long releasedSinceMs = 0;
+    const unsigned long startedMs = millis();
     for (;;) {
         const unsigned long nowMs = millis();
+        if (nowMs - startedMs >= kSoftOffReleaseTimeoutMs) {
+            ESP_LOGW(TAG, "PWR soft-off: release timeout (%lu ms) — sleeping anyway",
+                     kSoftOffReleaseTimeoutMs);
+            return;
+        }
         if (digitalRead(pins::kPwrButton) != LOW) {
             if (releasedSinceMs == 0) {
                 releasedSinceMs = nowMs;

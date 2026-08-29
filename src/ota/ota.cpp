@@ -4,6 +4,8 @@
 #include "flash.h"
 #include "ota_task.h"
 
+#include "battery/battery.h"
+#include "battery/battery_config.h"
 #include "config/nvs_keys.h"
 #include "config/nvs_utils.h"
 #include "constants.h"
@@ -222,7 +224,24 @@ void runInstall() {
         ESP_LOGW(TAG, "OTA install ignored — no pending release");
         return;
     }
-    release             = s_pendingRelease;
+    release = s_pendingRelease;
+    portEXIT_CRITICAL(&s_otaMux);
+
+    batteryPoll();
+    if (batteryPercent() < kBatteryOtaMinPct) {
+        g_otaFlashInProgress.store(false, std::memory_order_release);
+        portENTER_CRITICAL(&s_otaMux);
+        setErrorLocked("battery_low");
+        if (s_havePendingRelease) {
+            strlcpy(s_status.availableVersion, s_pendingRelease.version,
+                    sizeof(s_status.availableVersion));
+        }
+        portEXIT_CRITICAL(&s_otaMux);
+        ESP_LOGW(TAG, "OTA install blocked — battery below %d%%", kBatteryOtaMinPct);
+        return;
+    }
+
+    portENTER_CRITICAL(&s_otaMux);
     s_status.error[0]   = '\0';
     s_status.bytesDone  = 0;
     s_status.bytesTotal = 0;

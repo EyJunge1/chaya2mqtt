@@ -7,6 +7,7 @@
 
 #include <atomic>
 #include <Arduino.h>
+#include <cstddef>
 #include <cstring>
 #include <esp_log.h>
 
@@ -141,8 +142,13 @@ bool configSetResetPeriodDays(uint8_t days) {
                           "NVS cfg: failed to persist rstPeriod");
 }
 
-const char* configGetUiLang() {
-    return s_uiLangCached;
+void configCopyUiLang(char* out, size_t outLen) {
+    if (out == nullptr || outLen == 0U) {
+        return;
+    }
+    portENTER_CRITICAL(&s_uiPrefsMux);
+    strlcpy(out, s_uiLangCached, outLen);
+    portEXIT_CRITICAL(&s_uiPrefsMux);
 }
 
 bool configSetUiLang(const char* lang) {
@@ -153,8 +159,13 @@ bool configSetUiLang(const char* lang) {
                            kNvsKeyCfgUiLang, lang, "NVS cfg: failed to persist ui_lang");
 }
 
-const char* configGetUiTheme() {
-    return s_uiThemeCached;
+void configCopyUiTheme(char* out, size_t outLen) {
+    if (out == nullptr || outLen == 0U) {
+        return;
+    }
+    portENTER_CRITICAL(&s_uiPrefsMux);
+    strlcpy(out, s_uiThemeCached, outLen);
+    portEXIT_CRITICAL(&s_uiPrefsMux);
 }
 
 bool configSetUiTheme(const char* theme) {
@@ -199,13 +210,9 @@ bool configSetDisplayView(DisplayView view) {
 }
 
 bool configInvalidateDisplayView() {
-    // Force a redraw in this boot even if NVS is temporarily unavailable.
+    // RAM only — avoid a second NVS write per refresh (STAB-04). Final view is
+    // persisted once via configSetDisplayView() after a successful draw.
     s_displayViewCached.store(DisplayView::Unknown, std::memory_order_relaxed);
-    if (!app_nvs::writeUChar(kNvsNsCfg, kNvsKeyCfgDispView,
-                             static_cast<uint8_t>(DisplayView::Unknown))) {
-        ESP_LOGE(TAG, "NVS cfg: failed to invalidate disp_view");
-        return false;
-    }
     return true;
 }
 

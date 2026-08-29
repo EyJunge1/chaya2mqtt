@@ -60,7 +60,7 @@ void webAdminScheduleWifiConfiguredReboot() {
 void webAdminLoop() {
     webEventsTick();
 
-    if (g_webAdminSettingsApplyPending.exchange(false, std::memory_order_acq_rel)
+    if (g_webAdminSettingsApplyPending.load(std::memory_order_acquire)
         && !g_systemShutdownInProgress.load(std::memory_order_acquire)) {
         uint8_t daysApply;
         char langApply[3];
@@ -92,19 +92,25 @@ void webAdminLoop() {
         rxHzApply           = g_webAdminPendingRxHz;
         rxMsApply           = g_webAdminPendingRxMs;
         portEXIT_CRITICAL(&g_webAdminSettingsPendingMux);
-        const bool ok = configSetResetPeriodDays(daysApply) && configSetUiLang(langApply)
-                        && configSetUiTheme(themeApply)
-                        && configSetLedEnabled(ledEnabledApply)
-                        && configSetAudioTxEnabled(audioTxEnabledApply)
-                        && configSetAudioRxEnabled(audioRxEnabledApply)
-                        && configSetAudioTxVolume(audioTxVolumeApply)
-                        && configSetAudioRxVolume(audioRxVolumeApply)
-                        && configSetAudioQuietHours(quiet0Apply, quiet1Apply)
-                        && configSetAudioTones(txHzApply, txMsApply, rxHzApply, rxMsApply);
+        // Attempt every write (no && short-circuit) so a mid-chain NVS fail does not
+        // leave later fields unapplied (QUAL-04). Pending stays set until all succeed.
+        bool ok = true;
+        ok &= configSetResetPeriodDays(daysApply);
+        ok &= configSetUiLang(langApply);
+        ok &= configSetUiTheme(themeApply);
+        ok &= configSetLedEnabled(ledEnabledApply);
+        ok &= configSetAudioTxEnabled(audioTxEnabledApply);
+        ok &= configSetAudioRxEnabled(audioRxEnabledApply);
+        ok &= configSetAudioTxVolume(audioTxVolumeApply);
+        ok &= configSetAudioRxVolume(audioRxVolumeApply);
+        ok &= configSetAudioQuietHours(quiet0Apply, quiet1Apply);
+        ok &= configSetAudioTones(txHzApply, txMsApply, rxHzApply, rxMsApply);
         g_webAdminSettingsNvsWriteFailed.store(!ok, std::memory_order_release);
         if (ok) {
+            g_webAdminSettingsApplyPending.store(false, std::memory_order_release);
             ledApplyEnabled();
         }
+        // On failure keep pending so a later loop can retry (QUAL-04).
     }
 
     if (g_webAdminMqttApplyVersion.load(std::memory_order_acquire) > s_webAdminMqttApplyQueuedVersion

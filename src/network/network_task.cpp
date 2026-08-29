@@ -32,7 +32,7 @@ static bool s_mqttSettingsChangedDeferred = false;
 static void handleNetCommand(NetCmd cmd) {
     static const char* const kNetCmdNames[] = {
         "MqttSettingsChanged", "MqttKillClient", "WifiGotIp",
-        "WifiReconnect",       "ChayaSendRequested", "FactoryResetRequested",
+        "WifiReconnect",       "ChayaSendRequested", "ChayaPublish", "FactoryResetRequested",
     };
     const unsigned idx = static_cast<unsigned>(cmd);
     ESP_LOGI(TAG, "netCmd=%s",
@@ -105,6 +105,9 @@ static void handleNetCommand(NetCmd cmd) {
         break;
     case NetCmd::ChayaSendRequested:
         (void)chayaRequestSend();
+        break;
+    case NetCmd::ChayaPublish:
+        mqttRunChayaPublishOnNetworkTask();
         break;
     case NetCmd::FactoryResetRequested:
         resetAllSettings();
