@@ -230,6 +230,10 @@ sequenceDiagram
     D->>D: drawHeartWithNumber(icon)
 ```
 
+`chayaRequestSend()` returns `Unavailable` unless `mqttCfgIsHeartReady()` (broker **and** partner).
+Content heart redraws are likewise no-ops until heart-ready; after unpair the display task
+drops pending/queued heart paints so the waiting title stays.
+
 ## Web admin: deferred work
 
 HTTP handlers do not block for slow operations. Instead:

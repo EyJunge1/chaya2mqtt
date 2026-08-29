@@ -82,7 +82,7 @@ Flash both devices with the **same firmware version**. Broker credentials must b
    - **Publish topic:** `chaya2mqtt/<own_id>` (e.g. `chaya2mqtt/a1b2c3`)
    - **Subscribe topic:** `chaya2mqtt/<partner_id>` (e.g. `chaya2mqtt/f5e6d7`)
 
-This allows **multiple pairs** to use the same broker without topic collisions. Without a partner, the device can still connect to the broker but does not subscribe and keeps the waiting title (no heart with counters) until a partner is set.
+This allows **multiple pairs** to use the same broker without topic collisions. Without a partner, the device can still connect to the broker but does not subscribe, keeps the waiting title (no heart with counters), and rejects heart send until a partner is set.
 
 Details: [MQTT.md](MQTT.md)
 

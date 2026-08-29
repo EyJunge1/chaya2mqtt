@@ -47,7 +47,7 @@ export const translations = {
     "toast.saved": "Saved",
     "toast.save-failed": "Save failed",
     "dashboard.hearts": "Hearts",
-    "dashboard.hearts-hint": "Counters update live. Sending requires an MQTT connection.",
+    "dashboard.hearts-hint": "Counters update live. Sending requires MQTT and a partner ID.",
     "dashboard.rx": "Received",
     "dashboard.tx": "Sent",
     "dashboard.send-heart": "Send heart",
@@ -279,7 +279,7 @@ export const translations = {
     "toast.save-failed": "Speichern fehlgeschlagen",
     "dashboard.hearts": "Herzen",
     "dashboard.hearts-hint":
-      "Zähler aktualisieren sich live. Senden erfordert eine MQTT-Verbindung.",
+      "Zähler aktualisieren sich live. Senden erfordert MQTT und eine Partner-ID.",
     "dashboard.rx": "Empfangen",
     "dashboard.tx": "Gesendet",
     "dashboard.send-heart": "Herz senden",

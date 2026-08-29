@@ -27,4 +27,4 @@ npm run build
 python3 scripts/embed_web_assets.py
 ```
 
-This writes the asset blob, manifest, and assembler stub to `src/web/assets/` (also done automatically by the PlatformIO pre-script). The blob is currently stored raw so Safari captive sheets can load it.
+This writes the gzip asset blob, manifest, and assembler stub to `src/web/assets/` (also done automatically by the PlatformIO pre-script). Assets are served with `Content-Encoding: gzip` using normal `.js`/`.css` URLs (never `.gz`).

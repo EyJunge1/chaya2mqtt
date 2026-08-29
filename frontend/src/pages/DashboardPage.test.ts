@@ -36,7 +36,7 @@ const wifi: WifiStatus = {
   rssi: -40,
 };
 
-const chaya: ChayaStatus = { connected: true, configured: true, rx: 3, tx: 1 };
+const chaya: ChayaStatus = { connected: true, configured: true, paired: true, rx: 3, tx: 1 };
 
 afterEach(() => {
   cleanup();
@@ -67,7 +67,7 @@ describe("DashboardPage", () => {
     const { container } = render(DashboardPage, {
       props: {
         device,
-        chaya: { connected: false, configured: false, rx: 0, tx: 0 },
+        chaya: { connected: false, configured: false, paired: false, rx: 0, tx: 0 },
         wifi,
         onToast: vi.fn(),
       },
@@ -102,7 +102,7 @@ describe("DashboardPage", () => {
     render(DashboardPage, {
       props: {
         device: apDevice,
-        chaya: { connected: false, configured: false, rx: 0, tx: 0 },
+        chaya: { connected: false, configured: false, paired: false, rx: 0, tx: 0 },
         wifi: wifiDown,
         onToast: vi.fn(),
       },
@@ -135,6 +135,22 @@ describe("DashboardPage", () => {
     await waitFor(() => {
       expect(onToast).toHaveBeenCalledWith("Heart sent", "success");
     });
+  });
+
+  it("disables send when unpaired", async () => {
+    setLanguage("en");
+    const onToast = vi.fn();
+
+    render(DashboardPage, {
+      props: {
+        device,
+        chaya: { ...chaya, paired: false },
+        wifi,
+        onToast,
+      },
+    });
+
+    expect(screen.getByRole("button", { name: /Send heart/i })).toBeDisabled();
   });
 
   it("shows a busy toast when the device rejects a second send", async () => {

@@ -6,12 +6,12 @@
 
 #include "async/event_types.h"
 #include "async/task_handles.h"
+#include "battery/battery.h"
 #include "config/app_config.h"
 #include "config/version.h"
 #include "constants.h"
-#include "identity/device_identity.h"
 #include "heart/counter.h"
-#include "battery/battery.h"
+#include "identity/device_identity.h"
 #include "mqtt/config.h"
 #include "mqtt/mqtt.h"
 #include "ota/ota.h"
@@ -33,19 +33,19 @@
 
 DEFINE_LOG_TAG("WEBAPI");
 
-void handleApiChayaGet(AsyncWebServerRequest* req) {
-    const int  rx         = heartDisplayRxDelta();
-    const int  tx         = heartDisplayTxDelta();
+void handleApiChayaGet(AsyncWebServerRequest *req) {
+    const int rx = heartDisplayRxDelta();
+    const int tx = heartDisplayTxDelta();
     const bool configured = mqttCfgIsBrokerConfigured();
-    adminSendJsonWithBuffer<160>(req, [rx, tx, configured](char* b, size_t n) {
-        const int w =
-            snprintf(b, n, "{\"rx\":%d,\"tx\":%d,\"connected\":%s,\"configured\":%s}", rx, tx,
-                     mqttIsConnected() ? "true" : "false", configured ? "true" : "false");
+    const bool paired = mqttCfgIsPaired();
+    adminSendJsonWithBuffer<192>(req, [rx, tx, configured, paired](char *b, size_t n) {
+        const int w = snprintf(b, n, "{\"rx\":%d,\"tx\":%d,\"connected\":%s,\"configured\":%s,\"paired\":%s}", rx, tx,
+                               mqttIsConnected() ? "true" : "false", configured ? "true" : "false", paired ? "true" : "false");
         return w > 0 && static_cast<size_t>(w) < n;
     });
 }
 
-void handleApiChayaSendPost(AsyncWebServerRequest* req) {
+void handleApiChayaSendPost(AsyncWebServerRequest *req) {
     switch (chayaRequestSend()) {
     case ChayaSendResult::Started:
         sendOk(req, 202, "\"queued\":true");
@@ -60,17 +60,15 @@ void handleApiChayaSendPost(AsyncWebServerRequest* req) {
     sendErr(req, 503, "unavailable");
 }
 
-
-void adminRoutesRegisterApiChaya(AsyncWebServer& ws) {
+void adminRoutesRegisterApiChaya(AsyncWebServer &ws) {
     {
-        AsyncCallbackWebHandler& h =
-            ws.on("/api/chaya", HTTP_GET, [](AsyncWebServerRequest* rq) { handleApiChayaGet(rq); });
+        AsyncCallbackWebHandler &h = ws.on("/api/chaya", HTTP_GET, [](AsyncWebServerRequest *rq) { handleApiChayaGet(rq); });
         h.addMiddleware(mwRequireAllowedHost());
         h.addMiddleware(mwApiStaMode());
     }
     {
-        AsyncCallbackWebHandler& h = ws.on("/api/chaya/send", HTTP_POST,
-                                           [](AsyncWebServerRequest* rq) { handleApiChayaSendPost(rq); });
+        AsyncCallbackWebHandler &h =
+            ws.on("/api/chaya/send", HTTP_POST, [](AsyncWebServerRequest *rq) { handleApiChayaSendPost(rq); });
         h.addMiddleware(mwApiStaMode());
         h.addMiddleware(mwApiPostCsrf());
     }

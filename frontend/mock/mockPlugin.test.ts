@@ -108,6 +108,16 @@ describe("mock API parity", () => {
     expect(res.body).toEqual({ ok: false, error: "unavailable" });
   });
 
+  it("returns unavailable when sending a heart while unpaired", async () => {
+    await callApi("POST", "/api/_mock/scenario", "scenario=sta-mqtt-unpaired");
+    const chaya = await callApi("GET", "/api/chaya");
+    expect(chaya.status).toBe(200);
+    expect(chaya.body).toMatchObject({ paired: false, connected: true });
+    const res = await callApi("POST", "/api/chaya/send", csrfBody());
+    expect(res.status).toBe(503);
+    expect(res.body).toEqual({ ok: false, error: "unavailable" });
+  });
+
   it("returns busy when sending a heart in heart-busy scenario", async () => {
     await callApi("POST", "/api/_mock/scenario", "scenario=heart-busy");
     const res = await callApi("POST", "/api/chaya/send", csrfBody());

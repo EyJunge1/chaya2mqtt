@@ -25,6 +25,8 @@ export interface ChayaStatus {
   tx: number;
   connected: boolean;
   configured: boolean;
+  /** Partner device ID is set (required for heart send / E-Ink heart). */
+  paired: boolean;
 }
 
 export type WifiIpMode = "dhcp" | "static";

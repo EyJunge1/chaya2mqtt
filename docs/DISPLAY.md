@@ -46,7 +46,7 @@ On controlled shutdown, the power-off glyph is still painted after a heart or se
 | `displayRequest(DrawPowerOff, PowerOffWait)` | PWR shutdown | e.g. `90000` |
 | `displaySetDesiredHeartIcon()` | Filled vs crack (next heart paint) | — |
 
-Content heart redraws stay suppressed while the waiting product title is shown (not heart-ready yet). When MQTT settings make the device heart-ready, `DrawHeart` with `BootIfChanged` switches from `ProductTitle` to the operational heart; broker without partner keeps the waiting title.
+Content heart redraws stay suppressed while the waiting product title is shown (not heart-ready yet). When MQTT settings make the device heart-ready, `DrawHeart` with `BootIfChanged` switches from `ProductTitle` to the operational heart; broker without partner keeps the waiting title. Heart send (device button and web) is gated the same way via `mqttCfgIsHeartReady()`.
 
 ## Heart link status (filled vs crack)
 

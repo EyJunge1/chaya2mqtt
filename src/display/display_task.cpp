@@ -13,6 +13,7 @@
 #include "draw_pure.h"
 #include "heart/counter.h"
 #include "led/led.h"
+#include "mqtt/config.h"
 #include "util/log_tag.h"
 #include "wifi/wlan.h"
 
@@ -35,36 +36,31 @@ static std::atomic<bool> s_splashDrawPending{false};
 static std::atomic<int> s_lastDrawnRx{INT32_MIN};
 static std::atomic<int> s_lastDrawnTx{INT32_MIN};
 static std::atomic<unsigned long> s_lastHeartRedrawEnqueueMs{0};
-static std::atomic<uint8_t>       s_desiredHeartIcon{
-    static_cast<uint8_t>(DisplayHeartIcon::Filled)};
-static std::atomic<uint8_t> s_lastDrawnHeartIcon{
-    static_cast<uint8_t>(DisplayHeartIcon::Filled)};
+static std::atomic<uint8_t> s_desiredHeartIcon{static_cast<uint8_t>(DisplayHeartIcon::Filled)};
+static std::atomic<uint8_t> s_lastDrawnHeartIcon{static_cast<uint8_t>(DisplayHeartIcon::Filled)};
 /** Sentinel until the first heart paint records a real battery glyph. */
 static constexpr uint8_t kBatteryIconUnset = 0xFFU;
 static std::atomic<uint8_t> s_lastDrawnBatteryIcon{kBatteryIconUnset};
-static std::atomic<bool>          s_powerOffPending{false};
-static std::atomic<bool>          s_powerOffDrawSucceeded{false};
-static SemaphoreHandle_t          s_drawIdleSem             = nullptr;
-static SemaphoreHandle_t          s_powerOffDoneSem         = nullptr;
-static SemaphoreHandle_t          s_displayPostMutex        = nullptr;
+static std::atomic<bool> s_powerOffPending{false};
+static std::atomic<bool> s_powerOffDrawSucceeded{false};
+static SemaphoreHandle_t s_drawIdleSem = nullptr;
+static SemaphoreHandle_t s_powerOffDoneSem = nullptr;
+static SemaphoreHandle_t s_displayPostMutex = nullptr;
 
 void displayTaskSetDesiredHeartIcon(DisplayHeartIcon icon) {
     s_desiredHeartIcon.store(static_cast<uint8_t>(icon), std::memory_order_release);
 }
 
 DisplayHeartIcon displayTaskDesiredHeartIcon() {
-    return static_cast<DisplayHeartIcon>(
-        s_desiredHeartIcon.load(std::memory_order_acquire));
+    return static_cast<DisplayHeartIcon>(s_desiredHeartIcon.load(std::memory_order_acquire));
 }
 
 bool displayPostMsg(DisplayMsg::Cmd cmd, uint32_t payload, TickType_t waitTicks) {
-    if (s_displayPostMutex == nullptr
-        || xSemaphoreTake(s_displayPostMutex, waitTicks) != pdTRUE) {
+    if (s_displayPostMutex == nullptr || xSemaphoreTake(s_displayPostMutex, waitTicks) != pdTRUE) {
         ESP_LOGW(TAG, "display post mutex unavailable (cmd=%d)", static_cast<int>(cmd));
         return false;
     }
-    if (cmd != DisplayMsg::Cmd::DrawPowerOff
-        && s_powerOffPending.load(std::memory_order_acquire)) {
+    if (cmd != DisplayMsg::Cmd::DrawPowerOff && s_powerOffPending.load(std::memory_order_acquire)) {
         xSemaphoreGive(s_displayPostMutex);
         return false;
     }
@@ -82,21 +78,22 @@ bool displayPostHeartRedraw(TickType_t waitTicks) {
     if (s_powerOffPending.load(std::memory_order_acquire)) {
         return false;
     }
+    // Waiting title / SoftAP: never queue heart content over ProductTitle or SetupQr.
+    if (configIsApMode() || !mqttCfgIsHeartReady()) {
+        s_heartDrawPending.store(false, std::memory_order_release);
+        return true;
+    }
     const int rx = heartCounter.load(std::memory_order_relaxed);
     const int tx = heartSentCounter.load(std::memory_order_relaxed);
     const unsigned long nowMs = millis();
     const unsigned long lastMs = s_lastHeartRedrawEnqueueMs.load(std::memory_order_relaxed);
     const bool iconChanged =
-        s_desiredHeartIcon.load(std::memory_order_acquire)
-        != s_lastDrawnHeartIcon.load(std::memory_order_acquire);
-    const uint8_t batteryIcon =
-        static_cast<uint8_t>(displayBatteryIcon(batteryPercent()));
-    const bool batteryIconChanged =
-        batteryIcon != s_lastDrawnBatteryIcon.load(std::memory_order_acquire);
+        s_desiredHeartIcon.load(std::memory_order_acquire) != s_lastDrawnHeartIcon.load(std::memory_order_acquire);
+    const uint8_t batteryIcon = static_cast<uint8_t>(displayBatteryIcon(batteryPercent()));
+    const bool batteryIconChanged = batteryIcon != s_lastDrawnBatteryIcon.load(std::memory_order_acquire);
     const DisplayHeartRedrawDecision decision = displayHeartRedrawDecide(
-        rx, tx, s_lastDrawnRx.load(std::memory_order_relaxed),
-        s_lastDrawnTx.load(std::memory_order_relaxed), iconChanged, batteryIconChanged, nowMs,
-        lastMs, kHeartRedrawMinIntervalMs);
+        rx, tx, s_lastDrawnRx.load(std::memory_order_relaxed), s_lastDrawnTx.load(std::memory_order_relaxed), iconChanged,
+        batteryIconChanged, nowMs, lastMs, kHeartRedrawMinIntervalMs);
     if (decision == DisplayHeartRedrawDecision::SkipUnchanged) {
         return true;
     }
@@ -139,9 +136,9 @@ bool displayPostHeartBootIfChanged(TickType_t waitTicks) {
 
 static TickType_t displayHeartPendingWaitTicks() {
     constexpr unsigned long kIdlePollMs = 1000UL;
-    const unsigned long waitMs = displayHeartRedrawWaitMs(
-        millis(), s_lastHeartRedrawEnqueueMs.load(std::memory_order_relaxed),
-        kHeartRedrawMinIntervalMs, s_heartDrawPending.load(std::memory_order_acquire));
+    const unsigned long waitMs =
+        displayHeartRedrawWaitMs(millis(), s_lastHeartRedrawEnqueueMs.load(std::memory_order_relaxed), kHeartRedrawMinIntervalMs,
+                                 s_heartDrawPending.load(std::memory_order_acquire));
     if (waitMs == ULONG_MAX) {
         // Finite idle poll so a deferred pending flag set by another task is noticed.
         return pdMS_TO_TICKS(kIdlePollMs);
@@ -181,8 +178,7 @@ static bool displayBeginPersistentRefresh() {
  * Shared EPD refresh pipeline: low-interference prep, LED pulse, draw, WiFi restore,
  * persist view. DrawFn returns the view to store in NVS (may differ from logView).
  */
-template <typename DrawFn>
-static bool runEpdRefresh(DisplayView logView, const char* label, DrawFn&& draw) {
+template <typename DrawFn> static bool runEpdRefresh(DisplayView logView, const char *label, DrawFn &&draw) {
     if (!displayBeginPersistentRefresh()) {
         return false;
     }
@@ -194,13 +190,12 @@ static bool runEpdRefresh(DisplayView logView, const char* label, DrawFn&& draw)
     wlanEndLowInterferenceForEpd();
     (void)configSetDisplayView(drawnView);
     const unsigned long refreshMs = millis() - refreshStartMs;
-    ESP_LOGI(TAG, "EPD refresh done view=%d ms=%lu (%s)", static_cast<int>(drawnView), refreshMs,
-             label);
+    ESP_LOGI(TAG, "EPD refresh done view=%d ms=%lu (%s)", static_cast<int>(drawnView), refreshMs, label);
     (void)refreshMs;
     return true;
 }
 
-static void displayTaskFn(void*) {
+static void displayTaskFn(void *) {
     /* No esp_task_wdt on this task: E-Ink full refresh can block >> default TWDT interval (see displayInit). */
     static uint32_t s_stackLogCounter = 0;
     for (;;) {
@@ -208,13 +203,12 @@ static void displayTaskFn(void*) {
         const TickType_t waitTicks = displayHeartPendingWaitTicks();
         if (xQueueReceive(g_displayCmdQueue, &msg, waitTicks) != pdTRUE) {
             // Trailing-edge timeout: flush a deferred heart redraw with the latest counters.
-            if (s_splashDrawPending.exchange(false, std::memory_order_acq_rel)
-                && !s_powerOffPending.load(std::memory_order_acquire)
-                && !displayPostMsg(DisplayMsg::Cmd::DrawSplash, kDrawOnlyIfViewChanged, 0)) {
+            if (s_splashDrawPending.exchange(false, std::memory_order_acq_rel) &&
+                !s_powerOffPending.load(std::memory_order_acquire) &&
+                !displayPostMsg(DisplayMsg::Cmd::DrawSplash, kDrawOnlyIfViewChanged, 0)) {
                 s_splashDrawPending.store(true, std::memory_order_release);
             }
-            if (s_heartDrawPending.load(std::memory_order_acquire)
-                && !s_powerOffPending.load(std::memory_order_acquire)) {
+            if (s_heartDrawPending.load(std::memory_order_acquire) && !s_powerOffPending.load(std::memory_order_acquire)) {
                 (void)displayPostHeartRedraw(0);
             }
             logTaskStackHighWaterPeriodic("DISP", s_stackLogCounter, 600);
@@ -222,10 +216,16 @@ static void displayTaskFn(void*) {
         }
         switch (msg.cmd) {
         case DisplayMsg::Cmd::DrawHeart: {
+            // Drop queued heart paints after unpair (or while still on waiting title).
+            if (configIsApMode() || !mqttCfgIsHeartReady()) {
+                ESP_LOGI(TAG, "heart draw skipped; not heart-ready");
+                s_heartDrawQueued.store(false, std::memory_order_release);
+                s_heartDrawPending.store(false, std::memory_order_release);
+                break;
+            }
             const DisplayHeartIcon icon = displayTaskDesiredHeartIcon();
             const DisplayView targetView = displayViewForHeartIcon(icon);
-            if (!displayRefreshRequired(configGetDisplayView(), targetView,
-                                        msg.payload == kDrawOnlyIfViewChanged)) {
+            if (!displayRefreshRequired(configGetDisplayView(), targetView, msg.payload == kDrawOnlyIfViewChanged)) {
                 ESP_LOGI(TAG, "heart view unchanged; refresh skipped");
                 s_heartDrawQueued.store(false, std::memory_order_release);
                 if (s_heartDrawPending.exchange(false, std::memory_order_acq_rel)) {
@@ -245,27 +245,22 @@ static void displayTaskFn(void*) {
             s_lastDrawnRx.store(drawn.heartCounterRaw, std::memory_order_relaxed);
             s_lastDrawnTx.store(drawn.heartSentCounterRaw, std::memory_order_relaxed);
             s_lastDrawnHeartIcon.store(static_cast<uint8_t>(icon), std::memory_order_release);
-            const uint8_t paintedBatteryIcon =
-                static_cast<uint8_t>(displayBatteryIcon(batteryPercent()));
+            const uint8_t paintedBatteryIcon = static_cast<uint8_t>(displayBatteryIcon(batteryPercent()));
             s_lastDrawnBatteryIcon.store(paintedBatteryIcon, std::memory_order_release);
             s_heartDrawQueued.store(false, std::memory_order_release);
             const bool hadPending = s_heartDrawPending.exchange(false, std::memory_order_acq_rel);
             const bool iconChanged = displayTaskDesiredHeartIcon() != icon;
-            const bool batteryIconChanged =
-                static_cast<uint8_t>(displayBatteryIcon(batteryPercent())) != paintedBatteryIcon;
+            const bool batteryIconChanged = static_cast<uint8_t>(displayBatteryIcon(batteryPercent())) != paintedBatteryIcon;
             if (displayHeartNeedsFollowUpRedraw(
-                    drawn.heartCounterRaw, drawn.heartSentCounterRaw,
-                    heartCounter.load(std::memory_order_relaxed),
-                    heartSentCounter.load(std::memory_order_relaxed), iconChanged,
-                    batteryIconChanged, hadPending)) {
+                    drawn.heartCounterRaw, drawn.heartSentCounterRaw, heartCounter.load(std::memory_order_relaxed),
+                    heartSentCounter.load(std::memory_order_relaxed), iconChanged, batteryIconChanged, hadPending)) {
                 (void)displayPostHeartRedraw(0);
             }
             break;
         }
         case DisplayMsg::Cmd::DrawSplash: {
             const DisplayView targetView = displaySplashTargetView();
-            if (!displayRefreshRequired(configGetDisplayView(), targetView,
-                                        msg.payload == kDrawOnlyIfViewChanged)) {
+            if (!displayRefreshRequired(configGetDisplayView(), targetView, msg.payload == kDrawOnlyIfViewChanged)) {
                 ESP_LOGI(TAG, "splash view unchanged; refresh skipped");
                 s_splashDrawPending.store(false, std::memory_order_release);
                 if (s_heartDrawPending.exchange(false, std::memory_order_acq_rel)) {
@@ -323,9 +318,7 @@ void displayTaskDrainDrawIdleSem() {
     }
 }
 
-void displayTaskSetSplashDrawPending(bool pending) {
-    s_splashDrawPending.store(pending, std::memory_order_release);
-}
+void displayTaskSetSplashDrawPending(bool pending) { s_splashDrawPending.store(pending, std::memory_order_release); }
 
 bool displayTaskWaitDrawIdle(uint32_t timeoutMs) {
     if (s_drawIdleSem == nullptr) {
@@ -347,8 +340,7 @@ bool displayTaskDrawPowerOffAndWait(uint32_t timeoutMs) {
     }
     s_powerOffPending.store(true, std::memory_order_release);
     const DisplayMsg msg{DisplayMsg::Cmd::DrawPowerOff, 0};
-    const bool queued =
-        xQueueSend(g_displayCmdQueue, &msg, pdMS_TO_TICKS(1000)) == pdTRUE;
+    const bool queued = xQueueSend(g_displayCmdQueue, &msg, pdMS_TO_TICKS(1000)) == pdTRUE;
     if (!queued) {
         s_powerOffPending.store(false, std::memory_order_release);
     }
@@ -358,8 +350,7 @@ bool displayTaskDrawPowerOffAndWait(uint32_t timeoutMs) {
         return false;
     }
     ESP_LOGI(TAG, "power-off screen queued");
-    const bool completed =
-        xSemaphoreTake(s_powerOffDoneSem, pdMS_TO_TICKS(timeoutMs)) == pdTRUE;
+    const bool completed = xSemaphoreTake(s_powerOffDoneSem, pdMS_TO_TICKS(timeoutMs)) == pdTRUE;
     return completed && s_powerOffDrawSucceeded.load(std::memory_order_acquire);
 }
 
@@ -385,9 +376,7 @@ void displayTaskStart() {
             abort();
         }
     }
-    const BaseType_t ok =
-        xTaskCreatePinnedToCore(displayTaskFn, "display", kDisplayTaskStackBytes, nullptr, 3,
-                                nullptr, 1);
+    const BaseType_t ok = xTaskCreatePinnedToCore(displayTaskFn, "display", kDisplayTaskStackBytes, nullptr, 3, nullptr, 1);
     if (ok != pdPASS) {
         ESP_LOGE(TAG, "display task create failed");
         abort();

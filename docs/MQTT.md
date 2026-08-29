@@ -26,7 +26,8 @@ Topics are **not** user-editable. They are derived from the device's own ID and 
 | **Publish topic** | `chaya2mqtt/<own_id>` (e.g. `chaya2mqtt/a1b2c3`) | Publish on button press / web send |
 | **Subscribe topic** | `chaya2mqtt/<partner_id>` (e.g. `chaya2mqtt/f5e6d7`) | Subscribe—only if a partner is set |
 
-Without a partner, the device still connects to the broker and publishes to its own topic, **but does not subscribe to a device topic**.
+Without a partner, the device still connects to the broker **but does not subscribe** and
+does not accept heart send (button / web) until a partner is set.
 
 The device ID is a random 6-character lowercase hex string stored in NVS (`cfg/device_id`).
 Factory reset and flash erase clear that key so the next boot gets a **new** ID (and therefore
@@ -51,6 +52,9 @@ The broker and partner are saved atomically through `POST /api/mqtt`. An empty p
 ## Message format
 
 ### Publish (button / web send)
+
+Requires heart-ready config (broker **and** partner). Without a partner, device button and
+`POST /api/chaya/send` return unavailable / no-op.
 
 | Aspect | Value |
 |--------|-------|
@@ -183,7 +187,7 @@ Namespace `mqtt`:
 | `port` | Int | Port (default 8883; **required**) |
 | `user` | String | MQTT username (optional; empty = anonymous) |
 | `pass` | String | MQTT password (optional) |
-| `partner_id` | String | Partner device ID, 6 hex (required for heart display; empty = unpaired / waiting title) |
+| `partner_id` | String | Partner device ID, 6 hex (required for heart display and send; empty = unpaired / waiting title) |
 
 Topics are no longer persisted in NVS; legacy keys `topic_pub` / `topic_sub` are removed when saving.
 

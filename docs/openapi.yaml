@@ -95,7 +95,7 @@ paths:
   /api/chaya/send:
     post:
       tags: [chaya]
-      summary: Queue heart send
+      summary: Queue heart send (requires broker and partner)
       operationId: sendChaya
       requestBody:
         required: true
@@ -630,7 +630,7 @@ components:
           description: SoftAP IPv4 (AP/setup mode only)
     ChayaStatus:
       type: object
-      required: [rx, tx, connected, configured]
+      required: [rx, tx, connected, configured, paired]
       properties:
         rx:
           type: integer
@@ -644,6 +644,9 @@ components:
         configured:
           type: boolean
           description: Whether an MQTT broker is configured
+        paired:
+          type: boolean
+          description: Whether a partner device ID is set (required for heart send / heart display)
     WifiStatus:
       oneOf:
         - type: object

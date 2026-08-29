@@ -123,7 +123,7 @@ components:
         batteryPct: { type: integer, minimum: 0, maximum: 100 }
     ChayaStatus:
       type: object
-      required: [rx, tx, connected, configured]
+      required: [rx, tx, connected, configured, paired]
       properties:
         rx:
           type: integer
@@ -137,6 +137,9 @@ components:
         configured:
           type: boolean
           description: Whether an MQTT broker is configured
+        paired:
+          type: boolean
+          description: Whether a partner device ID is set (required for heart send / heart display)
     WifiStatus:
       oneOf:
         - type: object

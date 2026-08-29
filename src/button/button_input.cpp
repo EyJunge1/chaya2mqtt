@@ -35,8 +35,8 @@
 DEFINE_LOG_TAG("BTN");
 
 std::atomic<TaskHandle_t> s_buttonTaskHandle{nullptr};
-ButtonState               btn{};
-PwrButtonState            pwr{};
+ButtonState btn{};
+PwrButtonState pwr{};
 
 static void waitForPwrRelease() {
     unsigned long releasedSinceMs = 0;
@@ -56,9 +56,7 @@ static void waitForPwrRelease() {
 }
 
 /** Blocking SoftOff LED ack while still held (≥2 s). Queued patterns would stall during shutdown. */
-static void blinkSoftOffArmedLed() {
-    ledPlayPresetBlocking(LedPreset::SoftOff);
-}
+static void blinkSoftOffArmedLed() { ledPlayPresetBlocking(LedPreset::SoftOff); }
 
 /**
  * Soft-off after long-press release. Returns false if blocked (e.g. OTA).
@@ -82,23 +80,20 @@ static bool processPowerOff() {
 
     // Already released (edge-on-release). EPD may take tens of seconds.
     chayaTaskWatchdogUnsubscribe(TAG);
-    if (!displayRequest(DisplayMsg::Cmd::DrawPowerOff, DisplayRequestMode::PowerOffWait,
-                        kPowerOffDisplayTimeoutMs)) {
+    if (!displayRequest(DisplayMsg::Cmd::DrawPowerOff, DisplayRequestMode::PowerOffWait, kPowerOffDisplayTimeoutMs)) {
         ESP_LOGW(TAG, "Power-off screen timed out; continuing shutdown");
     }
 
     // Settle before EXT1 in case of bounce / re-press during the EPD refresh.
-    ESP_LOGI(TAG, "PWR soft-off — stable release settle (%lu ms) then deep sleep",
-             kSoftOffReleaseSettleMs);
+    ESP_LOGI(TAG, "PWR soft-off — stable release settle (%lu ms) then deep sleep", kSoftOffReleaseSettleMs);
     waitForPwrRelease();
-    ESP_LOGI(TAG, "PWR soft-off — entering deep sleep (mv=%d pct=%d)", batteryMilliVolts(),
-             batteryPercent());
+    ESP_LOGI(TAG, "PWR soft-off — entering deep sleep (mv=%d pct=%d)", batteryMilliVolts(), batteryPercent());
     batteryPowerOffAndSleep();
     return true;
 }
 
 void pwrPollAndProcess() {
-    const int raw             = digitalRead(pins::kPwrButton);
+    const int raw = digitalRead(pins::kPwrButton);
     const unsigned long nowMs = millis();
     debounceUpdate(pwr.debounce, raw, nowMs, kDebounceStableMs);
     const bool pressed = (pwr.debounce.debouncedLevel == LOW);
@@ -110,7 +105,7 @@ void pwrPollAndProcess() {
     }
     if (pressed) {
         if (!pwr.heldDown) {
-            pwr.heldDown     = true;
+            pwr.heldDown = true;
             pwr.softOffArmed = false;
             pwr.pressStartMs = nowMs;
         } else if (!pwr.softOffArmed && (nowMs - pwr.pressStartMs >= kSoftOffHoldMs)) {
@@ -121,7 +116,7 @@ void pwrPollAndProcess() {
         }
     } else if (pwr.heldDown) {
         const bool armed = pwr.softOffArmed;
-        pwr.heldDown     = false;
+        pwr.heldDown = false;
         pwr.softOffArmed = false;
         if (armed) {
             (void)processPowerOff();
@@ -130,7 +125,7 @@ void pwrPollAndProcess() {
 }
 
 void buttonPollAndProcess() {
-    const int raw             = digitalRead(kButtonGpio);
+    const int raw = digitalRead(kButtonGpio);
     const unsigned long nowMs = millis();
     debounceUpdate(btn.debounce, raw, nowMs, kDebounceStableMs);
     // BOOT / Key1 is active-low (pressed = LOW).
@@ -138,7 +133,7 @@ void buttonPollAndProcess() {
 
     if (pressed) {
         if (!btn.heldDown) {
-            btn.heldDown     = true;
+            btn.heldDown = true;
             btn.pressStartMs = nowMs;
         }
     } else {
@@ -147,9 +142,8 @@ void buttonPollAndProcess() {
             if (held >= kShortPressMinMs) {
                 const ChayaSendResult sendResult = chayaRequestSend();
                 if (sendResult != ChayaSendResult::Started) {
-                    ESP_LOGD(TAG, "BTN publish skipped: result=%u ap=%d broker=%d",
-                             static_cast<unsigned>(sendResult), configIsApMode() ? 1 : 0,
-                             mqttCfgIsBrokerConfigured() ? 1 : 0);
+                    ESP_LOGD(TAG, "BTN publish skipped: result=%u ap=%d heartReady=%d", static_cast<unsigned>(sendResult),
+                             configIsApMode() ? 1 : 0, mqttCfgIsHeartReady() ? 1 : 0);
                 }
             }
             btn.heldDown = false;
@@ -157,7 +151,7 @@ void buttonPollAndProcess() {
     }
 }
 
-static void IRAM_ATTR buttonIsrHandler(void*) {
+static void IRAM_ATTR buttonIsrHandler(void *) {
     BaseType_t xHigherPriorityTaskWoken = pdFALSE;
     const TaskHandle_t h = s_buttonTaskHandle.load(std::memory_order_acquire);
     if (h != nullptr) {
@@ -166,12 +160,11 @@ static void IRAM_ATTR buttonIsrHandler(void*) {
     portYIELD_FROM_ISR(xHigherPriorityTaskWoken);
 }
 
-static void buttonTaskFn(void*) {
+static void buttonTaskFn(void *) {
     chayaTaskWatchdogSubscribe(TAG);
     static uint32_t s_stackLogCounter = 0;
     for (;;) {
-        const unsigned long waitMs =
-            ledIsActivityActive() ? kButtonTaskPollActiveMs : kButtonTaskPollIdleMs;
+        const unsigned long waitMs = ledIsActivityActive() ? kButtonTaskPollActiveMs : kButtonTaskPollIdleMs;
         ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(waitMs));
         buttonPollAndProcess();
         pwrPollAndProcess();
@@ -193,19 +186,18 @@ void buttonInit() {
     pinMode(pins::kPwrButton, INPUT_PULLUP);
     ledInit();
     const unsigned long nowMs = millis();
-    btn.debounce.lastRawReading       = digitalRead(kButtonGpio);
-    btn.debounce.debouncedLevel       = btn.debounce.lastRawReading;
+    btn.debounce.lastRawReading = digitalRead(kButtonGpio);
+    btn.debounce.debouncedLevel = btn.debounce.lastRawReading;
     btn.debounce.lastDebounceChangeMs = nowMs;
-    pwr.debounce.lastRawReading       = digitalRead(pins::kPwrButton);
-    pwr.debounce.debouncedLevel       = pwr.debounce.lastRawReading;
+    pwr.debounce.lastRawReading = digitalRead(pins::kPwrButton);
+    pwr.debounce.debouncedLevel = pwr.debounce.lastRawReading;
     pwr.debounce.lastDebounceChangeMs = nowMs;
-    pwr.seenRelease                   = (pwr.debounce.debouncedLevel != LOW);
+    pwr.seenRelease = (pwr.debounce.debouncedLevel != LOW);
 }
 
 void buttonStartTask() {
     TaskHandle_t th = nullptr;
-    const BaseType_t ok =
-        xTaskCreatePinnedToCore(buttonTaskFn, "button", kButtonTaskStackBytes, nullptr, 8, &th, 1);
+    const BaseType_t ok = xTaskCreatePinnedToCore(buttonTaskFn, "button", kButtonTaskStackBytes, nullptr, 8, &th, 1);
     if (ok != pdPASS || th == nullptr) {
         ESP_LOGE(TAG, "button task create failed");
         abort();
@@ -225,4 +217,3 @@ void buttonStartupBlink() {
     // Blocking before the button task starts (avoids racing ledOutput with the task).
     ledPlayPresetBlocking(LedPreset::Boot);
 }
-
