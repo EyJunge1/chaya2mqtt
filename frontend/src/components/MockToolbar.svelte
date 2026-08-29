@@ -52,12 +52,6 @@
       ],
     },
     {
-      title: "Settings",
-      items: [
-        { id: "settings-audio-quiet", label: "Audio + quiet hours", path: "/settings/device" },
-      ],
-    },
-    {
       title: "Update",
       items: [
         { id: "update-uptodate", label: "Up to date", path: "/update" },
@@ -140,7 +134,6 @@
     MQTT: false,
     "Wi-Fi": false,
     "AP setup": false,
-    Settings: false,
     Update: false,
     "Load errors": false,
     "Action errors": false,

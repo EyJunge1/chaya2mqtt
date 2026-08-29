@@ -28,8 +28,6 @@ export const MOCK_SCENARIOS = [
   "ap-test-testing",
   "ap-test-ok",
   "ap-test-failed",
-  // Settings
-  "settings-audio-quiet",
   // Update (lifecycle order)
   "update-uptodate",
   "update-available",
@@ -558,17 +556,6 @@ export function applyScenario(state: MockState, scenario: MockScenario): void {
       applyStaOnlineDefaults(state);
       state.mqttConnected = true;
       state.heartBusy = true;
-      setOtaIdle(state);
-      break;
-    case "settings-audio-quiet":
-      applyStaOnlineDefaults(state);
-      state.mqttConnected = true;
-      state.audioTxEnabled = true;
-      state.audioRxEnabled = true;
-      state.audioTxVolume = 70;
-      state.audioRxVolume = 70;
-      state.quietHourStart = 23;
-      state.quietHourEnd = 8;
       setOtaIdle(state);
       break;
     case "update-available":

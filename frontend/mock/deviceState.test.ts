@@ -48,7 +48,6 @@ describe("parseScenario", () => {
       "ap-test-testing",
       "ap-test-ok",
       "ap-test-failed",
-      "settings-audio-quiet",
       "update-uptodate",
       "update-available",
       "update-beta",
@@ -139,7 +138,6 @@ describe("applyScenario", () => {
     { scenario: "battery-low", mode: "sta", wifi: true, mqtt: true },
     { scenario: "battery-critical", mode: "sta", wifi: true, mqtt: true },
     { scenario: "heart-busy", mode: "sta", wifi: true, mqtt: true },
-    { scenario: "settings-audio-quiet", mode: "sta", wifi: true, mqtt: true },
     {
       scenario: "update-available",
       mode: "sta",
@@ -293,12 +291,6 @@ describe("applyScenario", () => {
     expect(noAuth.mqtt.username).toBe("");
     expect(noAuth.mqtt.password).toBe("");
 
-    const audio = createInitialState("settings-audio-quiet");
-    expect(audio.audioTxEnabled).toBe(true);
-    expect(audio.audioRxEnabled).toBe(true);
-    expect(audio.quietHourStart).toBe(23);
-    expect(audio.quietHourEnd).toBe(8);
-
     const unknown = createInitialState("update-progress-unknown");
     expect(unknown.ota.phase).toBe("downloading");
     expect(unknown.ota.bytesTotal).toBe(0);
@@ -311,12 +303,11 @@ describe("applyScenario", () => {
     expect(beta.ota.channel).toBe("beta");
     expect(beta.ota.availableVersion).toBe("2026.8.2-rc.1");
 
-    applyScenario(audio, "sta-connected");
-    expect(audio.audioTxEnabled).toBe(false);
-    expect(audio.quietHourStart).toBe(0);
-    expect(audio.heartBusy).toBe(false);
-    expect(audio.batteryPct).toBe(55);
-    expect(audio.wifiRssi).toBe(-55);
+    applyScenario(noAuth, "sta-connected");
+    expect(noAuth.mqtt.username).toBe("chaya");
+    expect(noAuth.heartBusy).toBe(false);
+    expect(noAuth.batteryPct).toBe(55);
+    expect(noAuth.wifiRssi).toBe(-55);
   });
 });
 

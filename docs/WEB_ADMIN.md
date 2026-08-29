@@ -32,7 +32,6 @@ The Vite development server starts a **virtual Chaya2MQTT** under `frontend/mock
 | MQTT | `sta-mqtt-offline`, `sta-mqtt-unconfigured`, `sta-mqtt-unpaired`, `mqtt-no-auth` |
 | Wi‑Fi | `wifi-weak`, `wifi-static` |
 | AP setup | `ap-setup`, `wifi-scan-empty`, `wifi-scan-fail`, `ap-test-idle`, `ap-test-testing`, `ap-test-ok`, `ap-test-failed` |
-| Settings | `settings-audio-quiet` |
 | Update | `update-uptodate`, `update-available`, `update-beta`, `update-checking`, `update-busy`, `update-progress-unknown`, `update-verifying`, `update-rebooting`, `update-error` |
 
 ### Fault injection (API/SSE errors)
