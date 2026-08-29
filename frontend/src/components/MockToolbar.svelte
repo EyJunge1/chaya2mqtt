@@ -43,7 +43,11 @@
         { id: "settings-load-fail", label: "Load failed", path: "/settings/device" },
         { id: "settings-save-fail", label: "Save failed", path: "/settings/device" },
         { id: "settings-reboot-fail", label: "Reboot failed", path: "/settings/device" },
-        { id: "settings-factory-reset-fail", label: "Factory reset failed", path: "/settings/device" },
+        {
+          id: "settings-factory-reset-fail",
+          label: "Factory reset failed",
+          path: "/settings/device",
+        },
       ],
     },
     {
@@ -344,9 +348,7 @@
       >
         <GripVertical size={14} aria-hidden="true" />
       </button>
-      <span class="min-w-0 flex-1 truncate px-1 py-0.5 font-semibold text-accent">
-        Simulator
-      </span>
+      <span class="min-w-0 flex-1 truncate px-1 py-0.5 font-semibold text-accent"> Simulator </span>
       <button
         type="button"
         class={cn(

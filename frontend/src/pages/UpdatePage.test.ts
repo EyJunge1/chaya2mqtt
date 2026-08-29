@@ -131,9 +131,7 @@ describe("UpdatePage", () => {
   });
 
   it("toasts once when status is in error phase", async () => {
-    getUpdateStatus.mockResolvedValue(
-      status({ phase: "error", error: "install_failed" }),
-    );
+    getUpdateStatus.mockResolvedValue(status({ phase: "error", error: "install_failed" }));
     const onToast = vi.fn();
     const { rerender } = render(UpdatePage, { props: { onToast } });
 
