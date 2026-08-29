@@ -18,6 +18,9 @@ void wifiConnectionTestServiceLoop();
 /** Start STA join test while softAP stays up (AP mode only). */
 bool wlanStartWifiConnectionTest(const WlanConfig& cfg);
 
+/** Re-run STA join with RAM credentials from a Fail state (AP mode only). */
+bool wlanRetryWifiConnectionTest();
+
 /** Stop test, disconnect STA interface, reset to Idle. */
 void wlanAbortWifiConnectionTest();
 

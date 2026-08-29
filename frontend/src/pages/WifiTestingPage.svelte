@@ -1,26 +1,31 @@
 <script lang="ts">
   import { api } from "../api/client.ts";
   import type { WifiConnectStatus } from "../api/types.ts";
-  import Alert from "../components/Alert.svelte";
-  import DangerButton from "../components/DangerButton.svelte";
   import Panel from "../components/Panel.svelte";
   import PrimaryButton from "../components/PrimaryButton.svelte";
   import Spinner from "../components/Spinner.svelte";
   import type { ShowToast } from "../components/toastStack.ts";
   import { i18n } from "../i18n/i18n.svelte.ts";
-  import { router } from "../nav/router.svelte.ts";
 
   let { onToast }: { onToast: ShowToast } = $props();
 
   let status = $state<WifiConnectStatus>({ state: "testing", ssid: "" });
   let busy = $state(false);
+  let prevState = $state<WifiConnectStatus["state"] | null>(null);
 
   $effect(() => {
     let alive = true;
     const tick = async () => {
       try {
         const s = await api.getWifiConnectStatus();
-        if (alive) status = s;
+        if (!alive) return;
+        if (s.state === "fail" && prevState !== "fail") {
+          onToast(i18n.t("toast.wifi-connect-failed"), "error");
+        } else if (s.state === "ok" && prevState !== "ok") {
+          onToast(i18n.t("toast.wifi-connect-ok"), "success");
+        }
+        prevState = s.state;
+        status = s;
       } catch {
         /* keep polling */
       }
@@ -30,6 +35,7 @@
     return () => {
       alive = false;
       window.clearInterval(id);
+      void api.abortWifiConnect().catch(() => {});
     };
   });
 
@@ -53,13 +59,18 @@
     }
   }
 
-  async function abort() {
+  async function retry() {
     busy = true;
     try {
-      await api.abortWifiConnect();
-      router.replace("/");
+      const res = await api.retryWifiConnect();
+      if (!res.ok) {
+        onToast(i18n.t("toast.wifi-retry-failed"), "error");
+        return;
+      }
+      prevState = "testing";
+      status = { state: "testing", ssid: status.ssid };
     } catch {
-      onToast(i18n.t("toast.wifi-abort-failed"), "error");
+      onToast(i18n.t("toast.wifi-retry-failed"), "error");
     } finally {
       busy = false;
     }
@@ -77,10 +88,7 @@
 </script>
 
 <div class="space-y-4">
-  <Panel
-    title={i18n.t("wifi-test.title")}
-    hint={status.state !== "ok" ? i18n.t("wifi-test.commit-hint") : undefined}
-  >
+  <Panel title={i18n.t("wifi-test.title")}>
     <p class="mb-2 text-sm text-muted">
       {i18n.t("wifi-test.ssid")} <span class="text-text-bright">{status.ssid || "…"}</span>
     </p>
@@ -96,14 +104,12 @@
     </p>
   </Panel>
   {#if status.state === "fail"}
-    <Alert variant="error">{i18n.t("wifi-test.fail")}</Alert>
-  {/if}
-  <div class="space-y-3">
-    <PrimaryButton loading={busy} disabled={status.state !== "ok"} onclick={() => void commit()}>
+    <PrimaryButton loading={busy} onclick={() => void retry()}>
+      {i18n.t("common.retry")}
+    </PrimaryButton>
+  {:else if status.state === "ok"}
+    <PrimaryButton loading={busy} onclick={() => void commit()}>
       {i18n.t("wifi-test.commit")}
     </PrimaryButton>
-    <DangerButton loading={busy} onclick={() => void abort()}>
-      {i18n.t("wifi-test.abort")}
-    </DangerButton>
-  </div>
+  {/if}
 </div>

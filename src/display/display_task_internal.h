@@ -12,6 +12,8 @@ inline constexpr uint32_t kDrawOnlyIfViewChanged = 1U;
 
 bool displayPostMsg(DisplayMsg::Cmd cmd, uint32_t payload, TickType_t waitTicks);
 bool displayPostHeartRedraw(TickType_t waitTicks);
+/** Boot/view transition heart: posts DrawHeart with kDrawOnlyIfViewChanged and marks queued. */
+bool displayPostHeartBootIfChanged(TickType_t waitTicks);
 
 void displayTaskSetDesiredHeartIcon(DisplayHeartIcon icon);
 DisplayHeartIcon displayTaskDesiredHeartIcon();

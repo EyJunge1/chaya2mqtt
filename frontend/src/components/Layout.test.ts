@@ -46,6 +46,14 @@ describe("Layout", () => {
     expect(screen.getByRole("heading", { name: "Device" })).toBeInTheDocument();
   });
 
+  it("shows a setup back control on the wifi testing page", () => {
+    setLanguage("en");
+    renderApp(LayoutHarness, { route: "/wifi-testing", language: "en", props: { mode: "ap" } });
+    expect(screen.getByTestId("wifi-test-back")).toHaveAttribute("href", "/");
+    expect(screen.queryByTestId("settings-back")).not.toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Wi‑Fi test" })).toBeInTheDocument();
+  });
+
   it("can collapse the Settings group", () => {
     setLanguage("en");
     renderApp(LayoutHarness, { route: "/", language: "en", props: { mode: "sta" } });

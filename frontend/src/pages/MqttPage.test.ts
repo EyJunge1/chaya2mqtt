@@ -25,6 +25,7 @@ function cfg(partial: Partial<MqttConfigView> = {}): MqttConfigView {
     deviceId: "a1b2c3",
     server: "mqtt.example.com",
     port: 8883,
+    tls: true,
     username: "chaya",
     hasPassword: true,
     topicPub: "chaya2mqtt/a1b2c3",
@@ -60,6 +61,7 @@ describe("MqttPage", () => {
       expect(saveMqtt).toHaveBeenCalledWith({
         mqtt_server: "mqtt.example.com",
         mqtt_port: 8883,
+        mqtt_tls: 1,
         mqtt_user: "chaya",
         mqtt_pass: undefined,
         partner_id: "abcdef",
@@ -69,24 +71,25 @@ describe("MqttPage", () => {
     expect(onDeviceRefresh).toHaveBeenCalled();
   });
 
-  it("saves broker without username, password, or partner", async () => {
+  it("saves broker without username or password when partner is set", async () => {
     const onToast = vi.fn();
     getMqttConfig.mockResolvedValue(
-      cfg({ username: "", hasPassword: false, partnerId: "", topicSub: "" }),
+      cfg({ username: "", hasPassword: false, partnerId: "f5e6d7", topicSub: "chaya2mqtt/f5e6d7" }),
     );
     render(MqttPage, { props: { mqtt: { connected: false }, onToast } });
 
     await screen.findByDisplayValue("mqtt.example.com");
-    expect(screen.getAllByText("(common.optional)").length).toBeGreaterThanOrEqual(3);
+    expect(screen.getAllByText("(common.optional)").length).toBe(2);
     fireEvent.click(screen.getByRole("button", { name: "common.save" }));
 
     await waitFor(() => {
       expect(saveMqtt).toHaveBeenCalledWith({
         mqtt_server: "mqtt.example.com",
         mqtt_port: 8883,
+        mqtt_tls: 1,
         mqtt_user: "",
         mqtt_pass: undefined,
-        partner_id: "",
+        partner_id: "f5e6d7",
       });
     });
     expect(onToast).toHaveBeenCalledWith("toast.mqtt-saved", "success");
@@ -106,12 +109,48 @@ describe("MqttPage", () => {
       expect(saveMqtt).toHaveBeenCalledWith({
         mqtt_server: "mqtt.example.com",
         mqtt_port: 8883,
+        mqtt_tls: 1,
         mqtt_user: "chaya",
         mqtt_pass: undefined,
         partner_id: "",
       });
     });
     expect(onToast).toHaveBeenCalledWith("toast.mqtt-saved", "success");
+  });
+
+  it("switches protocol and auto-adjusts default ports", async () => {
+    const onToast = vi.fn();
+    render(MqttPage, { props: { mqtt: { connected: true }, onToast } });
+
+    await screen.findByDisplayValue("mqtt.example.com");
+    expect(screen.getByText("mqtts://mqtt.example.com:8883")).toBeTruthy();
+
+    fireEvent.click(screen.getByTestId("mqtt-proto-mqtt"));
+    await waitFor(() => {
+      expect(screen.getByDisplayValue("1883")).toBeTruthy();
+    });
+    expect(screen.getByText("mqtt://mqtt.example.com:1883")).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "common.save" }));
+    await waitFor(() => {
+      expect(saveMqtt).toHaveBeenCalledWith(
+        expect.objectContaining({
+          mqtt_port: 1883,
+          mqtt_tls: 0,
+        }),
+      );
+    });
+  });
+
+  it("keeps a custom port when switching protocol", async () => {
+    getMqttConfig.mockResolvedValue(cfg({ port: 8884, tls: true }));
+    render(MqttPage, { props: { mqtt: { connected: true }, onToast: vi.fn() } });
+
+    await screen.findByDisplayValue("mqtt.example.com");
+    fireEvent.click(screen.getByTestId("mqtt-proto-mqtt"));
+
+    expect(screen.getByDisplayValue("8884")).toBeTruthy();
+    expect(screen.getByText("mqtt://mqtt.example.com:8884")).toBeTruthy();
   });
 
   it("rejects invalid partner IDs", async () => {
@@ -133,7 +172,7 @@ describe("MqttPage", () => {
     render(MqttPage, { props: { mqtt: { connected: true }, onToast: vi.fn() } });
 
     await screen.findByDisplayValue("mqtt.example.com");
-    expect(screen.getByText("mqtt.example.com:8883")).toBeTruthy();
+    expect(screen.getByText("mqtts://mqtt.example.com:8883")).toBeTruthy();
     expect(screen.getAllByText("-").length).toBeGreaterThan(0);
   });
 
@@ -159,7 +198,7 @@ describe("MqttPage", () => {
     expect(screen.getAllByText("-").length).toBeGreaterThan(0);
     await rerender({ mqtt: { connected: true }, refreshSeq: 2, onToast: vi.fn() });
 
-    expect(await screen.findByText("mqtt.example.com:8883")).toBeTruthy();
+    expect(await screen.findByText("mqtts://mqtt.example.com:8883")).toBeTruthy();
     expect(getMqttConfig).toHaveBeenCalledTimes(2);
   });
 });

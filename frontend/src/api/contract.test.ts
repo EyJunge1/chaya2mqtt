@@ -95,7 +95,14 @@ describe("api contract", () => {
     const mock = read("frontend/mock/mockPlugin.ts");
     const openapi = read("docs/openapi.yaml");
     const firmware = readFirmwareApiRoutes();
-    for (const field of ["mqtt_server", "mqtt_port", "mqtt_user", "mqtt_pass", "partner_id"]) {
+    for (const field of [
+      "mqtt_server",
+      "mqtt_port",
+      "mqtt_tls",
+      "mqtt_user",
+      "mqtt_pass",
+      "partner_id",
+    ]) {
       expect(client).toContain(field);
       expect(mock).toContain(field);
       expect(openapi).toContain(field);

@@ -8,6 +8,8 @@
 struct MqttConfig {
     char     server[128] = "";
     uint16_t port        = kMqttDefaultTlsPort;
+    /** true = mqtts (TLS), false = mqtt (plain TCP). Default TLS for backward compatibility. */
+    bool     tls         = true;
     char     username[64] = "";
     char     password[64] = "";
     /** Derived: chaya2mqtt/<own device id>. Not user-editable. */
@@ -28,6 +30,10 @@ bool saveMQTTConfig();
 
 void mqttCfgSnapshot(MqttConfig* out);
 bool mqttCfgIsBrokerConfigured();
+/** True when a partner device ID is set (non-empty after sanitization). */
+bool mqttCfgIsPaired();
+/** True when broker and partner are set — ready for the operational heart view. */
+bool mqttCfgIsHeartReady();
 void mqttCfgTopicPubLockedCopy(char* out, size_t outLen);
 
 void mqttCfgStorePending(const MqttConfig* pending);

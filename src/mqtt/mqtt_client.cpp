@@ -95,7 +95,7 @@ bool mqttEnsureClientAllocated() {
 
     snprintf(s_lwtTopicBuf, sizeof(s_lwtTopicBuf), "%s/lwt", cfg.topicPub);
 
-    if (installCaBundleLocked() != ESP_OK) {
+    if (cfg.tls && installCaBundleLocked() != ESP_OK) {
         ESP_LOGE(TAG, "esp_crt_bundle_set failed");
         mqttClientUnlock();
         return false;
@@ -115,12 +115,14 @@ bool mqttEnsureClientAllocated() {
     esp_mqtt_client_config_t mqtt_cfg{};
     mqtt_cfg.broker.address.hostname = cfg.server;
     mqtt_cfg.broker.address.port     = cfg.port;
-    mqtt_cfg.broker.address.transport = MQTT_TRANSPORT_OVER_SSL;
+    mqtt_cfg.broker.address.transport =
+        cfg.tls ? MQTT_TRANSPORT_OVER_SSL : MQTT_TRANSPORT_OVER_TCP;
     mqtt_cfg.broker.address.uri       = nullptr;
     mqtt_cfg.broker.address.path      = nullptr;
 
     mqtt_cfg.broker.verification.use_global_ca_store        = false;
-    mqtt_cfg.broker.verification.crt_bundle_attach          = esp_crt_bundle_attach;
+    mqtt_cfg.broker.verification.crt_bundle_attach =
+        cfg.tls ? esp_crt_bundle_attach : nullptr;
     mqtt_cfg.broker.verification.certificate                = nullptr;
     mqtt_cfg.broker.verification.certificate_len            = 0;
     mqtt_cfg.broker.verification.skip_cert_common_name_check = false;
@@ -156,8 +158,8 @@ bool mqttEnsureClientAllocated() {
     mqtt_cfg.buffer.out_size = 512;
     mqtt_cfg.outbox.limit    = kMqttOutboxLimitBytes;
 
-    ESP_LOGI(TAG, "MQTT client init TLS… server %s:%u id %s", cfg.server,
-             static_cast<unsigned>(cfg.port), s_clientIdBuf);
+    ESP_LOGI(TAG, "MQTT client init %s… server %s:%u id %s", cfg.tls ? "TLS" : "TCP",
+             cfg.server, static_cast<unsigned>(cfg.port), s_clientIdBuf);
 
     s_client = esp_mqtt_client_init(&mqtt_cfg);
     if (s_client == nullptr) {

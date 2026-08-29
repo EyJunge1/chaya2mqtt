@@ -4,15 +4,18 @@
 
 | Aspect | Value |
 |--------|-------|
-| Protocol | **MQTT over TLS** (`mqtts://`) |
-| Default port | **8883** |
-| TLS | Mozilla CA bundle via `esp_crt_bundle_attach` |
+| Protocol | **mqtt** (plain TCP) or **mqtts** (TLS) — selectable in the admin UI / API |
+| Default | **TLS** (`mqtts`), port **8883** |
+| Plain port | **1883** (typical when TLS is off) |
+| TLS | Mozilla CA bundle via `esp_crt_bundle_attach` (only when TLS is enabled) |
 | Client | ESP-IDF `esp_mqtt_client` (not PubSubClient) |
 | Client ID | `Chaya2MQTT-<deviceId>` or `Chaya2MQTT-<random>` |
 | Keep-Alive | 60 s (`kMqttKeepAliveSeconds` in `mqtt/mqtt_config.h`) |
 | Buffer | 512 bytes (in/out) |
 | Outbox limit | 4096 bytes (`kMqttOutboxLimitBytes`) |
 | Auto-reconnect (ESP-IDF) | Disabled—reconnect only in `mqttLoop()` |
+
+NVS key `mqtt/tls` stores the choice (`1`/`0`). Firmware without that key keeps TLS behavior.
 
 ## Topics
 
@@ -180,7 +183,7 @@ Namespace `mqtt`:
 | `port` | Int | Port (default 8883; **required**) |
 | `user` | String | MQTT username (optional; empty = anonymous) |
 | `pass` | String | MQTT password (optional) |
-| `partner_id` | String | Partner device ID, 6 hex (optional; empty = unpaired) |
+| `partner_id` | String | Partner device ID, 6 hex (required for heart display; empty = unpaired / waiting title) |
 
 Topics are no longer persisted in NVS; legacy keys `topic_pub` / `topic_sub` are removed when saving.
 

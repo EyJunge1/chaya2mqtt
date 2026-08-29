@@ -38,6 +38,7 @@ export const MOCK_FAULT_KEYS = [
   "wifi-connect-status",
   "wifi-commit",
   "wifi-abort",
+  "wifi-retry",
   "mqtt",
   "mqtt-status",
   "mqtt-save",
@@ -104,6 +105,7 @@ export interface MockState {
   mqtt: {
     server: string;
     port: number;
+    tls: boolean;
     username: string;
     password: string;
     topicPub: string;
@@ -193,6 +195,7 @@ function defaultMqtt(deviceId: string) {
   return {
     server: "mqtt.example.com",
     port: 8883,
+    tls: true,
     username: "chaya",
     password: "secret",
     topicPub: `chaya2mqtt/${deviceId}`,
@@ -460,6 +463,7 @@ export function applyScenario(state: MockState, scenario: MockScenario): void {
       state.mqtt = {
         server: "",
         port: 8883,
+        tls: true,
         username: "",
         password: "",
         topicPub: `chaya2mqtt/${state.deviceId}`,
@@ -537,8 +541,59 @@ export function resetState(scenario?: MockScenario): MockState {
   return state;
 }
 
+function armApWifiTestPreview(target: MockState, connectState: "testing" | "ok" | "fail"): void {
+  target.mode = "ap";
+  clearWifiLink(target);
+  target.mqttConnected = false;
+  setOtaIdle(target);
+  if (connectState === "testing") {
+    target.wifiConnect = {
+      ...idleWifiConnect(),
+      state: "testing",
+      ssid: "MockNet",
+      password: "secret",
+      startedAt: Date.now(),
+      freeze: true,
+    };
+    return;
+  }
+  if (connectState === "ok") {
+    target.wifiConnect = {
+      ...idleWifiConnect(),
+      state: "ok",
+      ssid: "MockNet",
+      password: "secret",
+      startedAt: Date.now() - 3000,
+    };
+    target.wifiSsid = "MockNet";
+    target.wifiIp = "192.168.1.77";
+    target.wifiGateway = "192.168.1.1";
+    target.wifiNetmask = "255.255.255.0";
+    target.wifiDns1 = "1.1.1.1";
+    target.wifiDns2 = "1.0.0.1";
+    target.wifiRssi = -48;
+    return;
+  }
+  target.wifiConnect = {
+    ...idleWifiConnect(),
+    state: "fail",
+    ssid: "MockNet",
+    password: "fail",
+    startedAt: Date.now() - 3000,
+  };
+}
+
 export function setFault(key: MockFaultKey, enabled: boolean): MockFaults {
   state.faults[key] = enabled;
+  if (enabled) {
+    if (key === "wifi-connect") {
+      armApWifiTestPreview(state, "testing");
+    } else if (key === "wifi-commit") {
+      armApWifiTestPreview(state, "ok");
+    } else if (key === "wifi-retry") {
+      armApWifiTestPreview(state, "fail");
+    }
+  }
   return { ...state.faults };
 }
 

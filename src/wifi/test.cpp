@@ -124,6 +124,17 @@ void wlanAbortWifiConnectionTest() {
     wifiTestUnlock();
 }
 
+bool wlanRetryWifiConnectionTest() {
+    wifiTestLock();
+    if (s_wifiConnTestState != WlanWifiConnectionTestState::Fail || s_wifiConnTestCfg.ssid[0] == '\0') {
+        wifiTestUnlock();
+        return false;
+    }
+    const WlanConfig cfgCopy = s_wifiConnTestCfg;
+    wifiTestUnlock();
+    return wlanStartWifiConnectionTest(cfgCopy);
+}
+
 bool wlanStartWifiConnectionTest(const WlanConfig& cfg) {
     if (!configIsApMode() || cfg.ssid[0] == '\0' || wlanConfigValidate(&cfg) != nullptr) {
         return false;

@@ -265,6 +265,30 @@ paths:
           $ref: "#/components/responses/ApiError"
         "403":
           $ref: "#/components/responses/Forbidden"
+  /api/wifi/connect-retry:
+    post:
+      tags: [wifi]
+      summary: Retry failed AP connection test with the same credentials
+      operationId: retryWifiConnect
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/CsrfForm"
+      responses:
+        "200":
+          description: Retry started
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiOk"
+        "400":
+          $ref: "#/components/responses/ApiError"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "503":
+          $ref: "#/components/responses/ApiError"
   /api/mqtt/status:
     get:
       tags: [mqtt]
@@ -321,7 +345,13 @@ paths:
                       description: Broker hostname or IP; omitted fields keep their current value
                     mqtt_port:
                       type: integer
-                      description: MQTT port (typically 8883 for TLS); omitted fields keep their current value
+                      description: MQTT port (typically 1883 plain / 8883 TLS); omitted fields keep their current value
+                    mqtt_tls:
+                      type: integer
+                      enum: [0, 1]
+                      description: >
+                        1 = mqtts (TLS), 0 = mqtt (plain TCP). Omitted fields keep their current value.
+                        Default for new/missing NVS is TLS (1).
                     mqtt_user:
                       type: string
                       maxLength: 63
@@ -653,13 +683,16 @@ components:
         open: { type: boolean }
     MqttConfigView:
       type: object
-      required: [deviceId, server, port, username, hasPassword, topicPub, topicSub, partnerId]
+      required: [deviceId, server, port, tls, username, hasPassword, topicPub, topicSub, partnerId]
       properties:
         deviceId:
           type: string
           description: Own 6-char lowercase hex device ID (NVS `cfg/device_id`)
         server: { type: string }
         port: { type: integer }
+        tls:
+          type: boolean
+          description: true = mqtts (TLS on typically 8883), false = mqtt (plain TCP on typically 1883)
         username: { type: string }
         hasPassword: { type: boolean }
         topicPub:

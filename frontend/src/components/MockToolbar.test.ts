@@ -26,15 +26,23 @@ describe("MockToolbar", () => {
           );
         }
         if (url.includes("/api/_mock/scenario")) {
-          const body = String(init?.body ?? "");
-          expect(body).toContain("scenario=boot-unreachable");
-          return new Response(JSON.stringify({ ok: true, scenario: "boot-unreachable" }), {
+          const body = new URLSearchParams(String(init?.body ?? ""));
+          const scenario = body.get("scenario") ?? "sta-connected";
+          return new Response(JSON.stringify({ ok: true, scenario }), {
             status: 200,
           });
         }
         if (url.includes("/api/_mock/fault")) {
+          const body = new URLSearchParams(String(init?.body ?? ""));
+          const fault = body.get("fault") ?? "mqtt";
+          const enabled = body.get("enabled") === "1";
           return new Response(
-            JSON.stringify({ ok: true, fault: "mqtt", enabled: true, faults: { mqtt: true } }),
+            JSON.stringify({
+              ok: true,
+              fault,
+              enabled,
+              faults: enabled ? { [fault]: true } : {},
+            }),
             { status: 200 },
           );
         }
@@ -46,18 +54,30 @@ describe("MockToolbar", () => {
     );
   });
 
-  it("lists new simulator groups and can switch scenarios", async () => {
-    const user = userEvent.setup();
+  it("lists section headers collapsed by default", async () => {
     const onChanged = vi.fn(async () => undefined);
 
     renderApp(MockToolbar, { props: { onChanged, mode: "sta", bootError: true } });
 
     expect(screen.getByText("Simulator · offline")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Device" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Network" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Load errors" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Boot unreachable" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "MQTT load fail" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Clear faults" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Reset simulator" })).toBeNull();
+  });
+
+  it("expands a section and can switch scenarios", async () => {
+    const user = userEvent.setup();
+    const onChanged = vi.fn(async () => undefined);
+
+    renderApp(MockToolbar, { props: { onChanged, mode: "sta" } });
+
+    await user.click(screen.getByRole("button", { name: "Device" }));
     expect(screen.getByText("Boot unreachable")).toBeTruthy();
     expect(screen.getByText("SSE reconnecting")).toBeTruthy();
-    expect(screen.getByText("Test running")).toBeTruthy();
-    expect(screen.getByText("MQTT page")).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Wi-Fi test" })).toBeTruthy();
 
     await user.click(screen.getByRole("button", { name: "Boot unreachable" }));
     await waitFor(() => expect(onChanged).toHaveBeenCalled());
@@ -69,8 +89,120 @@ describe("MockToolbar", () => {
 
     renderApp(MockToolbar, { props: { onChanged, mode: "sta" } });
 
-    await user.click(screen.getByRole("button", { name: "MQTT page" }));
+    await user.click(screen.getByRole("button", { name: "Load errors" }));
+    await user.click(screen.getByRole("button", { name: "MQTT load fail" }));
     await waitFor(() => expect(onChanged).toHaveBeenCalled());
-    expect(await screen.findByRole("button", { name: "● MQTT page" })).toBeTruthy();
+    expect(await screen.findByRole("button", { name: "MQTT load fail" })).toBeTruthy();
+  });
+
+  it("keeps only one load fault active at a time", async () => {
+    const user = userEvent.setup();
+    const onChanged = vi.fn(async () => undefined);
+    const faults: Record<string, boolean> = {};
+    let scenario = "sta-connected";
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = String(input);
+        if (url.includes("/api/_mock/state")) {
+          return new Response(JSON.stringify({ scenario, faults: {} }), {
+            status: 200,
+          });
+        }
+        if (url.includes("/api/_mock/scenario")) {
+          const body = new URLSearchParams(String(init?.body ?? ""));
+          scenario = body.get("scenario") ?? scenario;
+          for (const key of Object.keys(faults)) faults[key] = false;
+          return new Response(JSON.stringify({ ok: true, scenario }), { status: 200 });
+        }
+        if (url.includes("/api/_mock/fault")) {
+          const body = new URLSearchParams(String(init?.body ?? ""));
+          const fault = body.get("fault") ?? "";
+          const enabled = body.get("enabled") === "1";
+          if (fault) faults[fault] = enabled;
+          return new Response(JSON.stringify({ ok: true, fault, enabled, faults: { ...faults } }), {
+            status: 200,
+          });
+        }
+        return new Response("{}", { status: 404 });
+      }),
+    );
+
+    renderApp(MockToolbar, { props: { onChanged, mode: "sta" } });
+
+    await user.click(screen.getByRole("button", { name: "Update" }));
+    await user.click(screen.getByRole("button", { name: "Verifying" }));
+    await waitFor(() => expect(scenario).toBe("update-verifying"));
+
+    await user.click(screen.getByRole("button", { name: "Load errors" }));
+    await user.click(screen.getByRole("button", { name: "Update load fail" }));
+    await waitFor(() => {
+      expect(scenario).toBe("sta-connected");
+      expect(faults["update-status"]).toBe(true);
+    });
+    expect(screen.getByRole("button", { name: "Verifying" }).className).not.toMatch(
+      /font-semibold/,
+    );
+  });
+
+  it("keeps only one action fault active at a time", async () => {
+    const user = userEvent.setup();
+    const onChanged = vi.fn(async () => undefined);
+    const faults: Record<string, boolean> = {};
+    let scenario = "sta-connected";
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = String(input);
+        if (url.includes("/api/_mock/state")) {
+          return new Response(JSON.stringify({ scenario, faults: {} }), {
+            status: 200,
+          });
+        }
+        if (url.includes("/api/_mock/scenario")) {
+          const body = new URLSearchParams(String(init?.body ?? ""));
+          scenario = body.get("scenario") ?? scenario;
+          for (const key of Object.keys(faults)) faults[key] = false;
+          return new Response(JSON.stringify({ ok: true, scenario }), { status: 200 });
+        }
+        if (url.includes("/api/_mock/fault")) {
+          const body = new URLSearchParams(String(init?.body ?? ""));
+          const fault = body.get("fault") ?? "";
+          const enabled = body.get("enabled") === "1";
+          if (fault) faults[fault] = enabled;
+          return new Response(JSON.stringify({ ok: true, fault, enabled, faults: { ...faults } }), {
+            status: 200,
+          });
+        }
+        return new Response("{}", { status: 404 });
+      }),
+    );
+
+    renderApp(MockToolbar, { props: { onChanged, mode: "sta" } });
+
+    await user.click(screen.getByRole("button", { name: "Action errors" }));
+    await user.click(screen.getByRole("button", { name: "MQTT save" }));
+    await waitFor(() => expect(faults["mqtt-save"]).toBe(true));
+
+    await user.click(screen.getByRole("button", { name: "Reboot" }));
+    await waitFor(() => {
+      expect(faults["mqtt-save"]).toBe(false);
+      expect(faults.reboot).toBe(true);
+    });
+  });
+
+  it("expands and collapses simulator sections", async () => {
+    const user = userEvent.setup();
+    const onChanged = vi.fn(async () => undefined);
+
+    renderApp(MockToolbar, { props: { onChanged, mode: "sta" } });
+
+    expect(screen.queryByRole("button", { name: "STA offline" })).toBeNull();
+    await user.click(screen.getByRole("button", { name: "Network" }));
+    expect(screen.getByRole("button", { name: "STA offline" })).toBeTruthy();
+    await user.click(screen.getByRole("button", { name: "Network" }));
+    expect(screen.queryByRole("button", { name: "STA offline" })).toBeNull();
   });
 });

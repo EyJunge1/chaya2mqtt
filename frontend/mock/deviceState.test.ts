@@ -3,6 +3,7 @@ import {
   MOCK_SCENARIOS,
   applyScenario,
   createInitialState,
+  getState,
   hasFault,
   otaBlocksDestructiveAction,
   parseFaultKey,
@@ -248,6 +249,26 @@ describe("setFault", () => {
     expect(hasFault("mqtt")).toBe(true);
     setFault("mqtt", false);
     expect(hasFault("mqtt")).toBe(false);
+  });
+
+  it("arms AP wifi-test previews for start and save faults", () => {
+    resetState("sta-connected");
+    setFault("wifi-connect", true);
+    expect(getState().mode).toBe("ap");
+    expect(getState().wifiConnect.state).toBe("testing");
+    expect(getState().wifiConnect.ssid).toBe("MockNet");
+
+    resetState("sta-connected");
+    setFault("wifi-commit", true);
+    expect(getState().mode).toBe("ap");
+    expect(getState().wifiConnect.state).toBe("ok");
+  });
+
+  it("arms AP wifi-test fail preview for retry fault", () => {
+    resetState("sta-connected");
+    setFault("wifi-retry", true);
+    expect(getState().mode).toBe("ap");
+    expect(getState().wifiConnect.state).toBe("fail");
   });
 });
 

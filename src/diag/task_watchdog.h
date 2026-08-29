@@ -34,6 +34,10 @@ inline void chayaTaskWatchdogUnsubscribe(const char* logTag) {
     if (h == nullptr) {
         return;
     }
+    // OTA (and similar) unsubscribe before work; first loop may not be subscribed yet.
+    if (esp_task_wdt_status(nullptr) != ESP_OK) {
+        return;
+    }
     const esp_err_t err = esp_task_wdt_delete(h);
     if (err == ESP_ERR_INVALID_STATE) {
         return;

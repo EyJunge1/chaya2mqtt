@@ -342,6 +342,29 @@ export async function handleApi(req: IncomingMessage, res: ServerResponse): Prom
     return true;
   }
 
+  if (path === "/api/wifi/connect-retry" && method === "POST") {
+    if (!requireApMode(res)) return true;
+    const params = parseForm(await readBody(req));
+    if (!requireCsrf(params, res)) return true;
+    if (failIfFault("wifi-retry", res)) return true;
+    if (state.wifiConnect.state !== "fail") {
+      sendJson(res, 400, { ok: false, error: "not_fail" });
+      return true;
+    }
+    if (!state.wifiConnect.ssid) {
+      sendJson(res, 503, { ok: false, error: "test_start" });
+      return true;
+    }
+    state.wifiConnect = {
+      ...state.wifiConnect,
+      state: "testing",
+      startedAt: Date.now(),
+      freeze: false,
+    };
+    sendJson(res, 200, { ok: true, message: "retrying" });
+    return true;
+  }
+
   if (path === "/api/mqtt/status" && method === "GET") {
     if (!requireStaMode(res)) return true;
     if (failIfFault("mqtt-status", res)) return true;
@@ -356,6 +379,7 @@ export async function handleApi(req: IncomingMessage, res: ServerResponse): Prom
       deviceId: state.deviceId,
       server: state.mqtt.server,
       port: state.mqtt.port,
+      tls: state.mqtt.tls,
       username: state.mqtt.username,
       hasPassword: state.mqtt.password.length > 0,
       topicPub: state.mqtt.topicPub,
@@ -372,6 +396,10 @@ export async function handleApi(req: IncomingMessage, res: ServerResponse): Prom
     if (failIfFault("mqtt-save", res)) return true;
     state.mqtt.server = params.get("mqtt_server") ?? "";
     state.mqtt.port = Number(params.get("mqtt_port") ?? "8883") || 8883;
+    if (params.has("mqtt_tls")) {
+      const raw = (params.get("mqtt_tls") ?? "").toLowerCase();
+      state.mqtt.tls = raw === "1" || raw === "true" || raw === "yes" || raw === "on";
+    }
     state.mqtt.username = params.get("mqtt_user") ?? "";
     const pass = params.get("mqtt_pass");
     if (pass) state.mqtt.password = pass;

@@ -122,6 +122,20 @@ bool mqttCfgIsBrokerConfigured() {
     return ok;
 }
 
+bool mqttCfgIsPaired() {
+    mqttCfgLock();
+    const bool ok = mqttCfg.partnerDeviceId[0] != '\0';
+    mqttCfgUnlock();
+    return ok;
+}
+
+bool mqttCfgIsHeartReady() {
+    mqttCfgLock();
+    const bool ok = mqttCfg.server[0] != '\0' && mqttCfg.partnerDeviceId[0] != '\0';
+    mqttCfgUnlock();
+    return ok;
+}
+
 void mqttCfgTopicPubLockedCopy(char* out, size_t outLen) {
     if (out == nullptr || outLen == 0U) {
         return;
@@ -168,6 +182,8 @@ static void mqttCfgReadFromPrefs(Preferences& prefs, MqttConfig& out) {
     prefs.getString(kNvsKeyMqttServer, out.server, sizeof(out.server));
     out.port =
         static_cast<uint16_t>(prefs.getInt(kNvsKeyMqttPort, static_cast<int>(kMqttDefaultTlsPort)));
+    // Missing key → TLS (backward compatible with pre-tls-flag firmware).
+    out.tls = prefs.getUChar(kNvsKeyMqttTls, 1U) != 0U;
     prefs.getString(kNvsKeyMqttUser, out.username, sizeof(out.username));
     prefs.getString(kNvsKeyMqttPass, out.password, sizeof(out.password));
     prefs.getString(kNvsKeyMqttPartnerId, out.partnerDeviceId, sizeof(out.partnerDeviceId));
@@ -209,9 +225,11 @@ void loadMQTTConfig() {
             loaded.username[0] = '\0';
             loaded.password[0] = '\0';
             loaded.port        = kMqttDefaultTlsPort;
+            loaded.tls         = true;
         } else if (!prefs.isKey(kNvsKeyMqttServer)) {
             ESP_LOGI(TAG, "MQTT not configured yet in NVS, using defaults");
             loaded.server[0] = '\0';
+            loaded.tls       = true;
             prefs.end();
         } else {
             mqttCfgReadFromPrefs(prefs, loaded);
@@ -246,6 +264,11 @@ bool saveMQTTConfig() {
         return false;
     }
     ok = (prefs.putInt(kNvsKeyMqttPort, static_cast<int>(snap.port)) > 0);
+    if (!ok) {
+        prefs.end();
+        return false;
+    }
+    ok = (prefs.putUChar(kNvsKeyMqttTls, snap.tls ? 1U : 0U) > 0);
     if (!ok) {
         prefs.end();
         return false;
