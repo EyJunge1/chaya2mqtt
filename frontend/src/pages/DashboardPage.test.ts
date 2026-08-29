@@ -116,7 +116,7 @@ describe("DashboardPage", () => {
 
   it("renders heart counters and sends a heart", async () => {
     setLanguage("en");
-    sendChaya.mockResolvedValue({ ok: true, message: "sent" });
+    sendChaya.mockResolvedValue({ ok: true, queued: true });
     const onToast = vi.fn();
 
     render(DashboardPage, {
@@ -135,5 +135,21 @@ describe("DashboardPage", () => {
     await waitFor(() => {
       expect(onToast).toHaveBeenCalledWith("Heart sent", "success");
     });
+  });
+
+  it("shows a busy toast when the device rejects a second send", async () => {
+    setLanguage("en");
+    sendChaya.mockResolvedValue({ ok: false, error: "busy" });
+    const onToast = vi.fn();
+
+    render(DashboardPage, {
+      props: { device, chaya, wifi, onToast },
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: /Send heart/i }));
+    await waitFor(() => {
+      expect(onToast).toHaveBeenCalledWith("Heart still sending — please wait", "error");
+    });
+    expect(onToast).not.toHaveBeenCalledWith("Send failed (MQTT offline?)", "error");
   });
 });
