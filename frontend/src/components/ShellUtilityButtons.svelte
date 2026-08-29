@@ -8,52 +8,66 @@
   import { HOVER_SURFACE } from "../ui/styles.ts";
   import { GITHUB_REPO_URL } from "./github.ts";
   import GithubIcon from "./GithubIcon.svelte";
-  import IconButton from "./IconButton.svelte";
-  import IconLink from "./IconLink.svelte";
+
+  let {
+    stacked = false,
+    class: className = "",
+  }: {
+    stacked?: boolean;
+    class?: string;
+  } = $props();
 
   const isDark = $derived(themeView.theme === "dark");
   const themeLabel = $derived(
     isDark ? i18n.t("settings.theme-light") : i18n.t("settings.theme-dark"),
   );
   const langLabel = $derived(i18n.language.toUpperCase());
+
+  const btn = cn(
+    "focus-ring inline-flex shrink-0 items-center justify-center rounded-xl text-muted transition",
+    HOVER_SURFACE,
+  );
 </script>
 
-<div class="flex items-center gap-1.5">
+<div class={cn(stacked ? "flex flex-col items-center gap-1" : "flex items-center gap-1", className)}>
   <button
     type="button"
-    class={cn(
-      "inline-flex h-8 w-14 shrink-0 items-center justify-center gap-1 rounded-lg border border-border bg-surface text-xs font-semibold text-muted tabular-nums transition focus-ring",
-      HOVER_SURFACE,
-    )}
     onclick={() => cycleLanguage()}
+    class={cn(
+      btn,
+      stacked ? "size-10" : "h-10 w-[4.25rem] gap-1.5",
+    )}
     aria-label={i18n.t("nav.language")}
     title={`${i18n.t("nav.language")}: ${langLabel}`}
   >
-    <Languages size={14} aria-hidden="true" />
-    <span>{langLabel}</span>
+    {#if !stacked}
+      <Languages size={17} class="shrink-0" aria-hidden="true" />
+    {/if}
+    <span class={cn("text-xs font-bold tabular-nums", stacked ? "" : "w-5 text-center")}>
+      {langLabel}
+    </span>
   </button>
-  <IconButton
-    variant="bordered"
-    size="sm"
+  <button
+    type="button"
     onclick={toggleTheme}
+    class={cn(btn, "size-10")}
     aria-label={themeLabel}
     title={themeLabel}
   >
     {#if isDark}
-      <Moon size={16} aria-hidden="true" />
+      <Moon size={18} aria-hidden="true" />
     {:else}
-      <Sun size={16} aria-hidden="true" />
+      <Sun size={18} aria-hidden="true" />
     {/if}
-  </IconButton>
-  <IconLink
-    variant="bordered"
-    size="sm"
+  </button>
+  <a
     href={GITHUB_REPO_URL}
     target="_blank"
     rel="noopener noreferrer"
+    class={cn(btn, "size-10")}
     title={i18n.t("nav.github")}
     aria-label={i18n.t("nav.github")}
   >
-    <GithubIcon size={16} />
-  </IconLink>
+    <GithubIcon size={18} />
+  </a>
 </div>

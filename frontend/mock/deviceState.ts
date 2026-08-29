@@ -6,17 +6,26 @@ export const MOCK_SCENARIOS = [
   // Connection
   "sta-connected",
   "sse-disconnected",
+  "device-unreachable",
   // Dashboard
   "battery-full",
   "battery-medium",
   "battery-low",
   "battery-critical",
   "heart-busy",
+  "heart-send-fail",
   // MQTT
   "sta-mqtt-offline",
   "sta-mqtt-unconfigured",
   "sta-mqtt-unpaired",
   "mqtt-no-auth",
+  "mqtt-load-fail",
+  "mqtt-save-fail",
+  // Settings
+  "settings-load-fail",
+  "settings-save-fail",
+  "settings-reboot-fail",
+  "settings-factory-reset-fail",
   // Wi-Fi
   "wifi-weak",
   "wifi-static",
@@ -28,6 +37,10 @@ export const MOCK_SCENARIOS = [
   "ap-test-testing",
   "ap-test-ok",
   "ap-test-failed",
+  "wifi-test-start-fail",
+  "wifi-test-save-fail",
+  "wifi-test-retry-fail",
+  "wifi-test-abort-fail",
   // Update (lifecycle order)
   "update-uptodate",
   "update-available",
@@ -38,6 +51,8 @@ export const MOCK_SCENARIOS = [
   "update-verifying",
   "update-rebooting",
   "update-error",
+  "update-check-fail",
+  "update-install-fail",
 ] as const;
 
 export type MockScenario = (typeof MOCK_SCENARIOS)[number];
@@ -463,10 +478,32 @@ export function applyScenario(state: MockState, scenario: MockScenario): void {
       state.scanMode = "fail";
       setOtaIdle(state);
       break;
+    case "wifi-test-start-fail":
+      armApWifiTestPreview(state, "testing");
+      state.faults["wifi-connect"] = true;
+      break;
+    case "wifi-test-save-fail":
+      armApWifiTestPreview(state, "ok");
+      state.faults["wifi-commit"] = true;
+      break;
+    case "wifi-test-retry-fail":
+      armApWifiTestPreview(state, "fail");
+      state.faults["wifi-retry"] = true;
+      break;
+    case "wifi-test-abort-fail":
+      armApWifiTestPreview(state, "testing");
+      state.faults["wifi-abort"] = true;
+      break;
     case "sse-disconnected":
       applyStaOnlineDefaults(state);
       state.mqttConnected = true;
       state.faults.sse = true;
+      setOtaIdle(state);
+      break;
+    case "device-unreachable":
+      applyStaOnlineDefaults(state);
+      state.mqttConnected = true;
+      state.faults.device = true;
       setOtaIdle(state);
       break;
     case "sta-mqtt-offline":
@@ -501,6 +538,42 @@ export function applyScenario(state: MockState, scenario: MockScenario): void {
       state.mqtt.username = "";
       state.mqtt.password = "";
       state.mqttConnected = true;
+      setOtaIdle(state);
+      break;
+    case "mqtt-load-fail":
+      applyStaOnlineDefaults(state);
+      state.mqttConnected = true;
+      state.faults.mqtt = true;
+      setOtaIdle(state);
+      break;
+    case "mqtt-save-fail":
+      applyStaOnlineDefaults(state);
+      state.mqttConnected = true;
+      state.faults["mqtt-save"] = true;
+      setOtaIdle(state);
+      break;
+    case "settings-load-fail":
+      applyStaOnlineDefaults(state);
+      state.mqttConnected = true;
+      state.faults.settings = true;
+      setOtaIdle(state);
+      break;
+    case "settings-save-fail":
+      applyStaOnlineDefaults(state);
+      state.mqttConnected = true;
+      state.faults["settings-save"] = true;
+      setOtaIdle(state);
+      break;
+    case "settings-reboot-fail":
+      applyStaOnlineDefaults(state);
+      state.mqttConnected = true;
+      state.faults.reboot = true;
+      setOtaIdle(state);
+      break;
+    case "settings-factory-reset-fail":
+      applyStaOnlineDefaults(state);
+      state.mqttConnected = true;
+      state.faults["factory-reset"] = true;
       setOtaIdle(state);
       break;
     case "wifi-static":
@@ -558,6 +631,12 @@ export function applyScenario(state: MockState, scenario: MockScenario): void {
       state.heartBusy = true;
       setOtaIdle(state);
       break;
+    case "heart-send-fail":
+      applyStaOnlineDefaults(state);
+      state.mqttConnected = true;
+      state.faults.heart = true;
+      setOtaIdle(state);
+      break;
     case "update-available":
       applyStaOnlineDefaults(state);
       state.mqttConnected = true;
@@ -572,6 +651,18 @@ export function applyScenario(state: MockState, scenario: MockScenario): void {
       applyStaOnlineDefaults(state);
       state.mqttConnected = true;
       setOtaPhase(state, "error", { error: "install_failed" });
+      break;
+    case "update-check-fail":
+      applyStaOnlineDefaults(state);
+      state.mqttConnected = true;
+      state.faults["update-check"] = true;
+      setOtaIdle(state);
+      break;
+    case "update-install-fail":
+      applyStaOnlineDefaults(state);
+      state.mqttConnected = true;
+      state.faults["update-install"] = true;
+      setOtaPhase(state, "available");
       break;
     case "update-busy":
       applyStaOnlineDefaults(state);

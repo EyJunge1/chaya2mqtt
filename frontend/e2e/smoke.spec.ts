@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { fieldInput, resetMock, setMockFault, waitForAppReady } from "./helpers";
+import { fieldInput, resetMock, waitForAppReady } from "./helpers";
 
 test.beforeEach(async ({ page, request }) => {
   await page.addInitScript(() => {
@@ -71,7 +71,7 @@ test("ota check success and error paths", async ({ page, request }) => {
 });
 
 test("device load fault recovers via simulator reset @smoke", async ({ page, request }) => {
-  await setMockFault(request, "device", true);
+  await resetMock(request, "device-unreachable");
   await page.goto("/");
   await expect(page.getByText(/Could not connect to the device/i)).toBeVisible();
   await expect(page.getByRole("button", { name: "Simulator · offline" })).toBeVisible();
@@ -82,7 +82,7 @@ test("device load fault recovers via simulator reset @smoke", async ({ page, req
 });
 
 test("mqtt page load fault shows retry block @smoke", async ({ page, request }) => {
-  await setMockFault(request, "mqtt", true);
+  await resetMock(request, "mqtt-load-fail");
   await waitForAppReady(page);
   await page.goto("/mqtt");
   await expect(page.getByText("Could not load the broker configuration.")).toBeVisible();
@@ -102,7 +102,7 @@ test("wifi scan empty state in AP setup @smoke", async ({ page, request }) => {
 });
 
 test("settings save fault shows toast @smoke", async ({ page, request }) => {
-  await setMockFault(request, "settings-save", true);
+  await resetMock(request, "settings-save-fail");
   await waitForAppReady(page);
   await page.goto("/settings/device");
   await page.getByRole("main").getByRole("button", { name: "Save", exact: true }).first().click();

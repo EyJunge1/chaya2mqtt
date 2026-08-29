@@ -30,15 +30,23 @@ describe("parseScenario", () => {
     expect(MOCK_SCENARIOS).toEqual([
       "sta-connected",
       "sse-disconnected",
+      "device-unreachable",
       "battery-full",
       "battery-medium",
       "battery-low",
       "battery-critical",
       "heart-busy",
+      "heart-send-fail",
       "sta-mqtt-offline",
       "sta-mqtt-unconfigured",
       "sta-mqtt-unpaired",
       "mqtt-no-auth",
+      "mqtt-load-fail",
+      "mqtt-save-fail",
+      "settings-load-fail",
+      "settings-save-fail",
+      "settings-reboot-fail",
+      "settings-factory-reset-fail",
       "wifi-weak",
       "wifi-static",
       "ap-setup",
@@ -48,6 +56,10 @@ describe("parseScenario", () => {
       "ap-test-testing",
       "ap-test-ok",
       "ap-test-failed",
+      "wifi-test-start-fail",
+      "wifi-test-save-fail",
+      "wifi-test-retry-fail",
+      "wifi-test-abort-fail",
       "update-uptodate",
       "update-available",
       "update-beta",
@@ -57,6 +69,8 @@ describe("parseScenario", () => {
       "update-verifying",
       "update-rebooting",
       "update-error",
+      "update-check-fail",
+      "update-install-fail",
     ]);
   });
 });
@@ -83,6 +97,15 @@ describe("applyScenario", () => {
     scanMode?: "normal" | "empty" | "fail";
     deviceFault?: boolean;
     sseFault?: boolean;
+    mqttFault?: boolean;
+    mqttSaveFault?: boolean;
+    settingsFault?: boolean;
+    settingsSaveFault?: boolean;
+    rebootFault?: boolean;
+    factoryResetFault?: boolean;
+    heartFault?: boolean;
+    updateCheckFault?: boolean;
+    updateInstallFault?: boolean;
     freeze?: boolean;
   }> = [
     { scenario: "sta-connected", mode: "sta", wifi: true, mqtt: true, partner: "f5e6d7" },
@@ -122,6 +145,36 @@ describe("applyScenario", () => {
     },
     { scenario: "ap-test-ok", mode: "ap", wifi: false, mqtt: false, wifiConnect: "ok" },
     { scenario: "ap-test-failed", mode: "ap", wifi: false, mqtt: false, wifiConnect: "fail" },
+    {
+      scenario: "wifi-test-start-fail",
+      mode: "ap",
+      wifi: false,
+      mqtt: false,
+      wifiConnect: "testing",
+      freeze: true,
+    },
+    {
+      scenario: "wifi-test-save-fail",
+      mode: "ap",
+      wifi: false,
+      mqtt: false,
+      wifiConnect: "ok",
+    },
+    {
+      scenario: "wifi-test-retry-fail",
+      mode: "ap",
+      wifi: false,
+      mqtt: false,
+      wifiConnect: "fail",
+    },
+    {
+      scenario: "wifi-test-abort-fail",
+      mode: "ap",
+      wifi: false,
+      mqtt: false,
+      wifiConnect: "testing",
+      freeze: true,
+    },
     { scenario: "wifi-scan-empty", mode: "ap", wifi: false, mqtt: false, scanMode: "empty" },
     { scenario: "wifi-scan-fail", mode: "ap", wifi: false, mqtt: false, scanMode: "fail" },
     { scenario: "wifi-static", mode: "sta", wifi: true, mqtt: true },
@@ -133,11 +186,67 @@ describe("applyScenario", () => {
       mqtt: true,
       sseFault: true,
     },
+    {
+      scenario: "device-unreachable",
+      mode: "sta",
+      wifi: true,
+      mqtt: true,
+      deviceFault: true,
+    },
+    {
+      scenario: "mqtt-load-fail",
+      mode: "sta",
+      wifi: true,
+      mqtt: true,
+      mqttFault: true,
+    },
+    {
+      scenario: "mqtt-save-fail",
+      mode: "sta",
+      wifi: true,
+      mqtt: true,
+      mqttSaveFault: true,
+    },
+    {
+      scenario: "settings-load-fail",
+      mode: "sta",
+      wifi: true,
+      mqtt: true,
+      settingsFault: true,
+    },
+    {
+      scenario: "settings-save-fail",
+      mode: "sta",
+      wifi: true,
+      mqtt: true,
+      settingsSaveFault: true,
+    },
+    {
+      scenario: "settings-reboot-fail",
+      mode: "sta",
+      wifi: true,
+      mqtt: true,
+      rebootFault: true,
+    },
+    {
+      scenario: "settings-factory-reset-fail",
+      mode: "sta",
+      wifi: true,
+      mqtt: true,
+      factoryResetFault: true,
+    },
     { scenario: "battery-full", mode: "sta", wifi: true, mqtt: true },
     { scenario: "battery-medium", mode: "sta", wifi: true, mqtt: true },
     { scenario: "battery-low", mode: "sta", wifi: true, mqtt: true },
     { scenario: "battery-critical", mode: "sta", wifi: true, mqtt: true },
     { scenario: "heart-busy", mode: "sta", wifi: true, mqtt: true },
+    {
+      scenario: "heart-send-fail",
+      mode: "sta",
+      wifi: true,
+      mqtt: true,
+      heartFault: true,
+    },
     {
       scenario: "update-available",
       mode: "sta",
@@ -159,6 +268,21 @@ describe("applyScenario", () => {
       mqtt: true,
       otaPhase: "error",
       otaError: "install_failed",
+    },
+    {
+      scenario: "update-check-fail",
+      mode: "sta",
+      wifi: true,
+      mqtt: true,
+      updateCheckFault: true,
+    },
+    {
+      scenario: "update-install-fail",
+      mode: "sta",
+      wifi: true,
+      mqtt: true,
+      otaPhase: "available",
+      updateInstallFault: true,
     },
     {
       scenario: "update-busy",
@@ -219,6 +343,15 @@ describe("applyScenario", () => {
       scanMode,
       deviceFault,
       sseFault,
+      mqttFault,
+      mqttSaveFault,
+      settingsFault,
+      settingsSaveFault,
+      rebootFault,
+      factoryResetFault,
+      heartFault,
+      updateCheckFault,
+      updateInstallFault,
       freeze,
     }) => {
       const state = createInitialState(scenario);
@@ -234,6 +367,23 @@ describe("applyScenario", () => {
       if (scanMode !== undefined) expect(state.scanMode).toBe(scanMode);
       if (deviceFault !== undefined) expect(state.faults.device).toBe(deviceFault);
       if (sseFault !== undefined) expect(state.faults.sse).toBe(sseFault);
+      if (mqttFault !== undefined) expect(state.faults.mqtt).toBe(mqttFault);
+      if (mqttSaveFault !== undefined) expect(state.faults["mqtt-save"]).toBe(mqttSaveFault);
+      if (settingsFault !== undefined) expect(state.faults.settings).toBe(settingsFault);
+      if (settingsSaveFault !== undefined) {
+        expect(state.faults["settings-save"]).toBe(settingsSaveFault);
+      }
+      if (rebootFault !== undefined) expect(state.faults.reboot).toBe(rebootFault);
+      if (factoryResetFault !== undefined) {
+        expect(state.faults["factory-reset"]).toBe(factoryResetFault);
+      }
+      if (heartFault !== undefined) expect(state.faults.heart).toBe(heartFault);
+      if (updateCheckFault !== undefined) {
+        expect(state.faults["update-check"]).toBe(updateCheckFault);
+      }
+      if (updateInstallFault !== undefined) {
+        expect(state.faults["update-install"]).toBe(updateInstallFault);
+      }
       if (freeze !== undefined) expect(state.wifiConnect.freeze).toBe(freeze);
     },
   );

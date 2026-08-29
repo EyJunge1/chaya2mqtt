@@ -11,6 +11,7 @@
       items: [
         { id: "sta-connected", label: "STA online", path: "/" },
         { id: "sse-disconnected", label: "SSE reconnecting", path: "/" },
+        { id: "device-unreachable", label: "Chaya unreachable", path: "/" },
       ],
     },
     {
@@ -21,6 +22,7 @@
         { id: "battery-low", label: "Battery low", path: "/" },
         { id: "battery-critical", label: "Battery critical", path: "/" },
         { id: "heart-busy", label: "Busy · tap Send", path: "/" },
+        { id: "heart-send-fail", label: "Send failed", path: "/" },
       ],
     },
     {
@@ -30,6 +32,17 @@
         { id: "sta-mqtt-unconfigured", label: "Unconfigured", path: "/mqtt" },
         { id: "sta-mqtt-unpaired", label: "Unpaired", path: "/mqtt" },
         { id: "mqtt-no-auth", label: "No password", path: "/mqtt" },
+        { id: "mqtt-load-fail", label: "Load failed", path: "/mqtt" },
+        { id: "mqtt-save-fail", label: "Save failed", path: "/mqtt" },
+      ],
+    },
+    {
+      title: "Settings",
+      items: [
+        { id: "settings-load-fail", label: "Load failed", path: "/settings/device" },
+        { id: "settings-save-fail", label: "Save failed", path: "/settings/device" },
+        { id: "settings-reboot-fail", label: "Reboot failed", path: "/settings/device" },
+        { id: "settings-factory-reset-fail", label: "Factory reset failed", path: "/settings/device" },
       ],
     },
     {
@@ -49,6 +62,10 @@
         { id: "ap-test-testing", label: "Test running", path: "/wifi-testing" },
         { id: "ap-test-ok", label: "Test success", path: "/wifi-testing" },
         { id: "ap-test-failed", label: "Test failed", path: "/wifi-testing" },
+        { id: "wifi-test-start-fail", label: "Test start failed", path: "/wifi-testing" },
+        { id: "wifi-test-save-fail", label: "Test save failed", path: "/wifi-testing" },
+        { id: "wifi-test-retry-fail", label: "Test retry failed", path: "/wifi-testing" },
+        { id: "wifi-test-abort-fail", label: "Test abort failed", path: "/wifi-testing" },
       ],
     },
     {
@@ -63,46 +80,14 @@
         { id: "update-verifying", label: "Verifying", path: "/update" },
         { id: "update-rebooting", label: "Rebooting", path: "/update" },
         { id: "update-error", label: "Error", path: "/update" },
+        { id: "update-check-fail", label: "Check failed", path: "/update" },
+        { id: "update-install-fail", label: "Install failed", path: "/update" },
       ],
     },
   ] as const;
 
   type ScenarioId = (typeof scenarioGroups)[number]["items"][number]["id"];
-
-  const loadFaultItems = [
-    { id: "device", label: "Device boot", path: "/" },
-    { id: "chaya", label: "Chaya status", path: "/" },
-    { id: "sse", label: "SSE stream", path: "/" },
-    { id: "wifi-status", label: "Wi-Fi status", path: "/wifi" },
-    { id: "wifi-config", label: "Wi-Fi config", path: "/wifi" },
-    { id: "wifi-connect-status", label: "Wi-Fi test status", path: "/wifi-testing" },
-    { id: "mqtt", label: "MQTT config", path: "/mqtt" },
-    { id: "mqtt-status", label: "MQTT status", path: "/mqtt" },
-    { id: "settings", label: "Settings", path: "/settings/device" },
-    { id: "update-status", label: "Update status", path: "/update" },
-  ] as const;
-
-  const actionFaultItems = [
-    { id: "heart", label: "Send heart", path: "/" },
-    { id: "wifi-scan", label: "Wi-Fi scan", path: "/wifi" },
-    { id: "wifi-connect", label: "Wi-Fi test start", path: "/wifi-testing" },
-    { id: "wifi-commit", label: "Wi-Fi test save", path: "/wifi-testing" },
-    { id: "wifi-retry", label: "Wi-Fi test retry", path: "/wifi-testing" },
-    { id: "wifi-abort", label: "Wi-Fi test abort", path: "/wifi-testing" },
-    { id: "mqtt-save", label: "MQTT save", path: "/mqtt" },
-    { id: "settings-save", label: "Settings save", path: "/settings/device" },
-    { id: "reboot", label: "Reboot", path: "/settings/device" },
-    { id: "factory-reset", label: "Factory reset", path: "/settings/device" },
-    { id: "update-check", label: "Update check", path: "/update" },
-    { id: "update-install", label: "Update install", path: "/update" },
-  ] as const;
-
-  type LoadFaultId = (typeof loadFaultItems)[number]["id"];
-  type ActionFaultId = (typeof actionFaultItems)[number]["id"];
-  type FaultId = LoadFaultId | ActionFaultId;
-
-  type SectionKey =
-    (typeof scenarioGroups)[number]["title"] | "Load errors" | "Action errors" | "Open page";
+  type SectionKey = (typeof scenarioGroups)[number]["title"] | "Open page";
 
   const pages = [
     { path: "/", label: "Dashboard" },
@@ -127,16 +112,14 @@
   let open = $state(true);
   let busy = $state(false);
   let activeScenario = $state<ScenarioId>("sta-connected");
-  let activeFaults = $state<Partial<Record<FaultId, boolean>>>({});
   let openSections = $state<Record<SectionKey, boolean>>({
     Connection: false,
     Dashboard: false,
     MQTT: false,
+    Settings: false,
     "Wi-Fi": false,
     "AP setup": false,
     Update: false,
-    "Load errors": false,
-    "Action errors": false,
     "Open page": false,
   });
 
@@ -147,17 +130,6 @@
           { path: "/wifi-testing", label: "Testing page" },
         ]
       : pages,
-  );
-
-  /** At most one fault selection; when set, scenario buttons are not highlighted. */
-  const selectedLoadFault = $derived(
-    loadFaultItems.find((item) => activeFaults[item.id])?.id ?? null,
-  );
-  const selectedActionFault = $derived(
-    actionFaultItems.find((item) => activeFaults[item.id])?.id ?? null,
-  );
-  const scenarioHighlightBlocked = $derived(
-    selectedLoadFault !== null || selectedActionFault !== null,
   );
 
   function toggleSection(key: SectionKey) {
@@ -173,12 +145,8 @@
       try {
         const res = await fetch("/api/_mock/state");
         if (!res.ok || cancelled) return;
-        const data = (await res.json()) as {
-          scenario?: ScenarioId;
-          faults?: Partial<Record<FaultId, boolean>>;
-        };
+        const data = (await res.json()) as { scenario?: ScenarioId };
         if (data.scenario) activeScenario = data.scenario;
-        if (data.faults) activeFaults = data.faults;
       } catch {
         /* ignore sync failures */
       }
@@ -195,57 +163,11 @@
       const response = await fetch("/api/_mock/scenario", { method: "POST", body });
       if (!response.ok) throw new Error(`scenario failed (${response.status})`);
       activeScenario = scenario.id;
-      activeFaults = {};
       router.navigate(scenario.path);
       await onChanged();
     } finally {
       busy = false;
     }
-  }
-
-  async function postFault(id: FaultId, enabled: boolean) {
-    const response = await fetch("/api/_mock/fault", {
-      method: "POST",
-      body: new URLSearchParams({ fault: id, enabled: enabled ? "1" : "0" }),
-    });
-    if (!response.ok) throw new Error(`fault failed (${response.status})`);
-    const data = (await response.json()) as { faults?: Partial<Record<FaultId, boolean>> };
-    if (data.faults) activeFaults = data.faults;
-    else activeFaults = { ...activeFaults, [id]: enabled };
-  }
-
-  /** Faults are exclusive with each other and with scenarios. */
-  async function selectExclusiveFault(fault: { id: FaultId; path: string }) {
-    busy = true;
-    try {
-      if (activeFaults[fault.id]) {
-        await postFault(fault.id, false);
-      } else {
-        const scenarioBody = new URLSearchParams({ scenario: "sta-connected" });
-        const scenarioResponse = await fetch("/api/_mock/scenario", {
-          method: "POST",
-          body: scenarioBody,
-        });
-        if (!scenarioResponse.ok) {
-          throw new Error(`scenario failed (${scenarioResponse.status})`);
-        }
-        activeScenario = "sta-connected";
-        activeFaults = {};
-        await postFault(fault.id, true);
-      }
-      router.navigate(fault.path);
-      await onChanged();
-    } finally {
-      busy = false;
-    }
-  }
-
-  async function setLoadFault(fault: { id: LoadFaultId; path: string }) {
-    await selectExclusiveFault(fault);
-  }
-
-  async function setActionFault(fault: { id: ActionFaultId; path: string }) {
-    await selectExclusiveFault(fault);
   }
 </script>
 
@@ -309,7 +231,7 @@
               <div class="ml-2 mt-1" role="group">
                 {#each group.items as scenario, index (scenario.id)}
                   {@const isLast = index === group.items.length - 1}
-                  {@const active = !scenarioHighlightBlocked && activeScenario === scenario.id}
+                  {@const active = activeScenario === scenario.id}
                   <div class="relative pl-3">
                     {@render treeLines(isLast)}
                     <button
@@ -331,58 +253,6 @@
             {/if}
           </section>
         {/each}
-
-        <section class="mt-2 border-t border-border pt-3">
-          {@render sectionHeader("Load errors", "Load errors")}
-          {#if openSections["Load errors"]}
-            <div class="ml-2 mt-1" role="group">
-              {#each loadFaultItems as fault, index (fault.id)}
-                {@const isLast = index === loadFaultItems.length - 1}
-                {@const active = selectedLoadFault === fault.id}
-                <div class="relative pl-3">
-                  {@render treeLines(isLast)}
-                  <button
-                    type="button"
-                    disabled={busy}
-                    class={cn(
-                      "block w-full rounded-md px-2 py-1.5 text-left disabled:opacity-50",
-                      active ? cn(ACTIVE_ACCENT, "font-semibold") : cn("text-muted", HOVER_SURFACE),
-                    )}
-                    onclick={() => void setLoadFault(fault)}
-                  >
-                    {fault.label}
-                  </button>
-                </div>
-              {/each}
-            </div>
-          {/if}
-        </section>
-
-        <section class="mt-2 border-t border-border pt-3">
-          {@render sectionHeader("Action errors", "Action errors")}
-          {#if openSections["Action errors"]}
-            <div class="ml-2 mt-1" role="group">
-              {#each actionFaultItems as fault, index (fault.id)}
-                {@const isLast = index === actionFaultItems.length - 1}
-                {@const active = selectedActionFault === fault.id}
-                <div class="relative pl-3">
-                  {@render treeLines(isLast)}
-                  <button
-                    type="button"
-                    disabled={busy}
-                    class={cn(
-                      "block w-full rounded-md px-2 py-1.5 text-left disabled:opacity-50",
-                      active ? cn(ACTIVE_ACCENT, "font-semibold") : cn("text-muted", HOVER_SURFACE),
-                    )}
-                    onclick={() => void setActionFault(fault)}
-                  >
-                    {fault.label}
-                  </button>
-                </div>
-              {/each}
-            </div>
-          {/if}
-        </section>
 
         <section class="mt-2 border-t border-border pt-3">
           {@render sectionHeader("Open page", "Open page")}
