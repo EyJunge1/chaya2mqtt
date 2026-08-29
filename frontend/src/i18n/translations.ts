@@ -202,7 +202,7 @@ export const translations = {
     "update.install": "Install update",
     "update.installed": "Installed version",
     "update.available": "Available version",
-    "update.none": "None",
+    "update.none": "No update",
     "update.status": "Status",
     "update.channel": "Channel",
     "update.channel-hint": "Stable uses the latest release. Beta prefers the newest prerelease.",
@@ -437,7 +437,7 @@ export const translations = {
     "update.install": "Update installieren",
     "update.installed": "Installierte Version",
     "update.available": "Verfügbare Version",
-    "update.none": "Keine",
+    "update.none": "Kein Update",
     "update.status": "Status",
     "update.channel": "Kanal",
     "update.channel-hint":

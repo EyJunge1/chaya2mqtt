@@ -193,7 +193,7 @@ describe("applyScenario", () => {
       mode: "sta",
       wifi: true,
       mqtt: true,
-      otaPhase: "available",
+      otaPhase: "idle",
     },
     {
       scenario: "update-beta",
@@ -296,8 +296,8 @@ describe("applyScenario", () => {
     expect(unknown.ota.bytesTotal).toBe(0);
 
     const uptodate = createInitialState("update-uptodate");
-    expect(uptodate.ota.phase).toBe("available");
-    expect(uptodate.ota.availableVersion).toBe(uptodate.version);
+    expect(uptodate.ota.phase).toBe("idle");
+    expect(uptodate.ota.availableVersion).toBe("");
 
     const beta = createInitialState("update-beta");
     expect(beta.ota.channel).toBe("beta");

@@ -608,9 +608,7 @@ export function applyScenario(state: MockState, scenario: MockScenario): void {
     case "update-uptodate":
       applyStaOnlineDefaults(state);
       state.mqttConnected = true;
-      setOtaPhase(state, "available", {
-        availableVersion: state.version,
-      });
+      setOtaIdle(state);
       break;
     case "update-beta":
       applyStaOnlineDefaults(state);
