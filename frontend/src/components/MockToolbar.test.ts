@@ -121,10 +121,9 @@ describe("MockToolbar", () => {
           const fault = body.get("fault") ?? "";
           const enabled = body.get("enabled") === "1";
           if (fault) faults[fault] = enabled;
-          return new Response(
-            JSON.stringify({ ok: true, fault, enabled, faults: { ...faults } }),
-            { status: 200 },
-          );
+          return new Response(JSON.stringify({ ok: true, fault, enabled, faults: { ...faults } }), {
+            status: 200,
+          });
         }
         return new Response("{}", { status: 404 });
       }),
@@ -173,10 +172,9 @@ describe("MockToolbar", () => {
           const fault = body.get("fault") ?? "";
           const enabled = body.get("enabled") === "1";
           if (fault) faults[fault] = enabled;
-          return new Response(
-            JSON.stringify({ ok: true, fault, enabled, faults: { ...faults } }),
-            { status: 200 },
-          );
+          return new Response(JSON.stringify({ ok: true, fault, enabled, faults: { ...faults } }), {
+            status: 200,
+          });
         }
         return new Response("{}", { status: 404 });
       }),

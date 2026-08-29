@@ -541,10 +541,7 @@ export function resetState(scenario?: MockScenario): MockState {
   return state;
 }
 
-function armApWifiTestPreview(
-  target: MockState,
-  connectState: "testing" | "ok" | "fail",
-): void {
+function armApWifiTestPreview(target: MockState, connectState: "testing" | "ok" | "fail"): void {
   target.mode = "ap";
   clearWifiLink(target);
   target.mqttConnected = false;

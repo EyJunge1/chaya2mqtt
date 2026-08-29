@@ -78,10 +78,7 @@
   type FaultId = LoadFaultId | ActionFaultId;
 
   type SectionKey =
-    | (typeof scenarioGroups)[number]["title"]
-    | "Load errors"
-    | "Action errors"
-    | "Open page";
+    (typeof scenarioGroups)[number]["title"] | "Load errors" | "Action errors" | "Open page";
 
   const pages = [
     { path: "/", label: "Dashboard" },
@@ -286,8 +283,7 @@
               <div class="ml-2 mt-1" role="group">
                 {#each group.items as scenario, index (scenario.id)}
                   {@const isLast = index === group.items.length - 1}
-                  {@const active =
-                    !scenarioHighlightBlocked && activeScenario === scenario.id}
+                  {@const active = !scenarioHighlightBlocked && activeScenario === scenario.id}
                   <div class="relative pl-3">
                     {@render treeLines(isLast)}
                     <button
@@ -324,9 +320,7 @@
                     disabled={busy}
                     class={cn(
                       "block w-full rounded-md px-2 py-1.5 text-left disabled:opacity-50",
-                      active
-                        ? cn(ACTIVE_ACCENT, "font-semibold")
-                        : cn("text-muted", HOVER_SURFACE),
+                      active ? cn(ACTIVE_ACCENT, "font-semibold") : cn("text-muted", HOVER_SURFACE),
                     )}
                     onclick={() => void setLoadFault(fault)}
                   >
@@ -352,9 +346,7 @@
                     disabled={busy}
                     class={cn(
                       "block w-full rounded-md px-2 py-1.5 text-left disabled:opacity-50",
-                      active
-                        ? cn(ACTIVE_ACCENT, "font-semibold")
-                        : cn("text-muted", HOVER_SURFACE),
+                      active ? cn(ACTIVE_ACCENT, "font-semibold") : cn("text-muted", HOVER_SURFACE),
                     )}
                     onclick={() => void setActionFault(fault)}
                   >
@@ -376,9 +368,7 @@
                   disabled={busy}
                   class={cn(
                     "rounded-md px-2 py-1.5 text-left",
-                    router.pathname === page.path
-                      ? ACTIVE_ACCENT
-                      : cn("text-muted", HOVER_SURFACE),
+                    router.pathname === page.path ? ACTIVE_ACCENT : cn("text-muted", HOVER_SURFACE),
                   )}
                   onclick={() => router.navigate(page.path)}
                 >

@@ -353,7 +353,8 @@ export const translations = {
     "mqtt.protocol-mqtt": "mqtt",
     "mqtt.protocol-mqtts": "mqtts",
     "mqtt.port": "Port",
-    "mqtt.port-hint": "Standard 1883 (mqtt) oder 8883 (mqtts); eigene Ports bleiben beim Umschalten",
+    "mqtt.port-hint":
+      "Standard 1883 (mqtt) oder 8883 (mqtts); eigene Ports bleiben beim Umschalten",
     "mqtt.user": "Benutzername",
     "mqtt.user-hint": "Leer lassen bei Brokern ohne Auth",
     "mqtt.pass": "Passwort",

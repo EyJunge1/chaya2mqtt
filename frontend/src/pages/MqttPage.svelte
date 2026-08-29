@@ -143,9 +143,7 @@
   const MqttIcon = $derived(brokerConfigured ? Radio : RadioOff);
   const hasDeviceId = $derived(Boolean(cfg?.deviceId?.trim()));
   const brokerDisplay = $derived(
-    cfg && brokerConfigured
-      ? `${cfg.tls ? "mqtts" : "mqtt"}://${cfg.server}:${cfg.port}`
-      : "-",
+    cfg && brokerConfigured ? `${cfg.tls ? "mqtts" : "mqtt"}://${cfg.server}:${cfg.port}` : "-",
   );
 </script>
 
