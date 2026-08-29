@@ -40,11 +40,13 @@ On controlled shutdown, the power-off glyph is still painted after a heart or se
 
 | Call | Mode | Typical waitMs |
 |------|------|----------------|
-| `displayRequest(DrawHeart, Content)` | Heart content (coalesce) | `100` (or `0` from MQTT callback) |
+| `displayRequest(DrawHeart, Content)` | Heart content (coalesce); no-op on SoftAP or when no MQTT broker is set | `100` (or `0` from MQTT callback) |
 | `displayRequest(DrawSplash, BootIfChanged)` | SoftAP / product title after setup | `100` |
-| `displayRequest(DrawHeart, BootIfChanged)` | Heart after STA ready | `100` |
+| `displayRequest(DrawHeart, BootIfChanged)` | Heart after STA ready or after MQTT settings apply (waiting title → heart) | `100` |
 | `displayRequest(DrawPowerOff, PowerOffWait)` | PWR shutdown | e.g. `90000` |
 | `displaySetDesiredHeartIcon()` | Filled vs crack (next heart paint) | — |
+
+Content heart redraws stay suppressed while the waiting product title is shown (no broker yet). Applying MQTT settings queues `DrawHeart` with `BootIfChanged` so the panel switches from `ProductTitle` to the operational heart without waiting for the first counter change.
 
 ## Heart link status (filled vs crack)
 
