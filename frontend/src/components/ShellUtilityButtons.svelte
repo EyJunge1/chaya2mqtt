@@ -9,13 +9,7 @@
   import { GITHUB_REPO_URL } from "./github.ts";
   import GithubIcon from "./GithubIcon.svelte";
 
-  let {
-    stacked = false,
-    class: className = "",
-  }: {
-    stacked?: boolean;
-    class?: string;
-  } = $props();
+  let { class: className = "" }: { class?: string } = $props();
 
   const isDark = $derived(themeView.theme === "dark");
   const themeLabel = $derived(
@@ -29,23 +23,16 @@
   );
 </script>
 
-<div class={cn(stacked ? "flex flex-col items-center gap-1" : "flex items-center gap-1", className)}>
+<div class={cn("flex items-center gap-1", className)}>
   <button
     type="button"
     onclick={() => cycleLanguage()}
-    class={cn(
-      btn,
-      stacked ? "size-10" : "h-10 w-[4.25rem] gap-1.5",
-    )}
+    class={cn(btn, "h-10 w-[4.25rem] gap-1.5")}
     aria-label={i18n.t("nav.language")}
     title={`${i18n.t("nav.language")}: ${langLabel}`}
   >
-    {#if !stacked}
-      <Languages size={17} class="shrink-0" aria-hidden="true" />
-    {/if}
-    <span class={cn("text-xs font-bold tabular-nums", stacked ? "" : "w-5 text-center")}>
-      {langLabel}
-    </span>
+    <Languages size={17} class="shrink-0" aria-hidden="true" />
+    <span class="w-5 text-center text-xs font-bold tabular-nums">{langLabel}</span>
   </button>
   <button
     type="button"
