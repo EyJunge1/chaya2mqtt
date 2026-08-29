@@ -128,6 +128,6 @@ test("heart busy toast from simulator scenario @smoke", async ({ page, request }
 test("battery critical icon from simulator scenario @smoke", async ({ page, request }) => {
   await resetMock(request, "battery-critical");
   await waitForAppReady(page);
-  await expect(page.getByLabelText(/Battery: 8%/i)).toBeVisible();
+  await expect(page.getByLabel(/Battery: 8%/i)).toBeVisible();
   await expect(page.getByText("8%")).toBeVisible();
 });
