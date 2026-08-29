@@ -75,7 +75,7 @@ static void handleNetCommand(NetCmd cmd) {
         mqttPostponeConnect(3000UL);
         mqttEndSettingsApply();
         chayaTaskWatchdogReset();
-        requestHeartRedraw();
+        (void)displayRequest(DisplayMsg::Cmd::DrawHeart, DisplayRequestMode::Content);
         ESP_LOGI(TAG, "MQTT settings apply: done (saved, postpone=3000)");
         break;
     }
@@ -93,7 +93,7 @@ static void handleNetCommand(NetCmd cmd) {
         wlanHandleStaReconnectNetCmd();
         break;
     case NetCmd::ChayaSendRequested:
-        (void)mqttPublishChayaAndApplySentCounters();
+        (void)chayaRequestSend();
         break;
     case NetCmd::FactoryResetRequested:
         resetAllSettings();

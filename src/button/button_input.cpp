@@ -12,6 +12,7 @@
 #include "led/led.h"
 #include "led/led_internal.h"
 #include "mqtt/config.h"
+#include "mqtt/mqtt.h"
 #include "ota/ota.h"
 #include "web/admin_globals.h"
 #include "wifi/wlan.h"
@@ -81,7 +82,8 @@ static bool processPowerOff() {
 
     // Already released (edge-on-release). EPD may take tens of seconds.
     chayaTaskWatchdogUnsubscribe(TAG);
-    if (!displayDrawPowerOffAndWait(kPowerOffDisplayTimeoutMs)) {
+    if (!displayRequest(DisplayMsg::Cmd::DrawPowerOff, DisplayRequestMode::PowerOffWait,
+                        kPowerOffDisplayTimeoutMs)) {
         ESP_LOGW(TAG, "Power-off screen timed out; continuing shutdown");
     }
 
@@ -143,16 +145,11 @@ void buttonPollAndProcess() {
         if (btn.heldDown) {
             const unsigned long held = nowMs - btn.pressStartMs;
             if (held >= kShortPressMinMs) {
-                if (!ledTxBusy() && !configIsApMode()) {
-                    if (mqttCfgIsBrokerConfigured()) {
-                        startMqttSendLedSequence();
-                    } else {
-                        ESP_LOGD(TAG, "BTN publish skipped: ap=0 broker=0 ledBusy=0");
-                    }
-                } else {
-                    ESP_LOGD(TAG, "BTN publish skipped: ap=%d broker=%d ledBusy=%d",
-                             configIsApMode() ? 1 : 0, mqttCfgIsBrokerConfigured() ? 1 : 0,
-                             ledTxBusy() ? 1 : 0);
+                const ChayaSendResult sendResult = chayaRequestSend();
+                if (sendResult != ChayaSendResult::Started) {
+                    ESP_LOGD(TAG, "BTN publish skipped: result=%u ap=%d broker=%d",
+                             static_cast<unsigned>(sendResult), configIsApMode() ? 1 : 0,
+                             mqttCfgIsBrokerConfigured() ? 1 : 0);
                 }
             }
             btn.heldDown = false;
@@ -174,7 +171,7 @@ static void buttonTaskFn(void*) {
     static uint32_t s_stackLogCounter = 0;
     for (;;) {
         const unsigned long waitMs =
-            ledActivityActive() ? kButtonTaskPollActiveMs : kButtonTaskPollIdleMs;
+            ledIsActivityActive() ? kButtonTaskPollActiveMs : kButtonTaskPollIdleMs;
         ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(waitMs));
         buttonPollAndProcess();
         pwrPollAndProcess();

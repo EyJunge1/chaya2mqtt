@@ -45,11 +45,7 @@ void mqttResetFragmentState() {
 }
 
 static void mqttQueueKillClientFromEvent() {
-    if (g_netCmdQueue == nullptr) {
-        return;
-    }
-    const NetCmd cmd = NetCmd::MqttKillClient;
-    if (xQueueSend(g_netCmdQueue, &cmd, 0) == pdTRUE) {
+    if (netCmdTrySend(NetCmd::MqttKillClient)) {
         return;
     }
     s_mqttKillCoalesce.store(true, std::memory_order_release);
@@ -93,7 +89,7 @@ static void handleCounterPayload(const char* payload, unsigned int length) {
     ledRefreshPulseBegin();
 
     // Display layer owns the 30 s leading/trailing coalesce; always report the change.
-    if (!requestHeartRedrawNonBlocking()) {
+    if (!displayRequest(DisplayMsg::Cmd::DrawHeart, DisplayRequestMode::Content, 0U)) {
         ledRefreshPulseEndAfter(kLedRefreshAckMs);
     }
 }

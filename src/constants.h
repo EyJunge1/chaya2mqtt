@@ -93,6 +93,11 @@ inline bool audioToneMsInRange(int v) {
     return v >= 20 && v <= 500;
 }
 
+/** Display reset period days: 0 = off, otherwise 1–30. */
+inline bool resetPeriodDaysInRange(int v) {
+    return v >= 0 && v <= 30;
+}
+
 /** Six lowercase hex digits (a-f0-9), e.g. a1b2c3. */
 inline bool deviceIdSyntaxOk(const char* id) {
     if (id == nullptr) {

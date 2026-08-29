@@ -106,8 +106,7 @@ void webAdminLoop() {
 
     if (g_webAdminMqttApplyVersion.load(std::memory_order_acquire) > s_webAdminMqttApplyQueuedVersion
         && !g_systemShutdownInProgress.load(std::memory_order_acquire)) {
-        NetCmd cmd = NetCmd::MqttSettingsChanged;
-        if (xQueueSend(g_netCmdQueue, &cmd, pdMS_TO_TICKS(500)) == pdTRUE) {
+        if (netCmdTrySend(NetCmd::MqttSettingsChanged, pdMS_TO_TICKS(500))) {
             s_webAdminMqttApplyQueuedVersion =
                 g_webAdminMqttApplyVersion.load(std::memory_order_acquire);
         } else {

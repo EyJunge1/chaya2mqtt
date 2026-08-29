@@ -38,14 +38,13 @@ On controlled shutdown, the power-off glyph is still painted after a heart or se
 
 ### API for other tasks
 
-| Function | Blocking | Timeout |
-|----------|----------|---------|
-| `requestHeartRedraw()` | Yes (100 ms queue) | For main/button |
-| `requestHeartRedrawNonBlocking()` | No (0 ms) | For MQTT callback |
-| `requestDeferredDrawSplashScreen()` | Yes (100 ms) | Setup |
-| `requestDeferredDrawHeartScreen()` | Yes (100 ms) | Setup |
-| `displayDrawPowerOffAndWait()` | Yes (dedicated completion semaphore) | PWR shutdown |
-| `displaySetDesiredHeartIcon()` | No | App task link monitor |
+| Call | Mode | Typical waitMs |
+|------|------|----------------|
+| `displayRequest(DrawHeart, Content)` | Heart content (coalesce) | `100` (or `0` from MQTT callback) |
+| `displayRequest(DrawSplash, BootIfChanged)` | SoftAP / product title after setup | `100` |
+| `displayRequest(DrawHeart, BootIfChanged)` | Heart after STA ready | `100` |
+| `displayRequest(DrawPowerOff, PowerOffWait)` | PWR shutdown | e.g. `90000` |
+| `displaySetDesiredHeartIcon()` | Filled vs crack (next heart paint) | — |
 
 ## Heart link status (filled vs crack)
 

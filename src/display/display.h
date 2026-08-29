@@ -1,5 +1,6 @@
 #pragma once
 
+#include "async/event_types.h"
 #include "display_link_pure.h"
 #include "heart/counter.h"
 #include "view_state.h"
@@ -25,23 +26,24 @@ void drawPowerOffScreen();
 void displaySetDesiredHeartIcon(DisplayHeartIcon icon);
 DisplayHeartIcon displayDesiredHeartIcon();
 
-/** Queue heart redraw on display task (e.g. from main loop / button). */
-void requestHeartRedraw();
-
-/** Same as requestHeartRedraw but never blocks (e.g. MQTT client callback). */
-bool requestHeartRedrawNonBlocking();
+/**
+ * How to queue a display command (LED-style single entry for callers).
+ * Heart vs crack stays via displaySetDesiredHeartIcon; splash picks SetupQr vs ProductTitle.
+ */
+enum class DisplayRequestMode : uint8_t {
+    /** Heart content redraw (coalesce / min-interval). waitMs: queue wait; 0 = non-blocking. */
+    Content,
+    /** Splash or heart after boot/setup; skip when NVS view already matches. */
+    BootIfChanged,
+    /** Stop normal redraws, paint power-off, wait for that refresh (waitMs = timeout). */
+    PowerOffWait,
+};
 
 /**
- * Defer E-Ink drawing to display task (never call draw* from AsyncWebServer handlers).
+ * Single entry for display commands. Returns false when the command could not be queued
+ * or (PowerOffWait) the refresh timed out. Content/Boot on SoftAP: Heart is a no-op (true).
  */
-void requestDeferredDrawSplashScreen();
-void requestDeferredDrawHeartScreen();
+bool displayRequest(DisplayMsg::Cmd cmd, DisplayRequestMode mode, uint32_t waitMs = 100U);
 
 /** Wait until the display task finishes the next queued draw (or times out). */
 bool displayWaitDrawIdle(uint32_t timeoutMs);
-
-/**
- * Stop accepting normal redraws, draw the power-off screen, and wait for that exact refresh.
- * Returns false when the command cannot be queued or the refresh times out.
- */
-bool displayDrawPowerOffAndWait(uint32_t timeoutMs);

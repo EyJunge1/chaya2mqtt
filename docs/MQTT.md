@@ -71,7 +71,7 @@ idempotent for receivers.
 | Payload | Decimal string, maximum **10 characters** |
 | Processing | `heartCounter` is **set** to the payload value (not incremented) |
 | Invalid | Empty, non-numeric, >10 characters, `ERANGE` → ignored |
-| Display | `requestHeartRedrawNonBlocking()` only when the number changes |
+| Display | `displayRequest(DrawHeart, Content, 0)` only when the number changes |
 
 Retained messages automatically provide the latest counter on reconnect.
 
@@ -204,7 +204,7 @@ sequenceDiagram
     N->>N: mqttCfgApplyPendingToActive + saveMQTTConfig
     N->>M: mqttSetup + mqttPostponeConnect(3000)
     N->>M: mqttEndSettingsApply
-    N->>N: requestHeartRedraw
+    N->>N: displayRequest DrawHeart Content
 ```
 
 Publishing is blocked from `mqttBeginSettingsApply` through `mqttEndSettingsApply` (`mqttPublishBlocked()`).

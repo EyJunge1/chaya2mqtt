@@ -46,17 +46,18 @@ void handleApiChayaGet(AsyncWebServerRequest* req) {
 }
 
 void handleApiChayaSendPost(AsyncWebServerRequest* req) {
-    if (g_systemShutdownInProgress.load(std::memory_order_acquire) || !mqttIsConnected()
-        || mqttPublishBlocked() || g_netCmdQueue == nullptr) {
+    switch (chayaRequestSend()) {
+    case ChayaSendResult::Started:
+        sendOk(req, 202, "\"queued\":true");
+        return;
+    case ChayaSendResult::Busy:
+        sendErr(req, 503, "busy");
+        return;
+    case ChayaSendResult::Unavailable:
         sendErr(req, 503, "unavailable");
         return;
     }
-    const NetCmd cmd = NetCmd::ChayaSendRequested;
-    if (xQueueSend(g_netCmdQueue, &cmd, 0) != pdTRUE) {
-        sendErr(req, 503, "queue_full");
-        return;
-    }
-    sendOk(req, 202, "\"queued\":true");
+    sendErr(req, 503, "unavailable");
 }
 
 

@@ -148,6 +148,10 @@ bool ledTxBusy() {
     return p != LedTxPhase::Idle && !ledIsRefreshPhase(p) && !ledIsPatternPhase(p);
 }
 
+bool ledIsTxSendBusy() {
+    return ledTxBusy();
+}
+
 bool ledSendSequenceActive() {
     return ledActivityActive();
 }
@@ -225,11 +229,16 @@ static constexpr LedPhaseRow kLedPhaseRows[] = {
 };
 
 void startMqttSendLedSequence() {
-    ESP_LOGI(TAG, "Button press: publishing MQTT (LED sequence)");
+    ESP_LOGI(TAG, "Chaya send: MQTT TX LED sequence");
     s_patternWanted.store(false, std::memory_order_release);
     ledTxPhase.store(LedTxPhase::PreOn1, std::memory_order_relaxed);
     ledOutput(HIGH);
     armLedPhase(kLedSequenceStepMs);
+}
+
+void ledStartChayaSendSequence() {
+    startMqttSendLedSequence();
+    buttonNotifyTask();
 }
 
 static void finishToIdleOrBackground() {

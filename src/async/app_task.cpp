@@ -58,7 +58,7 @@ static void appTaskPollDisplayLinkStatus() {
     }
     s_lastIcon = icon;
     displaySetDesiredHeartIcon(icon);
-    requestHeartRedraw();
+    (void)displayRequest(DisplayMsg::Cmd::DrawHeart, DisplayRequestMode::Content);
     if (icon == DisplayHeartIcon::Crack) {
         ledPlayPreset(LedPreset::LinkDown);
     }
@@ -96,7 +96,7 @@ static void appTaskFn(void*) {
             // SoftAP keeps the WIFI QR / title splash — never overlay the heart there.
             if (!configIsApMode()) {
                 // Heart redraw decide skips when battery icon level is unchanged.
-                requestHeartRedraw();
+                (void)displayRequest(DisplayMsg::Cmd::DrawHeart, DisplayRequestMode::Content);
             }
         }
 

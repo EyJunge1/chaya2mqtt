@@ -176,8 +176,10 @@ static bool runEpdRefresh(DisplayView logView, const char* label, DrawFn&& draw)
     ledRefreshPulseEnd();
     wlanEndLowInterferenceForEpd();
     (void)configSetDisplayView(drawnView);
-    ESP_LOGI(TAG, "EPD refresh done view=%d ms=%lu (%s)", static_cast<int>(drawnView),
-             millis() - refreshStartMs, label);
+    const unsigned long refreshMs = millis() - refreshStartMs;
+    ESP_LOGI(TAG, "EPD refresh done view=%d ms=%lu (%s)", static_cast<int>(drawnView), refreshMs,
+             label);
+    (void)refreshMs;
     return true;
 }
 

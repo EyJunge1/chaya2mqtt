@@ -26,6 +26,15 @@ void ledApplyEnabled();
 /** True while TX sequence, pattern, or refresh pulse is active (adaptive light sleep). */
 bool ledIsActivityActive();
 
+/** True while the MQTT TX send sequence is running (blocks a second send). */
+bool ledIsTxSendBusy();
+
+/**
+ * Arm the MQTT TX LED sequence; publish runs in the button/LED task.
+ * Safe from any task (wakes the LED task). Prefer chayaRequestSend() for guarded entry.
+ */
+void ledStartChayaSendSequence();
+
 /** Pulse GPIO3 during E-Ink refresh / RX ack. Safe from any task. */
 void ledRefreshPulseBegin();
 void ledRefreshPulseEnd();

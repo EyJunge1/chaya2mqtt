@@ -183,7 +183,7 @@ The `NetCmd` enum (`async/event_types.h`) serializes network-related actions:
 | `MqttKillClient` | Internal | `mqttDisconnect()` |
 | `WifiGotIp` | `WiFi.onEvent` (`GOT_IP`) | Finish STA boot, apply power/NTP/mDNS, and queue the operational screen in the network task |
 | `WifiReconnect` | `WiFi.onEvent` (disconnect / LOST_IP) | Soft reconnect, then forced reassociation (`disconnect+begin`) with backoff after the threshold |
-| `ChayaSendRequested` | Web POST `/api/chaya/send` (the button directly uses `mqttPublishChayaAndApplySentCounters()`) | `mqttPublishChayaAndApplySentCounters()` |
+| `ChayaSendRequested` | Legacy/internal (web uses `chayaRequestSend()` directly) | `chayaRequestSend()` |
 | `FactoryResetRequested` | Web POST `/api/factory-reset` | Network task calls `resetAllSettings()` outside the HTTP callback |
 
 The network task services its queue and WiFi/MQTT loops every **50 ms in setup-AP mode** (for
@@ -202,7 +202,7 @@ after the display task closes the low-interference window.
 | `DrawSplash` | `drawSplashScreen()` |
 | `DrawPowerOff` | `drawPowerOffScreen()` |
 
-Only the **display task** may access SPI/EPD directly. All other tasks use `requestDeferredDraw*()` or `requestHeartRedraw()`.
+Only the **display task** may access SPI/EPD directly. All other tasks use `displayRequest(cmd, mode, waitMs)`.
 
 ## Data flow: button press → display update
 
@@ -210,23 +210,23 @@ Only the **display task** may access SPI/EPD directly. All other tasks use `requ
 sequenceDiagram
     participant B as Button
     participant W as Web
-    participant N as network_task
     participant M as mqtt
+    participant L as led_button_task
     participant C as counter
     participant D as display_task
 
-    B->>M: mqttPublishChayaAndApplySentCounters()
+    B->>M: chayaRequestSend()
+    W->>M: chayaRequestSend()
+    M->>L: ledStartChayaSendSequence()
+    L->>M: mqttPublishChayaAndApplySentCounters()
     M->>M: retained publish to topic_pub
-    M-->>M: wait for matching PUBACK (max 5 s)
+    M-->>M: wait for matching PUBACK max 5 s
     M->>C: heartSentCounterApplyAfterSuccessfulPublish()
-    M->>D: requestHeartRedraw()
-
-    W->>N: NetCmd ChayaSendRequested
-    N->>M: mqttPublishChayaAndApplySentCounters()
+    M->>D: displayRequest DrawHeart Content
 
     Note over M: Partner device receives
     M->>C: heartCounterStoreFromRemote(payload)
-    M->>D: requestHeartRedrawNonBlocking
+    M->>D: displayRequest DrawHeart Content waitMs 0
     D->>D: drawHeartWithNumber(icon)
 ```
 

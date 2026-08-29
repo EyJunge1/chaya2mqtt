@@ -76,202 +76,57 @@ void handleApiSettingsPost(AsyncWebServerRequest* req) {
     strlcpy(lang, configGetUiLang(), sizeof(lang));
     strlcpy(theme, configGetUiTheme(), sizeof(theme));
 
-    {
-        int v = 0;
-        switch (adminOptionalFormInt(req, "reset_days", &v)) {
-        case AdminFormParam::Absent:
-            break;
-        case AdminFormParam::Invalid:
-            sendErr(req, 400, "reset_days");
-            return;
-        case AdminFormParam::Ok:
-            if (v < 0 || v > 30) {
-                sendErr(req, 400, "reset_days");
-                return;
-            }
-            days = static_cast<uint8_t>(v);
-            break;
-        }
+    if (!adminApplyOptionalU8(req, "reset_days", resetPeriodDaysInRange, &days)) {
+        sendErr(req, 400, "reset_days");
+        return;
     }
-    {
-        char buf[sizeof(lang)];
-        switch (adminOptionalFormString(req, "lang", buf, sizeof(buf))) {
-        case AdminFormParam::Absent:
-            break;
-        case AdminFormParam::Invalid:
-            sendErr(req, 400, "lang");
-            return;
-        case AdminFormParam::Ok:
-            if (!uiLangSyntaxOk(buf)) {
-                sendErr(req, 400, "lang");
-                return;
-            }
-            strlcpy(lang, buf, sizeof(lang));
-            break;
-        }
+    if (!adminApplyOptionalString(req, "lang", lang, sizeof(lang), uiLangSyntaxOk)) {
+        sendErr(req, 400, "lang");
+        return;
     }
-    {
-        char buf[sizeof(theme)];
-        switch (adminOptionalFormString(req, "theme", buf, sizeof(buf))) {
-        case AdminFormParam::Absent:
-            break;
-        case AdminFormParam::Invalid:
-            sendErr(req, 400, "theme");
-            return;
-        case AdminFormParam::Ok:
-            if (!uiThemeSyntaxOk(buf)) {
-                sendErr(req, 400, "theme");
-                return;
-            }
-            strlcpy(theme, buf, sizeof(theme));
-            break;
-        }
+    if (!adminApplyOptionalString(req, "theme", theme, sizeof(theme), uiThemeSyntaxOk)) {
+        sendErr(req, 400, "theme");
+        return;
     }
-    switch (adminOptionalFormBool(req, "led_enabled", &ledEnabled)) {
-    case AdminFormParam::Absent:
-        break;
-    case AdminFormParam::Invalid:
+    if (!adminApplyOptionalBool(req, "led_enabled", &ledEnabled)) {
         sendErr(req, 400, "led_enabled");
         return;
-    case AdminFormParam::Ok:
-        break;
     }
-    switch (adminOptionalFormBool(req, "audio_muted", &audioMuted)) {
-    case AdminFormParam::Absent:
-        break;
-    case AdminFormParam::Invalid:
+    if (!adminApplyOptionalBool(req, "audio_muted", &audioMuted)) {
         sendErr(req, 400, "audio_muted");
         return;
-    case AdminFormParam::Ok:
-        break;
     }
-    {
-        int v = 0;
-        switch (adminOptionalFormInt(req, "audio_volume", &v)) {
-        case AdminFormParam::Absent:
-            break;
-        case AdminFormParam::Invalid:
-            sendErr(req, 400, "audio_volume");
-            return;
-        case AdminFormParam::Ok:
-            if (!audioVolumeInRange(v)) {
-                sendErr(req, 400, "audio_volume");
-                return;
-            }
-            audioVol = static_cast<uint8_t>(v);
-            break;
-        }
+    if (!adminApplyOptionalU8(req, "audio_volume", audioVolumeInRange, &audioVol)) {
+        sendErr(req, 400, "audio_volume");
+        return;
     }
-    {
-        int v = 0;
-        switch (adminOptionalFormInt(req, "quiet_hour_start", &v)) {
-        case AdminFormParam::Absent:
-            break;
-        case AdminFormParam::Invalid:
-            sendErr(req, 400, "quiet_hour_start");
-            return;
-        case AdminFormParam::Ok:
-            if (!quietHourInRange(v)) {
-                sendErr(req, 400, "quiet_hour_start");
-                return;
-            }
-            quiet0 = static_cast<uint8_t>(v);
-            break;
-        }
+    if (!adminApplyOptionalU8(req, "quiet_hour_start", quietHourInRange, &quiet0)) {
+        sendErr(req, 400, "quiet_hour_start");
+        return;
     }
-    {
-        int v = 0;
-        switch (adminOptionalFormInt(req, "quiet_hour_end", &v)) {
-        case AdminFormParam::Absent:
-            break;
-        case AdminFormParam::Invalid:
-            sendErr(req, 400, "quiet_hour_end");
-            return;
-        case AdminFormParam::Ok:
-            if (!quietHourInRange(v)) {
-                sendErr(req, 400, "quiet_hour_end");
-                return;
-            }
-            quiet1 = static_cast<uint8_t>(v);
-            break;
-        }
+    if (!adminApplyOptionalU8(req, "quiet_hour_end", quietHourInRange, &quiet1)) {
+        sendErr(req, 400, "quiet_hour_end");
+        return;
     }
-    switch (adminOptionalFormBool(req, "audio_custom", &audioCustom)) {
-    case AdminFormParam::Absent:
-        break;
-    case AdminFormParam::Invalid:
+    if (!adminApplyOptionalBool(req, "audio_custom", &audioCustom)) {
         sendErr(req, 400, "audio_custom");
         return;
-    case AdminFormParam::Ok:
-        break;
     }
-    {
-        int v = 0;
-        switch (adminOptionalFormInt(req, "tx_hz", &v)) {
-        case AdminFormParam::Absent:
-            break;
-        case AdminFormParam::Invalid:
-            sendErr(req, 400, "tx_hz");
-            return;
-        case AdminFormParam::Ok:
-            if (!audioToneHzInRange(v)) {
-                sendErr(req, 400, "tx_hz");
-                return;
-            }
-            txHz = static_cast<uint16_t>(v);
-            break;
-        }
+    if (!adminApplyOptionalU16(req, "tx_hz", audioToneHzInRange, &txHz)) {
+        sendErr(req, 400, "tx_hz");
+        return;
     }
-    {
-        int v = 0;
-        switch (adminOptionalFormInt(req, "tx_ms", &v)) {
-        case AdminFormParam::Absent:
-            break;
-        case AdminFormParam::Invalid:
-            sendErr(req, 400, "tx_ms");
-            return;
-        case AdminFormParam::Ok:
-            if (!audioToneMsInRange(v)) {
-                sendErr(req, 400, "tx_ms");
-                return;
-            }
-            txMs = static_cast<uint16_t>(v);
-            break;
-        }
+    if (!adminApplyOptionalU16(req, "tx_ms", audioToneMsInRange, &txMs)) {
+        sendErr(req, 400, "tx_ms");
+        return;
     }
-    {
-        int v = 0;
-        switch (adminOptionalFormInt(req, "rx_hz", &v)) {
-        case AdminFormParam::Absent:
-            break;
-        case AdminFormParam::Invalid:
-            sendErr(req, 400, "rx_hz");
-            return;
-        case AdminFormParam::Ok:
-            if (!audioToneHzInRange(v)) {
-                sendErr(req, 400, "rx_hz");
-                return;
-            }
-            rxHz = static_cast<uint16_t>(v);
-            break;
-        }
+    if (!adminApplyOptionalU16(req, "rx_hz", audioToneHzInRange, &rxHz)) {
+        sendErr(req, 400, "rx_hz");
+        return;
     }
-    {
-        int v = 0;
-        switch (adminOptionalFormInt(req, "rx_ms", &v)) {
-        case AdminFormParam::Absent:
-            break;
-        case AdminFormParam::Invalid:
-            sendErr(req, 400, "rx_ms");
-            return;
-        case AdminFormParam::Ok:
-            if (!audioToneMsInRange(v)) {
-                sendErr(req, 400, "rx_ms");
-                return;
-            }
-            rxMs = static_cast<uint16_t>(v);
-            break;
-        }
+    if (!adminApplyOptionalU16(req, "rx_ms", audioToneMsInRange, &rxMs)) {
+        sendErr(req, 400, "rx_ms");
+        return;
     }
 
     portENTER_CRITICAL(&g_webAdminSettingsPendingMux);

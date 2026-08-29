@@ -52,12 +52,8 @@ void handleApiResetPost(AsyncWebServerRequest* req, NetCmd cmd, const char* mess
         sendErr(req, 503, "busy");
         return;
     }
-    if (g_netCmdQueue == nullptr) {
-        sendErr(req, 503, "unavailable");
-        return;
-    }
-    if (xQueueSend(g_netCmdQueue, &cmd, 0) != pdTRUE) {
-        sendErr(req, 503, "queue_full");
+    if (!netCmdTrySend(cmd)) {
+        sendErr(req, 503, g_netCmdQueue == nullptr ? "unavailable" : "queue_full");
         return;
     }
     ESP_LOGW(TAG, "API reset queued: %s", message != nullptr ? message : "?");

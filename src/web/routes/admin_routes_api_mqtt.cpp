@@ -149,67 +149,45 @@ void handleApiMqttPost(AsyncWebServerRequest* req) {
         sendErr(req, 503, "busy");
         return;
     }
-    switch (adminOptionalFormString(req, "mqtt_server", pending.server, sizeof(pending.server))) {
-    case AdminFormParam::Absent:
-        break;
-    case AdminFormParam::Invalid:
+    if (!adminApplyOptionalString(req, "mqtt_server", pending.server, sizeof(pending.server))) {
         sendErr(req, 400, "broker");
         return;
-    case AdminFormParam::Ok:
-        break;
     }
     {
-        int v = 0;
-        switch (adminOptionalFormInt(req, "mqtt_port", &v)) {
-        case AdminFormParam::Absent:
-            break;
-        case AdminFormParam::Invalid:
+        int portIn = static_cast<int>(pending.port);
+        if (!adminApplyOptionalInt(req, "mqtt_port", nullptr, &portIn)) {
             sendErr(req, 400, "port");
             return;
-        case AdminFormParam::Ok:
-            pending.port = normalizeMqttPort(v);
-            break;
         }
+        pending.port = normalizeMqttPort(portIn);
     }
-    switch (adminOptionalFormString(req, "mqtt_user", pending.username, sizeof(pending.username))) {
-    case AdminFormParam::Absent:
-        break;
-    case AdminFormParam::Invalid:
+    if (!adminApplyOptionalString(req, "mqtt_user", pending.username, sizeof(pending.username))) {
         sendErr(req, 400, "username");
         return;
-    case AdminFormParam::Ok:
-        break;
     }
     {
         char passBuf[sizeof(pending.password)];
-        switch (adminOptionalFormString(req, "mqtt_pass", passBuf, sizeof(passBuf))) {
-        case AdminFormParam::Absent:
-            break;
-        case AdminFormParam::Invalid:
+        passBuf[0] = '\0';
+        if (!adminApplyOptionalString(req, "mqtt_pass", passBuf, sizeof(passBuf))) {
             sendErr(req, 400, "password");
             return;
-        case AdminFormParam::Ok:
-            // Empty password field means "leave unchanged".
-            if (passBuf[0] != '\0') {
-                strlcpy(pending.password, passBuf, sizeof(pending.password));
-            }
-            break;
+        }
+        // Empty password field means "leave unchanged" (also when absent — passBuf stays empty).
+        if (req->hasParam("mqtt_pass", true) && passBuf[0] != '\0') {
+            strlcpy(pending.password, passBuf, sizeof(pending.password));
         }
     }
-    switch (adminOptionalFormString(req, "partner_id", pending.partnerDeviceId,
-                                    sizeof(pending.partnerDeviceId))) {
-    case AdminFormParam::Absent:
-        break;
-    case AdminFormParam::Invalid:
+    if (!adminApplyOptionalString(req, "partner_id", pending.partnerDeviceId,
+                                  sizeof(pending.partnerDeviceId))) {
         sendErr(req, 400, "partner");
         return;
-    case AdminFormParam::Ok:
+    }
+    if (req->hasParam("partner_id", true)) {
         normalizePartnerIdInput(pending.partnerDeviceId, sizeof(pending.partnerDeviceId));
         if (pending.partnerDeviceId[0] != '\0' && !partnerIdInputValid(pending.partnerDeviceId)) {
             sendErr(req, 400, "partner");
             return;
         }
-        break;
     }
     mqttCfgApplyPairingTopics(&pending);
     if (!mqttServerSyntaxOk(pending.server, sizeof(pending.server))) {

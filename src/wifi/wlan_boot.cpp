@@ -140,9 +140,9 @@ void setupWifiFinishStaConnected() {
     // The setup QR remains until STA connectivity is proven. Only then show
     // the waiting title or the operational heart.
     if (mqttCfgIsBrokerConfigured()) {
-        requestDeferredDrawHeartScreen();
+        (void)displayRequest(DisplayMsg::Cmd::DrawHeart, DisplayRequestMode::BootIfChanged);
     } else {
-        requestDeferredDrawSplashScreen();
+        (void)displayRequest(DisplayMsg::Cmd::DrawSplash, DisplayRequestMode::BootIfChanged);
     }
 }
 
@@ -300,7 +300,7 @@ void setupWifiStartApFallback(const char* attemptedSsid) {
     }
     (void)wlanFinishSetupSoftAp(apAuth);
     if (!splashAlreadyDrawn) {
-        requestDeferredDrawSplashScreen();
+        (void)displayRequest(DisplayMsg::Cmd::DrawSplash, DisplayRequestMode::BootIfChanged);
     }
 }
 

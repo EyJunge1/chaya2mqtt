@@ -42,3 +42,18 @@ AdminFormParam adminOptionalFormBool(AsyncWebServerRequest* req, const char* nam
 /** Absent if missing; Ok if copied; Invalid if present but too long for outLen. */
 AdminFormParam adminOptionalFormString(AsyncWebServerRequest* req, const char* name, char* out,
                                        size_t outLen);
+
+/**
+ * Apply optional form fields (Absent leaves *out unchanged).
+ * Returns false when the field is present but invalid or fails predicate — caller sendErr(name).
+ */
+bool adminApplyOptionalInt(AsyncWebServerRequest* req, const char* name, bool (*inRange)(int),
+                           int* out);
+bool adminApplyOptionalU8(AsyncWebServerRequest* req, const char* name, bool (*inRange)(int),
+                          uint8_t* out);
+bool adminApplyOptionalU16(AsyncWebServerRequest* req, const char* name, bool (*inRange)(int),
+                           uint16_t* out);
+bool adminApplyOptionalBool(AsyncWebServerRequest* req, const char* name, bool* out);
+/** syntaxOk may be nullptr (any fitting string accepted). */
+bool adminApplyOptionalString(AsyncWebServerRequest* req, const char* name, char* out,
+                              size_t outLen, bool (*syntaxOk)(const char*) = nullptr);

@@ -45,3 +45,10 @@ void asyncInfraInit() {
         abort();
     }
 }
+
+bool netCmdTrySend(NetCmd cmd, TickType_t waitTicks) {
+    if (g_netCmdQueue == nullptr) {
+        return false;
+    }
+    return xQueueSend(g_netCmdQueue, &cmd, waitTicks) == pdTRUE;
+}

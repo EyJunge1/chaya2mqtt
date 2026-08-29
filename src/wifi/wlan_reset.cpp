@@ -18,6 +18,7 @@
 #include "web/admin_globals.h"
 
 #include <Arduino.h>
+#include <ESPAsyncWebServer.h>
 #include <ESPmDNS.h>
 #include <WiFi.h>
 #include <cstring>

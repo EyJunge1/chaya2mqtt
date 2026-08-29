@@ -118,7 +118,21 @@ Global queues and mutexes. `asyncInfraInit()` creates:
 - `g_audioCmdQueue` (4 × `AudioMsg`)
 - 6 mutexes and the button-completion binary semaphore (see [ARCHITECTURE.md](ARCHITECTURE.md))
 
+`netCmdTrySend(NetCmd, waitTicks=0)` is the single enqueue helper for the network-task command queue (Wi‑Fi events, MQTT kill, factory reset, MQTT settings apply).
+
 The TLS bundle and MQTT configuration modules own additional internal mutexes.
+
+### Preset APIs (domain entry points)
+
+Prefer a small enum + one function over parallel wrappers that do “the same thing a bit differently”:
+
+| Domain | Preset / cmd | Entry |
+|--------|--------------|--------|
+| LED | `LedPreset` (Boot, WifiUp, MqttUp, LinkDown, SoftOff) | `ledPlayPreset` / Blocking |
+| Display | `DisplayMsg::Cmd` + `DisplayRequestMode` | `displayRequest(cmd, mode, waitMs)` |
+| Audio | `AudioMsg::Kind` (Tx, Rx) | `audioRequest(kind)` |
+| Chaya send | — | `chayaRequestSend()` (button + web; same LED TX sequence) |
+| NetCmd | `NetCmd` | `netCmdTrySend(cmd)` |
 
 ### `async/app_task.cpp`
 
@@ -221,6 +235,7 @@ ESP-IDF `esp_mqtt_client` over `mqtts://` with a TLS bundle (`tls/`).
 | `mqttSetup()` | Reset client and backoff |
 | `mqttLoop()` | Reconnect logic, prechecks, client initialization |
 | `mqttDisconnect()` | Stop and destroy client |
+| `chayaRequestSend()` | Single send entry (button + web): guards + LED TX sequence → publish |
 | `mqttPublishChayaAndApplySentCounters()` | Publish retained QoS 1; return after matching PUBACK or 5 s timeout |
 | `mqttIsConnected()` | Connection status |
 | `mqttPublishBlocked()` | True while applying settings |
@@ -299,11 +314,10 @@ counters after the active display command. Splash and power-off commands keep pr
 | `displayStartTask()` | FreeRTOS task (8192 stack, priority 3) |
 | `drawHeartWithNumber(icon)` | Lucide heart / heart-crack + RX/TX deltas + arrows + battery |
 | `drawSplashScreen()` | SoftAP: red title + bottom-aligned WIFI QR for phone camera join |
-| `requestHeartRedraw()` | Redraw heart (blocking, 100 ms queue timeout) |
-| `requestHeartRedrawNonBlocking()` | Redraw heart (0 ms timeout, for MQTT callback) |
-| `requestDeferredDrawSplashScreen()` | Queue SoftAP WIFI QR splash |
-| `requestDeferredDrawHeartScreen()` | Heart after setup |
-| `displayDrawPowerOffAndWait()` | Block normal redraws; queue and await the red shutdown title |
+| `displayRequest(cmd, mode, waitMs)` | Single entry: Content / BootIfChanged / PowerOffWait |
+| `displayWaitDrawIdle()` | Wait until the display task finishes the next draw |
+
+`DisplayRequestMode::Content` — heart content redraw (`waitMs` 100 default, `0` non-blocking). `BootIfChanged` — splash or heart after setup (skip if NVS view matches). `PowerOffWait` — shutdown screen and wait for that refresh.
 
 Geometry details: [DISPLAY.md](DISPLAY.md)
 
@@ -356,7 +370,7 @@ cycle, so bursts do not grow an unbounded audio backlog.
 
 Button task (4096 stack, priority 8, core 1):
 - Debounce (~20 ms)
-- BOOT press → MQTT send (LED sequence via `led/`)
+- BOOT press → `chayaRequestSend()` (same path as web send)
 - Advances LED state machine each poll (`advanceLedSequence`)
 - No physical factory-reset gesture; reset remains available through the web admin
 
@@ -381,6 +395,8 @@ LED priority: MQTT TX sequence > finite pattern > E-Ink/RX refresh pulse > idle.
 | `ledApplyEnabled()` | Force off when user disabled LED in settings |
 | `ledEnableGpioHoldForLightSleep()` | Hold LED level for light sleep |
 | `ledIsActivityActive()` | TX sequence, pattern, or refresh pulse running? |
+| `ledIsTxSendBusy()` | MQTT TX send sequence running (blocks a second send) |
+| `ledStartChayaSendSequence()` | Arm TX sequence (prefer `chayaRequestSend()`) |
 | `ledRefreshPulseBegin/End` | Pulse GPIO3 during E-Ink refresh / RX ack |
 | `ledPlayPattern` / `ledPlayPreset` | Queue finite blink or Boot/WifiUp/MqttUp/LinkDown/SoftOff |
 | `ledPlayPatternBlocking` / `ledPlayPresetBlocking` | Blocking blink (boot / soft-off ack; same timings as queued) |
@@ -394,7 +410,7 @@ Presets: Boot (startup), WifiUp (STA ready / reconnect), MqttUp (broker connecte
 | File | Purpose |
 |------|---------|
 | `admin.h` / `admin.cpp` | Server singleton, route registration, `webAdminLoop()` |
-| `admin_globals.h` / `admin_globals.cpp` | Shared atomics/flags |
+| `admin_globals.h` / `admin_globals.cpp` | Shared atomics/flags; `adminApplyOptional*` form helpers |
 | `admin_json.h` | JSON helper for small responses |
 | `deferred_reboot.h` / `deferred_reboot.cpp` | Reboot after saving WiFi |
 | `web_utils.h` / `web_utils.cpp` | Redirects, security headers |

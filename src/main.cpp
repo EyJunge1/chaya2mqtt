@@ -85,7 +85,7 @@ void setup() {
     const bool haveSta = wlanLoadConfigFromNvs(&bootWlan) && bootWlan.ssid[0] != '\0';
     if (!haveSta) {
         if (wlanArmSetupApMode()) {
-            requestDeferredDrawSplashScreen();
+            (void)displayRequest(DisplayMsg::Cmd::DrawSplash, DisplayRequestMode::BootIfChanged);
             if (!displayWaitDrawIdle(90000U)) {
                 ESP_LOGW(TAG, "E-Ink splash wait timed out");
             }

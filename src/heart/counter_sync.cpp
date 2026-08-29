@@ -102,7 +102,7 @@ void maybePeriodicallyResetCounters() {
     s_lastResetCalendarDayUtc.store(currentDay, std::memory_order_relaxed);
     if (persistCounterBaselineState()) {
         ESP_LOGI(TAG, "Periodic display counter reset (%u days)", static_cast<unsigned>(periodDays));
-        requestHeartRedraw();
+        (void)displayRequest(DisplayMsg::Cmd::DrawHeart, DisplayRequestMode::Content);
     }
 }
 
@@ -131,6 +131,6 @@ void maybeResetDisplayBaselinesWhenCapped() {
     portEXIT_CRITICAL(&s_heartDisplayMux);
     if (changed && persistCounterBaselineState()) {
         ESP_LOGI(TAG, "Display baseline reset (display reached cap)");
-        requestHeartRedraw();
+        (void)displayRequest(DisplayMsg::Cmd::DrawHeart, DisplayRequestMode::Content);
     }
 }

@@ -101,11 +101,7 @@ static uint16_t clampAudioToneMs(uint32_t raw, uint16_t fallback) {
 
 void configLoadResetPeriodFromNvs() {
     const uint8_t raw = app_nvs::readUChar(kNvsNsCfg, kNvsKeyCfgRstPeriod, 7);
-    if (raw == 0U) {
-        s_resetPeriodDaysCached.store(0, std::memory_order_relaxed);
-        return;
-    }
-    if (raw <= 30U) {
+    if (resetPeriodDaysInRange(static_cast<int>(raw))) {
         s_resetPeriodDaysCached.store(raw, std::memory_order_relaxed);
         return;
     }
