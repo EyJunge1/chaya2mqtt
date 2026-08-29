@@ -216,7 +216,7 @@
 
     <Panel>
       <form class="space-y-3" onsubmit={(e) => void save(e)}>
-        <Field label={i18n.t("mqtt.server")} hint={i18n.t("mqtt.server-hint")} required>
+        <Field label={i18n.t("mqtt.server")} hint={i18n.t("mqtt.server-hint")}>
           <div class="flex items-stretch gap-2">
             <SegmentedControl
               compact
@@ -238,7 +238,7 @@
             </div>
           </div>
         </Field>
-        <Field label={i18n.t("mqtt.port")} hint={i18n.t("mqtt.port-hint")} required>
+        <Field label={i18n.t("mqtt.port")} hint={i18n.t("mqtt.port-hint")}>
           <TextInput type="number" min={1} max={65535} bind:value={cfg.port} required />
         </Field>
         <Field label={i18n.t("mqtt.user")} hint={i18n.t("mqtt.user-hint")}>
