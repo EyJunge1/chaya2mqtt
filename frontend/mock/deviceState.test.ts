@@ -21,7 +21,7 @@ describe("parseScenario", () => {
   it("accepts known scenarios and rejects unknown values", () => {
     expect(parseScenario("sta-connected")).toBe("sta-connected");
     expect(parseScenario("update-busy")).toBe("update-busy");
-    expect(parseScenario("boot-slow")).toBe("boot-slow");
+    expect(parseScenario("sse-disconnected")).toBe("sse-disconnected");
     expect(parseScenario("nope")).toBeNull();
     expect(parseScenario(null)).toBeNull();
   });
@@ -29,7 +29,6 @@ describe("parseScenario", () => {
   it("lists every toolbar scenario", () => {
     expect(MOCK_SCENARIOS).toEqual([
       "sta-connected",
-      "boot-slow",
       "sse-disconnected",
       "battery-full",
       "battery-low",
@@ -85,7 +84,6 @@ describe("applyScenario", () => {
     scanMode?: "normal" | "empty" | "fail";
     deviceFault?: boolean;
     sseFault?: boolean;
-    deviceDelayMs?: number;
     freeze?: boolean;
   }> = [
     { scenario: "sta-connected", mode: "sta", wifi: true, mqtt: true, partner: "f5e6d7" },
@@ -130,13 +128,6 @@ describe("applyScenario", () => {
     { scenario: "wifi-scan-fail", mode: "ap", wifi: false, mqtt: false, scanMode: "fail" },
     { scenario: "wifi-static", mode: "sta", wifi: true, mqtt: true },
     { scenario: "wifi-weak", mode: "sta", wifi: true, mqtt: true },
-    {
-      scenario: "boot-slow",
-      mode: "sta",
-      wifi: true,
-      mqtt: true,
-      deviceDelayMs: 3000,
-    },
     {
       scenario: "sse-disconnected",
       mode: "sta",
@@ -230,7 +221,6 @@ describe("applyScenario", () => {
       scanMode,
       deviceFault,
       sseFault,
-      deviceDelayMs,
       freeze,
     }) => {
       const state = createInitialState(scenario);
@@ -246,7 +236,6 @@ describe("applyScenario", () => {
       if (scanMode !== undefined) expect(state.scanMode).toBe(scanMode);
       if (deviceFault !== undefined) expect(state.faults.device).toBe(deviceFault);
       if (sseFault !== undefined) expect(state.faults.sse).toBe(sseFault);
-      if (deviceDelayMs !== undefined) expect(state.deviceDelayMs).toBe(deviceDelayMs);
       if (freeze !== undefined) expect(state.wifiConnect.freeze).toBe(freeze);
     },
   );
@@ -263,7 +252,6 @@ describe("applyScenario", () => {
     expect(state.ota.availableVersion).toBe("");
     expect(state.wifiConnect.state).toBe("idle");
     expect(state.faults.device).toBe(false);
-    expect(state.deviceDelayMs).toBe(0);
   });
 
   it("clears previous faults when switching scenarios", () => {

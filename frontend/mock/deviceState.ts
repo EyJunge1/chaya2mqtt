@@ -5,7 +5,6 @@ export type MockMode = "ap" | "sta";
 export const MOCK_SCENARIOS = [
   // Connection
   "sta-connected",
-  "boot-slow",
   "sse-disconnected",
   // Dashboard
   "battery-full",
@@ -148,7 +147,6 @@ export interface MockState {
   heartBusy: boolean;
   scanReadyAt: number;
   scanMode: MockScanMode;
-  deviceDelayMs: number;
   faults: MockFaults;
   ota: {
     phase: "idle" | "checking" | "available" | "downloading" | "verifying" | "rebooting" | "error";
@@ -280,7 +278,6 @@ function setOtaPhase(
 
 function clearSimulatorControls(target: MockState): void {
   target.faults = emptyFaults();
-  target.deviceDelayMs = 0;
   target.scanMode = "normal";
   target.scanReadyAt = 0;
   target.heartBusy = false;
@@ -356,7 +353,6 @@ export function createInitialState(scenario: MockScenario = "sta-connected"): Mo
     wifiConnect: idleWifiConnect(),
     scanReadyAt: 0,
     scanMode: "normal",
-    deviceDelayMs: 0,
     faults: emptyFaults(),
     ota: {
       phase: "idle",
@@ -467,12 +463,6 @@ export function applyScenario(state: MockState, scenario: MockScenario): void {
       clearWifiLink(state);
       state.mqttConnected = false;
       state.scanMode = "fail";
-      setOtaIdle(state);
-      break;
-    case "boot-slow":
-      applyStaOnlineDefaults(state);
-      state.mqttConnected = true;
-      state.deviceDelayMs = 3000;
       setOtaIdle(state);
       break;
     case "sse-disconnected":
@@ -854,7 +844,6 @@ export function mockControlPayload() {
   return {
     scenario: state.scenario,
     mode: state.mode,
-    deviceDelayMs: state.deviceDelayMs,
     scanMode: state.scanMode,
     faults: { ...state.faults },
   };

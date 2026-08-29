@@ -10,7 +10,6 @@
       title: "Connection",
       items: [
         { id: "sta-connected", label: "STA online", path: "/" },
-        { id: "boot-slow", label: "Boot slow", path: "/" },
         { id: "sse-disconnected", label: "SSE reconnecting", path: "/" },
       ],
     },

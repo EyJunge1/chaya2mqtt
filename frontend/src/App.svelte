@@ -35,7 +35,7 @@
 <DeviceRoot>
   {#snippet chrome()}
     <MockToolbar
-      onChanged={device.reload}
+      onChanged={device.boot}
       mode={device.device?.mode}
       bootError={device.bootError}
     />

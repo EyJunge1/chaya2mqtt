@@ -64,7 +64,7 @@ describe("MockToolbar", () => {
     expect(screen.getByRole("button", { name: "MQTT" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "AP setup" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "Load errors" })).toBeTruthy();
-    expect(screen.queryByRole("button", { name: "Boot slow" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "SSE reconnecting" })).toBeNull();
     expect(screen.queryByRole("button", { name: "MQTT config" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Clear faults" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Reset simulator" })).toBeNull();
@@ -77,7 +77,7 @@ describe("MockToolbar", () => {
     renderApp(MockToolbar, { props: { onChanged, mode: "sta" } });
 
     await user.click(screen.getByRole("button", { name: "Connection" }));
-    expect(screen.getByText("Boot slow")).toBeTruthy();
+    expect(screen.getByText("STA online")).toBeTruthy();
     expect(screen.getByText("SSE reconnecting")).toBeTruthy();
 
     await user.click(screen.getByRole("button", { name: "SSE reconnecting" }));
@@ -200,10 +200,10 @@ describe("MockToolbar", () => {
 
     renderApp(MockToolbar, { props: { onChanged, mode: "sta" } });
 
-    expect(screen.queryByRole("button", { name: "Boot slow" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "SSE reconnecting" })).toBeNull();
     await user.click(screen.getByRole("button", { name: "Connection" }));
-    expect(screen.getByRole("button", { name: "Boot slow" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "SSE reconnecting" })).toBeTruthy();
     await user.click(screen.getByRole("button", { name: "Connection" }));
-    expect(screen.queryByRole("button", { name: "Boot slow" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "SSE reconnecting" })).toBeNull();
   });
 });
