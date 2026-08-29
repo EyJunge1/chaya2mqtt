@@ -147,9 +147,9 @@ void buttonPollAndProcess() {
             if (held >= kShortPressMinMs) {
                 const ChayaSendResult sendResult = chayaRequestSend();
                 if (sendResult != ChayaSendResult::Started) {
-                    ESP_LOGD(TAG, "BTN publish skipped: result=%u ap=%d broker=%d",
+                    ESP_LOGD(TAG, "BTN publish skipped: result=%u ap=%d heartReady=%d",
                              static_cast<unsigned>(sendResult), configIsApMode() ? 1 : 0,
-                             mqttCfgIsBrokerConfigured() ? 1 : 0);
+                             mqttCfgIsHeartReady() ? 1 : 0);
                 }
             }
             btn.heldDown = false;

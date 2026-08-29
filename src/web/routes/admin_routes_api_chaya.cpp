@@ -37,10 +37,13 @@ void handleApiChayaGet(AsyncWebServerRequest* req) {
     const int  rx         = heartDisplayRxDelta();
     const int  tx         = heartDisplayTxDelta();
     const bool configured = mqttCfgIsBrokerConfigured();
-    adminSendJsonWithBuffer<160>(req, [rx, tx, configured](char* b, size_t n) {
-        const int w =
-            snprintf(b, n, "{\"rx\":%d,\"tx\":%d,\"connected\":%s,\"configured\":%s}", rx, tx,
-                     mqttIsConnected() ? "true" : "false", configured ? "true" : "false");
+    const bool paired     = mqttCfgIsPaired();
+    adminSendJsonWithBuffer<192>(req, [rx, tx, configured, paired](char* b, size_t n) {
+        const int w = snprintf(
+            b, n,
+            "{\"rx\":%d,\"tx\":%d,\"connected\":%s,\"configured\":%s,\"paired\":%s}", rx, tx,
+            mqttIsConnected() ? "true" : "false", configured ? "true" : "false",
+            paired ? "true" : "false");
         return w > 0 && static_cast<size_t>(w) < n;
     });
 }

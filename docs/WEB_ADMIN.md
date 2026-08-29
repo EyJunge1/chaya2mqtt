@@ -65,8 +65,8 @@ Mutations expect `application/x-www-form-urlencoded`, including `csrf_token`.
 |-------|--------|------------|-------------|
 | `/api/csrf` | GET | Host | `{token}` |
 | `/api/device` | GET | Host | Mode, version, device ID, `batteryMv` / `batteryPct`; also `apSsid` / `apIp` in AP mode |
-| `/api/chaya` | GET | Host + STA | Display deltas `{rx,tx}` plus MQTT `{connected,configured}` |
-| `/api/chaya/send` | POST | CSRF + STA | Send heart (queued) |
+| `/api/chaya` | GET | Host + STA | Display deltas `{rx,tx}` plus MQTT `{connected,configured,paired}` |
+| `/api/chaya/send` | POST | CSRF + STA | Send heart (queued; requires broker + partner) |
 | `/api/wifi/status` | GET | Host | Link status including current IP/gateway/netmask/DNS |
 | `/api/wifi/config` | GET | Host | Stored WiFi configuration (without password) |
 | `/api/wifi/scan` | GET | Host | AP list or **202** |
@@ -88,7 +88,8 @@ Mutations expect `application/x-www-form-urlencoded`, including `csrf_token`.
 baseline), not the absolute MQTT counters. The web API returns the uncapped deltas;
 the E-Ink renderer formats its compact counter display separately. `connected`
 reports the live MQTT connection, while `configured` reports whether a broker has
-been configured.
+been configured. `paired` is true when a partner device ID is set; heart send (web and
+device button) and the E-Ink heart view require both broker and partner.
 
 STA-only routes return `400 {"ok":false,"error":"ap_mode"}` in setup-AP mode.
 The AP-only connect-status route returns `400 {"ok":false,"error":"not_ap"}` in

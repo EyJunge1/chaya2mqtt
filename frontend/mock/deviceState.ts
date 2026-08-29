@@ -825,6 +825,7 @@ export function chayaPayload() {
     tx: state.tx,
     connected: state.mqttConnected,
     configured: Boolean(state.mqtt.server),
+    paired: Boolean(state.mqtt.partnerId),
   };
 }
 

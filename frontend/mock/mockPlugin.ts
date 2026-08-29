@@ -151,7 +151,7 @@ export async function handleApi(req: IncomingMessage, res: ServerResponse): Prom
     const params = parseForm(await readBody(req));
     if (!requireCsrf(params, res)) return true;
     if (failIfFault("heart", res)) return true;
-    if (!state.mqttConnected) {
+    if (!state.mqttConnected || !state.mqtt.server || !state.mqtt.partnerId) {
       sendJson(res, 503, { ok: false, error: "unavailable" });
       return true;
     }

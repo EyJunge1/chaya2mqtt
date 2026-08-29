@@ -40,6 +40,7 @@ int      s_lastRx             = 0;
 int      s_lastTx             = 0;
 bool     s_lastMqttConn       = false;
 bool     s_lastMqttConfigured = false;
+bool     s_lastMqttPaired     = false;
 bool     s_haveLastWifi       = false;
 bool     s_lastWifiConnected  = false;
 char     s_lastWifiSsid[kWifiSsidMaxLen]{};
@@ -65,11 +66,12 @@ static void onEsConnect(AsyncEventSourceClient*) {
     s_forceBroadcast.store(true, std::memory_order_release);
 }
 
-static size_t buildChayaPayload(int rx, int tx, bool connected, bool configured, char* buf,
-                                size_t bufLen) {
+static size_t buildChayaPayload(int rx, int tx, bool connected, bool configured, bool paired,
+                                char* buf, size_t bufLen) {
     return static_cast<size_t>(snprintf(
-        buf, bufLen, "{\"rx\":%d,\"tx\":%d,\"connected\":%s,\"configured\":%s}", rx, tx,
-        connected ? "true" : "false", configured ? "true" : "false"));
+        buf, bufLen,
+        "{\"rx\":%d,\"tx\":%d,\"connected\":%s,\"configured\":%s,\"paired\":%s}", rx, tx,
+        connected ? "true" : "false", configured ? "true" : "false", paired ? "true" : "false"));
 }
 
 static size_t buildWifiStatusPayload(bool connected, const char* ssid, const char* ipStr,
@@ -146,6 +148,7 @@ void webEventsTick() {
     const int   tx                = heartDisplayTxDelta();
     const bool  mqttLineOk        = mqttIsConnected();
     const bool  mqttPageRelevant  = mqttCfgIsBrokerConfigured();
+    const bool  mqttPaired        = mqttCfgIsPaired();
     const bool  force             = s_forceBroadcast.exchange(false, std::memory_order_acq_rel);
     if (force) {
         s_wifiRfSkip = 99U;
@@ -209,13 +212,15 @@ void webEventsTick() {
     bool deviceDirty     = force;
     portENTER_CRITICAL(&s_esCacheMux);
     chayaDirty = force || !s_haveLastChaya || s_lastRx != rx || s_lastTx != tx
-              || s_lastMqttConn != mqttLineOk || s_lastMqttConfigured != mqttPageRelevant;
+              || s_lastMqttConn != mqttLineOk || s_lastMqttConfigured != mqttPageRelevant
+              || s_lastMqttPaired != mqttPaired;
     if (chayaDirty) {
         s_haveLastChaya      = true;
         s_lastRx             = rx;
         s_lastTx             = tx;
         s_lastMqttConn       = mqttLineOk;
         s_lastMqttConfigured = mqttPageRelevant;
+        s_lastMqttPaired     = mqttPaired;
     }
     wifiDirty =
         force || !s_haveLastWifi || s_lastWifiConnected != wifiConn || s_lastWifiRssi != rssi
@@ -264,7 +269,7 @@ void webEventsTick() {
 
     if (chayaDirty) {
         const size_t n =
-            buildChayaPayload(rx, tx, mqttLineOk, mqttPageRelevant, buf, sizeof(buf));
+            buildChayaPayload(rx, tx, mqttLineOk, mqttPageRelevant, mqttPaired, buf, sizeof(buf));
         if (n > 0U && n < sizeof(buf)) {
             s_events.send(buf, "chaya");
         }

@@ -185,7 +185,7 @@ void mqttEndSettingsApply() {
 
 ChayaSendResult chayaRequestSend() {
     if (g_systemShutdownInProgress.load(std::memory_order_acquire) || configIsApMode()
-        || !mqttCfgIsBrokerConfigured()) {
+        || !mqttCfgIsHeartReady()) {
         return ChayaSendResult::Unavailable;
     }
     if (mqttPublishBlocked() || ledIsTxSendBusy()) {
