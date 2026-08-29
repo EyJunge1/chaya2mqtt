@@ -3,24 +3,42 @@ import { randomBytes } from "node:crypto";
 export type MockMode = "ap" | "sta";
 
 export const MOCK_SCENARIOS = [
+  // Connection
   "sta-connected",
-  "offline",
+  "boot-unreachable",
+  "boot-slow",
+  "sse-disconnected",
+  // Dashboard
+  "battery-full",
+  "battery-low",
+  "battery-critical",
+  "heart-busy",
+  // MQTT
   "sta-mqtt-offline",
   "sta-mqtt-unconfigured",
   "sta-mqtt-unpaired",
+  "mqtt-no-auth",
+  "mqtt-plain",
+  // Wi-Fi
+  "wifi-weak",
+  "wifi-static",
+  // AP setup
   "ap-setup",
+  "wifi-scan-empty",
+  "wifi-scan-fail",
   "ap-test-idle",
   "ap-test-testing",
   "ap-test-ok",
   "ap-test-failed",
-  "wifi-scan-empty",
-  "wifi-scan-fail",
-  "boot-unreachable",
-  "boot-slow",
-  "sse-disconnected",
+  // Settings
+  "settings-audio-quiet",
+  // Update (lifecycle order)
+  "update-uptodate",
   "update-available",
+  "update-beta",
   "update-checking",
   "update-busy",
+  "update-progress-unknown",
   "update-verifying",
   "update-rebooting",
   "update-error",
@@ -128,6 +146,7 @@ export interface MockState {
   rxMs: number;
   batteryMv: number;
   batteryPct: number;
+  heartBusy: boolean;
   scanReadyAt: number;
   scanMode: MockScanMode;
   deviceDelayMs: number;
@@ -265,6 +284,26 @@ function clearSimulatorControls(target: MockState): void {
   target.deviceDelayMs = 0;
   target.scanMode = "normal";
   target.scanReadyAt = 0;
+  target.heartBusy = false;
+}
+
+function resetBaselineSettings(target: MockState): void {
+  target.batteryMv = 3900;
+  target.batteryPct = 55;
+  target.audioTxEnabled = false;
+  target.audioRxEnabled = false;
+  target.audioTxVolume = 70;
+  target.audioRxVolume = 70;
+  target.quietHourStart = 0;
+  target.quietHourEnd = 0;
+  target.ledEnabled = true;
+  target.resetDays = 7;
+  target.lang = "en";
+  target.theme = "light";
+  target.txHz = 880;
+  target.txMs = 80;
+  target.rxHz = 660;
+  target.rxMs = 140;
 }
 
 export function createInitialState(scenario: MockScenario = "sta-connected"): MockState {
@@ -314,6 +353,7 @@ export function createInitialState(scenario: MockScenario = "sta-connected"): Mo
     rxMs: 140,
     batteryMv: 3900,
     batteryPct: 55,
+    heartBusy: false,
     wifiConnect: idleWifiConnect(),
     scanReadyAt: 0,
     scanMode: "normal",
@@ -349,6 +389,7 @@ export function applyScenario(state: MockState, scenario: MockScenario): void {
   };
   state.wifiConnect = idleWifiConnect();
   clearSimulatorControls(state);
+  resetBaselineSettings(state);
 
   switch (scenario) {
     case "ap-setup":
@@ -447,12 +488,6 @@ export function applyScenario(state: MockState, scenario: MockScenario): void {
       state.faults.sse = true;
       setOtaIdle(state);
       break;
-    case "offline":
-      applyStaOnlineDefaults(state);
-      clearWifiLink(state);
-      state.mqttConnected = false;
-      setOtaIdle(state);
-      break;
     case "sta-mqtt-offline":
       applyStaOnlineDefaults(state);
       state.mqttConnected = false;
@@ -480,6 +515,79 @@ export function applyScenario(state: MockState, scenario: MockScenario): void {
       state.mqttConnected = true;
       setOtaIdle(state);
       break;
+    case "mqtt-no-auth":
+      applyStaOnlineDefaults(state);
+      state.mqtt.username = "";
+      state.mqtt.password = "";
+      state.mqttConnected = true;
+      setOtaIdle(state);
+      break;
+    case "mqtt-plain":
+      applyStaOnlineDefaults(state);
+      state.mqtt.tls = false;
+      state.mqtt.port = 1883;
+      state.mqttConnected = true;
+      setOtaIdle(state);
+      break;
+    case "wifi-static":
+      applyStaOnlineDefaults(state);
+      state.mqttConnected = true;
+      state.wifiConfig = {
+        mode: "static",
+        ip: "192.168.1.42",
+        gateway: "192.168.1.1",
+        netmask: "255.255.255.0",
+        dns1: "1.1.1.1",
+        dns2: "1.0.0.1",
+        ntp1: "pool.ntp.org",
+        ntp2: "",
+      };
+      setOtaIdle(state);
+      break;
+    case "wifi-weak":
+      applyStaOnlineDefaults(state);
+      state.mqttConnected = true;
+      state.wifiRssi = -78;
+      setOtaIdle(state);
+      break;
+    case "battery-full":
+      applyStaOnlineDefaults(state);
+      state.mqttConnected = true;
+      state.batteryPct = 100;
+      state.batteryMv = 4200;
+      setOtaIdle(state);
+      break;
+    case "battery-low":
+      applyStaOnlineDefaults(state);
+      state.mqttConnected = true;
+      state.batteryPct = 20;
+      state.batteryMv = 3600;
+      setOtaIdle(state);
+      break;
+    case "battery-critical":
+      applyStaOnlineDefaults(state);
+      state.mqttConnected = true;
+      state.batteryPct = 8;
+      state.batteryMv = 3400;
+      setOtaIdle(state);
+      break;
+    case "heart-busy":
+      applyStaOnlineDefaults(state);
+      state.mqttConnected = true;
+      state.heartBusy = true;
+      setOtaIdle(state);
+      break;
+    case "settings-audio-quiet":
+      applyStaOnlineDefaults(state);
+      state.mqttConnected = true;
+      state.audioTxEnabled = true;
+      state.audioRxEnabled = true;
+      state.audioTxVolume = 70;
+      state.audioRxVolume = 70;
+      state.quietHourStart = 23;
+      state.quietHourEnd = 8;
+      setOtaIdle(state);
+      break;
     case "update-available":
       applyStaOnlineDefaults(state);
       state.mqttConnected = true;
@@ -503,6 +611,14 @@ export function applyScenario(state: MockState, scenario: MockScenario): void {
         bytesTotal: 1000000,
       });
       break;
+    case "update-progress-unknown":
+      applyStaOnlineDefaults(state);
+      state.mqttConnected = true;
+      setOtaPhase(state, "downloading", {
+        bytesDone: 0,
+        bytesTotal: 0,
+      });
+      break;
     case "update-verifying":
       applyStaOnlineDefaults(state);
       state.mqttConnected = true;
@@ -517,6 +633,21 @@ export function applyScenario(state: MockState, scenario: MockScenario): void {
       setOtaPhase(state, "rebooting", {
         bytesDone: 1000000,
         bytesTotal: 1000000,
+      });
+      break;
+    case "update-uptodate":
+      applyStaOnlineDefaults(state);
+      state.mqttConnected = true;
+      setOtaPhase(state, "available", {
+        availableVersion: state.version,
+      });
+      break;
+    case "update-beta":
+      applyStaOnlineDefaults(state);
+      state.mqttConnected = true;
+      setOtaPhase(state, "available", {
+        channel: "beta",
+        availableVersion: "2026.8.2-rc.1",
       });
       break;
     case "sta-connected":

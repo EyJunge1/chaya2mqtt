@@ -160,6 +160,10 @@ export async function handleApi(req: IncomingMessage, res: ServerResponse): Prom
       sendJson(res, 503, { ok: false, error: "unavailable" });
       return true;
     }
+    if (state.heartBusy) {
+      sendJson(res, 503, { ok: false, error: "busy" });
+      return true;
+    }
     state.tx += 1;
     broadcastAll();
     sendJson(res, 202, { ok: true, queued: true });

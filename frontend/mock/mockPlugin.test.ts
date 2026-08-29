@@ -108,6 +108,13 @@ describe("mock API parity", () => {
     expect(res.body).toEqual({ ok: false, error: "unavailable" });
   });
 
+  it("returns busy when sending a heart in heart-busy scenario", async () => {
+    await callApi("POST", "/api/_mock/scenario", "scenario=heart-busy");
+    const res = await callApi("POST", "/api/chaya/send", csrfBody());
+    expect(res.status).toBe(503);
+    expect(res.body).toEqual({ ok: false, error: "busy" });
+  });
+
   it("exposes update-error status for the UI", async () => {
     await callApi("POST", "/api/_mock/scenario", "scenario=update-error");
     const res = await callApi("GET", "/api/update/status");

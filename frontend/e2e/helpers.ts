@@ -1,27 +1,7 @@
 import type { APIRequestContext, Page } from "@playwright/test";
+import type { MockScenario } from "../mock/deviceState.ts";
 
-export type MockScenario =
-  | "sta-connected"
-  | "offline"
-  | "sta-mqtt-offline"
-  | "sta-mqtt-unconfigured"
-  | "sta-mqtt-unpaired"
-  | "ap-setup"
-  | "ap-test-idle"
-  | "ap-test-testing"
-  | "ap-test-ok"
-  | "ap-test-failed"
-  | "wifi-scan-empty"
-  | "wifi-scan-fail"
-  | "boot-unreachable"
-  | "boot-slow"
-  | "sse-disconnected"
-  | "update-available"
-  | "update-checking"
-  | "update-busy"
-  | "update-verifying"
-  | "update-rebooting"
-  | "update-error";
+export type { MockScenario };
 
 export async function resetMock(
   request: APIRequestContext,

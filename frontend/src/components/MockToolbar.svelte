@@ -7,7 +7,7 @@
 
   const scenarioGroups = [
     {
-      title: "Device",
+      title: "Connection",
       items: [
         { id: "sta-connected", label: "STA online", path: "/" },
         { id: "boot-unreachable", label: "Boot unreachable", path: "/" },
@@ -16,35 +16,61 @@
       ],
     },
     {
-      title: "Network",
+      title: "Dashboard",
       items: [
-        { id: "offline", label: "STA offline", path: "/" },
-        { id: "sta-mqtt-offline", label: "MQTT offline", path: "/" },
-        { id: "sta-mqtt-unconfigured", label: "MQTT unconfigured", path: "/mqtt" },
-        { id: "sta-mqtt-unpaired", label: "MQTT unpaired", path: "/mqtt" },
+        { id: "battery-full", label: "Battery full", path: "/" },
+        { id: "battery-low", label: "Battery low", path: "/" },
+        { id: "battery-critical", label: "Battery critical", path: "/" },
+        { id: "heart-busy", label: "Heart busy", path: "/" },
       ],
     },
     {
-      title: "Wi-Fi / Setup",
+      title: "MQTT",
       items: [
-        { id: "ap-setup", label: "AP Setup", path: "/" },
+        { id: "sta-mqtt-offline", label: "Offline", path: "/mqtt" },
+        { id: "sta-mqtt-unconfigured", label: "Unconfigured", path: "/mqtt" },
+        { id: "sta-mqtt-unpaired", label: "Unpaired", path: "/mqtt" },
+        { id: "mqtt-no-auth", label: "No password", path: "/mqtt" },
+        { id: "mqtt-plain", label: "Plain (1883)", path: "/mqtt" },
+      ],
+    },
+    {
+      title: "Wi-Fi",
+      items: [
+        { id: "wifi-weak", label: "Weak signal", path: "/" },
+        { id: "wifi-static", label: "Static IP", path: "/wifi" },
+      ],
+    },
+    {
+      title: "AP setup",
+      items: [
+        { id: "ap-setup", label: "AP mode", path: "/" },
         { id: "wifi-scan-empty", label: "Scan empty", path: "/" },
         { id: "wifi-scan-fail", label: "Scan failed", path: "/" },
         { id: "ap-test-idle", label: "Test idle", path: "/wifi-testing" },
-        { id: "ap-test-testing", label: "Wi-Fi test", path: "/wifi-testing" },
-        { id: "ap-test-ok", label: "Wi-Fi test success", path: "/wifi-testing" },
-        { id: "ap-test-failed", label: "Wi-Fi test failed", path: "/wifi-testing" },
+        { id: "ap-test-testing", label: "Test running", path: "/wifi-testing" },
+        { id: "ap-test-ok", label: "Test success", path: "/wifi-testing" },
+        { id: "ap-test-failed", label: "Test failed", path: "/wifi-testing" },
+      ],
+    },
+    {
+      title: "Settings",
+      items: [
+        { id: "settings-audio-quiet", label: "Audio + quiet hours", path: "/settings/device" },
       ],
     },
     {
       title: "Update",
       items: [
+        { id: "update-uptodate", label: "Up to date", path: "/update" },
         { id: "update-available", label: "Update ready", path: "/update" },
+        { id: "update-beta", label: "Beta ready", path: "/update" },
         { id: "update-checking", label: "Checking", path: "/update" },
         { id: "update-busy", label: "Downloading", path: "/update" },
+        { id: "update-progress-unknown", label: "Progress unknown", path: "/update" },
         { id: "update-verifying", label: "Verifying", path: "/update" },
         { id: "update-rebooting", label: "Rebooting", path: "/update" },
-        { id: "update-error", label: "Update error", path: "/update" },
+        { id: "update-error", label: "Error", path: "/update" },
       ],
     },
   ] as const;
@@ -52,23 +78,29 @@
   type ScenarioId = (typeof scenarioGroups)[number]["items"][number]["id"];
 
   const loadFaultItems = [
-    { id: "mqtt", label: "MQTT load fail", path: "/mqtt" },
-    { id: "settings", label: "Settings load fail", path: "/settings/device" },
-    { id: "update-status", label: "Update load fail", path: "/update" },
-    { id: "device", label: "Device boot fail", path: "/" },
-    { id: "sse", label: "SSE stream fail", path: "/" },
+    { id: "device", label: "Device boot", path: "/" },
+    { id: "chaya", label: "Chaya status", path: "/" },
+    { id: "sse", label: "SSE stream", path: "/" },
+    { id: "wifi-status", label: "Wi-Fi status", path: "/wifi" },
+    { id: "wifi-config", label: "Wi-Fi config", path: "/wifi" },
+    { id: "wifi-connect-status", label: "Wi-Fi test status", path: "/wifi-testing" },
+    { id: "mqtt", label: "MQTT config", path: "/mqtt" },
+    { id: "mqtt-status", label: "MQTT status", path: "/mqtt" },
+    { id: "settings", label: "Settings", path: "/settings/device" },
+    { id: "update-status", label: "Update status", path: "/update" },
   ] as const;
 
   const actionFaultItems = [
-    { id: "mqtt-save", label: "MQTT save", path: "/mqtt" },
-    { id: "settings-save", label: "Settings save", path: "/settings/device" },
-    { id: "reboot", label: "Reboot", path: "/settings/device" },
-    { id: "factory-reset", label: "Factory reset", path: "/settings/device" },
     { id: "heart", label: "Send heart", path: "/" },
     { id: "wifi-scan", label: "Wi-Fi scan", path: "/wifi" },
     { id: "wifi-connect", label: "Wi-Fi test start", path: "/wifi-testing" },
     { id: "wifi-commit", label: "Wi-Fi test save", path: "/wifi-testing" },
     { id: "wifi-retry", label: "Wi-Fi test retry", path: "/wifi-testing" },
+    { id: "wifi-abort", label: "Wi-Fi test abort", path: "/wifi-testing" },
+    { id: "mqtt-save", label: "MQTT save", path: "/mqtt" },
+    { id: "settings-save", label: "Settings save", path: "/settings/device" },
+    { id: "reboot", label: "Reboot", path: "/settings/device" },
+    { id: "factory-reset", label: "Factory reset", path: "/settings/device" },
     { id: "update-check", label: "Update check", path: "/update" },
     { id: "update-install", label: "Update install", path: "/update" },
   ] as const;
@@ -105,9 +137,12 @@
   let activeScenario = $state<ScenarioId>("sta-connected");
   let activeFaults = $state<Partial<Record<FaultId, boolean>>>({});
   let openSections = $state<Record<SectionKey, boolean>>({
-    Device: false,
-    Network: false,
-    "Wi-Fi / Setup": false,
+    Connection: false,
+    Dashboard: false,
+    MQTT: false,
+    "Wi-Fi": false,
+    "AP setup": false,
+    Settings: false,
     Update: false,
     "Load errors": false,
     "Action errors": false,

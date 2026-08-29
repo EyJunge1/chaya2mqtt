@@ -115,3 +115,17 @@ test("settings save success shows toast @smoke", async ({ page }) => {
   await page.getByRole("main").getByRole("button", { name: "Save", exact: true }).first().click();
   await expect(page.getByText("Saved", { exact: true })).toBeVisible();
 });
+
+test("heart busy toast from simulator scenario @smoke", async ({ page, request }) => {
+  await resetMock(request, "heart-busy");
+  await waitForAppReady(page);
+  await page.getByRole("button", { name: /Send heart/i }).click();
+  await expect(page.getByText(/Heart still sending/i)).toBeVisible();
+});
+
+test("battery critical icon from simulator scenario @smoke", async ({ page, request }) => {
+  await resetMock(request, "battery-critical");
+  await waitForAppReady(page);
+  await expect(page.getByLabelText(/Battery: 8%/i)).toBeVisible();
+  await expect(page.getByText("8%")).toBeVisible();
+});

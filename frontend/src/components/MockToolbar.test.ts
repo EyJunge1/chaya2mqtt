@@ -60,11 +60,12 @@ describe("MockToolbar", () => {
     renderApp(MockToolbar, { props: { onChanged, mode: "sta", bootError: true } });
 
     expect(screen.getByText("Simulator · offline")).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Device" })).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Network" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Connection" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "MQTT" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "AP setup" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "Load errors" })).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Boot unreachable" })).toBeNull();
-    expect(screen.queryByRole("button", { name: "MQTT load fail" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "MQTT config" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Clear faults" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Reset simulator" })).toBeNull();
   });
@@ -75,7 +76,7 @@ describe("MockToolbar", () => {
 
     renderApp(MockToolbar, { props: { onChanged, mode: "sta" } });
 
-    await user.click(screen.getByRole("button", { name: "Device" }));
+    await user.click(screen.getByRole("button", { name: "Connection" }));
     expect(screen.getByText("Boot unreachable")).toBeTruthy();
     expect(screen.getByText("SSE reconnecting")).toBeTruthy();
 
@@ -90,9 +91,9 @@ describe("MockToolbar", () => {
     renderApp(MockToolbar, { props: { onChanged, mode: "sta" } });
 
     await user.click(screen.getByRole("button", { name: "Load errors" }));
-    await user.click(screen.getByRole("button", { name: "MQTT load fail" }));
+    await user.click(screen.getByRole("button", { name: "MQTT config" }));
     await waitFor(() => expect(onChanged).toHaveBeenCalled());
-    expect(await screen.findByRole("button", { name: "MQTT load fail" })).toBeTruthy();
+    expect(await screen.findByRole("button", { name: "MQTT config" })).toBeTruthy();
   });
 
   it("keeps only one load fault active at a time", async () => {
@@ -136,7 +137,7 @@ describe("MockToolbar", () => {
     await waitFor(() => expect(scenario).toBe("update-verifying"));
 
     await user.click(screen.getByRole("button", { name: "Load errors" }));
-    await user.click(screen.getByRole("button", { name: "Update load fail" }));
+    await user.click(screen.getByRole("button", { name: "Update status" }));
     await waitFor(() => {
       expect(scenario).toBe("sta-connected");
       expect(faults["update-status"]).toBe(true);
@@ -199,10 +200,10 @@ describe("MockToolbar", () => {
 
     renderApp(MockToolbar, { props: { onChanged, mode: "sta" } });
 
-    expect(screen.queryByRole("button", { name: "STA offline" })).toBeNull();
-    await user.click(screen.getByRole("button", { name: "Network" }));
-    expect(screen.getByRole("button", { name: "STA offline" })).toBeTruthy();
-    await user.click(screen.getByRole("button", { name: "Network" }));
-    expect(screen.queryByRole("button", { name: "STA offline" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Boot unreachable" })).toBeNull();
+    await user.click(screen.getByRole("button", { name: "Connection" }));
+    expect(screen.getByRole("button", { name: "Boot unreachable" })).toBeTruthy();
+    await user.click(screen.getByRole("button", { name: "Connection" }));
+    expect(screen.queryByRole("button", { name: "Boot unreachable" })).toBeNull();
   });
 });

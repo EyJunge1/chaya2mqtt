@@ -29,23 +29,34 @@ describe("parseScenario", () => {
   it("lists every toolbar scenario", () => {
     expect(MOCK_SCENARIOS).toEqual([
       "sta-connected",
-      "offline",
+      "boot-unreachable",
+      "boot-slow",
+      "sse-disconnected",
+      "battery-full",
+      "battery-low",
+      "battery-critical",
+      "heart-busy",
       "sta-mqtt-offline",
       "sta-mqtt-unconfigured",
       "sta-mqtt-unpaired",
+      "mqtt-no-auth",
+      "mqtt-plain",
+      "wifi-weak",
+      "wifi-static",
       "ap-setup",
+      "wifi-scan-empty",
+      "wifi-scan-fail",
       "ap-test-idle",
       "ap-test-testing",
       "ap-test-ok",
       "ap-test-failed",
-      "wifi-scan-empty",
-      "wifi-scan-fail",
-      "boot-unreachable",
-      "boot-slow",
-      "sse-disconnected",
+      "settings-audio-quiet",
+      "update-uptodate",
       "update-available",
+      "update-beta",
       "update-checking",
       "update-busy",
+      "update-progress-unknown",
       "update-verifying",
       "update-rebooting",
       "update-error",
@@ -79,7 +90,6 @@ describe("applyScenario", () => {
     freeze?: boolean;
   }> = [
     { scenario: "sta-connected", mode: "sta", wifi: true, mqtt: true, partner: "f5e6d7" },
-    { scenario: "offline", mode: "sta", wifi: false, mqtt: false },
     {
       scenario: "sta-mqtt-offline",
       mode: "sta",
@@ -103,6 +113,8 @@ describe("applyScenario", () => {
       partner: "",
       server: "mqtt.example.com",
     },
+    { scenario: "mqtt-no-auth", mode: "sta", wifi: true, mqtt: true, partner: "f5e6d7" },
+    { scenario: "mqtt-plain", mode: "sta", wifi: true, mqtt: true, partner: "f5e6d7" },
     { scenario: "ap-setup", mode: "ap", wifi: false, mqtt: false, wifiConnect: "idle" },
     { scenario: "ap-test-idle", mode: "ap", wifi: false, mqtt: false, wifiConnect: "idle" },
     {
@@ -117,6 +129,8 @@ describe("applyScenario", () => {
     { scenario: "ap-test-failed", mode: "ap", wifi: false, mqtt: false, wifiConnect: "fail" },
     { scenario: "wifi-scan-empty", mode: "ap", wifi: false, mqtt: false, scanMode: "empty" },
     { scenario: "wifi-scan-fail", mode: "ap", wifi: false, mqtt: false, scanMode: "fail" },
+    { scenario: "wifi-static", mode: "sta", wifi: true, mqtt: true },
+    { scenario: "wifi-weak", mode: "sta", wifi: true, mqtt: true },
     {
       scenario: "boot-unreachable",
       mode: "sta",
@@ -138,6 +152,11 @@ describe("applyScenario", () => {
       mqtt: true,
       sseFault: true,
     },
+    { scenario: "battery-full", mode: "sta", wifi: true, mqtt: true },
+    { scenario: "battery-low", mode: "sta", wifi: true, mqtt: true },
+    { scenario: "battery-critical", mode: "sta", wifi: true, mqtt: true },
+    { scenario: "heart-busy", mode: "sta", wifi: true, mqtt: true },
+    { scenario: "settings-audio-quiet", mode: "sta", wifi: true, mqtt: true },
     {
       scenario: "update-available",
       mode: "sta",
@@ -168,6 +187,13 @@ describe("applyScenario", () => {
       otaPhase: "downloading",
     },
     {
+      scenario: "update-progress-unknown",
+      mode: "sta",
+      wifi: true,
+      mqtt: true,
+      otaPhase: "downloading",
+    },
+    {
       scenario: "update-verifying",
       mode: "sta",
       wifi: true,
@@ -180,6 +206,20 @@ describe("applyScenario", () => {
       wifi: true,
       mqtt: true,
       otaPhase: "rebooting",
+    },
+    {
+      scenario: "update-uptodate",
+      mode: "sta",
+      wifi: true,
+      mqtt: true,
+      otaPhase: "available",
+    },
+    {
+      scenario: "update-beta",
+      mode: "sta",
+      wifi: true,
+      mqtt: true,
+      otaPhase: "available",
     },
   ];
 
@@ -239,6 +279,64 @@ describe("applyScenario", () => {
     expect(hasFault("device", state)).toBe(true);
     applyScenario(state, "sta-connected");
     expect(hasFault("device", state)).toBe(false);
+  });
+
+  it("sets edge-case scenario fields without leaking across switches", () => {
+    const full = createInitialState("battery-full");
+    expect(full.batteryPct).toBe(100);
+    expect(full.batteryMv).toBe(4200);
+
+    const low = createInitialState("battery-low");
+    expect(low.batteryPct).toBe(20);
+    expect(low.batteryMv).toBe(3600);
+
+    const critical = createInitialState("battery-critical");
+    expect(critical.batteryPct).toBe(8);
+    expect(critical.heartBusy).toBe(false);
+
+    const busy = createInitialState("heart-busy");
+    expect(busy.heartBusy).toBe(true);
+    expect(busy.batteryPct).toBe(55);
+
+    const weak = createInitialState("wifi-weak");
+    expect(weak.wifiRssi).toBe(-78);
+
+    const staticIp = createInitialState("wifi-static");
+    expect(staticIp.wifiConfig.mode).toBe("static");
+    expect(staticIp.wifiConfig.ip).toBe("192.168.1.42");
+
+    const noAuth = createInitialState("mqtt-no-auth");
+    expect(noAuth.mqtt.username).toBe("");
+    expect(noAuth.mqtt.password).toBe("");
+
+    const plain = createInitialState("mqtt-plain");
+    expect(plain.mqtt.tls).toBe(false);
+    expect(plain.mqtt.port).toBe(1883);
+
+    const audio = createInitialState("settings-audio-quiet");
+    expect(audio.audioTxEnabled).toBe(true);
+    expect(audio.audioRxEnabled).toBe(true);
+    expect(audio.quietHourStart).toBe(23);
+    expect(audio.quietHourEnd).toBe(8);
+
+    const unknown = createInitialState("update-progress-unknown");
+    expect(unknown.ota.phase).toBe("downloading");
+    expect(unknown.ota.bytesTotal).toBe(0);
+
+    const uptodate = createInitialState("update-uptodate");
+    expect(uptodate.ota.phase).toBe("available");
+    expect(uptodate.ota.availableVersion).toBe(uptodate.version);
+
+    const beta = createInitialState("update-beta");
+    expect(beta.ota.channel).toBe("beta");
+    expect(beta.ota.availableVersion).toBe("2026.8.2-rc.1");
+
+    applyScenario(audio, "sta-connected");
+    expect(audio.audioTxEnabled).toBe(false);
+    expect(audio.quietHourStart).toBe(0);
+    expect(audio.heartBusy).toBe(false);
+    expect(audio.batteryPct).toBe(55);
+    expect(audio.wifiRssi).toBe(-55);
   });
 });
 

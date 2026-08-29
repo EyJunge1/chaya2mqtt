@@ -27,17 +27,20 @@ The Vite development server starts a **virtual Chaya2MQTT** under `frontend/mock
 
 | Group | Scenarios |
 |-------|-----------|
-| Device | `sta-connected`, `boot-unreachable`, `boot-slow`, `sse-disconnected` |
-| Network | `offline`, `sta-mqtt-offline`, `sta-mqtt-unconfigured`, `sta-mqtt-unpaired` |
-| Wi‑Fi / Setup | `ap-setup`, `wifi-scan-empty`, `wifi-scan-fail`, `ap-test-idle`, `ap-test-testing`, `ap-test-ok`, `ap-test-failed` |
-| Update | `update-available`, `update-checking`, `update-busy`, `update-verifying`, `update-rebooting`, `update-error` |
+| Connection | `sta-connected`, `boot-unreachable`, `boot-slow`, `sse-disconnected` |
+| Dashboard | `battery-full`, `battery-low`, `battery-critical`, `heart-busy` |
+| MQTT | `sta-mqtt-offline`, `sta-mqtt-unconfigured`, `sta-mqtt-unpaired`, `mqtt-no-auth`, `mqtt-plain` |
+| Wi‑Fi | `wifi-weak`, `wifi-static` |
+| AP setup | `ap-setup`, `wifi-scan-empty`, `wifi-scan-fail`, `ap-test-idle`, `ap-test-testing`, `ap-test-ok`, `ap-test-failed` |
+| Settings | `settings-audio-quiet` |
+| Update | `update-uptodate`, `update-available`, `update-beta`, `update-checking`, `update-busy`, `update-progress-unknown`, `update-verifying`, `update-rebooting`, `update-error` |
 
 ### Fault injection (API/SSE errors)
 
 The toolbar or `POST /api/_mock/fault` (`fault=<key>&enabled=1`, `clear=1`) can reproduce errors without modifying device state:
 
-- Load errors: `device`, `mqtt`, `settings`, `update-status`, `sse`, …
-- Action errors: `mqtt-save`, `settings-save`, `reboot`, `factory-reset`, `heart`, `wifi-scan`, `wifi-connect`, `wifi-commit`, `wifi-abort`, `update-check`, `update-install`, …
+- Load errors (by domain): `device`, `chaya`, `sse`, `wifi-status`, `wifi-config`, `wifi-connect-status`, `mqtt`, `mqtt-status`, `settings`, `update-status`
+- Action errors (by domain): `heart`, `wifi-scan`, `wifi-connect`, `wifi-commit`, `wifi-retry`, `wifi-abort`, `mqtt-save`, `settings-save`, `reboot`, `factory-reset`, `update-check`, `update-install`
 
 Additional development endpoints: `POST /api/_mock/scenario`, `POST /api/_mock/reset`, `GET /api/_mock/state`.
 
