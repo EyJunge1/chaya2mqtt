@@ -6,6 +6,7 @@
   import Spinner from "../components/Spinner.svelte";
   import type { ShowToast } from "../components/toastStack.ts";
   import { i18n } from "../i18n/i18n.svelte.ts";
+  import { router } from "../nav/router.svelte.ts";
 
   let { onToast }: { onToast: ShowToast } = $props();
 
@@ -35,7 +36,11 @@
     return () => {
       alive = false;
       window.clearInterval(id);
-      void api.abortWifiConnect().catch(() => {});
+      // Abort only when leaving the testing route. Transient remounts (e.g. simulator
+      // boot/refresh) keep pathname `/wifi-testing` and must not wipe connect state.
+      if (router.pathname !== "/wifi-testing") {
+        void api.abortWifiConnect().catch(() => {});
+      }
     };
   });
 

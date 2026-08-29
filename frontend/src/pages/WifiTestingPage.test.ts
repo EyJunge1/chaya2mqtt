@@ -44,10 +44,20 @@ describe("WifiTestingPage", () => {
   });
 
   it("aborts the connection test when leaving the page", async () => {
+    router.replace("/wifi-testing");
+    const { unmount } = render(WifiTestingPage, { props: { onToast: vi.fn() } });
+    await waitFor(() => expect(screen.getByText("HomeNet")).toBeInTheDocument());
+    router.replace("/");
+    unmount();
+    await waitFor(() => expect(abortWifiConnect).toHaveBeenCalledOnce());
+  });
+
+  it("does not abort when remounted while still on the testing route", async () => {
+    router.replace("/wifi-testing");
     const { unmount } = render(WifiTestingPage, { props: { onToast: vi.fn() } });
     await waitFor(() => expect(screen.getByText("HomeNet")).toBeInTheDocument());
     unmount();
-    await waitFor(() => expect(abortWifiConnect).toHaveBeenCalledOnce());
+    expect(abortWifiConnect).not.toHaveBeenCalled();
   });
 
   it("shows save & reboot only after a successful test", async () => {
