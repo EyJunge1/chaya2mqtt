@@ -62,8 +62,8 @@ bool fillMqttConfigJson(char* body, size_t bodyLen, const MqttConfig& cfg) {
     if (!appendJsonStringQuotedEscaped(cfg.server, body, bodyLen, &pos)) {
         return false;
     }
-    n = snprintf(body + pos, bodyLen - pos, ",\"port\":%u,\"username\":",
-                 static_cast<unsigned>(cfg.port));
+    n = snprintf(body + pos, bodyLen - pos, ",\"port\":%u,\"tls\":%s,\"username\":",
+                 static_cast<unsigned>(cfg.port), cfg.tls ? "true" : "false");
     if (n < 0 || pos + static_cast<size_t>(n) >= bodyLen) {
         return false;
     }
@@ -161,6 +161,10 @@ void handleApiMqttPost(AsyncWebServerRequest* req) {
         }
         pending.port = normalizeMqttPort(portIn);
     }
+    if (!adminApplyOptionalBool(req, "mqtt_tls", &pending.tls)) {
+        sendErr(req, 400, "tls");
+        return;
+    }
     if (!adminApplyOptionalString(req, "mqtt_user", pending.username, sizeof(pending.username))) {
         sendErr(req, 400, "username");
         return;
@@ -215,8 +219,8 @@ void handleApiMqttPost(AsyncWebServerRequest* req) {
     if (!mqttCfgEquals(&pending, &active)) {
         mqttCfgStorePending(&pending);
         g_webAdminMqttApplyVersion.fetch_add(1U, std::memory_order_acq_rel);
-        ESP_LOGI(TAG, "MQTT settings accepted broker=%s:%u", pending.server,
-                 static_cast<unsigned>(pending.port));
+        ESP_LOGI(TAG, "MQTT settings accepted broker=%s:%u tls=%s", pending.server,
+                 static_cast<unsigned>(pending.port), pending.tls ? "yes" : "no");
     } else {
         ESP_LOGI(TAG, "MQTT settings unchanged");
     }

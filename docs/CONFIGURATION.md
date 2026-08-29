@@ -52,7 +52,8 @@ exists, so pairings and hostnames stay stable until the next reset. The setup So
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
 | `server` | String | `""` | Broker hostname or IP |
-| `port` | Int | `8883` | MQTT port |
+| `port` | Int | `8883` | MQTT port (1883 plain / 8883 TLS typical) |
+| `tls` | UChar | `1` | `1` = mqtts (TLS), `0` = mqtt (plain TCP); missing key defaults to TLS |
 | `user` | String | `""` | MQTT username |
 | `pass` | String | `""` | MQTT password |
 | `partner_id` | String | `""` | Partner device ID (6 hexadecimal characters; required for heart display) |

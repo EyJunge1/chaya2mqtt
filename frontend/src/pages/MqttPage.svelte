@@ -11,12 +11,18 @@
   import Panel from "../components/Panel.svelte";
   import PrimaryButton from "../components/PrimaryButton.svelte";
   import SecondaryButton from "../components/SecondaryButton.svelte";
+  import SegmentedControl from "../components/SegmentedControl.svelte";
   import StatusBadge from "../components/StatusBadge.svelte";
   import TextInput from "../components/TextInput.svelte";
   import type { ShowToast } from "../components/toastStack.ts";
   import { i18n } from "../i18n/i18n.svelte.ts";
   import { cn } from "../ui/cn.ts";
   import { dash, HOVER_SURFACE } from "../ui/styles.ts";
+
+  const MQTT_PLAIN_PORT = 1883;
+  const MQTT_TLS_PORT = 8883;
+
+  type MqttProtocol = "mqtt" | "mqtts";
 
   let {
     mqtt,
@@ -58,6 +64,23 @@
     });
   });
 
+  function protocolOf(tls: boolean): MqttProtocol {
+    return tls ? "mqtts" : "mqtt";
+  }
+
+  function setProtocol(next: MqttProtocol) {
+    if (!cfg) return;
+    const nextTls = next === "mqtts";
+    if (cfg.tls === nextTls) return;
+    const oldDefault = cfg.tls ? MQTT_TLS_PORT : MQTT_PLAIN_PORT;
+    const newDefault = nextTls ? MQTT_TLS_PORT : MQTT_PLAIN_PORT;
+    const port = Number(cfg.port);
+    if (port === oldDefault) {
+      cfg.port = newDefault;
+    }
+    cfg.tls = nextTls;
+  }
+
   async function persist(nextPartner: string) {
     if (!cfg) return;
     busy = true;
@@ -65,6 +88,7 @@
       const res = await api.saveMqtt({
         mqtt_server: cfg.server,
         mqtt_port: cfg.port,
+        mqtt_tls: cfg.tls ? 1 : 0,
         mqtt_user: cfg.username,
         mqtt_pass: password || undefined,
         partner_id: nextPartner.trim().toLowerCase(),
@@ -118,6 +142,11 @@
   const paired = $derived(Boolean(cfg?.partnerId));
   const MqttIcon = $derived(brokerConfigured ? Radio : RadioOff);
   const hasDeviceId = $derived(Boolean(cfg?.deviceId?.trim()));
+  const brokerDisplay = $derived(
+    cfg && brokerConfigured
+      ? `${cfg.tls ? "mqtts" : "mqtt"}://${cfg.server}:${cfg.port}`
+      : "-",
+  );
 </script>
 
 {#if loadError}
@@ -178,7 +207,7 @@
           { label: i18n.t("mqtt.partner-id"), value: dash(cfg.partnerId) },
           {
             label: i18n.t("mqtt.server"),
-            value: brokerConfigured ? `${cfg.server}:${cfg.port}` : "-",
+            value: brokerDisplay,
           },
           { label: i18n.t("mqtt.user"), value: dash(cfg.username) },
           { label: i18n.t("mqtt.topic-pub"), value: dash(cfg.topicPub) },
@@ -190,7 +219,26 @@
     <Panel>
       <form class="space-y-3" onsubmit={(e) => void save(e)}>
         <Field label={i18n.t("mqtt.server")} hint={i18n.t("mqtt.server-hint")} required>
-          <TextInput bind:value={cfg.server} maxlength={127} required />
+          <div class="flex items-stretch gap-2">
+            <SegmentedControl
+              compact
+              class="w-[8.5rem]"
+              label={i18n.t("mqtt.protocol")}
+              value={protocolOf(cfg.tls)}
+              onChange={setProtocol}
+              options={[
+                { value: "mqtt", label: i18n.t("mqtt.protocol-mqtt"), testId: "mqtt-proto-mqtt" },
+                {
+                  value: "mqtts",
+                  label: i18n.t("mqtt.protocol-mqtts"),
+                  testId: "mqtt-proto-mqtts",
+                },
+              ]}
+            />
+            <div class="min-w-0 flex-1">
+              <TextInput bind:value={cfg.server} maxlength={127} required />
+            </div>
+          </div>
         </Field>
         <Field label={i18n.t("mqtt.port")} hint={i18n.t("mqtt.port-hint")} required>
           <TextInput type="number" min={1} max={65535} bind:value={cfg.port} required />

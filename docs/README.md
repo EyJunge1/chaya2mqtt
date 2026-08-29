@@ -137,7 +137,7 @@ The 1.54G has **8 MB** flash. `partitions_chaya_8mb.csv` is a dual-OTA map (~3
 |---------|---------|
 | **GxEPD2** | E-paper driver (1.54G 4-color / `GxEPD2_4C`) |
 | **Adafruit GFX / BusIO** | Graphics primitives for e-paper |
-| **ESP-IDF MQTT** (`esp_mqtt_client`) | MQTT over TLS (not PubSubClient) |
+| **ESP-IDF MQTT** (`esp_mqtt_client`) | mqtt or mqtts (TLS selectable; default TLS) |
 | **ESPAsyncWebServer** | HTTP admin + captive portal |
 
 ## Documentation

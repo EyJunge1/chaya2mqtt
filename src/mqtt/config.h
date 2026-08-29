@@ -8,6 +8,8 @@
 struct MqttConfig {
     char     server[128] = "";
     uint16_t port        = kMqttDefaultTlsPort;
+    /** true = mqtts (TLS), false = mqtt (plain TCP). Default TLS for backward compatibility. */
+    bool     tls         = true;
     char     username[64] = "";
     char     password[64] = "";
     /** Derived: chaya2mqtt/<own device id>. Not user-editable. */

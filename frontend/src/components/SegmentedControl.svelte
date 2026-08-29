@@ -15,18 +15,27 @@
     onChange,
     options,
     label,
+    class: className = "",
+    compact = false,
   }: {
     value: T;
     onChange: (value: T) => void;
     options: SegmentOption<T>[];
     label: string;
+    class?: string;
+    /** Narrow control for placing beside another input. */
+    compact?: boolean;
   } = $props();
 </script>
 
 <div
   role="radiogroup"
   aria-label={label}
-  class="grid grid-cols-2 gap-1 rounded-xl border border-border bg-bg p-1"
+  class={cn(
+    "grid grid-cols-2 gap-1 rounded-xl border border-border bg-bg p-1",
+    compact && "shrink-0 rounded-lg",
+    className,
+  )}
 >
   {#each options as option (option.value)}
     {@const active = value === option.value}
@@ -37,7 +46,8 @@
       data-testid={option.testId}
       onclick={() => onChange(option.value)}
       class={cn(
-        "rounded-lg border border-transparent px-3 py-2 text-sm font-semibold transition focus-ring",
+        "rounded-lg border border-transparent font-semibold transition focus-ring",
+        compact ? "px-2.5 py-2 text-xs" : "px-3 py-2 text-sm",
         HOVER_ROW,
         active ? "bg-surface text-text-bright shadow-sm" : "text-muted hover:text-text-bright",
       )}

@@ -141,6 +141,7 @@ export const api = {
   saveMqtt: (fields: {
     mqtt_server: string;
     mqtt_port: number;
+    mqtt_tls: boolean | number;
     mqtt_user?: string;
     mqtt_pass?: string;
     partner_id?: string;

@@ -92,6 +92,8 @@ export interface MqttConfigView {
   deviceId: string;
   server: string;
   port: number;
+  /** true = mqtts (TLS), false = mqtt (plain TCP) */
+  tls: boolean;
   username: string;
   hasPassword: boolean;
   topicPub: string;

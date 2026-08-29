@@ -105,6 +105,7 @@ export interface MockState {
   mqtt: {
     server: string;
     port: number;
+    tls: boolean;
     username: string;
     password: string;
     topicPub: string;
@@ -194,6 +195,7 @@ function defaultMqtt(deviceId: string) {
   return {
     server: "mqtt.example.com",
     port: 8883,
+    tls: true,
     username: "chaya",
     password: "secret",
     topicPub: `chaya2mqtt/${deviceId}`,
@@ -461,6 +463,7 @@ export function applyScenario(state: MockState, scenario: MockScenario): void {
       state.mqtt = {
         server: "",
         port: 8883,
+        tls: true,
         username: "",
         password: "",
         topicPub: `chaya2mqtt/${state.deviceId}`,

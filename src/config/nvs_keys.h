@@ -44,6 +44,7 @@ constexpr const char kNvsKeyChayaBaselineBlob[] = "baseBlob";
 
 constexpr const char kNvsKeyMqttServer[]     = "server";
 constexpr const char kNvsKeyMqttPort[]       = "port";
+constexpr const char kNvsKeyMqttTls[]        = "tls";
 constexpr const char kNvsKeyMqttUser[]       = "user";
 constexpr const char kNvsKeyMqttPass[]       = "pass";
 constexpr const char kNvsKeyMqttTopicPub[]  = "topic_pub";

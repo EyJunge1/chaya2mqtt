@@ -75,6 +75,8 @@ void test_normalize_mqtt_port() {
     TEST_ASSERT_EQUAL_UINT16(8883, normalizeMqttPort(70000));
     TEST_ASSERT_EQUAL_UINT16(1883, normalizeMqttPort(1883));
     TEST_ASSERT_EQUAL_UINT16(65535, normalizeMqttPort(65535));
+    TEST_ASSERT_EQUAL_UINT16(8883, mqttDefaultPortForTls(true));
+    TEST_ASSERT_EQUAL_UINT16(1883, mqttDefaultPortForTls(false));
 }
 
 void test_pairing_topics() {
@@ -92,6 +94,7 @@ void test_pairing_topics() {
 
 void test_sanitize_partner_and_server() {
     MqttConfig cfg{};
+    TEST_ASSERT_TRUE(cfg.tls);
     std::strncpy(cfg.server, "bad host", sizeof(cfg.server));
     std::strncpy(cfg.partnerDeviceId, "A1B2C3", sizeof(cfg.partnerDeviceId));
     cfg.port = 0;
@@ -99,6 +102,7 @@ void test_sanitize_partner_and_server() {
     TEST_ASSERT_EQUAL_STRING("", cfg.server);
     TEST_ASSERT_EQUAL_STRING("a1b2c3", cfg.partnerDeviceId);
     TEST_ASSERT_EQUAL_UINT16(8883, cfg.port);
+    TEST_ASSERT_TRUE(cfg.tls);
     TEST_ASSERT_EQUAL_STRING("chaya2mqtt/f5e6d7", cfg.topicPub);
     TEST_ASSERT_EQUAL_STRING("chaya2mqtt/a1b2c3", cfg.topicSub);
 
