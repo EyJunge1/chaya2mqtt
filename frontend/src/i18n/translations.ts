@@ -133,7 +133,7 @@ export const translations = {
     "mqtt.copy-device-id": "Copy device ID",
     "mqtt.partner-id": "Partner ID",
     "mqtt.partner-hint":
-      "Required: 6 hex characters from the other device, e.g. f5e6d7. Use Unpair to clear.",
+      "6 hex characters from the other device, e.g. f5e6d7. Leave empty or use Unpair to clear.",
     "mqtt.unpair": "Unpair",
     "mqtt.loading": "Loading MQTT…",
     "mqtt.load-error-title": "MQTT not loaded",
@@ -367,7 +367,7 @@ export const translations = {
     "mqtt.copy-device-id": "Geräte-ID kopieren",
     "mqtt.partner-id": "Partner-ID",
     "mqtt.partner-hint":
-      "Pflicht: 6 Hex-Zeichen vom anderen Gerät, z. B. f5e6d7. Zum Entkoppeln den Entkoppeln-Button nutzen.",
+      "6 Hex-Zeichen vom anderen Gerät, z. B. f5e6d7. Leer lassen oder Entkoppeln zum Löschen.",
     "mqtt.unpair": "Entkoppeln",
     "mqtt.loading": "Lade MQTT…",
     "mqtt.load-error-title": "MQTT nicht geladen",

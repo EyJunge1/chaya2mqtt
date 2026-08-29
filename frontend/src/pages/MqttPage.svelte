@@ -258,13 +258,12 @@
           />
         </Field>
 
-        <Field label={i18n.t("mqtt.partner-id")} hint={i18n.t("mqtt.partner-hint")} required>
+        <Field label={i18n.t("mqtt.partner-id")} hint={i18n.t("mqtt.partner-hint")}>
           <TextInput
             bind:value={partner}
             maxlength={6}
             pattern={"[0-9a-fA-F]{6}"}
             placeholder="f5e6d7"
-            required
           />
         </Field>
 

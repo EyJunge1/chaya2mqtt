@@ -39,7 +39,6 @@ describe("parseScenario", () => {
       "sta-mqtt-unconfigured",
       "sta-mqtt-unpaired",
       "mqtt-no-auth",
-      "mqtt-plain",
       "wifi-weak",
       "wifi-static",
       "ap-setup",
@@ -112,7 +111,6 @@ describe("applyScenario", () => {
       server: "mqtt.example.com",
     },
     { scenario: "mqtt-no-auth", mode: "sta", wifi: true, mqtt: true, partner: "f5e6d7" },
-    { scenario: "mqtt-plain", mode: "sta", wifi: true, mqtt: true, partner: "f5e6d7" },
     { scenario: "ap-setup", mode: "ap", wifi: false, mqtt: false, wifiConnect: "idle" },
     { scenario: "ap-test-idle", mode: "ap", wifi: false, mqtt: false, wifiConnect: "idle" },
     {
@@ -294,10 +292,6 @@ describe("applyScenario", () => {
     const noAuth = createInitialState("mqtt-no-auth");
     expect(noAuth.mqtt.username).toBe("");
     expect(noAuth.mqtt.password).toBe("");
-
-    const plain = createInitialState("mqtt-plain");
-    expect(plain.mqtt.tls).toBe(false);
-    expect(plain.mqtt.port).toBe(1883);
 
     const audio = createInitialState("settings-audio-quiet");
     expect(audio.audioTxEnabled).toBe(true);

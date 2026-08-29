@@ -30,7 +30,6 @@
         { id: "sta-mqtt-unconfigured", label: "Unconfigured", path: "/mqtt" },
         { id: "sta-mqtt-unpaired", label: "Unpaired", path: "/mqtt" },
         { id: "mqtt-no-auth", label: "No password", path: "/mqtt" },
-        { id: "mqtt-plain", label: "Plain (1883)", path: "/mqtt" },
       ],
     },
     {

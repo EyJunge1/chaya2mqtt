@@ -17,7 +17,6 @@ export const MOCK_SCENARIOS = [
   "sta-mqtt-unconfigured",
   "sta-mqtt-unpaired",
   "mqtt-no-auth",
-  "mqtt-plain",
   // Wi-Fi
   "wifi-weak",
   "wifi-static",
@@ -503,13 +502,6 @@ export function applyScenario(state: MockState, scenario: MockScenario): void {
       applyStaOnlineDefaults(state);
       state.mqtt.username = "";
       state.mqtt.password = "";
-      state.mqttConnected = true;
-      setOtaIdle(state);
-      break;
-    case "mqtt-plain":
-      applyStaOnlineDefaults(state);
-      state.mqtt.tls = false;
-      state.mqtt.port = 1883;
       state.mqttConnected = true;
       setOtaIdle(state);
       break;
