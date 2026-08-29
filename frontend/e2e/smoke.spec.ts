@@ -67,7 +67,7 @@ test("ota check success and error paths", async ({ page, request }) => {
   await page.reload();
   await waitForAppReady(page);
   await page.goto("/update");
-  await expect(page.getByText(/error|failed|fehl/i).first()).toBeVisible();
+  await expect(page.getByRole("alert").filter({ hasText: /Update failed|Update fehlgeschlagen/i })).toBeVisible();
 });
 
 test("device load fault recovers via simulator reset @smoke", async ({ page, request }) => {
