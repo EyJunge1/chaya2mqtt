@@ -138,7 +138,7 @@ void test_spa_asset_lookup() {
     TEST_ASSERT_EQUAL_STRING("application/javascript; charset=utf-8",
                              spaContentTypeForPath("/assets/a.js"));
     TEST_ASSERT_FALSE(spaAssetUsesGzip("/index.html"));
-    TEST_ASSERT_FALSE(spaAssetUsesGzip("/assets/a.js"));
+    TEST_ASSERT_TRUE(spaAssetUsesGzip("/assets/a.js"));
 }
 
 int main(int, char**) {

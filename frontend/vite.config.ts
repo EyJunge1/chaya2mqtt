@@ -66,7 +66,7 @@ export default defineConfig({
     assetsDir: "assets",
     cssCodeSplit: false,
     sourcemap: false,
-    // Hashed filenames enable immutable caching via the firmware asset blob.
+    // Hashed filenames enable immutable caching; blob stores gzip without .gz URLs.
     rollupOptions: {
       output: {
         entryFileNames: "assets/[name]-[hash].js",

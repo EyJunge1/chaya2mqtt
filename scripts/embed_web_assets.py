@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
-"""Pack frontend/dist into an asset blob + manifest for ESP32 SPA serving.
+"""Pack frontend/dist into a gzip asset blob + manifest for ESP32 SPA serving.
 
 Artifacts written to src/web/assets/:
-  web_ui.bin         concatenated asset payloads
+  web_ui.bin         concatenated gzip payloads (URLs keep .js/.css, never .gz)
   web_ui_blob.S      .incbin stub for memory-mapped flash
-  web_ui_manifest.h  path/offset/length/MIME/cache lookup table
+  web_ui_manifest.h  path/offset/length/MIME/cache lookup table + index.html literal
+
+index.html is embedded only as kWebUiIndexHtml (not packed into the blob).
 """
 
 from __future__ import annotations
@@ -18,7 +20,7 @@ from typing import TypedDict
 ROOT = Path(__file__).resolve().parents[1]
 DIST = ROOT / "frontend" / "dist"
 OUT_DIR = ROOT / "src" / "web" / "assets"
-MAX_TOTAL_PAYLOAD = 350 * 1024  # soft budget inside OTA flash headroom
+MAX_TOTAL_PAYLOAD = 350 * 1024  # soft budget on compressed blob size (OTA flash headroom)
 
 SKIP_NAMES = {".DS_Store", "Thumbs.db"}
 
@@ -71,9 +73,19 @@ def cache_class_for(path: str) -> str:
 
 
 def should_gzip(path: str) -> bool:
-    """Never gzip: Safari's captive sheet mis-decodes Content-Encoding."""
+    """Gzip blob payloads; serve with Content-Encoding (no .gz in URLs).
+
+    Safari handles gzip encoding fine when the URL has a normal extension
+    (.js/.css). Avoid Brotli over plain HTTP and never put .gz in asset paths.
+    index.html is not packed into the blob (served as kWebUiIndexHtml).
+    """
     del path
-    return False
+    return True
+
+
+def skip_from_blob(path: str) -> bool:
+    """Omit index.html from the blob; it is embedded as a C string literal."""
+    return path == "/index.html"
 
 
 def c_escape(text: str) -> str:
@@ -241,6 +253,9 @@ def main() -> int:
     entries: list[AssetEntry] = []
 
     for url_path, file_path in files:
+        if skip_from_blob(url_path):
+            print(f"skip {url_path} (served as kWebUiIndexHtml literal)")
+            continue
         raw = file_path.read_bytes()
         payload = gzip.compress(raw, compresslevel=9) if should_gzip(url_path) else raw
         entries.append(

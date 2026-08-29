@@ -1,6 +1,6 @@
 # Web Administration
 
-The web interface is a **Svelte 5 SPA** (Vite, Tailwind CSS, Lucide) stored in the firmware as an asset blob. Assets are currently embedded raw because Safari captive sheets can mis-handle `Content-Encoding`. The ESP32-S3 serves HTML/JS/CSS using a manifest lookup and communicates via JSON + SSE; the UI runs in the browser.
+The web interface is a **Svelte 5 SPA** (Vite, Tailwind CSS, Lucide) stored in the firmware as a gzip-compressed asset blob. Hashed `/assets/*` files are served with `Content-Encoding: gzip` while keeping normal URL extensions (`.js`/`.css` — never `.gz`, which Safari may treat as a download). Avoid Brotli over plain HTTP. `index.html` is embedded as a C string literal (not a blob slice) so captive browsers always see a real DOCTYPE. The ESP32-S3 serves assets via manifest lookup and communicates via JSON + SSE; the UI runs in the browser.
 
 ## Access
 
@@ -121,12 +121,12 @@ Maximum **6** SSE clients. Tick every 500 ms in the app task.
 ## Build integration
 
 1. `frontend/` → `npm run build` → `frontend/dist/`
-2. `scripts/embed_web_assets.py` packs all distribution files into:
-   - `src/web/assets/web_ui.bin` (Blob)
+2. `scripts/embed_web_assets.py` packs `/assets/*` (gzip) into:
+   - `src/web/assets/web_ui.bin` (gzip blob; URLs keep `.js`/`.css`)
    - `src/web/assets/web_ui_blob.S` (`.incbin` in flash read-only data)
-   - `src/web/assets/web_ui_manifest.h` (path, offset, length, MIME, cache class)
+   - `src/web/assets/web_ui_manifest.h` (path, offset, length, MIME, cache class + `kWebUiIndexHtml` literal)
 3. PlatformIO `pre:scripts/pio_pre_frontend.py` runs this before every firmware build
-4. Soft limit: embedded SPA payload ≤ 350 KiB; OTA slot ~3.75 MB
+4. Soft limit: compressed SPA blob ≤ 350 KiB; OTA slot ~3.75 MB
 5. Generated blob artifacts are gitignored and regenerated during the build
 
 ## Deferred Work

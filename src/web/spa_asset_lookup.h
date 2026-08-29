@@ -14,7 +14,7 @@ enum class SpaCacheClass : uint8_t {
 struct SpaAssetEntry {
     const char* path;       // request path, e.g. "/assets/index-abc.js"
     uint32_t offset;        // byte offset into gWebUiBlobStart
-    uint32_t length;        // payload length (raw UTF-8; no Content-Encoding)
+    uint32_t length;        // payload length (gzip-compressed bytes in the blob)
     const char* contentType;
     SpaCacheClass cache;
 };
@@ -30,10 +30,13 @@ inline bool spaIsAssetPath(const char* uri) {
     return uri && std::strncmp(uri, "/assets/", 8) == 0;
 }
 
-/** Safari captive portal cannot reliably decode gzip; all SPA files are raw UTF-8. */
+/**
+ * Blob assets under /assets/ are stored gzip-compressed and served with
+ * Content-Encoding: gzip. URLs keep normal extensions (.js/.css) — never .gz —
+ * so Safari/iOS CNA can render them. index.html is not in the blob.
+ */
 inline bool spaAssetUsesGzip(const char* path) {
-    (void)path;
-    return false;
+    return spaIsAssetPath(path);
 }
 
 inline bool spaIsApiOrEventsPath(const char* uri) {

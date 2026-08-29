@@ -422,7 +422,7 @@ Presets: Boot (startup), WifiUp (STA ready / reconnect), MqttUp (broker connecte
 | `routes/admin_routes_captive.cpp` | Captive-portal probes, redirects, and setup entry points |
 | `routes/admin_routes_spa.cpp` | Generic SPA blob lookup + SPA fallback |
 | `spa_asset_lookup.h` | Path/MIME/cache helpers (natively testable) |
-| `assets/web_ui.*` | Generated asset blob (raw), `.incbin` stub, and manifest |
+| `assets/web_ui.*` | Generated gzip asset blob, `.incbin` stub, and manifest (+ index HTML literal) |
 
 Details: [WEB_ADMIN.md](WEB_ADMIN.md)
 

@@ -41,6 +41,10 @@ class EmbedModule(Protocol):
         """Return whether the asset should be gzip-compressed."""
         ...
 
+    def skip_from_blob(self, path: str) -> bool:
+        """Return whether the path is omitted from the binary blob."""
+        ...
+
 
 def load_embed() -> EmbedModule:
     """Load the asset embedding script as a typed module."""
@@ -123,13 +127,17 @@ class EmbedWebAssetsTests(unittest.TestCase):
                 self.assertIn("Blob SHA-256:", first_asm)
                 self.assertIn('.incbin "out/web_ui.bin"', first_asm)
                 self.assertNotIn(str(Path(tmp)), first_asm)
-                self.assertIn("/index.html", first_manifest)
+                # index.html is a C literal only — not packed into the blob.
+                self.assertNotIn('{"/index.html"', first_manifest)
                 self.assertIn("kWebUiIndexHtml", first_manifest)
                 self.assertIn("<!doctype html>", first_manifest)
                 self.assertIn("/assets/index-deadbeef.js", first_manifest)
                 self.assertIn("SpaCacheClass::Immutable", first_manifest)
-                self.assertIn(b"<!doctype html>", first_bin)
-                self.assertIn(b"console.log(1)", first_bin)
+                self.assertNotIn(b"<!doctype html>", first_bin)
+                js_gz = gzip.compress(b"console.log(1)", compresslevel=9)
+                css_gz = gzip.compress(b"body{}", compresslevel=9)
+                self.assertIn(js_gz, first_bin)
+                self.assertIn(css_gz, first_bin)
                 self.assertIn(
                     "gWebUiBlobStart", (out / "web_ui_blob.S").read_text(encoding="utf-8")
                 )
@@ -161,8 +169,10 @@ class EmbedWebAssetsTests(unittest.TestCase):
         self.assertEqual(mod.content_type_for("/a.html"), "text/html; charset=utf-8")
         self.assertEqual(mod.cache_class_for("/assets/x.js"), "SpaCacheClass::Immutable")
         self.assertEqual(mod.cache_class_for("/index.html"), "SpaCacheClass::NoCache")
-        self.assertFalse(mod.should_gzip("/index.html"))
-        self.assertFalse(mod.should_gzip("/assets/x.js"))
+        self.assertTrue(mod.should_gzip("/assets/x.js"))
+        self.assertTrue(mod.should_gzip("/index.html"))
+        self.assertTrue(mod.skip_from_blob("/index.html"))
+        self.assertFalse(mod.skip_from_blob("/assets/x.js"))
         raw = b"hello"
         self.assertGreater(len(gzip.compress(raw, compresslevel=9)), 0)
 
