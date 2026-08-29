@@ -28,7 +28,7 @@ The Vite development server starts a **virtual Chaya2MQTT** under `frontend/mock
 | Group | Scenarios |
 |-------|-----------|
 | Connection | `sta-connected`, `sse-disconnected` |
-| Dashboard | `battery-full`, `battery-low`, `battery-critical`, `heart-busy` |
+| Dashboard | `battery-full`, `battery-medium`, `battery-low`, `battery-critical`, `heart-busy` |
 | MQTT | `sta-mqtt-offline`, `sta-mqtt-unconfigured`, `sta-mqtt-unpaired`, `mqtt-no-auth`, `mqtt-plain` |
 | Wi‑Fi | `wifi-weak`, `wifi-static` |
 | AP setup | `ap-setup`, `wifi-scan-empty`, `wifi-scan-fail`, `ap-test-idle`, `ap-test-testing`, `ap-test-ok`, `ap-test-failed` |

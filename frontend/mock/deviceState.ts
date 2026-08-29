@@ -8,6 +8,7 @@ export const MOCK_SCENARIOS = [
   "sse-disconnected",
   // Dashboard
   "battery-full",
+  "battery-medium",
   "battery-low",
   "battery-critical",
   "heart-busy",
@@ -538,6 +539,13 @@ export function applyScenario(state: MockState, scenario: MockScenario): void {
       state.mqttConnected = true;
       state.batteryPct = 100;
       state.batteryMv = 4200;
+      setOtaIdle(state);
+      break;
+    case "battery-medium":
+      applyStaOnlineDefaults(state);
+      state.mqttConnected = true;
+      state.batteryPct = 55;
+      state.batteryMv = 3900;
       setOtaIdle(state);
       break;
     case "battery-low":

@@ -31,6 +31,7 @@ describe("parseScenario", () => {
       "sta-connected",
       "sse-disconnected",
       "battery-full",
+      "battery-medium",
       "battery-low",
       "battery-critical",
       "heart-busy",
@@ -136,6 +137,7 @@ describe("applyScenario", () => {
       sseFault: true,
     },
     { scenario: "battery-full", mode: "sta", wifi: true, mqtt: true },
+    { scenario: "battery-medium", mode: "sta", wifi: true, mqtt: true },
     { scenario: "battery-low", mode: "sta", wifi: true, mqtt: true },
     { scenario: "battery-critical", mode: "sta", wifi: true, mqtt: true },
     { scenario: "heart-busy", mode: "sta", wifi: true, mqtt: true },
@@ -265,6 +267,10 @@ describe("applyScenario", () => {
     const full = createInitialState("battery-full");
     expect(full.batteryPct).toBe(100);
     expect(full.batteryMv).toBe(4200);
+
+    const medium = createInitialState("battery-medium");
+    expect(medium.batteryPct).toBe(55);
+    expect(medium.batteryMv).toBe(3900);
 
     const low = createInitialState("battery-low");
     expect(low.batteryPct).toBe(20);

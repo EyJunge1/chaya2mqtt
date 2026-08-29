@@ -17,9 +17,10 @@
       title: "Dashboard",
       items: [
         { id: "battery-full", label: "Battery full", path: "/" },
+        { id: "battery-medium", label: "Battery medium", path: "/" },
         { id: "battery-low", label: "Battery low", path: "/" },
         { id: "battery-critical", label: "Battery critical", path: "/" },
-        { id: "heart-busy", label: "Heart busy", path: "/" },
+        { id: "heart-busy", label: "Busy · tap Send", path: "/" },
       ],
     },
     {
