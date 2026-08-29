@@ -4,8 +4,8 @@
 #include "mqtt_publish_ack.h"
 
 #include "async/task_handles.h"
-#include "config.h"
 #include "audio/audio.h"
+#include "config.h"
 #include "diag/task_watchdog.h"
 #include "display/display.h"
 #include "heart/counter.h"
@@ -28,7 +28,7 @@
 DEFINE_LOG_TAG("MQTT");
 
 static std::atomic<bool> s_mqttPublishBlocked{false};
-static portMUX_TYPE       s_publishAckMux = portMUX_INITIALIZER_UNLOCKED;
+static portMUX_TYPE s_publishAckMux = portMUX_INITIALIZER_UNLOCKED;
 static MqttPublishAckState s_publishAckState{};
 
 static bool publishAckPending() {
@@ -40,16 +40,14 @@ static bool publishAckPending() {
 
 static bool publishAckConfirmed(int messageId, uint32_t clientGeneration) {
     portENTER_CRITICAL(&s_publishAckMux);
-    const bool confirmed =
-        mqttPublishAckWasConfirmed(s_publishAckState, messageId, clientGeneration);
+    const bool confirmed = mqttPublishAckWasConfirmed(s_publishAckState, messageId, clientGeneration);
     portEXIT_CRITICAL(&s_publishAckMux);
     return confirmed;
 }
 
 void mqttHandlePublishedAck(int messageId, uint32_t clientGeneration) {
     portENTER_CRITICAL(&s_publishAckMux);
-    const bool confirmed =
-        mqttPublishAckConfirm(&s_publishAckState, messageId, clientGeneration);
+    const bool confirmed = mqttPublishAckConfirm(&s_publishAckState, messageId, clientGeneration);
     portEXIT_CRITICAL(&s_publishAckMux);
     if (!confirmed) {
         return;
@@ -114,13 +112,11 @@ static bool mqttPublishChayaLocked() {
     }
 
     const uint32_t clientGeneration = s_clientGeneration.load(std::memory_order_acquire);
-    const int pid =
-        esp_mqtt_client_publish(cli, topicPub, buf, static_cast<int>(strlen(buf)), 1, 1);
+    const int pid = esp_mqtt_client_publish(cli, topicPub, buf, static_cast<int>(strlen(buf)), 1, 1);
     bool published = false;
     if (pid >= 0) {
         portENTER_CRITICAL(&s_publishAckMux);
-        published = mqttPublishAckBegin(&s_publishAckState, pid, clientGeneration,
-                                        static_cast<int>(nextVal));
+        published = mqttPublishAckBegin(&s_publishAckState, pid, clientGeneration, static_cast<int>(nextVal));
         portEXIT_CRITICAL(&s_publishAckMux);
     }
     mqttClientUnlock();
@@ -138,7 +134,7 @@ static bool mqttPublishChayaLocked() {
     const TickType_t timeout = pdMS_TO_TICKS(kMqttPublishAckWaitMs);
     constexpr TickType_t kWaitSlice = pdMS_TO_TICKS(250);
     while ((xTaskGetTickCount() - started) < timeout) {
-        const TickType_t elapsed   = xTaskGetTickCount() - started;
+        const TickType_t elapsed = xTaskGetTickCount() - started;
         const TickType_t remaining = timeout - elapsed;
         const TickType_t waitTicks = remaining < kWaitSlice ? remaining : kWaitSlice;
         if (xSemaphoreTake(g_chayaPubAckSemaphore, waitTicks) == pdTRUE) {
@@ -147,8 +143,7 @@ static bool mqttPublishChayaLocked() {
         chayaTaskWatchdogReset();
     }
     chayaTaskWatchdogReset();
-    const unsigned long waitMs =
-        static_cast<unsigned long>((xTaskGetTickCount() - started) * portTICK_PERIOD_MS);
+    const unsigned long waitMs = static_cast<unsigned long>((xTaskGetTickCount() - started) * portTICK_PERIOD_MS);
     const bool confirmed = publishAckConfirmed(pid, clientGeneration);
     if (!confirmed) {
         ESP_LOGW(TAG, "QoS 1 PUBACK timeout/failure (msg_id=%d wait_ms=%lu)", pid, waitMs);
@@ -171,21 +166,14 @@ bool mqttPublishChayaAndApplySentCounters() {
     return ok;
 }
 
-bool mqttPublishBlocked() {
-    return s_mqttPublishBlocked.load(std::memory_order_acquire);
-}
+bool mqttPublishBlocked() { return s_mqttPublishBlocked.load(std::memory_order_acquire); }
 
-void mqttBeginSettingsApply() {
-    s_mqttPublishBlocked.store(true, std::memory_order_release);
-}
+void mqttBeginSettingsApply() { s_mqttPublishBlocked.store(true, std::memory_order_release); }
 
-void mqttEndSettingsApply() {
-    s_mqttPublishBlocked.store(false, std::memory_order_release);
-}
+void mqttEndSettingsApply() { s_mqttPublishBlocked.store(false, std::memory_order_release); }
 
 ChayaSendResult chayaRequestSend() {
-    if (g_systemShutdownInProgress.load(std::memory_order_acquire) || configIsApMode()
-        || !mqttCfgIsHeartReady()) {
+    if (g_systemShutdownInProgress.load(std::memory_order_acquire) || configIsApMode() || !mqttCfgIsHeartReady()) {
         return ChayaSendResult::Unavailable;
     }
     if (mqttPublishBlocked() || ledIsTxSendBusy()) {
