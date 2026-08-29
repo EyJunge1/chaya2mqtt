@@ -5,7 +5,6 @@ export type MockMode = "ap" | "sta";
 export const MOCK_SCENARIOS = [
   // Connection
   "sta-connected",
-  "boot-unreachable",
   "boot-slow",
   "sse-disconnected",
   // Dashboard
@@ -468,12 +467,6 @@ export function applyScenario(state: MockState, scenario: MockScenario): void {
       clearWifiLink(state);
       state.mqttConnected = false;
       state.scanMode = "fail";
-      setOtaIdle(state);
-      break;
-    case "boot-unreachable":
-      applyStaOnlineDefaults(state);
-      state.mqttConnected = true;
-      state.faults.device = true;
       setOtaIdle(state);
       break;
     case "boot-slow":

@@ -184,8 +184,8 @@ describe("mock API parity", () => {
     expect(res.body.state).toBe("testing");
   });
 
-  it("fails device boot when boot-unreachable is active", async () => {
-    await callApi("POST", "/api/_mock/scenario", "scenario=boot-unreachable");
+  it("fails device API when device fault is active", async () => {
+    await callApi("POST", "/api/_mock/fault", "fault=device&enabled=1");
     const res = await callApi("GET", "/api/device");
     expect(res.status).toBe(503);
     expect(res.body).toMatchObject({ ok: false, error: "mock_fault", fault: "device" });

@@ -70,8 +70,8 @@ test("ota check success and error paths", async ({ page, request }) => {
   await expect(page.getByText(/error|failed|fehl/i).first()).toBeVisible();
 });
 
-test("boot unreachable recovers via simulator reset @smoke", async ({ page, request }) => {
-  await resetMock(request, "boot-unreachable");
+test("device load fault recovers via simulator reset @smoke", async ({ page, request }) => {
+  await setMockFault(request, "device", true);
   await page.goto("/");
   await expect(page.getByText(/Could not connect to the device/i)).toBeVisible();
   await expect(page.getByRole("button", { name: "Simulator · offline" })).toBeVisible();

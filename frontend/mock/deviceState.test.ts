@@ -21,7 +21,7 @@ describe("parseScenario", () => {
   it("accepts known scenarios and rejects unknown values", () => {
     expect(parseScenario("sta-connected")).toBe("sta-connected");
     expect(parseScenario("update-busy")).toBe("update-busy");
-    expect(parseScenario("boot-unreachable")).toBe("boot-unreachable");
+    expect(parseScenario("boot-slow")).toBe("boot-slow");
     expect(parseScenario("nope")).toBeNull();
     expect(parseScenario(null)).toBeNull();
   });
@@ -29,7 +29,6 @@ describe("parseScenario", () => {
   it("lists every toolbar scenario", () => {
     expect(MOCK_SCENARIOS).toEqual([
       "sta-connected",
-      "boot-unreachable",
       "boot-slow",
       "sse-disconnected",
       "battery-full",
@@ -131,13 +130,6 @@ describe("applyScenario", () => {
     { scenario: "wifi-scan-fail", mode: "ap", wifi: false, mqtt: false, scanMode: "fail" },
     { scenario: "wifi-static", mode: "sta", wifi: true, mqtt: true },
     { scenario: "wifi-weak", mode: "sta", wifi: true, mqtt: true },
-    {
-      scenario: "boot-unreachable",
-      mode: "sta",
-      wifi: true,
-      mqtt: true,
-      deviceFault: true,
-    },
     {
       scenario: "boot-slow",
       mode: "sta",
@@ -274,11 +266,11 @@ describe("applyScenario", () => {
     expect(state.deviceDelayMs).toBe(0);
   });
 
-  it("clears previous faults when switching away from boot-unreachable", () => {
-    const state = createInitialState("boot-unreachable");
-    expect(hasFault("device", state)).toBe(true);
+  it("clears previous faults when switching scenarios", () => {
+    const state = createInitialState("sse-disconnected");
+    expect(hasFault("sse", state)).toBe(true);
     applyScenario(state, "sta-connected");
-    expect(hasFault("device", state)).toBe(false);
+    expect(hasFault("sse", state)).toBe(false);
   });
 
   it("sets edge-case scenario fields without leaking across switches", () => {
