@@ -49,6 +49,7 @@ describe("parseScenario", () => {
       "settings-factory-reset-fail",
       "wifi-weak",
       "wifi-static",
+      "wifi-sta-save-fail",
       "ap-setup",
       "wifi-scan-empty",
       "wifi-scan-fail",
@@ -71,6 +72,7 @@ describe("parseScenario", () => {
       "update-error",
       "update-check-fail",
       "update-install-fail",
+      "update-status-fail",
     ]);
   });
 });
@@ -106,6 +108,8 @@ describe("applyScenario", () => {
     heartFault?: boolean;
     updateCheckFault?: boolean;
     updateInstallFault?: boolean;
+    updateStatusFault?: boolean;
+    wifiConnectFault?: boolean;
     freeze?: boolean;
   }> = [
     { scenario: "sta-connected", mode: "sta", wifi: true, mqtt: true, partner: "f5e6d7" },
@@ -178,6 +182,13 @@ describe("applyScenario", () => {
     { scenario: "wifi-scan-empty", mode: "ap", wifi: false, mqtt: false, scanMode: "empty" },
     { scenario: "wifi-scan-fail", mode: "ap", wifi: false, mqtt: false, scanMode: "fail" },
     { scenario: "wifi-static", mode: "sta", wifi: true, mqtt: true },
+    {
+      scenario: "wifi-sta-save-fail",
+      mode: "sta",
+      wifi: true,
+      mqtt: true,
+      wifiConnectFault: true,
+    },
     { scenario: "wifi-weak", mode: "sta", wifi: true, mqtt: true },
     {
       scenario: "sse-disconnected",
@@ -285,6 +296,13 @@ describe("applyScenario", () => {
       updateInstallFault: true,
     },
     {
+      scenario: "update-status-fail",
+      mode: "sta",
+      wifi: true,
+      mqtt: true,
+      updateStatusFault: true,
+    },
+    {
       scenario: "update-busy",
       mode: "sta",
       wifi: true,
@@ -352,6 +370,8 @@ describe("applyScenario", () => {
       heartFault,
       updateCheckFault,
       updateInstallFault,
+      updateStatusFault,
+      wifiConnectFault,
       freeze,
     }) => {
       const state = createInitialState(scenario);
@@ -383,6 +403,12 @@ describe("applyScenario", () => {
       }
       if (updateInstallFault !== undefined) {
         expect(state.faults["update-install"]).toBe(updateInstallFault);
+      }
+      if (updateStatusFault !== undefined) {
+        expect(state.faults["update-status"]).toBe(updateStatusFault);
+      }
+      if (wifiConnectFault !== undefined) {
+        expect(state.faults["wifi-connect"]).toBe(wifiConnectFault);
       }
       if (freeze !== undefined) expect(state.wifiConnect.freeze).toBe(freeze);
     },

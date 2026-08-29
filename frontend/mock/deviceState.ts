@@ -29,6 +29,7 @@ export const MOCK_SCENARIOS = [
   // Wi-Fi
   "wifi-weak",
   "wifi-static",
+  "wifi-sta-save-fail",
   // AP setup
   "ap-setup",
   "wifi-scan-empty",
@@ -53,6 +54,7 @@ export const MOCK_SCENARIOS = [
   "update-error",
   "update-check-fail",
   "update-install-fail",
+  "update-status-fail",
 ] as const;
 
 export type MockScenario = (typeof MOCK_SCENARIOS)[number];
@@ -591,6 +593,12 @@ export function applyScenario(state: MockState, scenario: MockScenario): void {
       };
       setOtaIdle(state);
       break;
+    case "wifi-sta-save-fail":
+      applyStaOnlineDefaults(state);
+      state.mqttConnected = true;
+      state.faults["wifi-connect"] = true;
+      setOtaIdle(state);
+      break;
     case "wifi-weak":
       applyStaOnlineDefaults(state);
       state.mqttConnected = true;
@@ -663,6 +671,12 @@ export function applyScenario(state: MockState, scenario: MockScenario): void {
       state.mqttConnected = true;
       state.faults["update-install"] = true;
       setOtaPhase(state, "available");
+      break;
+    case "update-status-fail":
+      applyStaOnlineDefaults(state);
+      state.mqttConnected = true;
+      state.faults["update-status"] = true;
+      setOtaIdle(state);
       break;
     case "update-busy":
       applyStaOnlineDefaults(state);

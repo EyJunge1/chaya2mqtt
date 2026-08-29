@@ -50,6 +50,7 @@
       items: [
         { id: "wifi-weak", label: "Weak signal", path: "/" },
         { id: "wifi-static", label: "Static IP", path: "/wifi" },
+        { id: "wifi-sta-save-fail", label: "Save failed", path: "/wifi" },
       ],
     },
     {
@@ -82,6 +83,7 @@
         { id: "update-error", label: "Error", path: "/update" },
         { id: "update-check-fail", label: "Check failed", path: "/update" },
         { id: "update-install-fail", label: "Install failed", path: "/update" },
+        { id: "update-status-fail", label: "Status load failed", path: "/update" },
       ],
     },
   ] as const;

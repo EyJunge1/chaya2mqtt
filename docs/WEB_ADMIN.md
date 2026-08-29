@@ -31,9 +31,9 @@ The Vite development server starts a **virtual Chaya2MQTT** under `frontend/mock
 | Dashboard | `battery-full`, `battery-medium`, `battery-low`, `battery-critical`, `heart-busy`, `heart-send-fail` |
 | MQTT | `sta-mqtt-offline`, `sta-mqtt-unconfigured`, `sta-mqtt-unpaired`, `mqtt-no-auth`, `mqtt-load-fail`, `mqtt-save-fail` |
 | Settings | `settings-load-fail`, `settings-save-fail`, `settings-reboot-fail`, `settings-factory-reset-fail` |
-| Wi‑Fi | `wifi-weak`, `wifi-static` |
+| Wi‑Fi | `wifi-weak`, `wifi-static`, `wifi-sta-save-fail` |
 | AP setup | `ap-setup`, `wifi-scan-empty`, `wifi-scan-fail`, `ap-test-idle`, `ap-test-testing`, `ap-test-ok`, `ap-test-failed`, `wifi-test-start-fail`, `wifi-test-save-fail`, `wifi-test-retry-fail`, `wifi-test-abort-fail` |
-| Update | `update-uptodate`, `update-available`, `update-beta`, `update-checking`, `update-busy`, `update-progress-unknown`, `update-verifying`, `update-rebooting`, `update-error`, `update-check-fail`, `update-install-fail` |
+| Update | `update-uptodate`, `update-available`, `update-beta`, `update-checking`, `update-busy`, `update-progress-unknown`, `update-verifying`, `update-rebooting`, `update-error`, `update-check-fail`, `update-install-fail`, `update-status-fail` |
 
 ### Fault injection (API)
 
