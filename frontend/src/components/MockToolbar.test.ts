@@ -43,9 +43,9 @@ describe("MockToolbar", () => {
   it("lists section headers collapsed by default", async () => {
     const onChanged = vi.fn(async () => undefined);
 
-    renderApp(MockToolbar, { props: { onChanged, mode: "sta", bootError: true } });
+    renderApp(MockToolbar, { props: { onChanged, mode: "sta" } });
 
-    expect(screen.getByText("Simulator · offline")).toBeTruthy();
+    expect(screen.getByText("Simulator")).toBeTruthy();
     expect(screen.getByRole("button", { name: "Connection" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "MQTT" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "Settings" })).toBeTruthy();

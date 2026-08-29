@@ -74,7 +74,7 @@ test("device load fault recovers via simulator reset @smoke", async ({ page, req
   await resetMock(request, "device-unreachable");
   await page.goto("/");
   await expect(page.getByText(/Could not connect to the device/i)).toBeVisible();
-  await expect(page.getByRole("button", { name: "Simulator · offline" })).toBeVisible();
+  await expect(page.getByText("Simulator", { exact: true })).toBeVisible();
 
   await resetMock(request, "sta-connected");
   await page.getByRole("button", { name: /Try again|Erneut/i }).click();

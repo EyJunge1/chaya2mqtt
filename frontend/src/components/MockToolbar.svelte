@@ -122,11 +122,9 @@
   let {
     onChanged,
     mode = "sta",
-    bootError = false,
   }: {
     onChanged: () => Promise<void>;
     mode?: DeviceMode;
-    bootError?: boolean;
   } = $props();
 
   let open = $state(true);
@@ -256,7 +254,6 @@
 
   $effect(() => {
     if (!import.meta.env.DEV) return;
-    void bootError;
     void mode;
     let cancelled = false;
     void (async () => {
@@ -348,7 +345,7 @@
         <GripVertical size={14} aria-hidden="true" />
       </button>
       <span class="min-w-0 flex-1 truncate px-1 py-0.5 font-semibold text-accent">
-        Simulator{bootError ? " · offline" : ""}
+        Simulator
       </span>
       <button
         type="button"
