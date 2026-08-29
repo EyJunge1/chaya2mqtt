@@ -47,8 +47,7 @@ export const translations = {
     "toast.saved": "Saved",
     "toast.save-failed": "Save failed",
     "dashboard.hearts": "Hearts",
-    "dashboard.hearts-hint":
-      "Counters update live. Sending requires MQTT and a partner ID.",
+    "dashboard.hearts-hint": "Counters update live. Sending requires MQTT and a partner ID.",
     "dashboard.rx": "Received",
     "dashboard.tx": "Sent",
     "dashboard.send-heart": "Send heart",

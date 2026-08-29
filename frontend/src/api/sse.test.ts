@@ -69,7 +69,13 @@ describe("connectEvents", () => {
     es.emit("device", { batteryMv: 3900, batteryPct: 55 });
     es.onerror?.(new Event("error"));
 
-    expect(chaya).toHaveBeenCalledWith({ rx: 1, tx: 2, connected: true, configured: true, paired: true });
+    expect(chaya).toHaveBeenCalledWith({
+      rx: 1,
+      tx: 2,
+      connected: true,
+      configured: true,
+      paired: true,
+    });
     expect(wifi).toHaveBeenCalledWith({ connected: false });
     expect(mqtt).toHaveBeenCalledWith({ connected: true });
     expect(ota).toHaveBeenCalled();

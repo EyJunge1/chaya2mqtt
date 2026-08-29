@@ -169,7 +169,11 @@
           <div class="mt-1 text-3xl font-bold text-text-bright">{chaya.tx}</div>
         </div>
       </div>
-      <PrimaryButton onclick={sendHeart} loading={busy} disabled={!chaya.connected || !chaya.paired}>
+      <PrimaryButton
+        onclick={sendHeart}
+        loading={busy}
+        disabled={!chaya.connected || !chaya.paired}
+      >
         <Heart size={18} fill="currentColor" />
         {i18n.t("dashboard.send-heart")}
       </PrimaryButton>
