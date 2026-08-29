@@ -108,6 +108,13 @@ describe("mock API parity", () => {
     expect(res.body).toEqual({ ok: false, error: "unavailable" });
   });
 
+  it("returns busy when sending a heart in heart-busy scenario", async () => {
+    await callApi("POST", "/api/_mock/scenario", "scenario=heart-busy");
+    const res = await callApi("POST", "/api/chaya/send", csrfBody());
+    expect(res.status).toBe(503);
+    expect(res.body).toEqual({ ok: false, error: "busy" });
+  });
+
   it("exposes update-error status for the UI", async () => {
     await callApi("POST", "/api/_mock/scenario", "scenario=update-error");
     const res = await callApi("GET", "/api/update/status");
@@ -177,28 +184,11 @@ describe("mock API parity", () => {
     expect(res.body.state).toBe("testing");
   });
 
-  it("fails device boot when boot-unreachable is active", async () => {
-    await callApi("POST", "/api/_mock/scenario", "scenario=boot-unreachable");
+  it("fails device API when device fault is active", async () => {
+    await callApi("POST", "/api/_mock/fault", "fault=device&enabled=1");
     const res = await callApi("GET", "/api/device");
     expect(res.status).toBe(503);
     expect(res.body).toMatchObject({ ok: false, error: "mock_fault", fault: "device" });
-  });
-
-  it("delays device boot for boot-slow", async () => {
-    vi.useFakeTimers();
-    await callApi("POST", "/api/_mock/scenario", "scenario=boot-slow");
-    const pending = callApi("GET", "/api/device");
-    await vi.advanceTimersByTimeAsync(2999);
-    let settled = false;
-    void pending.then(() => {
-      settled = true;
-    });
-    await Promise.resolve();
-    expect(settled).toBe(false);
-    await vi.advanceTimersByTimeAsync(1);
-    const res = await pending;
-    expect(res.status).toBe(200);
-    expect(res.body.deviceId).toBe("a1b2c3");
   });
 
   it("injects mqtt load faults without mutating config", async () => {

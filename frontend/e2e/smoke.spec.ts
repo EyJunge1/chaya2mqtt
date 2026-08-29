@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { fieldInput, resetMock, setMockFault, waitForAppReady } from "./helpers";
+import { fieldInput, resetMock, waitForAppReady } from "./helpers";
 
 test.beforeEach(async ({ page, request }) => {
   await page.addInitScript(() => {
@@ -67,14 +67,16 @@ test("ota check success and error paths", async ({ page, request }) => {
   await page.reload();
   await waitForAppReady(page);
   await page.goto("/update");
-  await expect(page.getByText(/error|failed|fehl/i).first()).toBeVisible();
+  await expect(
+    page.getByRole("alert").filter({ hasText: /Update failed|Update fehlgeschlagen/i }),
+  ).toBeVisible();
 });
 
-test("boot unreachable recovers via simulator reset @smoke", async ({ page, request }) => {
-  await resetMock(request, "boot-unreachable");
+test("device load fault recovers via simulator reset @smoke", async ({ page, request }) => {
+  await resetMock(request, "device-unreachable");
   await page.goto("/");
   await expect(page.getByText(/Could not connect to the device/i)).toBeVisible();
-  await expect(page.getByRole("button", { name: "Simulator · offline" })).toBeVisible();
+  await expect(page.getByText("Simulator", { exact: true })).toBeVisible();
 
   await resetMock(request, "sta-connected");
   await page.getByRole("button", { name: /Try again|Erneut/i }).click();
@@ -82,7 +84,7 @@ test("boot unreachable recovers via simulator reset @smoke", async ({ page, requ
 });
 
 test("mqtt page load fault shows retry block @smoke", async ({ page, request }) => {
-  await setMockFault(request, "mqtt", true);
+  await resetMock(request, "mqtt-load-fail");
   await waitForAppReady(page);
   await page.goto("/mqtt");
   await expect(page.getByText("Could not load the broker configuration.")).toBeVisible();
@@ -102,7 +104,7 @@ test("wifi scan empty state in AP setup @smoke", async ({ page, request }) => {
 });
 
 test("settings save fault shows toast @smoke", async ({ page, request }) => {
-  await setMockFault(request, "settings-save", true);
+  await resetMock(request, "settings-save-fail");
   await waitForAppReady(page);
   await page.goto("/settings/device");
   await page.getByRole("main").getByRole("button", { name: "Save", exact: true }).first().click();
@@ -114,4 +116,18 @@ test("settings save success shows toast @smoke", async ({ page }) => {
   await page.goto("/settings/device");
   await page.getByRole("main").getByRole("button", { name: "Save", exact: true }).first().click();
   await expect(page.getByText("Saved", { exact: true })).toBeVisible();
+});
+
+test("heart busy toast from simulator scenario @smoke", async ({ page, request }) => {
+  await resetMock(request, "heart-busy");
+  await waitForAppReady(page);
+  await page.getByRole("button", { name: /Send heart/i }).click();
+  await expect(page.getByText(/Heart still sending/i)).toBeVisible();
+});
+
+test("battery critical icon from simulator scenario @smoke", async ({ page, request }) => {
+  await resetMock(request, "battery-critical");
+  await waitForAppReady(page);
+  await expect(page.getByLabel(/Battery: 8%/i)).toBeVisible();
+  await expect(page.getByText("8%")).toBeVisible();
 });

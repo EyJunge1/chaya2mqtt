@@ -111,4 +111,12 @@ describe("DeviceRoot", () => {
       expect(screen.getByTestId("rx")).toHaveTextContent("9");
     });
   });
+
+  it("reopens SSE after a simulator reboot refresh", async () => {
+    renderApp(DeviceRootHarness);
+    await waitFor(() => expect(connectEvents).toHaveBeenCalledTimes(1));
+
+    await device.boot();
+    await waitFor(() => expect(connectEvents).toHaveBeenCalledTimes(2));
+  });
 });

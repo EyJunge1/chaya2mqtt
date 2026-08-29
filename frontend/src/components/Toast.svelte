@@ -23,7 +23,7 @@
   <div
     role="region"
     aria-label="Toasts"
-    class="pointer-events-none fixed right-4 bottom-[max(1rem,env(safe-area-inset-bottom))] left-4 z-50 sm:left-auto sm:w-88"
+    class="pointer-events-none fixed right-4 bottom-[max(4.75rem,calc(env(safe-area-inset-bottom)+3.75rem))] left-4 z-50 sm:bottom-[max(1rem,env(safe-area-inset-bottom))] sm:left-auto sm:w-88"
     onmouseenter={() => (expanded = true)}
     onmouseleave={() => (expanded = false)}
     aria-relevant="additions"

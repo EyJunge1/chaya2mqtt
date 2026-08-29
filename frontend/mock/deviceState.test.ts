@@ -21,7 +21,7 @@ describe("parseScenario", () => {
   it("accepts known scenarios and rejects unknown values", () => {
     expect(parseScenario("sta-connected")).toBe("sta-connected");
     expect(parseScenario("update-busy")).toBe("update-busy");
-    expect(parseScenario("boot-unreachable")).toBe("boot-unreachable");
+    expect(parseScenario("sse-disconnected")).toBe("sse-disconnected");
     expect(parseScenario("nope")).toBeNull();
     expect(parseScenario(null)).toBeNull();
   });
@@ -29,26 +29,50 @@ describe("parseScenario", () => {
   it("lists every toolbar scenario", () => {
     expect(MOCK_SCENARIOS).toEqual([
       "sta-connected",
-      "offline",
+      "sse-disconnected",
+      "device-unreachable",
+      "battery-full",
+      "battery-medium",
+      "battery-low",
+      "battery-critical",
+      "heart-busy",
+      "heart-send-fail",
       "sta-mqtt-offline",
       "sta-mqtt-unconfigured",
       "sta-mqtt-unpaired",
+      "mqtt-no-auth",
+      "mqtt-load-fail",
+      "mqtt-save-fail",
+      "settings-load-fail",
+      "settings-save-fail",
+      "settings-reboot-fail",
+      "settings-factory-reset-fail",
+      "wifi-weak",
+      "wifi-static",
+      "wifi-sta-save-fail",
       "ap-setup",
+      "wifi-scan-empty",
+      "wifi-scan-fail",
       "ap-test-idle",
       "ap-test-testing",
       "ap-test-ok",
       "ap-test-failed",
-      "wifi-scan-empty",
-      "wifi-scan-fail",
-      "boot-unreachable",
-      "boot-slow",
-      "sse-disconnected",
+      "wifi-test-start-fail",
+      "wifi-test-save-fail",
+      "wifi-test-retry-fail",
+      "wifi-test-abort-fail",
+      "update-uptodate",
       "update-available",
+      "update-beta",
       "update-checking",
       "update-busy",
+      "update-progress-unknown",
       "update-verifying",
       "update-rebooting",
       "update-error",
+      "update-check-fail",
+      "update-install-fail",
+      "update-status-fail",
     ]);
   });
 });
@@ -75,11 +99,20 @@ describe("applyScenario", () => {
     scanMode?: "normal" | "empty" | "fail";
     deviceFault?: boolean;
     sseFault?: boolean;
-    deviceDelayMs?: number;
+    mqttFault?: boolean;
+    mqttSaveFault?: boolean;
+    settingsFault?: boolean;
+    settingsSaveFault?: boolean;
+    rebootFault?: boolean;
+    factoryResetFault?: boolean;
+    heartFault?: boolean;
+    updateCheckFault?: boolean;
+    updateInstallFault?: boolean;
+    updateStatusFault?: boolean;
+    wifiConnectFault?: boolean;
     freeze?: boolean;
   }> = [
     { scenario: "sta-connected", mode: "sta", wifi: true, mqtt: true, partner: "f5e6d7" },
-    { scenario: "offline", mode: "sta", wifi: false, mqtt: false },
     {
       scenario: "sta-mqtt-offline",
       mode: "sta",
@@ -103,6 +136,7 @@ describe("applyScenario", () => {
       partner: "",
       server: "mqtt.example.com",
     },
+    { scenario: "mqtt-no-auth", mode: "sta", wifi: true, mqtt: true, partner: "f5e6d7" },
     { scenario: "ap-setup", mode: "ap", wifi: false, mqtt: false, wifiConnect: "idle" },
     { scenario: "ap-test-idle", mode: "ap", wifi: false, mqtt: false, wifiConnect: "idle" },
     {
@@ -115,28 +149,114 @@ describe("applyScenario", () => {
     },
     { scenario: "ap-test-ok", mode: "ap", wifi: false, mqtt: false, wifiConnect: "ok" },
     { scenario: "ap-test-failed", mode: "ap", wifi: false, mqtt: false, wifiConnect: "fail" },
+    {
+      scenario: "wifi-test-start-fail",
+      mode: "ap",
+      wifi: false,
+      mqtt: false,
+      wifiConnect: "testing",
+      freeze: true,
+    },
+    {
+      scenario: "wifi-test-save-fail",
+      mode: "ap",
+      wifi: false,
+      mqtt: false,
+      wifiConnect: "ok",
+    },
+    {
+      scenario: "wifi-test-retry-fail",
+      mode: "ap",
+      wifi: false,
+      mqtt: false,
+      wifiConnect: "fail",
+    },
+    {
+      scenario: "wifi-test-abort-fail",
+      mode: "ap",
+      wifi: false,
+      mqtt: false,
+      wifiConnect: "testing",
+      freeze: true,
+    },
     { scenario: "wifi-scan-empty", mode: "ap", wifi: false, mqtt: false, scanMode: "empty" },
     { scenario: "wifi-scan-fail", mode: "ap", wifi: false, mqtt: false, scanMode: "fail" },
+    { scenario: "wifi-static", mode: "sta", wifi: true, mqtt: true },
     {
-      scenario: "boot-unreachable",
+      scenario: "wifi-sta-save-fail",
       mode: "sta",
       wifi: true,
       mqtt: true,
-      deviceFault: true,
+      wifiConnectFault: true,
     },
-    {
-      scenario: "boot-slow",
-      mode: "sta",
-      wifi: true,
-      mqtt: true,
-      deviceDelayMs: 3000,
-    },
+    { scenario: "wifi-weak", mode: "sta", wifi: true, mqtt: true },
     {
       scenario: "sse-disconnected",
       mode: "sta",
       wifi: true,
       mqtt: true,
       sseFault: true,
+    },
+    {
+      scenario: "device-unreachable",
+      mode: "sta",
+      wifi: true,
+      mqtt: true,
+      deviceFault: true,
+    },
+    {
+      scenario: "mqtt-load-fail",
+      mode: "sta",
+      wifi: true,
+      mqtt: true,
+      mqttFault: true,
+    },
+    {
+      scenario: "mqtt-save-fail",
+      mode: "sta",
+      wifi: true,
+      mqtt: true,
+      mqttSaveFault: true,
+    },
+    {
+      scenario: "settings-load-fail",
+      mode: "sta",
+      wifi: true,
+      mqtt: true,
+      settingsFault: true,
+    },
+    {
+      scenario: "settings-save-fail",
+      mode: "sta",
+      wifi: true,
+      mqtt: true,
+      settingsSaveFault: true,
+    },
+    {
+      scenario: "settings-reboot-fail",
+      mode: "sta",
+      wifi: true,
+      mqtt: true,
+      rebootFault: true,
+    },
+    {
+      scenario: "settings-factory-reset-fail",
+      mode: "sta",
+      wifi: true,
+      mqtt: true,
+      factoryResetFault: true,
+    },
+    { scenario: "battery-full", mode: "sta", wifi: true, mqtt: true },
+    { scenario: "battery-medium", mode: "sta", wifi: true, mqtt: true },
+    { scenario: "battery-low", mode: "sta", wifi: true, mqtt: true },
+    { scenario: "battery-critical", mode: "sta", wifi: true, mqtt: true },
+    { scenario: "heart-busy", mode: "sta", wifi: true, mqtt: true },
+    {
+      scenario: "heart-send-fail",
+      mode: "sta",
+      wifi: true,
+      mqtt: true,
+      heartFault: true,
     },
     {
       scenario: "update-available",
@@ -161,7 +281,36 @@ describe("applyScenario", () => {
       otaError: "install_failed",
     },
     {
+      scenario: "update-check-fail",
+      mode: "sta",
+      wifi: true,
+      mqtt: true,
+      updateCheckFault: true,
+    },
+    {
+      scenario: "update-install-fail",
+      mode: "sta",
+      wifi: true,
+      mqtt: true,
+      otaPhase: "available",
+      updateInstallFault: true,
+    },
+    {
+      scenario: "update-status-fail",
+      mode: "sta",
+      wifi: true,
+      mqtt: true,
+      updateStatusFault: true,
+    },
+    {
       scenario: "update-busy",
+      mode: "sta",
+      wifi: true,
+      mqtt: true,
+      otaPhase: "downloading",
+    },
+    {
+      scenario: "update-progress-unknown",
       mode: "sta",
       wifi: true,
       mqtt: true,
@@ -181,6 +330,20 @@ describe("applyScenario", () => {
       mqtt: true,
       otaPhase: "rebooting",
     },
+    {
+      scenario: "update-uptodate",
+      mode: "sta",
+      wifi: true,
+      mqtt: true,
+      otaPhase: "idle",
+    },
+    {
+      scenario: "update-beta",
+      mode: "sta",
+      wifi: true,
+      mqtt: true,
+      otaPhase: "available",
+    },
   ];
 
   it.each(cases)(
@@ -198,7 +361,17 @@ describe("applyScenario", () => {
       scanMode,
       deviceFault,
       sseFault,
-      deviceDelayMs,
+      mqttFault,
+      mqttSaveFault,
+      settingsFault,
+      settingsSaveFault,
+      rebootFault,
+      factoryResetFault,
+      heartFault,
+      updateCheckFault,
+      updateInstallFault,
+      updateStatusFault,
+      wifiConnectFault,
       freeze,
     }) => {
       const state = createInitialState(scenario);
@@ -214,7 +387,29 @@ describe("applyScenario", () => {
       if (scanMode !== undefined) expect(state.scanMode).toBe(scanMode);
       if (deviceFault !== undefined) expect(state.faults.device).toBe(deviceFault);
       if (sseFault !== undefined) expect(state.faults.sse).toBe(sseFault);
-      if (deviceDelayMs !== undefined) expect(state.deviceDelayMs).toBe(deviceDelayMs);
+      if (mqttFault !== undefined) expect(state.faults.mqtt).toBe(mqttFault);
+      if (mqttSaveFault !== undefined) expect(state.faults["mqtt-save"]).toBe(mqttSaveFault);
+      if (settingsFault !== undefined) expect(state.faults.settings).toBe(settingsFault);
+      if (settingsSaveFault !== undefined) {
+        expect(state.faults["settings-save"]).toBe(settingsSaveFault);
+      }
+      if (rebootFault !== undefined) expect(state.faults.reboot).toBe(rebootFault);
+      if (factoryResetFault !== undefined) {
+        expect(state.faults["factory-reset"]).toBe(factoryResetFault);
+      }
+      if (heartFault !== undefined) expect(state.faults.heart).toBe(heartFault);
+      if (updateCheckFault !== undefined) {
+        expect(state.faults["update-check"]).toBe(updateCheckFault);
+      }
+      if (updateInstallFault !== undefined) {
+        expect(state.faults["update-install"]).toBe(updateInstallFault);
+      }
+      if (updateStatusFault !== undefined) {
+        expect(state.faults["update-status"]).toBe(updateStatusFault);
+      }
+      if (wifiConnectFault !== undefined) {
+        expect(state.faults["wifi-connect"]).toBe(wifiConnectFault);
+      }
       if (freeze !== undefined) expect(state.wifiConnect.freeze).toBe(freeze);
     },
   );
@@ -231,14 +426,64 @@ describe("applyScenario", () => {
     expect(state.ota.availableVersion).toBe("");
     expect(state.wifiConnect.state).toBe("idle");
     expect(state.faults.device).toBe(false);
-    expect(state.deviceDelayMs).toBe(0);
   });
 
-  it("clears previous faults when switching away from boot-unreachable", () => {
-    const state = createInitialState("boot-unreachable");
-    expect(hasFault("device", state)).toBe(true);
+  it("clears previous faults when switching scenarios", () => {
+    const state = createInitialState("sse-disconnected");
+    expect(hasFault("sse", state)).toBe(true);
     applyScenario(state, "sta-connected");
-    expect(hasFault("device", state)).toBe(false);
+    expect(hasFault("sse", state)).toBe(false);
+  });
+
+  it("sets edge-case scenario fields without leaking across switches", () => {
+    const full = createInitialState("battery-full");
+    expect(full.batteryPct).toBe(100);
+    expect(full.batteryMv).toBe(4200);
+
+    const medium = createInitialState("battery-medium");
+    expect(medium.batteryPct).toBe(55);
+    expect(medium.batteryMv).toBe(3900);
+
+    const low = createInitialState("battery-low");
+    expect(low.batteryPct).toBe(20);
+    expect(low.batteryMv).toBe(3600);
+
+    const critical = createInitialState("battery-critical");
+    expect(critical.batteryPct).toBe(8);
+    expect(critical.heartBusy).toBe(false);
+
+    const busy = createInitialState("heart-busy");
+    expect(busy.heartBusy).toBe(true);
+    expect(busy.batteryPct).toBe(55);
+
+    const weak = createInitialState("wifi-weak");
+    expect(weak.wifiRssi).toBe(-78);
+
+    const staticIp = createInitialState("wifi-static");
+    expect(staticIp.wifiConfig.mode).toBe("static");
+    expect(staticIp.wifiConfig.ip).toBe("192.168.1.42");
+
+    const noAuth = createInitialState("mqtt-no-auth");
+    expect(noAuth.mqtt.username).toBe("");
+    expect(noAuth.mqtt.password).toBe("");
+
+    const unknown = createInitialState("update-progress-unknown");
+    expect(unknown.ota.phase).toBe("downloading");
+    expect(unknown.ota.bytesTotal).toBe(0);
+
+    const uptodate = createInitialState("update-uptodate");
+    expect(uptodate.ota.phase).toBe("idle");
+    expect(uptodate.ota.availableVersion).toBe("");
+
+    const beta = createInitialState("update-beta");
+    expect(beta.ota.channel).toBe("beta");
+    expect(beta.ota.availableVersion).toBe("2026.8.2-rc.1");
+
+    applyScenario(noAuth, "sta-connected");
+    expect(noAuth.mqtt.username).toBe("chaya");
+    expect(noAuth.heartBusy).toBe(false);
+    expect(noAuth.batteryPct).toBe(55);
+    expect(noAuth.wifiRssi).toBe(-55);
   });
 });
 

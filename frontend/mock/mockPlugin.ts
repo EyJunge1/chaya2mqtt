@@ -81,10 +81,6 @@ function failIfFault(key: MockFaultKey, res: ServerResponse): boolean {
   return true;
 }
 
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
 export async function handleApi(req: IncomingMessage, res: ServerResponse): Promise<boolean> {
   const url = req.url ?? "/";
   const path = pathOf(url);
@@ -138,7 +134,6 @@ export async function handleApi(req: IncomingMessage, res: ServerResponse): Prom
   }
 
   if (path === "/api/device" && method === "GET") {
-    if (state.deviceDelayMs > 0) await sleep(state.deviceDelayMs);
     if (failIfFault("device", res)) return true;
     sendJson(res, 200, devicePayload());
     return true;
@@ -158,6 +153,10 @@ export async function handleApi(req: IncomingMessage, res: ServerResponse): Prom
     if (failIfFault("heart", res)) return true;
     if (!state.mqttConnected) {
       sendJson(res, 503, { ok: false, error: "unavailable" });
+      return true;
+    }
+    if (state.heartBusy) {
+      sendJson(res, 503, { ok: false, error: "busy" });
       return true;
     }
     state.tx += 1;

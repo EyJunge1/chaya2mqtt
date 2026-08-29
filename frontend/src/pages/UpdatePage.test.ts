@@ -129,4 +129,31 @@ describe("UpdatePage", () => {
     });
     expect(onToast).toHaveBeenCalledWith("toast.update-installing", "info");
   });
+
+  it("toasts once when status is in error phase", async () => {
+    getUpdateStatus.mockResolvedValue(status({ phase: "error", error: "install_failed" }));
+    const onToast = vi.fn();
+    const { rerender } = render(UpdatePage, { props: { onToast } });
+
+    await waitFor(() => {
+      expect(onToast).toHaveBeenCalledWith("update.error-title", "error");
+    });
+    expect(onToast).toHaveBeenCalledTimes(1);
+    expect(screen.getByText("update.phase.error")).toBeInTheDocument();
+
+    await rerender({
+      onToast,
+      otaStatus: status({ phase: "error", error: "install_failed", generation: 2 }),
+    });
+    expect(onToast).toHaveBeenCalledTimes(1);
+
+    await rerender({
+      onToast,
+      otaStatus: status({ phase: "error", error: "download_failed", generation: 3 }),
+    });
+    await waitFor(() => {
+      expect(onToast).toHaveBeenCalledTimes(2);
+    });
+    expect(onToast).toHaveBeenLastCalledWith("update.error-title", "error");
+  });
 });

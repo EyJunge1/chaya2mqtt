@@ -1,5 +1,6 @@
 <script lang="ts">
-  import { ChevronRight, X } from "@lucide/svelte";
+  import { ChevronRight, GripVertical, X } from "@lucide/svelte";
+  import { untrack } from "svelte";
   import type { DeviceMode } from "../api/types.ts";
   import { router } from "../nav/router.svelte.ts";
   import { cn } from "../ui/cn.ts";
@@ -7,78 +8,110 @@
 
   const scenarioGroups = [
     {
-      title: "Device",
+      title: "Connection",
       items: [
         { id: "sta-connected", label: "STA online", path: "/" },
-        { id: "boot-unreachable", label: "Boot unreachable", path: "/" },
-        { id: "boot-slow", label: "Boot slow", path: "/" },
         { id: "sse-disconnected", label: "SSE reconnecting", path: "/" },
+        { id: "device-unreachable", label: "Chaya unreachable", path: "/" },
       ],
     },
     {
-      title: "Network",
+      title: "Dashboard",
       items: [
-        { id: "offline", label: "STA offline", path: "/" },
-        { id: "sta-mqtt-offline", label: "MQTT offline", path: "/" },
-        { id: "sta-mqtt-unconfigured", label: "MQTT unconfigured", path: "/mqtt" },
-        { id: "sta-mqtt-unpaired", label: "MQTT unpaired", path: "/mqtt" },
+        { id: "battery-full", label: "Battery full", path: "/" },
+        { id: "battery-medium", label: "Battery medium", path: "/" },
+        { id: "battery-low", label: "Battery low", path: "/" },
+        { id: "battery-critical", label: "Battery critical", path: "/" },
+        { id: "heart-busy", label: "Busy · tap Send", path: "/" },
+        { id: "heart-send-fail", label: "Send failed", path: "/" },
       ],
     },
     {
-      title: "Wi-Fi / Setup",
+      title: "MQTT",
       items: [
-        { id: "ap-setup", label: "AP Setup", path: "/" },
+        { id: "sta-mqtt-offline", label: "Offline", path: "/mqtt" },
+        { id: "sta-mqtt-unconfigured", label: "Unconfigured", path: "/mqtt" },
+        { id: "sta-mqtt-unpaired", label: "Unpaired", path: "/mqtt" },
+        { id: "mqtt-no-auth", label: "No password", path: "/mqtt" },
+        { id: "mqtt-load-fail", label: "Load failed", path: "/mqtt" },
+        { id: "mqtt-save-fail", label: "Save failed", path: "/mqtt" },
+      ],
+    },
+    {
+      title: "Settings",
+      items: [
+        { id: "settings-load-fail", label: "Load failed", path: "/settings/device" },
+        { id: "settings-save-fail", label: "Save failed", path: "/settings/device" },
+        { id: "settings-reboot-fail", label: "Reboot failed", path: "/settings/device" },
+        {
+          id: "settings-factory-reset-fail",
+          label: "Factory reset failed",
+          path: "/settings/device",
+        },
+      ],
+    },
+    {
+      title: "Wi-Fi",
+      items: [
+        { id: "wifi-weak", label: "Weak signal", path: "/" },
+        { id: "wifi-static", label: "Static IP", path: "/wifi" },
+        { id: "wifi-sta-save-fail", label: "Save failed", path: "/wifi" },
+      ],
+    },
+    {
+      title: "AP setup",
+      items: [
+        { id: "ap-setup", label: "AP mode", path: "/" },
         { id: "wifi-scan-empty", label: "Scan empty", path: "/" },
         { id: "wifi-scan-fail", label: "Scan failed", path: "/" },
         { id: "ap-test-idle", label: "Test idle", path: "/wifi-testing" },
-        { id: "ap-test-testing", label: "Wi-Fi test", path: "/wifi-testing" },
-        { id: "ap-test-ok", label: "Wi-Fi test success", path: "/wifi-testing" },
-        { id: "ap-test-failed", label: "Wi-Fi test failed", path: "/wifi-testing" },
+        { id: "ap-test-testing", label: "Test running", path: "/wifi-testing" },
+        { id: "ap-test-ok", label: "Test success", path: "/wifi-testing" },
+        { id: "ap-test-failed", label: "Test failed", path: "/wifi-testing" },
+        { id: "wifi-test-start-fail", label: "Test start failed", path: "/wifi-testing" },
+        { id: "wifi-test-save-fail", label: "Test save failed", path: "/wifi-testing" },
+        { id: "wifi-test-retry-fail", label: "Test retry failed", path: "/wifi-testing" },
+        { id: "wifi-test-abort-fail", label: "Test abort failed", path: "/wifi-testing" },
       ],
     },
     {
       title: "Update",
       items: [
+        { id: "update-uptodate", label: "Up to date", path: "/update" },
         { id: "update-available", label: "Update ready", path: "/update" },
+        { id: "update-beta", label: "Beta ready", path: "/update" },
         { id: "update-checking", label: "Checking", path: "/update" },
         { id: "update-busy", label: "Downloading", path: "/update" },
+        { id: "update-progress-unknown", label: "Progress unknown", path: "/update" },
         { id: "update-verifying", label: "Verifying", path: "/update" },
         { id: "update-rebooting", label: "Rebooting", path: "/update" },
-        { id: "update-error", label: "Update error", path: "/update" },
+        { id: "update-error", label: "Error", path: "/update" },
+        { id: "update-check-fail", label: "Check failed", path: "/update" },
+        { id: "update-install-fail", label: "Install failed", path: "/update" },
+        { id: "update-status-fail", label: "Status load failed", path: "/update" },
       ],
     },
   ] as const;
 
   type ScenarioId = (typeof scenarioGroups)[number]["items"][number]["id"];
+  type SectionKey = (typeof scenarioGroups)[number]["title"] | "Open page";
 
-  const loadFaultItems = [
-    { id: "mqtt", label: "MQTT load fail", path: "/mqtt" },
-    { id: "settings", label: "Settings load fail", path: "/settings/device" },
-    { id: "update-status", label: "Update load fail", path: "/update" },
-    { id: "device", label: "Device boot fail", path: "/" },
-    { id: "sse", label: "SSE stream fail", path: "/" },
-  ] as const;
+  const POS_KEY = "chaya2mqtt-simulator-pos";
+  const MARGIN = 12;
 
-  const actionFaultItems = [
-    { id: "mqtt-save", label: "MQTT save", path: "/mqtt" },
-    { id: "settings-save", label: "Settings save", path: "/settings/device" },
-    { id: "reboot", label: "Reboot", path: "/settings/device" },
-    { id: "factory-reset", label: "Factory reset", path: "/settings/device" },
-    { id: "heart", label: "Send heart", path: "/" },
-    { id: "wifi-scan", label: "Wi-Fi scan", path: "/wifi" },
-    { id: "wifi-connect", label: "Wi-Fi test start", path: "/wifi-testing" },
-    { id: "wifi-commit", label: "Wi-Fi test save", path: "/wifi-testing" },
-    { id: "wifi-retry", label: "Wi-Fi test retry", path: "/wifi-testing" },
-    { id: "update-check", label: "Update check", path: "/update" },
-    { id: "update-install", label: "Update install", path: "/update" },
-  ] as const;
-
-  type LoadFaultId = (typeof loadFaultItems)[number]["id"];
-  type ActionFaultId = (typeof actionFaultItems)[number]["id"];
-  type FaultId = LoadFaultId | ActionFaultId;
-
-  type SectionKey =
-    (typeof scenarioGroups)[number]["title"] | "Load errors" | "Action errors" | "Open page";
+  function readPos(): { x: number; y: number } | null {
+    try {
+      const raw = localStorage.getItem(POS_KEY);
+      if (!raw) return null;
+      const parsed = JSON.parse(raw) as { x?: unknown; y?: unknown };
+      if (typeof parsed.x === "number" && typeof parsed.y === "number") {
+        return { x: parsed.x, y: parsed.y };
+      }
+    } catch {
+      /* ignore */
+    }
+    return null;
+  }
 
   const pages = [
     { path: "/", label: "Dashboard" },
@@ -93,26 +126,38 @@
   let {
     onChanged,
     mode = "sta",
-    bootError = false,
   }: {
     onChanged: () => Promise<void>;
     mode?: DeviceMode;
-    bootError?: boolean;
   } = $props();
 
   let open = $state(true);
   let busy = $state(false);
+  let panelEl = $state<HTMLDivElement | null>(null);
+  let pos = $state<{ x: number; y: number } | null>(
+    typeof window !== "undefined" ? readPos() : null,
+  );
+  let dragging = $state(false);
   let activeScenario = $state<ScenarioId>("sta-connected");
-  let activeFaults = $state<Partial<Record<FaultId, boolean>>>({});
   let openSections = $state<Record<SectionKey, boolean>>({
-    Device: false,
-    Network: false,
-    "Wi-Fi / Setup": false,
+    Connection: false,
+    Dashboard: false,
+    MQTT: false,
+    Settings: false,
+    "Wi-Fi": false,
+    "AP setup": false,
     Update: false,
-    "Load errors": false,
-    "Action errors": false,
     "Open page": false,
   });
+
+  let dragSession: {
+    pointerId: number;
+    startX: number;
+    startY: number;
+    origX: number;
+    origY: number;
+    moved: boolean;
+  } | null = null;
 
   const visiblePages = $derived(
     mode === "ap"
@@ -123,36 +168,104 @@
       : pages,
   );
 
-  /** At most one fault selection; when set, scenario buttons are not highlighted. */
-  const selectedLoadFault = $derived(
-    loadFaultItems.find((item) => activeFaults[item.id])?.id ?? null,
-  );
-  const selectedActionFault = $derived(
-    actionFaultItems.find((item) => activeFaults[item.id])?.id ?? null,
-  );
-  const scenarioHighlightBlocked = $derived(
-    selectedLoadFault !== null || selectedActionFault !== null,
-  );
+  function defaultPos(width: number): { x: number; y: number } {
+    return {
+      x: Math.max(MARGIN, window.innerWidth - width - MARGIN),
+      y: MARGIN,
+    };
+  }
+
+  function clampPos(x: number, y: number, el: HTMLElement): { x: number; y: number } {
+    const maxX = Math.max(MARGIN, window.innerWidth - el.offsetWidth - MARGIN);
+    const maxY = Math.max(MARGIN, window.innerHeight - el.offsetHeight - MARGIN);
+    return {
+      x: Math.min(Math.max(MARGIN, x), maxX),
+      y: Math.min(Math.max(MARGIN, y), maxY),
+    };
+  }
+
+  function savePos(next: { x: number; y: number }) {
+    try {
+      localStorage.setItem(POS_KEY, JSON.stringify(next));
+    } catch {
+      /* ignore */
+    }
+  }
+
+  function ensurePos(el: HTMLDivElement) {
+    const base = untrack(() => pos) ?? readPos() ?? defaultPos(el.offsetWidth);
+    const next = clampPos(base.x, base.y, el);
+    const prev = untrack(() => pos);
+    if (!prev || prev.x !== next.x || prev.y !== next.y) {
+      pos = next;
+    }
+  }
+
+  function onDragPointerDown(e: PointerEvent) {
+    if (e.button !== 0 || !panelEl) return;
+    e.preventDefault();
+    ensurePos(panelEl);
+    const current = untrack(() => pos) ?? defaultPos(panelEl.offsetWidth);
+    dragSession = {
+      pointerId: e.pointerId,
+      startX: e.clientX,
+      startY: e.clientY,
+      origX: current.x,
+      origY: current.y,
+      moved: false,
+    };
+    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+  }
+
+  function onDragPointerMove(e: PointerEvent) {
+    if (!dragSession || dragSession.pointerId !== e.pointerId || !panelEl) return;
+    const dx = e.clientX - dragSession.startX;
+    const dy = e.clientY - dragSession.startY;
+    if (!dragSession.moved && dx * dx + dy * dy < 25) return;
+    dragSession.moved = true;
+    dragging = true;
+    pos = clampPos(dragSession.origX + dx, dragSession.origY + dy, panelEl);
+  }
+
+  function onDragPointerUp(e: PointerEvent) {
+    if (!dragSession || dragSession.pointerId !== e.pointerId) return;
+    dragSession = null;
+    dragging = false;
+    if (pos) savePos(pos);
+  }
 
   function toggleSection(key: SectionKey) {
     openSections[key] = !openSections[key];
   }
 
   $effect(() => {
+    if (!import.meta.env.DEV || !panelEl) return;
+    void open;
+    ensurePos(panelEl);
+    const onResize = () => {
+      const el = panelEl;
+      const current = untrack(() => pos);
+      if (!el || !current) return;
+      const next = clampPos(current.x, current.y, el);
+      if (next.x !== current.x || next.y !== current.y) {
+        pos = next;
+        savePos(next);
+      }
+    };
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  });
+
+  $effect(() => {
     if (!import.meta.env.DEV) return;
-    void bootError;
     void mode;
     let cancelled = false;
     void (async () => {
       try {
         const res = await fetch("/api/_mock/state");
         if (!res.ok || cancelled) return;
-        const data = (await res.json()) as {
-          scenario?: ScenarioId;
-          faults?: Partial<Record<FaultId, boolean>>;
-        };
+        const data = (await res.json()) as { scenario?: ScenarioId };
         if (data.scenario) activeScenario = data.scenario;
-        if (data.faults) activeFaults = data.faults;
       } catch {
         /* ignore sync failures */
       }
@@ -169,57 +282,11 @@
       const response = await fetch("/api/_mock/scenario", { method: "POST", body });
       if (!response.ok) throw new Error(`scenario failed (${response.status})`);
       activeScenario = scenario.id;
-      activeFaults = {};
       router.navigate(scenario.path);
       await onChanged();
     } finally {
       busy = false;
     }
-  }
-
-  async function postFault(id: FaultId, enabled: boolean) {
-    const response = await fetch("/api/_mock/fault", {
-      method: "POST",
-      body: new URLSearchParams({ fault: id, enabled: enabled ? "1" : "0" }),
-    });
-    if (!response.ok) throw new Error(`fault failed (${response.status})`);
-    const data = (await response.json()) as { faults?: Partial<Record<FaultId, boolean>> };
-    if (data.faults) activeFaults = data.faults;
-    else activeFaults = { ...activeFaults, [id]: enabled };
-  }
-
-  /** Faults are exclusive with each other and with scenarios. */
-  async function selectExclusiveFault(fault: { id: FaultId; path: string }) {
-    busy = true;
-    try {
-      if (activeFaults[fault.id]) {
-        await postFault(fault.id, false);
-      } else {
-        const scenarioBody = new URLSearchParams({ scenario: "sta-connected" });
-        const scenarioResponse = await fetch("/api/_mock/scenario", {
-          method: "POST",
-          body: scenarioBody,
-        });
-        if (!scenarioResponse.ok) {
-          throw new Error(`scenario failed (${scenarioResponse.status})`);
-        }
-        activeScenario = "sta-connected";
-        activeFaults = {};
-        await postFault(fault.id, true);
-      }
-      router.navigate(fault.path);
-      await onChanged();
-    } finally {
-      busy = false;
-    }
-  }
-
-  async function setLoadFault(fault: { id: LoadFaultId; path: string }) {
-    await selectExclusiveFault(fault);
-  }
-
-  async function setActionFault(fault: { id: ActionFaultId; path: string }) {
-    await selectExclusiveFault(fault);
   }
 </script>
 
@@ -258,20 +325,48 @@
 
 {#if import.meta.env.DEV}
   <div
-    class="fixed right-3 top-3 z-40 w-[min(16rem,calc(100vw-1.5rem))] rounded-xl border border-border bg-surface/95 p-2 text-xs shadow-lg backdrop-blur"
+    bind:this={panelEl}
+    class="fixed z-40 w-[min(16rem,calc(100vw-1.5rem))] rounded-xl border border-border bg-surface/95 p-2 text-xs shadow-lg backdrop-blur"
+    style:left={pos ? `${pos.x}px` : undefined}
+    style:top={pos ? `${pos.y}px` : "0.75rem"}
+    style:right={pos ? "auto" : "0.75rem"}
   >
-    <button
-      type="button"
-      class="flex w-full items-center justify-between px-1 py-0.5 text-left font-semibold text-accent"
-      onclick={() => (open = !open)}
-    >
-      <span>Simulator{bootError ? " · offline" : ""}</span>
-      {#if open}
-        <X size={14} />
-      {:else}
-        <span>Open</span>
-      {/if}
-    </button>
+    <div class="flex w-full items-center gap-1">
+      <button
+        type="button"
+        aria-label="Move simulator"
+        title="Move simulator"
+        class={cn(
+          "inline-flex size-7 shrink-0 touch-none items-center justify-center rounded-md text-muted",
+          dragging ? "cursor-grabbing" : "cursor-grab",
+          HOVER_SURFACE,
+        )}
+        onpointerdown={onDragPointerDown}
+        onpointermove={onDragPointerMove}
+        onpointerup={onDragPointerUp}
+        onpointercancel={onDragPointerUp}
+      >
+        <GripVertical size={14} aria-hidden="true" />
+      </button>
+      <span class="min-w-0 flex-1 truncate px-1 py-0.5 font-semibold text-accent"> Simulator </span>
+      <button
+        type="button"
+        class={cn(
+          "inline-flex h-7 shrink-0 items-center justify-center rounded-md px-1.5 text-accent",
+          HOVER_SURFACE,
+        )}
+        aria-expanded={open}
+        aria-label={open ? "Close simulator" : "Open simulator"}
+        title={open ? "Close" : "Open"}
+        onclick={() => (open = !open)}
+      >
+        {#if open}
+          <X size={14} aria-hidden="true" />
+        {:else}
+          <span class="text-xs font-semibold">Open</span>
+        {/if}
+      </button>
+    </div>
     {#if open}
       <div
         class="mt-2 max-h-[min(75vh,36rem)] space-y-1 overflow-y-auto border-t border-border pt-2"
@@ -283,7 +378,7 @@
               <div class="ml-2 mt-1" role="group">
                 {#each group.items as scenario, index (scenario.id)}
                   {@const isLast = index === group.items.length - 1}
-                  {@const active = !scenarioHighlightBlocked && activeScenario === scenario.id}
+                  {@const active = activeScenario === scenario.id}
                   <div class="relative pl-3">
                     {@render treeLines(isLast)}
                     <button
@@ -305,58 +400,6 @@
             {/if}
           </section>
         {/each}
-
-        <section class="mt-2 border-t border-border pt-3">
-          {@render sectionHeader("Load errors", "Load errors")}
-          {#if openSections["Load errors"]}
-            <div class="ml-2 mt-1" role="group">
-              {#each loadFaultItems as fault, index (fault.id)}
-                {@const isLast = index === loadFaultItems.length - 1}
-                {@const active = selectedLoadFault === fault.id}
-                <div class="relative pl-3">
-                  {@render treeLines(isLast)}
-                  <button
-                    type="button"
-                    disabled={busy}
-                    class={cn(
-                      "block w-full rounded-md px-2 py-1.5 text-left disabled:opacity-50",
-                      active ? cn(ACTIVE_ACCENT, "font-semibold") : cn("text-muted", HOVER_SURFACE),
-                    )}
-                    onclick={() => void setLoadFault(fault)}
-                  >
-                    {fault.label}
-                  </button>
-                </div>
-              {/each}
-            </div>
-          {/if}
-        </section>
-
-        <section class="mt-2 border-t border-border pt-3">
-          {@render sectionHeader("Action errors", "Action errors")}
-          {#if openSections["Action errors"]}
-            <div class="ml-2 mt-1" role="group">
-              {#each actionFaultItems as fault, index (fault.id)}
-                {@const isLast = index === actionFaultItems.length - 1}
-                {@const active = selectedActionFault === fault.id}
-                <div class="relative pl-3">
-                  {@render treeLines(isLast)}
-                  <button
-                    type="button"
-                    disabled={busy}
-                    class={cn(
-                      "block w-full rounded-md px-2 py-1.5 text-left disabled:opacity-50",
-                      active ? cn(ACTIVE_ACCENT, "font-semibold") : cn("text-muted", HOVER_SURFACE),
-                    )}
-                    onclick={() => void setActionFault(fault)}
-                  >
-                    {fault.label}
-                  </button>
-                </div>
-              {/each}
-            </div>
-          {/if}
-        </section>
 
         <section class="mt-2 border-t border-border pt-3">
           {@render sectionHeader("Open page", "Open page")}

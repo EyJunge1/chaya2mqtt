@@ -27,7 +27,6 @@
   import Alert from "./Alert.svelte";
   import IconButton from "./IconButton.svelte";
   import Link from "./Link.svelte";
-  import ShellFooter from "./ShellFooter.svelte";
   import ShellUtilityButtons from "./ShellUtilityButtons.svelte";
 
   const SIDEBAR_COLLAPSED_KEY = "chaya2mqtt-sidebar-collapsed";
@@ -275,7 +274,6 @@
           {/if}
         </div>
       </nav>
-      <ShellFooter {collapsed} />
     </aside>
   {/if}
 
@@ -302,7 +300,6 @@
             <div class="hidden lg:contents">
               <IconButton
                 type="button"
-                variant="bordered"
                 data-testid="sidebar-collapse-toggle"
                 class="size-10 rounded-xl"
                 onclick={() => (collapsed = !collapsed)}
@@ -342,42 +339,35 @@
               href="/"
               data-testid="wifi-test-back"
               class={cn(
-                "inline-flex size-8 shrink-0 items-center justify-center rounded-lg border border-border bg-surface text-muted transition focus-ring",
+                "focus-ring inline-flex size-10 shrink-0 items-center justify-center rounded-xl text-muted transition",
                 HOVER_SURFACE,
               )}
               aria-label={i18n.t("nav.back")}
               title={i18n.t("nav.back")}
             >
-              <ArrowLeft size={16} aria-hidden="true" />
+              <ArrowLeft size={18} aria-hidden="true" />
             </Link>
           {:else if settingsChild}
             <Link
               href="/settings"
               data-testid="settings-back"
               class={cn(
-                "inline-flex size-8 shrink-0 items-center justify-center rounded-lg border border-border bg-surface text-muted transition focus-ring lg:hidden",
+                "focus-ring inline-flex size-10 shrink-0 items-center justify-center rounded-xl text-muted transition lg:hidden",
                 HOVER_SURFACE,
               )}
               aria-label={i18n.t("nav.back")}
               title={i18n.t("nav.back")}
             >
-              <ArrowLeft size={16} aria-hidden="true" />
+              <ArrowLeft size={18} aria-hidden="true" />
             </Link>
           {/if}
           <h1 class="min-w-0 flex-1 truncate text-xl font-bold text-text-bright lg:text-2xl">
             {title}
           </h1>
-          {#if hideSidebar}
-            <div class="shrink-0">
-              <ShellUtilityButtons />
-            </div>
-          {/if}
-        </div>
-        {#if !hideSidebar}
-          <div class="mt-2 flex justify-end px-3 lg:hidden">
+          <div class="shrink-0">
             <ShellUtilityButtons />
           </div>
-        {/if}
+        </div>
         {#if live === "reconnecting"}
           <div class={cn("mt-2", hideSidebar ? CONTENT_SHELL : "mx-3 lg:mx-4")}>
             <Alert variant="warning" class="rounded-lg px-3 py-2">

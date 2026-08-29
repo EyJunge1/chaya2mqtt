@@ -216,7 +216,7 @@
 
     <Panel>
       <form class="space-y-3" onsubmit={(e) => void save(e)}>
-        <Field label={i18n.t("mqtt.server")} hint={i18n.t("mqtt.server-hint")} required>
+        <Field label={i18n.t("mqtt.server")} hint={i18n.t("mqtt.server-hint")}>
           <div class="flex items-stretch gap-2">
             <SegmentedControl
               compact
@@ -238,16 +238,15 @@
             </div>
           </div>
         </Field>
-        <Field label={i18n.t("mqtt.port")} hint={i18n.t("mqtt.port-hint")} required>
+        <Field label={i18n.t("mqtt.port")} hint={i18n.t("mqtt.port-hint")}>
           <TextInput type="number" min={1} max={65535} bind:value={cfg.port} required />
         </Field>
-        <Field label={i18n.t("mqtt.user")} hint={i18n.t("mqtt.user-hint")} optional>
+        <Field label={i18n.t("mqtt.user")} hint={i18n.t("mqtt.user-hint")}>
           <TextInput bind:value={cfg.username} maxlength={63} />
         </Field>
         <Field
           label={i18n.t("mqtt.pass")}
           hint={cfg.hasPassword ? i18n.t("mqtt.pass-hint") : i18n.t("mqtt.pass-hint-empty")}
-          optional
         >
           <TextInput
             type="password"
@@ -258,13 +257,12 @@
           />
         </Field>
 
-        <Field label={i18n.t("mqtt.partner-id")} hint={i18n.t("mqtt.partner-hint")} required>
+        <Field label={i18n.t("mqtt.partner-id")} hint={i18n.t("mqtt.partner-hint")}>
           <TextInput
             bind:value={partner}
             maxlength={6}
             pattern={"[0-9a-fA-F]{6}"}
             placeholder="f5e6d7"
-            required
           />
         </Field>
 

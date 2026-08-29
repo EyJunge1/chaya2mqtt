@@ -79,7 +79,6 @@ describe("MqttPage", () => {
     render(MqttPage, { props: { mqtt: { connected: false }, onToast } });
 
     await screen.findByDisplayValue("mqtt.example.com");
-    expect(screen.getAllByText("(common.optional)").length).toBe(2);
     fireEvent.click(screen.getByRole("button", { name: "common.save" }));
 
     await waitFor(() => {

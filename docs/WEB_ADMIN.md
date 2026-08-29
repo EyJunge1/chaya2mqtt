@@ -27,17 +27,17 @@ The Vite development server starts a **virtual Chaya2MQTT** under `frontend/mock
 
 | Group | Scenarios |
 |-------|-----------|
-| Device | `sta-connected`, `boot-unreachable`, `boot-slow`, `sse-disconnected` |
-| Network | `offline`, `sta-mqtt-offline`, `sta-mqtt-unconfigured`, `sta-mqtt-unpaired` |
-| Wi‑Fi / Setup | `ap-setup`, `wifi-scan-empty`, `wifi-scan-fail`, `ap-test-idle`, `ap-test-testing`, `ap-test-ok`, `ap-test-failed` |
-| Update | `update-available`, `update-checking`, `update-busy`, `update-verifying`, `update-rebooting`, `update-error` |
+| Connection | `sta-connected`, `sse-disconnected`, `device-unreachable` |
+| Dashboard | `battery-full`, `battery-medium`, `battery-low`, `battery-critical`, `heart-busy`, `heart-send-fail` |
+| MQTT | `sta-mqtt-offline`, `sta-mqtt-unconfigured`, `sta-mqtt-unpaired`, `mqtt-no-auth`, `mqtt-load-fail`, `mqtt-save-fail` |
+| Settings | `settings-load-fail`, `settings-save-fail`, `settings-reboot-fail`, `settings-factory-reset-fail` |
+| Wi‑Fi | `wifi-weak`, `wifi-static`, `wifi-sta-save-fail` |
+| AP setup | `ap-setup`, `wifi-scan-empty`, `wifi-scan-fail`, `ap-test-idle`, `ap-test-testing`, `ap-test-ok`, `ap-test-failed`, `wifi-test-start-fail`, `wifi-test-save-fail`, `wifi-test-retry-fail`, `wifi-test-abort-fail` |
+| Update | `update-uptodate`, `update-available`, `update-beta`, `update-checking`, `update-busy`, `update-progress-unknown`, `update-verifying`, `update-rebooting`, `update-error`, `update-check-fail`, `update-install-fail`, `update-status-fail` |
 
-### Fault injection (API/SSE errors)
+### Fault injection (API)
 
-The toolbar or `POST /api/_mock/fault` (`fault=<key>&enabled=1`, `clear=1`) can reproduce errors without modifying device state:
-
-- Load errors: `device`, `mqtt`, `settings`, `update-status`, `sse`, …
-- Action errors: `mqtt-save`, `settings-save`, `reboot`, `factory-reset`, `heart`, `wifi-scan`, `wifi-connect`, `wifi-commit`, `wifi-abort`, `update-check`, `update-install`, …
+`POST /api/_mock/fault` (`fault=<key>&enabled=1`, `clear=1`) can still toggle individual fault keys for automated tests. Prefer the scenario presets above in the simulator toolbar.
 
 Additional development endpoints: `POST /api/_mock/scenario`, `POST /api/_mock/reset`, `GET /api/_mock/state`.
 

@@ -3,27 +3,58 @@ import { randomBytes } from "node:crypto";
 export type MockMode = "ap" | "sta";
 
 export const MOCK_SCENARIOS = [
+  // Connection
   "sta-connected",
-  "offline",
+  "sse-disconnected",
+  "device-unreachable",
+  // Dashboard
+  "battery-full",
+  "battery-medium",
+  "battery-low",
+  "battery-critical",
+  "heart-busy",
+  "heart-send-fail",
+  // MQTT
   "sta-mqtt-offline",
   "sta-mqtt-unconfigured",
   "sta-mqtt-unpaired",
+  "mqtt-no-auth",
+  "mqtt-load-fail",
+  "mqtt-save-fail",
+  // Settings
+  "settings-load-fail",
+  "settings-save-fail",
+  "settings-reboot-fail",
+  "settings-factory-reset-fail",
+  // Wi-Fi
+  "wifi-weak",
+  "wifi-static",
+  "wifi-sta-save-fail",
+  // AP setup
   "ap-setup",
+  "wifi-scan-empty",
+  "wifi-scan-fail",
   "ap-test-idle",
   "ap-test-testing",
   "ap-test-ok",
   "ap-test-failed",
-  "wifi-scan-empty",
-  "wifi-scan-fail",
-  "boot-unreachable",
-  "boot-slow",
-  "sse-disconnected",
+  "wifi-test-start-fail",
+  "wifi-test-save-fail",
+  "wifi-test-retry-fail",
+  "wifi-test-abort-fail",
+  // Update (lifecycle order)
+  "update-uptodate",
   "update-available",
+  "update-beta",
   "update-checking",
   "update-busy",
+  "update-progress-unknown",
   "update-verifying",
   "update-rebooting",
   "update-error",
+  "update-check-fail",
+  "update-install-fail",
+  "update-status-fail",
 ] as const;
 
 export type MockScenario = (typeof MOCK_SCENARIOS)[number];
@@ -128,9 +159,9 @@ export interface MockState {
   rxMs: number;
   batteryMv: number;
   batteryPct: number;
+  heartBusy: boolean;
   scanReadyAt: number;
   scanMode: MockScanMode;
-  deviceDelayMs: number;
   faults: MockFaults;
   ota: {
     phase: "idle" | "checking" | "available" | "downloading" | "verifying" | "rebooting" | "error";
@@ -262,9 +293,28 @@ function setOtaPhase(
 
 function clearSimulatorControls(target: MockState): void {
   target.faults = emptyFaults();
-  target.deviceDelayMs = 0;
   target.scanMode = "normal";
   target.scanReadyAt = 0;
+  target.heartBusy = false;
+}
+
+function resetBaselineSettings(target: MockState): void {
+  target.batteryMv = 3900;
+  target.batteryPct = 55;
+  target.audioTxEnabled = false;
+  target.audioRxEnabled = false;
+  target.audioTxVolume = 70;
+  target.audioRxVolume = 70;
+  target.quietHourStart = 0;
+  target.quietHourEnd = 0;
+  target.ledEnabled = true;
+  target.resetDays = 7;
+  target.lang = "en";
+  target.theme = "light";
+  target.txHz = 880;
+  target.txMs = 80;
+  target.rxHz = 660;
+  target.rxMs = 140;
 }
 
 export function createInitialState(scenario: MockScenario = "sta-connected"): MockState {
@@ -314,10 +364,10 @@ export function createInitialState(scenario: MockScenario = "sta-connected"): Mo
     rxMs: 140,
     batteryMv: 3900,
     batteryPct: 55,
+    heartBusy: false,
     wifiConnect: idleWifiConnect(),
     scanReadyAt: 0,
     scanMode: "normal",
-    deviceDelayMs: 0,
     faults: emptyFaults(),
     ota: {
       phase: "idle",
@@ -349,6 +399,7 @@ export function applyScenario(state: MockState, scenario: MockScenario): void {
   };
   state.wifiConnect = idleWifiConnect();
   clearSimulatorControls(state);
+  resetBaselineSettings(state);
 
   switch (scenario) {
     case "ap-setup":
@@ -429,17 +480,21 @@ export function applyScenario(state: MockState, scenario: MockScenario): void {
       state.scanMode = "fail";
       setOtaIdle(state);
       break;
-    case "boot-unreachable":
-      applyStaOnlineDefaults(state);
-      state.mqttConnected = true;
-      state.faults.device = true;
-      setOtaIdle(state);
+    case "wifi-test-start-fail":
+      armApWifiTestPreview(state, "testing");
+      state.faults["wifi-connect"] = true;
       break;
-    case "boot-slow":
-      applyStaOnlineDefaults(state);
-      state.mqttConnected = true;
-      state.deviceDelayMs = 3000;
-      setOtaIdle(state);
+    case "wifi-test-save-fail":
+      armApWifiTestPreview(state, "ok");
+      state.faults["wifi-commit"] = true;
+      break;
+    case "wifi-test-retry-fail":
+      armApWifiTestPreview(state, "fail");
+      state.faults["wifi-retry"] = true;
+      break;
+    case "wifi-test-abort-fail":
+      armApWifiTestPreview(state, "testing");
+      state.faults["wifi-abort"] = true;
       break;
     case "sse-disconnected":
       applyStaOnlineDefaults(state);
@@ -447,10 +502,10 @@ export function applyScenario(state: MockState, scenario: MockScenario): void {
       state.faults.sse = true;
       setOtaIdle(state);
       break;
-    case "offline":
+    case "device-unreachable":
       applyStaOnlineDefaults(state);
-      clearWifiLink(state);
-      state.mqttConnected = false;
+      state.mqttConnected = true;
+      state.faults.device = true;
       setOtaIdle(state);
       break;
     case "sta-mqtt-offline":
@@ -480,6 +535,116 @@ export function applyScenario(state: MockState, scenario: MockScenario): void {
       state.mqttConnected = true;
       setOtaIdle(state);
       break;
+    case "mqtt-no-auth":
+      applyStaOnlineDefaults(state);
+      state.mqtt.username = "";
+      state.mqtt.password = "";
+      state.mqttConnected = true;
+      setOtaIdle(state);
+      break;
+    case "mqtt-load-fail":
+      applyStaOnlineDefaults(state);
+      state.mqttConnected = true;
+      state.faults.mqtt = true;
+      setOtaIdle(state);
+      break;
+    case "mqtt-save-fail":
+      applyStaOnlineDefaults(state);
+      state.mqttConnected = true;
+      state.faults["mqtt-save"] = true;
+      setOtaIdle(state);
+      break;
+    case "settings-load-fail":
+      applyStaOnlineDefaults(state);
+      state.mqttConnected = true;
+      state.faults.settings = true;
+      setOtaIdle(state);
+      break;
+    case "settings-save-fail":
+      applyStaOnlineDefaults(state);
+      state.mqttConnected = true;
+      state.faults["settings-save"] = true;
+      setOtaIdle(state);
+      break;
+    case "settings-reboot-fail":
+      applyStaOnlineDefaults(state);
+      state.mqttConnected = true;
+      state.faults.reboot = true;
+      setOtaIdle(state);
+      break;
+    case "settings-factory-reset-fail":
+      applyStaOnlineDefaults(state);
+      state.mqttConnected = true;
+      state.faults["factory-reset"] = true;
+      setOtaIdle(state);
+      break;
+    case "wifi-static":
+      applyStaOnlineDefaults(state);
+      state.mqttConnected = true;
+      state.wifiConfig = {
+        mode: "static",
+        ip: "192.168.1.42",
+        gateway: "192.168.1.1",
+        netmask: "255.255.255.0",
+        dns1: "1.1.1.1",
+        dns2: "1.0.0.1",
+        ntp1: "pool.ntp.org",
+        ntp2: "",
+      };
+      setOtaIdle(state);
+      break;
+    case "wifi-sta-save-fail":
+      applyStaOnlineDefaults(state);
+      state.mqttConnected = true;
+      state.faults["wifi-connect"] = true;
+      setOtaIdle(state);
+      break;
+    case "wifi-weak":
+      applyStaOnlineDefaults(state);
+      state.mqttConnected = true;
+      state.wifiRssi = -78;
+      setOtaIdle(state);
+      break;
+    case "battery-full":
+      applyStaOnlineDefaults(state);
+      state.mqttConnected = true;
+      state.batteryPct = 100;
+      state.batteryMv = 4200;
+      setOtaIdle(state);
+      break;
+    case "battery-medium":
+      applyStaOnlineDefaults(state);
+      state.mqttConnected = true;
+      state.batteryPct = 55;
+      state.batteryMv = 3900;
+      setOtaIdle(state);
+      break;
+    case "battery-low":
+      applyStaOnlineDefaults(state);
+      state.mqttConnected = true;
+      state.batteryPct = 20;
+      state.batteryMv = 3600;
+      setOtaIdle(state);
+      break;
+    case "battery-critical":
+      applyStaOnlineDefaults(state);
+      state.mqttConnected = true;
+      state.batteryPct = 8;
+      state.batteryMv = 3400;
+      setOtaIdle(state);
+      break;
+    case "heart-busy":
+      applyStaOnlineDefaults(state);
+      state.mqttConnected = true;
+      state.heartBusy = true;
+      setOtaIdle(state);
+      break;
+    case "heart-send-fail":
+      applyStaOnlineDefaults(state);
+      state.mqttConnected = true;
+      state.faults.heart = true;
+      setOtaIdle(state);
+      break;
     case "update-available":
       applyStaOnlineDefaults(state);
       state.mqttConnected = true;
@@ -495,12 +660,38 @@ export function applyScenario(state: MockState, scenario: MockScenario): void {
       state.mqttConnected = true;
       setOtaPhase(state, "error", { error: "install_failed" });
       break;
+    case "update-check-fail":
+      applyStaOnlineDefaults(state);
+      state.mqttConnected = true;
+      state.faults["update-check"] = true;
+      setOtaIdle(state);
+      break;
+    case "update-install-fail":
+      applyStaOnlineDefaults(state);
+      state.mqttConnected = true;
+      state.faults["update-install"] = true;
+      setOtaPhase(state, "available");
+      break;
+    case "update-status-fail":
+      applyStaOnlineDefaults(state);
+      state.mqttConnected = true;
+      state.faults["update-status"] = true;
+      setOtaIdle(state);
+      break;
     case "update-busy":
       applyStaOnlineDefaults(state);
       state.mqttConnected = true;
       setOtaPhase(state, "downloading", {
         bytesDone: 400000,
         bytesTotal: 1000000,
+      });
+      break;
+    case "update-progress-unknown":
+      applyStaOnlineDefaults(state);
+      state.mqttConnected = true;
+      setOtaPhase(state, "downloading", {
+        bytesDone: 0,
+        bytesTotal: 0,
       });
       break;
     case "update-verifying":
@@ -517,6 +708,19 @@ export function applyScenario(state: MockState, scenario: MockScenario): void {
       setOtaPhase(state, "rebooting", {
         bytesDone: 1000000,
         bytesTotal: 1000000,
+      });
+      break;
+    case "update-uptodate":
+      applyStaOnlineDefaults(state);
+      state.mqttConnected = true;
+      setOtaIdle(state);
+      break;
+    case "update-beta":
+      applyStaOnlineDefaults(state);
+      state.mqttConnected = true;
+      setOtaPhase(state, "available", {
+        channel: "beta",
+        availableVersion: "2026.8.2-rc.1",
       });
       break;
     case "sta-connected":
@@ -730,7 +934,6 @@ export function mockControlPayload() {
   return {
     scenario: state.scenario,
     mode: state.mode,
-    deviceDelayMs: state.deviceDelayMs,
     scanMode: state.scanMode,
     faults: { ...state.faults },
   };

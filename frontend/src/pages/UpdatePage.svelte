@@ -4,7 +4,6 @@
   import { otaHasPendingUpdate } from "../api/ota.ts";
   import type { OtaChannel, OtaPhase, OtaStatus } from "../api/types.ts";
   import ActionRow from "../components/ActionRow.svelte";
-  import Alert from "../components/Alert.svelte";
   import ConfirmDialog from "../components/ConfirmDialog.svelte";
   import ErrorBlock from "../components/ErrorBlock.svelte";
   import Field from "../components/Field.svelte";
@@ -46,10 +45,19 @@
   let loadError = $state(false);
   let busy = $state(false);
   let confirmInstall = $state(false);
+  let toastedError = $state("");
 
   function applyStatus(next: OtaStatus) {
     status = next;
     channel = next.channel;
+    if (next.phase === "error" && next.error) {
+      if (next.error !== toastedError) {
+        toastedError = next.error;
+        onToast(i18n.t("update.error-title"), "error");
+      }
+    } else {
+      toastedError = "";
+    }
   }
 
   async function load() {
@@ -192,12 +200,6 @@
 
       {#if status.phase === "rebooting"}
         <p class="text-sm text-muted">{i18n.t("update.rebooting-hint")}</p>
-      {/if}
-
-      {#if status.phase === "error" && status.error}
-        <Alert variant="error" title={i18n.t("update.error-title")}>
-          {i18n.t("update.error", { code: status.error })}
-        </Alert>
       {/if}
 
       <ActionRow>
