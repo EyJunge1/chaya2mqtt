@@ -146,6 +146,22 @@ describe("mock API parity", () => {
     expect(status.body).toEqual({ state: "testing", ssid: "MockNet" });
   });
 
+  it("shows commit button on wifi-test save fault preview", async () => {
+    await callApi("POST", "/api/_mock/fault", "fault=wifi-commit&enabled=1");
+    expect(getState().mode).toBe("ap");
+    expect(getState().wifiConnect.state).toBe("ok");
+    const status = await callApi("GET", "/api/wifi/connect-status");
+    expect(status.status).toBe(200);
+    expect(status.body).toEqual({ state: "ok", ssid: "MockNet" });
+  });
+
+  it("shows retry preview for wifi-test retry fault", async () => {
+    await callApi("POST", "/api/_mock/fault", "fault=wifi-retry&enabled=1");
+    const status = await callApi("GET", "/api/wifi/connect-status");
+    expect(status.status).toBe(200);
+    expect(status.body).toEqual({ state: "fail", ssid: "MockNet" });
+  });
+
   it("rejects wifi connect-retry when not failed", async () => {
     await callApi("POST", "/api/_mock/scenario", "scenario=ap-test-ok");
     const retry = await callApi("POST", "/api/wifi/connect-retry", csrfBody());

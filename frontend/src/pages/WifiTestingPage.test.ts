@@ -73,16 +73,49 @@ describe("WifiTestingPage", () => {
   it("shows retry on fail and restarts the connection test", async () => {
     getWifiConnectStatus.mockResolvedValue({ state: "fail", ssid: "HomeNet" });
     retryWifiConnect.mockResolvedValue({ ok: true, message: "retrying" });
-    render(WifiTestingPage, { props: { onToast: vi.fn() } });
+    const onToast = vi.fn();
+    render(WifiTestingPage, { props: { onToast } });
 
     const retry = await screen.findByRole("button", { name: "Try again" });
     expect(screen.queryByRole("button", { name: "Save & reboot" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Cancel" })).toBeNull();
+    await waitFor(() => {
+      expect(onToast).toHaveBeenCalledWith("Connection failed", "error");
+    });
     await fireEvent.click(retry);
 
     await waitFor(() => expect(retryWifiConnect).toHaveBeenCalledOnce());
     await waitFor(() => {
       expect(screen.getByRole("status")).toHaveTextContent("Testing connection…");
     });
+  });
+
+  it("toasts connection failed when the test transitions to fail", async () => {
+    getWifiConnectStatus
+      .mockResolvedValueOnce({ state: "testing", ssid: "HomeNet" })
+      .mockResolvedValue({ state: "fail", ssid: "HomeNet" });
+    const onToast = vi.fn();
+    render(WifiTestingPage, { props: { onToast } });
+
+    await waitFor(() => {
+      expect(screen.getByRole("status")).toHaveTextContent("Testing connection…");
+    });
+    await waitFor(() => {
+      expect(onToast).toHaveBeenCalledWith("Connection failed", "error");
+    });
+    expect(onToast).toHaveBeenCalledOnce();
+  });
+
+  it("toasts connection successful when the test transitions to ok", async () => {
+    getWifiConnectStatus
+      .mockResolvedValueOnce({ state: "testing", ssid: "HomeNet" })
+      .mockResolvedValue({ state: "ok", ssid: "HomeNet" });
+    const onToast = vi.fn();
+    render(WifiTestingPage, { props: { onToast } });
+
+    await waitFor(() => {
+      expect(onToast).toHaveBeenCalledWith("Connection successful", "success");
+    });
+    expect(await screen.findByRole("button", { name: "Save & reboot" })).toBeTruthy();
   });
 });

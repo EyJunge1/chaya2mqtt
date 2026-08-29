@@ -66,7 +66,7 @@
     { id: "factory-reset", label: "Factory reset", path: "/settings/device" },
     { id: "heart", label: "Send heart", path: "/" },
     { id: "wifi-scan", label: "Wi-Fi scan", path: "/wifi" },
-    { id: "wifi-connect", label: "Wi-Fi test start", path: "/" },
+    { id: "wifi-connect", label: "Wi-Fi test start", path: "/wifi-testing" },
     { id: "wifi-commit", label: "Wi-Fi test save", path: "/wifi-testing" },
     { id: "wifi-retry", label: "Wi-Fi test retry", path: "/wifi-testing" },
     { id: "update-check", label: "Update check", path: "/update" },

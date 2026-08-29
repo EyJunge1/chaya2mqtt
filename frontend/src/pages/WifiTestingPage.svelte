@@ -1,7 +1,6 @@
 <script lang="ts">
   import { api } from "../api/client.ts";
   import type { WifiConnectStatus } from "../api/types.ts";
-  import Alert from "../components/Alert.svelte";
   import Panel from "../components/Panel.svelte";
   import PrimaryButton from "../components/PrimaryButton.svelte";
   import Spinner from "../components/Spinner.svelte";
@@ -12,13 +11,21 @@
 
   let status = $state<WifiConnectStatus>({ state: "testing", ssid: "" });
   let busy = $state(false);
+  let prevState = $state<WifiConnectStatus["state"] | null>(null);
 
   $effect(() => {
     let alive = true;
     const tick = async () => {
       try {
         const s = await api.getWifiConnectStatus();
-        if (alive) status = s;
+        if (!alive) return;
+        if (s.state === "fail" && prevState !== "fail") {
+          onToast(i18n.t("toast.wifi-connect-failed"), "error");
+        } else if (s.state === "ok" && prevState !== "ok") {
+          onToast(i18n.t("toast.wifi-connect-ok"), "success");
+        }
+        prevState = s.state;
+        status = s;
       } catch {
         /* keep polling */
       }
@@ -60,6 +67,7 @@
         onToast(i18n.t("toast.wifi-retry-failed"), "error");
         return;
       }
+      prevState = "testing";
       status = { state: "testing", ssid: status.ssid };
     } catch {
       onToast(i18n.t("toast.wifi-retry-failed"), "error");
@@ -96,7 +104,6 @@
     </p>
   </Panel>
   {#if status.state === "fail"}
-    <Alert variant="error">{i18n.t("wifi-test.fail")}</Alert>
     <PrimaryButton loading={busy} onclick={() => void retry()}>
       {i18n.t("common.retry")}
     </PrimaryButton>
