@@ -135,6 +135,24 @@ describe("mock API parity", () => {
     expect(res.body).toEqual({ state: "fail", ssid: "MockNet" });
   });
 
+  it("retries a failed AP wifi connection test", async () => {
+    await callApi("POST", "/api/_mock/scenario", "scenario=ap-test-failed");
+    const retry = await callApi("POST", "/api/wifi/connect-retry", csrfBody());
+    expect(retry.status).toBe(200);
+    expect(retry.body).toEqual({ ok: true, message: "retrying" });
+
+    const status = await callApi("GET", "/api/wifi/connect-status");
+    expect(status.status).toBe(200);
+    expect(status.body).toEqual({ state: "testing", ssid: "MockNet" });
+  });
+
+  it("rejects wifi connect-retry when not failed", async () => {
+    await callApi("POST", "/api/_mock/scenario", "scenario=ap-test-ok");
+    const retry = await callApi("POST", "/api/wifi/connect-retry", csrfBody());
+    expect(retry.status).toBe(400);
+    expect(retry.body).toEqual({ ok: false, error: "not_fail" });
+  });
+
   it("keeps ap-test-testing frozen", async () => {
     await callApi("POST", "/api/_mock/scenario", "scenario=ap-test-testing");
     getState().wifiConnect.startedAt = Date.now() - 10_000;

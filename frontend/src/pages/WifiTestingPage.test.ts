@@ -7,12 +7,14 @@ import WifiTestingPage from "./WifiTestingPage.svelte";
 const getWifiConnectStatus = vi.fn();
 const commitWifiConnect = vi.fn();
 const abortWifiConnect = vi.fn();
+const retryWifiConnect = vi.fn();
 
 vi.mock("../api/client", () => ({
   api: {
     getWifiConnectStatus: () => getWifiConnectStatus(),
     commitWifiConnect: () => commitWifiConnect(),
     abortWifiConnect: () => abortWifiConnect(),
+    retryWifiConnect: () => retryWifiConnect(),
   },
 }));
 
@@ -26,9 +28,10 @@ describe("WifiTestingPage", () => {
   beforeEach(() => {
     setLanguage("en");
     getWifiConnectStatus.mockResolvedValue({ state: "testing", ssid: "HomeNet" });
+    abortWifiConnect.mockResolvedValue({ ok: true });
   });
 
-  it("shows testing status with busy indicator", async () => {
+  it("shows only the testing panel while connecting", async () => {
     render(WifiTestingPage, { props: { onToast: vi.fn() } });
 
     await waitFor(() => {
@@ -37,21 +40,17 @@ describe("WifiTestingPage", () => {
     const status = screen.getByRole("status");
     expect(status).toHaveAttribute("aria-busy", "true");
     expect(status).toHaveTextContent("Testing connection…");
-    expect(screen.getByRole("button", { name: "Save & reboot" })).toBeDisabled();
+    expect(screen.queryByRole("button")).toBeNull();
   });
 
-  it("returns to the AP setup root after cancelling", async () => {
-    abortWifiConnect.mockResolvedValue({ ok: true });
-    router.replace("/wifi-testing");
-    render(WifiTestingPage, { props: { onToast: vi.fn() } });
-
-    await fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
-
-    await waitFor(() => expect(router.pathname).toBe("/"));
-    expect(abortWifiConnect).toHaveBeenCalledOnce();
+  it("aborts the connection test when leaving the page", async () => {
+    const { unmount } = render(WifiTestingPage, { props: { onToast: vi.fn() } });
+    await waitFor(() => expect(screen.getByText("HomeNet")).toBeInTheDocument());
+    unmount();
+    await waitFor(() => expect(abortWifiConnect).toHaveBeenCalledOnce());
   });
 
-  it("schedules navigation to the tested station IP after commit", async () => {
+  it("shows save & reboot only after a successful test", async () => {
     getWifiConnectStatus.mockResolvedValue({ state: "ok", ssid: "HomeNet" });
     commitWifiConnect.mockResolvedValue({
       ok: true,
@@ -62,11 +61,28 @@ describe("WifiTestingPage", () => {
     render(WifiTestingPage, { props: { onToast: vi.fn() } });
 
     const commit = await screen.findByRole("button", { name: "Save & reboot" });
-    await waitFor(() => expect(commit).toBeEnabled());
+    expect(screen.queryByRole("button", { name: "Try again" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Cancel" })).toBeNull();
     await fireEvent.click(commit);
 
     await waitFor(() => expect(commitWifiConnect).toHaveBeenCalledOnce());
     expect(timeoutSpy).toHaveBeenCalledWith(expect.any(Function), 2000);
     timeoutSpy.mockRestore();
+  });
+
+  it("shows retry on fail and restarts the connection test", async () => {
+    getWifiConnectStatus.mockResolvedValue({ state: "fail", ssid: "HomeNet" });
+    retryWifiConnect.mockResolvedValue({ ok: true, message: "retrying" });
+    render(WifiTestingPage, { props: { onToast: vi.fn() } });
+
+    const retry = await screen.findByRole("button", { name: "Try again" });
+    expect(screen.queryByRole("button", { name: "Save & reboot" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Cancel" })).toBeNull();
+    await fireEvent.click(retry);
+
+    await waitFor(() => expect(retryWifiConnect).toHaveBeenCalledOnce());
+    await waitFor(() => {
+      expect(screen.getByRole("status")).toHaveTextContent("Testing connection…");
+    });
   });
 });

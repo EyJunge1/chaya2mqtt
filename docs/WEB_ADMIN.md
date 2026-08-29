@@ -74,6 +74,7 @@ Mutations expect `application/x-www-form-urlencoded`, including `csrf_token`.
 | `/api/wifi/connect-status` | GET | AP | Test state |
 | `/api/wifi/connect-commit` | POST | AP + CSRF | Save + reboot |
 | `/api/wifi/connect-abort` | POST | AP + CSRF | Abort test |
+| `/api/wifi/connect-retry` | POST | AP + CSRF | Retry failed test with same credentials |
 | `/api/mqtt` | GET/POST | Host/CSRF + STA | Broker + partner ID (topics derived; password never included in GET) |
 | `/api/mqtt/status` | GET | Host + STA | `{connected}` |
 | `/api/settings` | GET/POST | Host/CSRF + STA | Reset days, UI preferences, TX/RX sound enable, per-kind volume/Hz/ms, quiet hours |

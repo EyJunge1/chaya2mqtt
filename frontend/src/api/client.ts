@@ -135,6 +135,7 @@ export const api = {
   getWifiConnectStatus: () => apiGet<WifiConnectStatus>("/api/wifi/connect-status"),
   commitWifiConnect: () => apiPost("/api/wifi/connect-commit"),
   abortWifiConnect: () => apiPost("/api/wifi/connect-abort"),
+  retryWifiConnect: () => apiPost("/api/wifi/connect-retry"),
   getMqttStatus: () => apiGet<MqttStatus>("/api/mqtt/status"),
   getMqttConfig: () => apiGet<MqttConfigView>("/api/mqtt"),
   saveMqtt: (fields: {

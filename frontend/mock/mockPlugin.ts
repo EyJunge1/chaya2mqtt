@@ -342,6 +342,29 @@ export async function handleApi(req: IncomingMessage, res: ServerResponse): Prom
     return true;
   }
 
+  if (path === "/api/wifi/connect-retry" && method === "POST") {
+    if (!requireApMode(res)) return true;
+    const params = parseForm(await readBody(req));
+    if (!requireCsrf(params, res)) return true;
+    if (failIfFault("wifi-retry", res)) return true;
+    if (state.wifiConnect.state !== "fail") {
+      sendJson(res, 400, { ok: false, error: "not_fail" });
+      return true;
+    }
+    if (!state.wifiConnect.ssid) {
+      sendJson(res, 503, { ok: false, error: "test_start" });
+      return true;
+    }
+    state.wifiConnect = {
+      ...state.wifiConnect,
+      state: "testing",
+      startedAt: Date.now(),
+      freeze: false,
+    };
+    sendJson(res, 200, { ok: true, message: "retrying" });
+    return true;
+  }
+
   if (path === "/api/mqtt/status" && method === "GET") {
     if (!requireStaMode(res)) return true;
     if (failIfFault("mqtt-status", res)) return true;

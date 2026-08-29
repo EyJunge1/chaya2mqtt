@@ -323,6 +323,19 @@ void handleApiWifiConnectAbortPost(AsyncWebServerRequest* req) {
     sendOk(req, 200, "\"next\":\"/wifi\"");
 }
 
+void handleApiWifiConnectRetryPost(AsyncWebServerRequest* req) {
+    if (wlanGetWifiConnectionTestState() != WlanWifiConnectionTestState::Fail) {
+        sendErr(req, 400, "not_fail");
+        return;
+    }
+    if (!wlanRetryWifiConnectionTest()) {
+        sendErr(req, 503, "test_start");
+        return;
+    }
+    ESP_LOGI(TAG, "WiFi connect test retry started");
+    sendOk(req, 200, "\"message\":\"retrying\"");
+}
+
 
 void adminRoutesRegisterApiWifi(AsyncWebServer& ws) {
     {
@@ -361,6 +374,12 @@ void adminRoutesRegisterApiWifi(AsyncWebServer& ws) {
         AsyncCallbackWebHandler& h = ws.on(
             "/api/wifi/connect-abort", HTTP_POST,
             [](AsyncWebServerRequest* rq) { handleApiWifiConnectAbortPost(rq); });
+        h.addMiddleware(mwApiApPostCsrf());
+    }
+    {
+        AsyncCallbackWebHandler& h = ws.on(
+            "/api/wifi/connect-retry", HTTP_POST,
+            [](AsyncWebServerRequest* rq) { handleApiWifiConnectRetryPost(rq); });
         h.addMiddleware(mwApiApPostCsrf());
     }
 }

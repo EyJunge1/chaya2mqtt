@@ -265,6 +265,30 @@ paths:
           $ref: "#/components/responses/ApiError"
         "403":
           $ref: "#/components/responses/Forbidden"
+  /api/wifi/connect-retry:
+    post:
+      tags: [wifi]
+      summary: Retry failed AP connection test with the same credentials
+      operationId: retryWifiConnect
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/CsrfForm"
+      responses:
+        "200":
+          description: Retry started
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiOk"
+        "400":
+          $ref: "#/components/responses/ApiError"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "503":
+          $ref: "#/components/responses/ApiError"
   /api/mqtt/status:
     get:
       tags: [mqtt]

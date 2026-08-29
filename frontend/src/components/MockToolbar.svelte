@@ -31,9 +31,9 @@
         { id: "wifi-scan-empty", label: "Scan empty", path: "/" },
         { id: "wifi-scan-fail", label: "Scan failed", path: "/" },
         { id: "ap-test-idle", label: "Test idle", path: "/wifi-testing" },
-        { id: "ap-test-testing", label: "Test running", path: "/wifi-testing" },
-        { id: "ap-test-ok", label: "Test ok", path: "/wifi-testing" },
-        { id: "ap-test-failed", label: "Test failed", path: "/wifi-testing" },
+        { id: "ap-test-testing", label: "Wi-Fi test", path: "/wifi-testing" },
+        { id: "ap-test-ok", label: "Wi-Fi test success", path: "/wifi-testing" },
+        { id: "ap-test-failed", label: "Wi-Fi test failed", path: "/wifi-testing" },
       ],
     },
     {
@@ -51,41 +51,36 @@
 
   type ScenarioId = (typeof scenarioGroups)[number]["items"][number]["id"];
 
-  const faultGroups = [
-    {
-      title: "Load errors",
-      items: [
-        { id: "mqtt", label: "MQTT page", path: "/mqtt" },
-        { id: "settings", label: "Settings page", path: "/settings/device" },
-        { id: "update-status", label: "Update page", path: "/update" },
-        { id: "device", label: "Device boot", path: "/" },
-        { id: "sse", label: "SSE stream", path: "/" },
-      ],
-    },
-    {
-      title: "Action errors",
-      items: [
-        { id: "mqtt-save", label: "MQTT save", path: "/mqtt" },
-        { id: "settings-save", label: "Settings save", path: "/settings/device" },
-        { id: "reboot", label: "Reboot", path: "/settings/device" },
-        { id: "factory-reset", label: "Factory reset", path: "/settings/device" },
-        { id: "heart", label: "Send heart", path: "/" },
-        { id: "wifi-scan", label: "Wi-Fi scan", path: "/wifi" },
-        { id: "wifi-connect", label: "Wi-Fi connect", path: "/wifi" },
-        { id: "wifi-commit", label: "Wi-Fi commit", path: "/wifi-testing" },
-        { id: "wifi-abort", label: "Wi-Fi abort", path: "/wifi-testing" },
-        { id: "update-check", label: "Update check", path: "/update" },
-        { id: "update-install", label: "Update install", path: "/update" },
-      ],
-    },
+  const loadFaultItems = [
+    { id: "mqtt", label: "MQTT load fail", path: "/mqtt" },
+    { id: "settings", label: "Settings load fail", path: "/settings/device" },
+    { id: "update-status", label: "Update load fail", path: "/update" },
+    { id: "device", label: "Device boot fail", path: "/" },
+    { id: "sse", label: "SSE stream fail", path: "/" },
   ] as const;
 
-  type FaultId = (typeof faultGroups)[number]["items"][number]["id"];
+  const actionFaultItems = [
+    { id: "mqtt-save", label: "MQTT save", path: "/mqtt" },
+    { id: "settings-save", label: "Settings save", path: "/settings/device" },
+    { id: "reboot", label: "Reboot", path: "/settings/device" },
+    { id: "factory-reset", label: "Factory reset", path: "/settings/device" },
+    { id: "heart", label: "Send heart", path: "/" },
+    { id: "wifi-scan", label: "Wi-Fi scan", path: "/wifi" },
+    { id: "wifi-connect", label: "Wi-Fi test start", path: "/" },
+    { id: "wifi-commit", label: "Wi-Fi test save", path: "/wifi-testing" },
+    { id: "wifi-retry", label: "Wi-Fi test retry", path: "/wifi-testing" },
+    { id: "update-check", label: "Update check", path: "/update" },
+    { id: "update-install", label: "Update install", path: "/update" },
+  ] as const;
+
+  type LoadFaultId = (typeof loadFaultItems)[number]["id"];
+  type ActionFaultId = (typeof actionFaultItems)[number]["id"];
+  type FaultId = LoadFaultId | ActionFaultId;
 
   const pages = [
     { path: "/", label: "Dashboard" },
     { path: "/wifi", label: "Wi-Fi" },
-    { path: "/wifi-testing", label: "Wi-Fi test" },
+    { path: "/wifi-testing", label: "Testing page" },
     { path: "/mqtt", label: "MQTT" },
     { path: "/settings", label: "Settings" },
     { path: "/settings/device", label: "Device" },
@@ -111,9 +106,14 @@
     mode === "ap"
       ? [
           { path: "/", label: "Setup" },
-          { path: "/wifi-testing", label: "Wi-Fi test" },
+          { path: "/wifi-testing", label: "Testing page" },
         ]
       : pages,
+  );
+
+  /** At most one load fault; when set, scenario buttons are not highlighted. */
+  const selectedLoadFault = $derived(
+    loadFaultItems.find((item) => activeFaults[item.id])?.id ?? null,
   );
 
   $effect(() => {
@@ -155,19 +155,48 @@
     }
   }
 
-  async function toggleFault(fault: { id: FaultId; path: string }) {
+  async function postFault(id: FaultId, enabled: boolean) {
+    const response = await fetch("/api/_mock/fault", {
+      method: "POST",
+      body: new URLSearchParams({ fault: id, enabled: enabled ? "1" : "0" }),
+    });
+    if (!response.ok) throw new Error(`fault failed (${response.status})`);
+    const data = (await response.json()) as { faults?: Partial<Record<FaultId, boolean>> };
+    if (data.faults) activeFaults = data.faults;
+    else activeFaults = { ...activeFaults, [id]: enabled };
+  }
+
+  /** Load errors are exclusive with each other and with scenarios. */
+  async function setLoadFault(fault: { id: LoadFaultId; path: string }) {
     busy = true;
     try {
-      const enabled = !activeFaults[fault.id];
-      const body = new URLSearchParams({
-        fault: fault.id,
-        enabled: enabled ? "1" : "0",
-      });
-      const response = await fetch("/api/_mock/fault", { method: "POST", body });
-      if (!response.ok) throw new Error(`fault failed (${response.status})`);
-      const data = (await response.json()) as { faults?: Partial<Record<FaultId, boolean>> };
-      if (data.faults) activeFaults = data.faults;
-      else activeFaults = { ...activeFaults, [fault.id]: enabled };
+      if (activeFaults[fault.id]) {
+        await postFault(fault.id, false);
+      } else {
+        // Drop the scenario selection so only this load fault is highlighted.
+        const scenarioBody = new URLSearchParams({ scenario: "sta-connected" });
+        const scenarioResponse = await fetch("/api/_mock/scenario", {
+          method: "POST",
+          body: scenarioBody,
+        });
+        if (!scenarioResponse.ok) {
+          throw new Error(`scenario failed (${scenarioResponse.status})`);
+        }
+        activeScenario = "sta-connected";
+        activeFaults = {};
+        await postFault(fault.id, true);
+      }
+      router.navigate(fault.path);
+      await onChanged();
+    } finally {
+      busy = false;
+    }
+  }
+
+  async function toggleActionFault(fault: { id: ActionFaultId; path: string }) {
+    busy = true;
+    try {
+      await postFault(fault.id, !activeFaults[fault.id]);
       router.navigate(fault.path);
       await onChanged();
     } finally {
@@ -221,16 +250,16 @@
     </button>
     {#if open}
       <div
-        class="mt-2 max-h-[min(75vh,36rem)] space-y-3 overflow-y-auto border-t border-border pt-2"
+        class="mt-2 max-h-[min(75vh,36rem)] space-y-5 overflow-y-auto border-t border-border pt-2"
       >
         {#each scenarioGroups as group (group.title)}
           <section>
-            <p class="mb-1 px-2 text-[10px] font-semibold uppercase tracking-wider text-muted">
+            <p class="mb-1.5 px-2 text-xs font-semibold uppercase tracking-wider text-muted">
               {group.title}
             </p>
             <div class="space-y-1">
               {#each group.items as scenario (scenario.id)}
-                {@const active = activeScenario === scenario.id}
+                {@const active = selectedLoadFault === null && activeScenario === scenario.id}
                 <button
                   type="button"
                   disabled={busy}
@@ -247,34 +276,54 @@
           </section>
         {/each}
 
-        {#each faultGroups as group (group.title)}
-          <section>
-            <p class="mb-1 px-2 text-[10px] font-semibold uppercase tracking-wider text-muted">
-              {group.title}
-            </p>
-            <div class="space-y-1">
-              {#each group.items as fault (fault.id)}
-                {@const active = Boolean(activeFaults[fault.id])}
-                <button
-                  type="button"
-                  disabled={busy}
-                  class={cn(
-                    "block w-full rounded-md px-2 py-1.5 text-left disabled:opacity-50",
-                    active
-                      ? "bg-danger/15 font-semibold text-danger"
-                      : cn("text-muted", HOVER_SURFACE),
-                  )}
-                  onclick={() => void toggleFault(fault)}
-                >
-                  {active ? "● " : ""}{fault.label}
-                </button>
-              {/each}
-            </div>
-          </section>
-        {/each}
+        <section>
+          <p class="mb-1.5 px-2 text-xs font-semibold uppercase tracking-wider text-muted">
+            Load errors
+          </p>
+          <div class="space-y-1">
+            {#each loadFaultItems as fault (fault.id)}
+              {@const active = selectedLoadFault === fault.id}
+              <button
+                type="button"
+                disabled={busy}
+                class={cn(
+                  "block w-full rounded-md px-2 py-1.5 text-left disabled:opacity-50",
+                  active ? cn(ACTIVE_ACCENT, "font-semibold") : cn("text-muted", HOVER_SURFACE),
+                )}
+                onclick={() => void setLoadFault(fault)}
+              >
+                {fault.label}
+              </button>
+            {/each}
+          </div>
+        </section>
 
         <section>
-          <p class="mb-1 px-2 text-[10px] font-semibold uppercase tracking-wider text-muted">
+          <p class="mb-1.5 px-2 text-xs font-semibold uppercase tracking-wider text-muted">
+            Action errors
+          </p>
+          <div class="space-y-1">
+            {#each actionFaultItems as fault (fault.id)}
+              {@const active = Boolean(activeFaults[fault.id])}
+              <button
+                type="button"
+                disabled={busy}
+                class={cn(
+                  "block w-full rounded-md px-2 py-1.5 text-left disabled:opacity-50",
+                  active
+                    ? "bg-danger/15 font-semibold text-danger"
+                    : cn("text-muted", HOVER_SURFACE),
+                )}
+                onclick={() => void toggleActionFault(fault)}
+              >
+                {active ? "● " : ""}{fault.label}
+              </button>
+            {/each}
+          </div>
+        </section>
+
+        <section>
+          <p class="mb-1.5 px-2 text-xs font-semibold uppercase tracking-wider text-muted">
             Open page
           </p>
           <div class="grid grid-cols-2 gap-1">

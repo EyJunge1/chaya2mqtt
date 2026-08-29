@@ -59,15 +59,11 @@
   };
 
   function isSettingsPath(pathname: string): boolean {
-    return (
-      pathname === "/settings" ||
-      settingsChildren.some((item) => item.to === pathname) ||
-      pathname === "/wifi-testing"
-    );
+    return pathname === "/settings" || settingsChildren.some((item) => item.to === pathname);
   }
 
   function isSettingsChildPath(pathname: string): boolean {
-    return settingsChildren.some((item) => item.to === pathname) || pathname === "/wifi-testing";
+    return settingsChildren.some((item) => item.to === pathname);
   }
 
   function readCollapsed(): boolean {
@@ -341,7 +337,20 @@
               <Heart size={16} fill="currentColor" aria-hidden="true" />
             </Link>
           {/if}
-          {#if settingsChild}
+          {#if router.pathname === "/wifi-testing"}
+            <Link
+              href="/"
+              data-testid="wifi-test-back"
+              class={cn(
+                "inline-flex size-8 shrink-0 items-center justify-center rounded-lg border border-border bg-surface text-muted transition focus-ring",
+                HOVER_SURFACE,
+              )}
+              aria-label={i18n.t("nav.back")}
+              title={i18n.t("nav.back")}
+            >
+              <ArrowLeft size={16} aria-hidden="true" />
+            </Link>
+          {:else if settingsChild}
             <Link
               href="/settings"
               data-testid="settings-back"

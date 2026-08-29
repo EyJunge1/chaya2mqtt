@@ -38,6 +38,7 @@ export const MOCK_FAULT_KEYS = [
   "wifi-connect-status",
   "wifi-commit",
   "wifi-abort",
+  "wifi-retry",
   "mqtt",
   "mqtt-status",
   "mqtt-save",
