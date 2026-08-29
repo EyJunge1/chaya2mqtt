@@ -21,7 +21,9 @@ export class DeviceStore {
   booting = $state(true);
   refreshSeq = $state(0);
 
-  readonly sseKey = $derived(this.device ? `${this.device.deviceId}:${this.device.mode}` : "");
+  readonly sseKey = $derived(
+    this.device ? `${this.device.deviceId}:${this.device.mode}:${this.refreshSeq}` : "",
+  );
 
   showToast: ShowToast = (text, variant: ToastVariant = "success") => {
     this.toasts = pushToast(this.toasts, text, variant);
