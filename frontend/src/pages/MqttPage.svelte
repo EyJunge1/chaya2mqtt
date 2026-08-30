@@ -4,7 +4,6 @@
   import { api } from "../api/client.ts";
   import type { MqttConfigView, MqttStatus } from "../api/types.ts";
   import ActionRow from "../components/ActionRow.svelte";
-  import Alert from "../components/Alert.svelte";
   import ErrorBlock from "../components/ErrorBlock.svelte";
   import Field from "../components/Field.svelte";
   import KeyValueGrid from "../components/KeyValueGrid.svelte";
@@ -117,6 +116,9 @@
         return;
       }
       onToast(i18n.t("toast.mqtt-saved"), "success");
+      if (!next.tls) {
+        onToast(i18n.t("toast.mqtt-tls-off"), "warning");
+      }
       await onDeviceRefresh?.();
     } catch {
       onToast(i18n.t("toast.save-failed"), "error");
@@ -170,11 +172,6 @@
   <LoadingBlock label={i18n.t("mqtt.loading")} />
 {:else}
   <div class="space-y-4">
-    {#if !cfg.tls}
-      <Alert variant="warning" title={i18n.t("mqtt.tls-warning-title")}>
-        {i18n.t("mqtt.tls-warning")}
-      </Alert>
-    {/if}
     <Panel>
       {#snippet title()}
         <StatusBadge

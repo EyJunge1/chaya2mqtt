@@ -185,12 +185,21 @@ describe("MqttPage", () => {
     expect(container.querySelector(".lucide-radio-off")).toBeInTheDocument();
   });
 
-  it("warns when TLS is disabled", async () => {
-    getMqttConfig.mockResolvedValue(cfg({ tls: false, port: 1883 }));
-    render(MqttPage, { props: { mqtt: { connected: true }, onToast: vi.fn() } });
+  it("toasts a TLS hint when saving without TLS", async () => {
+    getMqttConfig
+      .mockResolvedValueOnce(cfg({ tls: false, port: 1883 }))
+      .mockResolvedValueOnce(cfg({ tls: false, port: 1883 }));
+    saveMqtt.mockResolvedValue({ ok: true });
+    const onToast = vi.fn();
+    render(MqttPage, { props: { mqtt: { connected: true }, onToast } });
 
-    expect(await screen.findByText("mqtt.tls-warning-title")).toBeInTheDocument();
-    expect(screen.getByText("mqtt.tls-warning")).toBeInTheDocument();
+    await screen.findByDisplayValue("mqtt.example.com");
+    fireEvent.click(screen.getByRole("button", { name: "common.save" }));
+
+    await waitFor(() => {
+      expect(onToast).toHaveBeenCalledWith("toast.mqtt-saved", "success");
+    });
+    expect(onToast).toHaveBeenCalledWith("toast.mqtt-tls-off", "warning");
   });
 
   it("reloads config when refreshSeq changes", async () => {
