@@ -139,8 +139,6 @@ Maximum **6** SSE clients. App-task poll remains ~500 ms, but SSE gather runs 
 - Host/origin allowlist in STA mode; in AP/captive mode Host/Origin checks are skipped so captive
   browsers can complete setup (see Access warning / SEC-10)
 - CSP without our inline scripts/styles (`script-src 'self'` plus exact captive-browser helper hashes; `style-src 'self'`)
-- Expensive/mutating routes (Wi‑Fi scan/connect, reboot, factory reset, OTA check/install) apply a
-  short per-route minimum interval and may respond with **429** `rate_limit`
 
 ## Build integration
 

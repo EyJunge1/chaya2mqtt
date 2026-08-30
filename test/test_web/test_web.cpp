@@ -1,12 +1,9 @@
 #include <unity.h>
 
-#include <atomic>
-
 #include "constants.h"
 #include "web/csrf_pure.h"
 #include "web/hex_codec.h"
 #include "web/host_validate.h"
-#include "web/rate_limit_pure.h"
 #include "web/spa_asset_lookup.h"
 #include "web/sse_dirty_pure.h"
 
@@ -84,47 +81,6 @@ void test_csrf_accept_or_policy() {
     TEST_ASSERT_TRUE(csrfAcceptSubmitted(false, true, true));
     TEST_ASSERT_FALSE(csrfAcceptSubmitted(false, true, false));
     TEST_ASSERT_FALSE(csrfAcceptSubmitted(false, false, true));
-}
-
-void test_web_min_interval_allow() {
-    std::atomic<uint32_t> last{0};
-    TEST_ASSERT_TRUE(webMinIntervalAllowAt(last, 1000U, 100U));
-    TEST_ASSERT_FALSE(webMinIntervalAllowAt(last, 1000U, 500U));
-    TEST_ASSERT_TRUE(webMinIntervalAllowAt(last, 1000U, 1100U));
-    TEST_ASSERT_FALSE(webMinIntervalAllowAt(last, 1000U, 1100U));
-}
-
-void test_web_min_interval_deny_maps_to_rate_limit_contract() {
-    // Contract: second call inside the window must be rejectable as HTTP 429 rate_limit
-    // (SEC-06 / TEST-02). Pure gate only — route wiring is covered by mock negativetests.
-    std::atomic<uint32_t> mqttSave{0};
-    std::atomic<uint32_t> settingsSave{0};
-    std::atomic<uint32_t> chayaSend{0};
-    constexpr uint32_t kMqttMs     = 2000U;
-    constexpr uint32_t kSettingsMs = 2000U;
-    constexpr uint32_t kChayaMs    = 1000U;
-
-    TEST_ASSERT_TRUE(webMinIntervalAllowAt(mqttSave, kMqttMs, 1U));
-    TEST_ASSERT_FALSE(webMinIntervalAllowAt(mqttSave, kMqttMs, 1U + kMqttMs - 1U));
-    TEST_ASSERT_TRUE(webMinIntervalAllowAt(mqttSave, kMqttMs, 1U + kMqttMs));
-
-    TEST_ASSERT_TRUE(webMinIntervalAllowAt(settingsSave, kSettingsMs, 10U));
-    TEST_ASSERT_FALSE(webMinIntervalAllowAt(settingsSave, kSettingsMs, 10U + 500U));
-
-    TEST_ASSERT_TRUE(webMinIntervalAllowAt(chayaSend, kChayaMs, 50U));
-    TEST_ASSERT_FALSE(webMinIntervalAllowAt(chayaSend, kChayaMs, 50U + 999U));
-    TEST_ASSERT_TRUE(webMinIntervalAllowAt(chayaSend, kChayaMs, 50U + 1000U));
-}
-
-void test_web_min_interval_millis_wrap() {
-    std::atomic<uint32_t> last{0};
-    // Unsigned millis wrap: elapsed = now - prev still works across UINT32_MAX.
-    last.store(0xFFFFFFF0U, std::memory_order_relaxed);
-    const uint32_t stillInside = 0xFFFFFFF0U + 500U; // wraps; elapsed == 500
-    TEST_ASSERT_FALSE(webMinIntervalAllowAt(last, 1000U, stillInside));
-    const uint32_t pastInterval = 0xFFFFFFF0U + 1000U; // wraps; elapsed == 1000
-    TEST_ASSERT_TRUE(webMinIntervalAllowAt(last, 1000U, pastInterval));
-    TEST_ASSERT_FALSE(webMinIntervalAllowAt(last, 1000U, pastInterval + 1U));
 }
 
 void test_host_validate() {
@@ -226,9 +182,6 @@ int main(int, char**) {
     RUN_TEST(test_csrf_submitted_matches_expected);
     RUN_TEST(test_csrf_rotation_timing);
     RUN_TEST(test_csrf_accept_or_policy);
-    RUN_TEST(test_web_min_interval_allow);
-    RUN_TEST(test_web_min_interval_deny_maps_to_rate_limit_contract);
-    RUN_TEST(test_web_min_interval_millis_wrap);
     RUN_TEST(test_host_validate);
     RUN_TEST(test_spa_asset_lookup);
     RUN_TEST(test_sse_tick_select_bits);

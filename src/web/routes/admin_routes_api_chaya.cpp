@@ -7,7 +7,6 @@
 #include "mqtt/config.h"
 #include "mqtt/mqtt.h"
 #include "util/log_tag.h"
-#include "web/rate_limit.h"
 #include "web/web_middleware.h"
 
 #include <ESPAsyncWebServer.h>
@@ -15,10 +14,6 @@
 #include <esp_log.h>
 
 DEFINE_LOG_TAG("WEBAPI");
-
-namespace {
-WebMinIntervalLimit s_chayaSendLimit{1000U};
-} // namespace
 
 void handleApiChayaGet(AsyncWebServerRequest *req) {
     const int rx = heartDisplayRxDelta();
@@ -33,10 +28,6 @@ void handleApiChayaGet(AsyncWebServerRequest *req) {
 }
 
 void handleApiChayaSendPost(AsyncWebServerRequest *req) {
-    if (!webMinIntervalAllow(s_chayaSendLimit)) {
-        sendErr(req, 429, "rate_limit");
-        return;
-    }
     switch (chayaRequestSend()) {
     case ChayaSendResult::Started:
         sendOk(req, 202, "\"queued\":true");

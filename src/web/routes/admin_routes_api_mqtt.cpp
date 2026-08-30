@@ -19,7 +19,6 @@
 #include "util/log_tag.h"
 #include "web/csrf.h"
 #include "web/deferred_reboot.h"
-#include "web/rate_limit.h"
 #include "web/web_middleware.h"
 #include "web/web_utils.h"
 
@@ -31,10 +30,6 @@
 #include <esp_log.h>
 
 DEFINE_LOG_TAG("WEBAPI");
-
-namespace {
-WebMinIntervalLimit s_mqttSaveLimit{2000U};
-} // namespace
 
 void handleApiMqttStatusGet(AsyncWebServerRequest* req) {
     adminSendJsonWithBuffer<96>(req, [](char* b, size_t n) {
@@ -146,10 +141,6 @@ bool partnerIdInputValid(const char* partnerId) {
 }
 
 void handleApiMqttPost(AsyncWebServerRequest* req) {
-    if (!webMinIntervalAllow(s_mqttSaveLimit)) {
-        sendErr(req, 429, "rate_limit");
-        return;
-    }
     if (g_systemShutdownInProgress.load(std::memory_order_acquire)) {
         sendErr(req, 503, "shutdown");
         return;

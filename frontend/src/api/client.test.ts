@@ -250,21 +250,21 @@ describe("api client", () => {
     expect(body).toContain("mqtt_tls=0");
   });
 
-  it("returns rate_limit ApiResult on HTTP 429 without throwing", async () => {
+  it("returns ApiResult on HTTP error without throwing", async () => {
     vi.stubGlobal(
       "fetch",
       vi.fn().mockResolvedValue({
         ok: false,
-        status: 429,
-        text: async () => JSON.stringify({ ok: false, error: "rate_limit" }),
+        status: 503,
+        text: async () => JSON.stringify({ ok: false, error: "busy" }),
       }),
     );
     await expect(api.saveMqtt({ mqtt_server: "broker", mqtt_port: 8883, mqtt_tls: true })).resolves.toEqual({
       ok: false,
-      error: "rate_limit",
+      error: "busy",
     });
-    await expect(api.saveSettings({ lang: "de" })).resolves.toEqual({ ok: false, error: "rate_limit" });
-    await expect(api.sendChaya()).resolves.toEqual({ ok: false, error: "rate_limit" });
+    await expect(api.saveSettings({ lang: "de" })).resolves.toEqual({ ok: false, error: "busy" });
+    await expect(api.sendChaya()).resolves.toEqual({ ok: false, error: "busy" });
   });
 
   it("saveSettings posts reset_days and audio fields", async () => {

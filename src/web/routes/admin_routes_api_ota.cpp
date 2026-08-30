@@ -19,7 +19,6 @@
 #include "util/log_tag.h"
 #include "web/csrf.h"
 #include "web/deferred_reboot.h"
-#include "web/rate_limit.h"
 #include "web/web_middleware.h"
 #include "web/web_utils.h"
 
@@ -31,11 +30,6 @@
 #include <esp_log.h>
 
 DEFINE_LOG_TAG("WEBAPI");
-
-namespace {
-WebMinIntervalLimit s_otaCheckLimit{5000U};
-WebMinIntervalLimit s_otaInstallLimit{10000U};
-} // namespace
 
 void handleApiUpdateStatusGet(AsyncWebServerRequest* req) {
     adminSendJsonWithBuffer<384>(req, [](char* b, size_t n) {
@@ -72,10 +66,6 @@ bool parseOtaChannelParam(AsyncWebServerRequest* req, OtaChannel* out, bool* pre
 }
 
 void handleApiUpdateCheckPost(AsyncWebServerRequest* req) {
-    if (!webMinIntervalAllow(s_otaCheckLimit)) {
-        sendErr(req, 429, "rate_limit");
-        return;
-    }
     if (batteryCriticalLow(batteryPercent())) {
         sendErr(req, 503, "battery_low");
         return;
@@ -102,10 +92,6 @@ void handleApiUpdateCheckPost(AsyncWebServerRequest* req) {
 }
 
 void handleApiUpdateInstallPost(AsyncWebServerRequest* req) {
-    if (!webMinIntervalAllow(s_otaInstallLimit)) {
-        sendErr(req, 429, "rate_limit");
-        return;
-    }
     if (batteryCriticalLow(batteryPercent())) {
         sendErr(req, 503, "battery_low");
         return;

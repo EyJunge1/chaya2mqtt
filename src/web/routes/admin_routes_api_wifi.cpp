@@ -18,7 +18,6 @@
 #include "util/log_tag.h"
 #include "web/csrf.h"
 #include "web/deferred_reboot.h"
-#include "web/rate_limit.h"
 #include "web/web_middleware.h"
 #include "web/web_utils.h"
 #include "wifi/test.h"
@@ -33,11 +32,6 @@
 #include <esp_log.h>
 
 DEFINE_LOG_TAG("WEBAPI");
-
-namespace {
-WebMinIntervalLimit s_wifiScanLimit{2000U};
-WebMinIntervalLimit s_wifiConnectLimit{2000U};
-} // namespace
 
 bool appendWifiRuntimeFields(char* body, size_t bodyLen, size_t* pos, const char* ip,
                              const char* gateway, const char* netmask, const char* dns1,
@@ -220,10 +214,8 @@ bool parseWifiConfigFromRequest(AsyncWebServerRequest* req, WlanConfig* cfg, con
 }
 
 void handleApiWifiScanGet(AsyncWebServerRequest* req) {
-    if (!webMinIntervalAllow(s_wifiScanLimit)) {
-        sendErr(req, 429, "rate_limit");
-        return;
-    }
+    // Polling GETs must not 429: the UI checks every ~500 ms while the async scan
+    // runs (~2–3 s). Rate-limit only the underlying kick via s_wifiScanNextAllowedMs.
     if (!wlanWifiScanCacheReady()) {
         wlanRequestWifiScanRefresh();
         webSendEmpty(req, 202);
@@ -255,10 +247,6 @@ void handleApiWifiScanGet(AsyncWebServerRequest* req) {
 }
 
 void handleApiWifiConnectPost(AsyncWebServerRequest* req) {
-    if (!webMinIntervalAllow(s_wifiConnectLimit)) {
-        sendErr(req, 429, "rate_limit");
-        return;
-    }
     WlanConfig cfg{};
     const char* err = nullptr;
     if (!parseWifiConfigFromRequest(req, &cfg, &err)) {

@@ -168,12 +168,6 @@ export interface MockState {
   heartBusy: boolean;
   scanReadyAt: number;
   scanMode: MockScanMode;
-  /** Last allow timestamps (ms) for admin POST rate limits (TEST-02 / SEC-06). */
-  rateLimitLastMs: {
-    mqttSave: number;
-    settingsSave: number;
-    chayaSend: number;
-  };
   faults: MockFaults;
   ota: {
     phase: "idle" | "checking" | "available" | "downloading" | "verifying" | "rebooting" | "error";
@@ -387,7 +381,6 @@ export function createInitialState(scenario: MockScenario = "sta-connected"): Mo
     wifiConnect: idleWifiConnect(),
     scanReadyAt: 0,
     scanMode: "normal",
-    rateLimitLastMs: { mqttSave: 0, settingsSave: 0, chayaSend: 0 },
     faults: emptyFaults(),
     ota: {
       phase: "idle",
@@ -842,33 +835,6 @@ export function clearFaults(): MockFaults {
 
 export function hasFault(key: MockFaultKey, target: MockState = state): boolean {
   return target.faults[key];
-}
-
-/** Firmware-aligned min intervals (ms) for mock admin POSTs (TEST-02). */
-export const MOCK_RATE_LIMIT_MS = {
-  mqttSave: 2000,
-  settingsSave: 2000,
-  chayaSend: 1000,
-} as const;
-
-export type MockRateLimitKey = keyof typeof MOCK_RATE_LIMIT_MS;
-
-/**
- * Token-bucket capacity 1 — mirrors webMinIntervalAllowAt.
- * Returns false when the call should be rejected with 429 rate_limit.
- */
-export function mockRateLimitAllow(
-  key: MockRateLimitKey,
-  nowMs: number = Date.now(),
-  target: MockState = state,
-): boolean {
-  const minIntervalMs = MOCK_RATE_LIMIT_MS[key];
-  const prev = target.rateLimitLastMs[key];
-  if (prev !== 0 && nowMs - prev < minIntervalMs) {
-    return false;
-  }
-  target.rateLimitLastMs[key] = nowMs;
-  return true;
 }
 
 export function subscribe(fn: (event: string, data: unknown) => void): () => void {
