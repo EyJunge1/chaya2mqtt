@@ -253,7 +253,7 @@ Event handler (`MQTT_EVENT_DATA`): parse payload → `heartCounterStoreFromRemot
 |------|----------------|
 | `wlan.cpp` | Global state, `wlanLoop()`, SoftAP snapshot, API lock, STA snapshots |
 | `wlan_reset.cpp` | Factory reset, controlled restart, forced STA reassociation |
-| `wlan_boot.cpp` | `setupWiFi()`, STA/AP fallback (WPA2/WPA3 setup AP), mDNS/NTP |
+| `wlan_boot.cpp` | `setupWiFi()`, STA or WPA2/WPA3 setup AP, mDNS/NTP |
 | `wlan_events.cpp` | STA events, reconnect backoff |
 | `wlan_recovery.cpp` / `wlan_recovery.h` | Stage 2 recovery (forced reassociation / restart with OTA guard) |
 | `wlan_nvs.cpp` | NVS WiFi configuration (packed `cfg_v2`, migration from `cred_v1`) |

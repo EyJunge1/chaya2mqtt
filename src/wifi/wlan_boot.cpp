@@ -153,17 +153,10 @@ static bool wlanBringUpSetupSoftApLocked(const char* apPass, const char** outAut
     WiFi.setHostname(kDeviceHostname);
     WiFi.mode(WIFI_AP_STA);
     // WPA2/WPA3 transition matches camera WIFI QR (T:WPA); WPA3-only breaks many scanners.
-    bool apOk = WiFi.softAP(kSetupApSsid, apPass, 1, 0, 4, false, WIFI_AUTH_WPA2_WPA3_PSK);
-    const char* apAuth = "WPA2/WPA3";
-    if (!apOk) {
-        // Some stacks reject mixed mode; WPA2 still works with T:WPA QR payloads.
-        apOk = WiFi.softAP(kSetupApSsid, apPass, 1, 0, 4, false, WIFI_AUTH_WPA2_PSK);
-        apAuth = "WPA2";
-    }
     if (outAuth != nullptr) {
-        *outAuth = apAuth;
+        *outAuth = "WPA2/WPA3";
     }
-    return apOk;
+    return WiFi.softAP(kSetupApSsid, apPass, 1, 0, 4, false, WIFI_AUTH_WPA2_WPA3_PSK);
 }
 
 static bool wlanFinishSetupSoftAp(const char* apAuth) {

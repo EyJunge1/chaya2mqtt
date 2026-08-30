@@ -80,12 +80,6 @@ In chaya gibt es **keine** vendored Kopien von `HTTPUpdate` / `Update` / `HTTPCl
 
 ---
 
-## Unklar (erst Root-Cause)
-
-- SoftAP `WIFI_AUTH_WPA2_WPA3_PSK` mit Fallback auf WPA2 in `src/wifi/wlan_boot.cpp` — eher IDF/Chip/Config als Arduino-Bug; ggf. nur Docs/Beispiel
-
----
-
 ## Explizit nicht für arduino-esp32
 
 | Thema | Warum |
