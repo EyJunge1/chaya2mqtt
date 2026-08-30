@@ -5,41 +5,52 @@ import { renderApp } from "../test/renderApp.ts";
 import { device } from "./device.svelte.ts";
 import DeviceRootHarness from "./DeviceRoot.test.svelte";
 
-const {
-  refreshCsrf,
-  getDevice,
-  getChaya,
-  getWifiStatus,
-  getMqttStatus,
-  getUpdateStatus,
-  getSettings,
-  connectEvents,
-} = vi.hoisted(() => ({
-  refreshCsrf: vi.fn(),
-  getDevice: vi.fn(),
-  getChaya: vi.fn(),
-  getWifiStatus: vi.fn(),
-  getMqttStatus: vi.fn(),
-  getUpdateStatus: vi.fn(),
-  getSettings: vi.fn(),
+const { getBootstrap, connectEvents } = vi.hoisted(() => ({
+  getBootstrap: vi.fn(),
   connectEvents: vi.fn(),
 }));
 
 vi.mock("../api/client.ts", () => ({
   api: {
-    getDevice: () => getDevice(),
-    getChaya: () => getChaya(),
-    getWifiStatus: () => getWifiStatus(),
-    getMqttStatus: () => getMqttStatus(),
-    getUpdateStatus: () => getUpdateStatus(),
-    getSettings: () => getSettings(),
+    getBootstrap: () => getBootstrap(),
   },
-  refreshCsrf: () => refreshCsrf(),
 }));
 
 vi.mock("../api/sse.ts", () => ({
   connectEvents: (handlers: unknown) => connectEvents(handlers),
 }));
+
+const staBootstrap = () => ({
+  csrf: { token: "a".repeat(32), expiresInSeconds: 86400 },
+  device: {
+    mode: "sta" as const,
+    deviceId: "a1b2c3",
+    version: "2026.8.1",
+    hostname: "chaya2mqtt-a1b2c3",
+    batteryMv: 3900,
+    batteryPct: 55,
+  },
+  wifi: { connected: false as const },
+  chaya: { rx: 3, tx: 1, connected: true, configured: true, paired: true },
+  mqtt: { connected: true },
+  update: null,
+  settings: {
+    resetDays: 7,
+    lang: "en" as const,
+    theme: "light" as const,
+    ledEnabled: true,
+    audioTxEnabled: false,
+    audioRxEnabled: false,
+    audioTxVolume: 70,
+    audioRxVolume: 70,
+    quietHourStart: 0,
+    quietHourEnd: 0,
+    txHz: 880,
+    txMs: 80,
+    rxHz: 660,
+    rxMs: 140,
+  },
+});
 
 describe("DeviceRoot", () => {
   afterEach(() => {
@@ -50,35 +61,7 @@ describe("DeviceRoot", () => {
 
   beforeEach(() => {
     device.reset();
-    refreshCsrf.mockResolvedValue(undefined);
-    getDevice.mockResolvedValue({
-      mode: "sta",
-      deviceId: "a1b2c3",
-      version: "2026.8.1",
-      hostname: "chaya2mqtt-a1b2c3",
-      batteryMv: 3900,
-      batteryPct: 55,
-    });
-    getChaya.mockResolvedValue({ rx: 3, tx: 1, connected: true, configured: true, paired: true });
-    getWifiStatus.mockResolvedValue({ connected: false });
-    getMqttStatus.mockResolvedValue({ connected: true });
-    getUpdateStatus.mockResolvedValue(null);
-    getSettings.mockResolvedValue({
-      resetDays: 7,
-      lang: "en",
-      theme: "light",
-      ledEnabled: true,
-      audioTxEnabled: false,
-      audioRxEnabled: false,
-      audioTxVolume: 70,
-      audioRxVolume: 70,
-      quietHourStart: 0,
-      quietHourEnd: 0,
-      txHz: 880,
-      txMs: 80,
-      rxHz: 660,
-      rxMs: 140,
-    });
+    getBootstrap.mockResolvedValue(staBootstrap());
     connectEvents.mockReturnValue(() => undefined);
   });
 
@@ -94,14 +77,7 @@ describe("DeviceRoot", () => {
 
   it("shows boot error and retries", async () => {
     const user = userEvent.setup();
-    getDevice.mockRejectedValueOnce(new Error("offline")).mockResolvedValue({
-      mode: "sta",
-      deviceId: "a1b2c3",
-      version: "2026.8.1",
-      hostname: "chaya2mqtt-a1b2c3",
-      batteryMv: 3900,
-      batteryPct: 55,
-    });
+    getBootstrap.mockRejectedValueOnce(new Error("offline")).mockResolvedValue(staBootstrap());
 
     renderApp(DeviceRootHarness, { props: { showChrome: true } });
 
@@ -137,7 +113,7 @@ describe("DeviceRoot", () => {
     renderApp(DeviceRootHarness);
     await waitFor(() => expect(connectEvents).toHaveBeenCalledTimes(1));
 
-    await device.boot();
+    device.refreshSeq += 1;
     await waitFor(() => expect(connectEvents).toHaveBeenCalledTimes(2));
   });
 });

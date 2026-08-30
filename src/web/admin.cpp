@@ -9,11 +9,11 @@
 #include "async/app_task.h"
 #include "async/event_types.h"
 #include "async/task_handles.h"
+#include "async/web_server_hooks.h"
 #include "config/app_config.h"
 #include "heart/counter.h"
 #include "led/led.h"
 #include "ota/ota.h"
-#include "wifi/wlan.h"
 #include "csrf.h"
 #include "events.h"
 
@@ -27,6 +27,21 @@
 DEFINE_LOG_TAG("ADMIN");
 
 // Routes, deferred flags, SSE tick.
+
+namespace {
+void webServerBeginImpl() {
+    webAdminWebServer().begin();
+}
+void webServerEndImpl() {
+    webAdminWebServer().end();
+}
+} // namespace
+
+/** Register wifi↔web lifecycle hooks (QUAL-01). Call once before setupWiFi(). */
+void webAdminInstallServerHooks() {
+    webServerHooksRegister(webAdminRegisterRoutes, webServerBeginImpl, webServerEndImpl,
+                           deferredRebootAfterWifiSave);
+}
 
 AsyncWebServer& webAdminWebServer() {
     static AsyncWebServer server(80);

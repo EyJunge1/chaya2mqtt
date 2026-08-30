@@ -51,7 +51,20 @@ inline bool webHostCStringAllowed(const char* host, bool apMode, const char* dev
         return apMode;
     }
     if (apMode) {
-        return true;
+        // SEC-04: SoftAP allowlist only — setup IP / captive hostname (not arbitrary Host).
+        if (hostEqualsIgnoreCase(host, "4.3.2.1")) {
+            return true;
+        }
+        if (hostPrefixIgnoreCaseThenPortOrEnd(host, "4.3.2.1")) {
+            return true;
+        }
+        if (hostEqualsIgnoreCase(host, "chaya2mqtt")) {
+            return true;
+        }
+        if (hostPrefixIgnoreCaseThenPortOrEnd(host, "chaya2mqtt.local")) {
+            return true;
+        }
+        return false;
     }
     if (deviceHostname == nullptr || deviceHostname[0] == '\0') {
         return false;

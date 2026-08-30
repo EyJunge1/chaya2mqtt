@@ -1,10 +1,14 @@
 #include <unity.h>
 
+#include <atomic>
+
 #include "constants.h"
 #include "web/csrf_pure.h"
 #include "web/hex_codec.h"
 #include "web/host_validate.h"
+#include "web/rate_limit_pure.h"
 #include "web/spa_asset_lookup.h"
+#include "web/sse_dirty_pure.h"
 
 void test_ui_pref_syntax() {
     TEST_ASSERT_TRUE(uiLangSyntaxOk("de"));
@@ -75,6 +79,54 @@ void test_csrf_rotation_timing() {
     TEST_ASSERT_TRUE(csrfTokenNeedsRotation(100U, 200U));
 }
 
+void test_csrf_accept_or_policy() {
+    TEST_ASSERT_TRUE(csrfAcceptSubmitted(true, false, false));
+    TEST_ASSERT_TRUE(csrfAcceptSubmitted(false, true, true));
+    TEST_ASSERT_FALSE(csrfAcceptSubmitted(false, true, false));
+    TEST_ASSERT_FALSE(csrfAcceptSubmitted(false, false, true));
+}
+
+void test_web_min_interval_allow() {
+    std::atomic<uint32_t> last{0};
+    TEST_ASSERT_TRUE(webMinIntervalAllowAt(last, 1000U, 100U));
+    TEST_ASSERT_FALSE(webMinIntervalAllowAt(last, 1000U, 500U));
+    TEST_ASSERT_TRUE(webMinIntervalAllowAt(last, 1000U, 1100U));
+    TEST_ASSERT_FALSE(webMinIntervalAllowAt(last, 1000U, 1100U));
+}
+
+void test_web_min_interval_deny_maps_to_rate_limit_contract() {
+    // Contract: second call inside the window must be rejectable as HTTP 429 rate_limit
+    // (SEC-06 / TEST-02). Pure gate only — route wiring is covered by mock negativetests.
+    std::atomic<uint32_t> mqttSave{0};
+    std::atomic<uint32_t> settingsSave{0};
+    std::atomic<uint32_t> chayaSend{0};
+    constexpr uint32_t kMqttMs     = 2000U;
+    constexpr uint32_t kSettingsMs = 2000U;
+    constexpr uint32_t kChayaMs    = 1000U;
+
+    TEST_ASSERT_TRUE(webMinIntervalAllowAt(mqttSave, kMqttMs, 1U));
+    TEST_ASSERT_FALSE(webMinIntervalAllowAt(mqttSave, kMqttMs, 1U + kMqttMs - 1U));
+    TEST_ASSERT_TRUE(webMinIntervalAllowAt(mqttSave, kMqttMs, 1U + kMqttMs));
+
+    TEST_ASSERT_TRUE(webMinIntervalAllowAt(settingsSave, kSettingsMs, 10U));
+    TEST_ASSERT_FALSE(webMinIntervalAllowAt(settingsSave, kSettingsMs, 10U + 500U));
+
+    TEST_ASSERT_TRUE(webMinIntervalAllowAt(chayaSend, kChayaMs, 50U));
+    TEST_ASSERT_FALSE(webMinIntervalAllowAt(chayaSend, kChayaMs, 50U + 999U));
+    TEST_ASSERT_TRUE(webMinIntervalAllowAt(chayaSend, kChayaMs, 50U + 1000U));
+}
+
+void test_web_min_interval_millis_wrap() {
+    std::atomic<uint32_t> last{0};
+    // Unsigned millis wrap: elapsed = now - prev still works across UINT32_MAX.
+    last.store(0xFFFFFFF0U, std::memory_order_relaxed);
+    const uint32_t stillInside = 0xFFFFFFF0U + 500U; // wraps; elapsed == 500
+    TEST_ASSERT_FALSE(webMinIntervalAllowAt(last, 1000U, stillInside));
+    const uint32_t pastInterval = 0xFFFFFFF0U + 1000U; // wraps; elapsed == 1000
+    TEST_ASSERT_TRUE(webMinIntervalAllowAt(last, 1000U, pastInterval));
+    TEST_ASSERT_FALSE(webMinIntervalAllowAt(last, 1000U, pastInterval + 1U));
+}
+
 void test_host_validate() {
     constexpr const char* hostname = "chaya2mqtt-a1b2c3";
     TEST_ASSERT_FALSE(webHostCStringAllowed("", false, hostname, nullptr));
@@ -83,7 +135,11 @@ void test_host_validate() {
     TEST_ASSERT_TRUE(webHostCStringAllowed("Chaya2MQTT-a1b2c3.local", false, hostname, nullptr));
     TEST_ASSERT_TRUE(
         webHostCStringAllowed("chaya2mqtt-a1b2c3.local:80", false, hostname, nullptr));
-    TEST_ASSERT_TRUE(webHostCStringAllowed("captive.apple.com", true, kDeviceHostname, nullptr));
+    TEST_ASSERT_TRUE(webHostCStringAllowed("4.3.2.1", true, kDeviceHostname, nullptr));
+    TEST_ASSERT_TRUE(webHostCStringAllowed("chaya2mqtt", true, kDeviceHostname, nullptr));
+    TEST_ASSERT_TRUE(webHostCStringAllowed("chaya2mqtt.local", true, kDeviceHostname, nullptr));
+    TEST_ASSERT_FALSE(webHostCStringAllowed("captive.apple.com", true, kDeviceHostname, nullptr));
+    TEST_ASSERT_FALSE(webHostCStringAllowed("evil.example", true, kDeviceHostname, nullptr));
     TEST_ASSERT_FALSE(webHostCStringAllowed("chaya2mqtt.local", false, hostname, nullptr));
     TEST_ASSERT_FALSE(webHostCStringAllowed("evil.example", false, hostname, nullptr));
     TEST_ASSERT_TRUE(
@@ -141,6 +197,27 @@ void test_spa_asset_lookup() {
     TEST_ASSERT_TRUE(spaAssetUsesGzip("/assets/a.js"));
 }
 
+void test_sse_tick_select_bits() {
+    bool keepalive = false;
+    TEST_ASSERT_EQUAL_UINT32(kSseChaya,
+                             sseTickSelectBits(kSseChaya, 1000U, 0U, 8000U, &keepalive));
+    TEST_ASSERT_FALSE(keepalive);
+
+    keepalive = true;
+    TEST_ASSERT_EQUAL_UINT32(0U, sseTickSelectBits(0U, 1000U, 500U, 8000U, &keepalive));
+    TEST_ASSERT_FALSE(keepalive);
+
+    keepalive = false;
+    TEST_ASSERT_EQUAL_UINT32(kSseWifi | kSseDevice,
+                             sseTickSelectBits(0U, 9000U, 500U, 8000U, &keepalive));
+    TEST_ASSERT_TRUE(keepalive);
+
+    keepalive = false;
+    TEST_ASSERT_EQUAL_UINT32(kSseWifi | kSseDevice,
+                             sseTickSelectBits(0U, 100U, 0U, 8000U, &keepalive));
+    TEST_ASSERT_TRUE(keepalive);
+}
+
 int main(int, char**) {
     UNITY_BEGIN();
     RUN_TEST(test_ui_pref_syntax);
@@ -148,7 +225,12 @@ int main(int, char**) {
     RUN_TEST(test_hex_codec_roundtrip);
     RUN_TEST(test_csrf_submitted_matches_expected);
     RUN_TEST(test_csrf_rotation_timing);
+    RUN_TEST(test_csrf_accept_or_policy);
+    RUN_TEST(test_web_min_interval_allow);
+    RUN_TEST(test_web_min_interval_deny_maps_to_rate_limit_contract);
+    RUN_TEST(test_web_min_interval_millis_wrap);
     RUN_TEST(test_host_validate);
     RUN_TEST(test_spa_asset_lookup);
+    RUN_TEST(test_sse_tick_select_bits);
     return UNITY_END();
 }

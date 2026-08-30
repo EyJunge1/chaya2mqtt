@@ -1,37 +1,24 @@
 #include <Arduino.h>
 
-#include "../admin_globals.h"
 #include "../admin_json.h"
 #include "admin_routes_api_internal.h"
 
-#include "async/event_types.h"
-#include "async/task_handles.h"
-#include "battery/battery.h"
-#include "config/app_config.h"
-#include "config/version.h"
-#include "constants.h"
 #include "heart/counter.h"
-#include "identity/device_identity.h"
 #include "mqtt/config.h"
 #include "mqtt/mqtt.h"
-#include "ota/ota.h"
 #include "util/log_tag.h"
-#include "web/csrf.h"
-#include "web/deferred_reboot.h"
+#include "web/rate_limit.h"
 #include "web/web_middleware.h"
-#include "web/web_utils.h"
-#include "wifi/test.h"
-#include "wifi/wlan.h"
-#include "wifi/wlan_config.h"
 
 #include <ESPAsyncWebServer.h>
-#include <cerrno>
-#include <climits>
-#include <cstdlib>
-#include <cstring>
+#include <cstdio>
 #include <esp_log.h>
 
 DEFINE_LOG_TAG("WEBAPI");
+
+namespace {
+WebMinIntervalLimit s_chayaSendLimit{1000U};
+} // namespace
 
 void handleApiChayaGet(AsyncWebServerRequest *req) {
     const int rx = heartDisplayRxDelta();
@@ -46,6 +33,10 @@ void handleApiChayaGet(AsyncWebServerRequest *req) {
 }
 
 void handleApiChayaSendPost(AsyncWebServerRequest *req) {
+    if (!webMinIntervalAllow(s_chayaSendLimit)) {
+        sendErr(req, 429, "rate_limit");
+        return;
+    }
     switch (chayaRequestSend()) {
     case ChayaSendResult::Started:
         sendOk(req, 202, "\"queued\":true");
@@ -62,13 +53,14 @@ void handleApiChayaSendPost(AsyncWebServerRequest *req) {
 
 void adminRoutesRegisterApiChaya(AsyncWebServer &ws) {
     {
-        AsyncCallbackWebHandler &h = ws.on("/api/chaya", HTTP_GET, [](AsyncWebServerRequest *rq) { handleApiChayaGet(rq); });
+        AsyncCallbackWebHandler &h =
+            ws.on("/api/chaya", HTTP_GET, [](AsyncWebServerRequest *rq) { handleApiChayaGet(rq); });
         h.addMiddleware(mwRequireAllowedHost());
         h.addMiddleware(mwApiStaMode());
     }
     {
-        AsyncCallbackWebHandler &h =
-            ws.on("/api/chaya/send", HTTP_POST, [](AsyncWebServerRequest *rq) { handleApiChayaSendPost(rq); });
+        AsyncCallbackWebHandler &h = ws.on(
+            "/api/chaya/send", HTTP_POST, [](AsyncWebServerRequest *rq) { handleApiChayaSendPost(rq); });
         h.addMiddleware(mwApiStaMode());
         h.addMiddleware(mwApiPostCsrf());
     }

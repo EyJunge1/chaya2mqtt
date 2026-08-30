@@ -35,6 +35,8 @@ extern char              s_bootAttemptSsid[kWifiSsidMaxLen];
 extern unsigned long     s_bootStaConnectStartMs;
 
 extern std::atomic<unsigned long> s_staLastGotIpWallMs;
+/** Cached STA link OK (GOT_IP / disconnect events); avoids WiFi mutex on hot paths. */
+extern std::atomic<bool> s_staLinkOk;
 
 extern WlanScanRow       s_wifiScanCache[kWlanWifiScanCacheMaxRows];
 extern WlanScanRow       s_wifiScanRowWork[kWlanWifiScanCacheMaxRows];

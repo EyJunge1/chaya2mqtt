@@ -51,6 +51,9 @@ jobs:
               echo "changed: $path"
 
               case "$path" in
+                docs/openapi.yaml|docs/asyncapi.yaml)
+                  frontend=true
+                  ;;
                 docs/*|*.md|LICENSE|THIRD_PARTY_NOTICES.md|.github/ISSUE_TEMPLATE/*)
                   ;;
                 frontend/*)
@@ -143,6 +146,10 @@ jobs:
 
       - name: Run web-flasher quality gate
         run: make check-flasher
+
+      - name: npm audit (fail on high/critical)
+        working-directory: flasher
+        run: npm audit --audit-level=high
 
   firmware_tests:
     name: Firmware tests

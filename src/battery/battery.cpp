@@ -2,6 +2,7 @@
 
 #include "battery_config.h"
 #include "battery_pure.h"
+#include "async/sse_dirty.h"
 #include "hw/pins.h"
 
 #include <Arduino.h>
@@ -48,8 +49,13 @@ void batteryInit() {
 void batteryPoll() {
     const int mv  = readPackMilliVolts();
     const int pct = batteryPctFromMilliVolts(mv);
+    const int prevMv = s_batteryMv.load(std::memory_order_relaxed);
+    const int prevPct = s_batteryPct.load(std::memory_order_relaxed);
     s_batteryMv.store(mv, std::memory_order_relaxed);
     s_batteryPct.store(pct, std::memory_order_relaxed);
+    if (mv != prevMv || pct != prevPct) {
+        sseMarkDirty(kSseDevice);
+    }
     ESP_LOGD(TAG, "VBAT %d mV (%d%%)", mv, pct);
 }
 

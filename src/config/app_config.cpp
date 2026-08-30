@@ -210,10 +210,12 @@ bool configSetDisplayView(DisplayView view) {
 }
 
 bool configInvalidateDisplayView() {
-    // RAM only — avoid a second NVS write per refresh (STAB-04). Final view is
-    // persisted once via configSetDisplayView() after a successful draw.
-    s_displayViewCached.store(DisplayView::Unknown, std::memory_order_relaxed);
-    return true;
+    // Persist Unknown before the waveform so a mid-refresh crash/brownout forces
+    // BootIfChanged to repaint instead of trusting a partial panel (STAB-01).
+    // Final view is written once via configSetDisplayView() after a successful draw.
+    // Cannot use configSetDisplayView(Unknown) — that API rejects Unknown.
+    return setCachedUChar(s_displayViewCached, DisplayView::Unknown, kNvsKeyCfgDispView,
+                          "NVS cfg: failed to persist disp_view=unknown");
 }
 
 void configLoadAudioFromNvs() {

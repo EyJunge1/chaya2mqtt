@@ -3,7 +3,7 @@
 #include "async/event_types.h"
 #include "async/task_config.h"
 #include "async/task_handles.h"
-#include "web/admin_globals.h"
+#include "async/web_server_hooks.h"
 
 #include "config/app_config.h"
 #include "display/display.h"
@@ -61,6 +61,7 @@ static void handleNetCommand(NetCmd cmd) {
             mqttEndSettingsApply();
             chayaTaskWatchdogReset();
             // Waiting title ↔ operational heart (view change; bypass Content coalesce).
+            displaySetContentAllowed(!configIsApMode() && mqttCfgIsHeartReady());
             if (mqttCfgIsHeartReady()) {
                 (void)displayRequest(DisplayMsg::Cmd::DrawHeart, DisplayRequestMode::BootIfChanged);
             } else {
@@ -72,9 +73,9 @@ static void handleNetCommand(NetCmd cmd) {
         if (!saveMQTTConfig()) {
             ESP_LOGW(TAG, "MQTT settings: NVS save failed — reloading from flash");
             loadMQTTConfig();
-            g_webAdminMqttNvsWriteFailed.store(true, std::memory_order_release);
+            mqttCfgSetNvsWriteFailed(true);
         } else {
-            g_webAdminMqttNvsWriteFailed.store(false, std::memory_order_release);
+            mqttCfgSetNvsWriteFailed(false);
         }
         chayaTaskWatchdogReset();
         mqttSetup();
@@ -82,6 +83,7 @@ static void handleNetCommand(NetCmd cmd) {
         mqttEndSettingsApply();
         chayaTaskWatchdogReset();
         // Waiting title ↔ operational heart (view change; bypass Content coalesce).
+        displaySetContentAllowed(!configIsApMode() && mqttCfgIsHeartReady());
         if (mqttCfgIsHeartReady()) {
             (void)displayRequest(DisplayMsg::Cmd::DrawHeart, DisplayRequestMode::BootIfChanged);
         } else {
@@ -110,6 +112,7 @@ static void handleNetCommand(NetCmd cmd) {
         mqttRunChayaPublishOnNetworkTask();
         break;
     case NetCmd::FactoryResetRequested:
+        webServerEnd();
         resetAllSettings();
         break;
     }

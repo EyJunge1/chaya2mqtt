@@ -11,34 +11,43 @@ constexpr size_t kWifiSsidMaxLen = 33U;
 constexpr size_t kWifiPassMaxLen = 65U;
 constexpr size_t kWifiNtpHostMaxLen = 64U;
 
-/** SoftAP setup PIN: 8 digits (WPA min length); encoded in the display WIFI QR. */
-constexpr size_t kSetupApPassDigits = 8U;
-constexpr size_t kSetupApPassBufLen = kSetupApPassDigits + 1U;
+/** SoftAP setup PSK: alphanumeric ≥20 (WIFI QR only; no manual typing fallback). */
+constexpr size_t kSetupApPassLen    = 24U;
+constexpr size_t kSetupApPassBufLen = kSetupApPassLen + 1U;
+
+inline bool setupApPassCharOk(unsigned char c) {
+    return (c >= static_cast<unsigned char>('0') && c <= static_cast<unsigned char>('9'))
+           || (c >= static_cast<unsigned char>('A') && c <= static_cast<unsigned char>('Z'))
+           || (c >= static_cast<unsigned char>('a') && c <= static_cast<unsigned char>('z'));
+}
 
 inline bool setupApPassSyntaxOk(const char* pass) {
     if (pass == nullptr) {
         return false;
     }
-    for (size_t i = 0; i < kSetupApPassDigits; ++i) {
-        const unsigned char c = static_cast<unsigned char>(pass[i]);
-        if (c < static_cast<unsigned char>('0') || c > static_cast<unsigned char>('9')) {
+    for (size_t i = 0; i < kSetupApPassLen; ++i) {
+        if (!setupApPassCharOk(static_cast<unsigned char>(pass[i]))) {
             return false;
         }
     }
-    return pass[kSetupApPassDigits] == '\0';
+    return pass[kSetupApPassLen] == '\0';
 }
 
-/** Map any uint32 to an 8-digit PIN (`00000000`–`99999999`). */
-inline bool formatSetupApPassFromU32(uint32_t n, char* out, size_t outLen) {
-    if (out == nullptr || outLen < kSetupApPassBufLen) {
+/**
+ * Fill a SoftAP PSK from raw CSPRNG bytes (maps each byte into [0-9A-Za-z]).
+ * @param rnd must provide at least kSetupApPassLen bytes
+ */
+inline bool formatSetupApPassFromRandom(const uint8_t* rnd, size_t rndLen, char* out, size_t outLen) {
+    if (rnd == nullptr || rndLen < kSetupApPassLen || out == nullptr || outLen < kSetupApPassBufLen) {
         return false;
     }
-    uint32_t v = n % 100000000U;
-    for (int i = static_cast<int>(kSetupApPassDigits) - 1; i >= 0; --i) {
-        out[i] = static_cast<char>('0' + (v % 10U));
-        v /= 10U;
+    static constexpr char kAlphabet[] =
+        "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
+    constexpr size_t kAlphabetLen = sizeof(kAlphabet) - 1U;
+    for (size_t i = 0; i < kSetupApPassLen; ++i) {
+        out[i] = kAlphabet[rnd[i] % kAlphabetLen];
     }
-    out[kSetupApPassDigits] = '\0';
+    out[kSetupApPassLen] = '\0';
     return true;
 }
 
@@ -97,6 +106,8 @@ inline WlanBootAction wlanBootDecide(bool hasStaCredentials, bool staConnected,
 
 /** STA stability / scan timing (module-local). */
 constexpr unsigned long kStaStableAfterGotIpMs   = 3000UL;
+/** After GOT_IP, defer admin STA scans to avoid disconnect races (STAB-07). */
+constexpr unsigned long kWifiScanAfterGotIpCooldownMs = 45000UL;
 constexpr unsigned long kWifiScanKickMinIntervalMs = 20000UL;
 constexpr unsigned long kWifiScanFailBackoffMs     = 5000UL;
 constexpr unsigned long kWifiReconnectBaseBackoffMs = 3000UL;

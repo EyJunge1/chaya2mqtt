@@ -16,12 +16,12 @@ The web interface is a **Svelte 5 SPA** (Vite, Tailwind CSS, Lucide) stored in t
 > Admin traffic is **cleartext HTTP** only — Wi‑Fi and MQTT passwords are sent unencrypted on the
 > local link (MITM risk on hostile networks). Prefer SoftAP provisioning or a trusted home LAN.
 >
-> SoftAP uses an **8-digit numeric PIN** (~10⁸ possibilities). That is enough for casual isolation
-> during setup, not for resistance to offline brute-force by an attacker in radio range.
+> SoftAP uses a **24-character alphanumeric WPA-PSK** (WIFI QR only — no manual typing
+> fallback). That resists casual offline brute-force during setup.
 >
-> In **AP (captive) mode**, Host/Origin allowlisting is **disabled** so captive browsers and
-> probes with odd Host headers still reach setup. After joining SoftAP, treat the radio link as
-> the trust boundary (SEC-10). In STA mode the allowlist is enforced.
+> In **AP (captive) mode**, Host/Origin allowlisting is limited to the setup IP (`4.3.2.1`) and
+> hostname `chaya2mqtt` / `.local`. Captive probe routes remain separate. After joining SoftAP,
+> treat the radio link as the trust boundary. In STA mode the device hostname/IP allowlist is enforced.
 
 In AP mode, captive portal probes (`/generate_204`, `/hotspot-detect.html`, `/ncsi.txt`, etc.) redirect to `http://4.3.2.1/` (root serves the Wi-Fi setup UI).
 
@@ -112,7 +112,7 @@ or configuration snapshot may return `503` with `busy` or `shutdown`.
 
 Machine-readable contracts:
 
-- REST: [openapi.yaml](openapi.yaml) (OpenAPI 3.2)
+- REST: [openapi.yaml](openapi.yaml) (OpenAPI 3.1)
 - SSE: [asyncapi.yaml](asyncapi.yaml) (AsyncAPI 3)
 
 ## Server-Sent Events
@@ -121,7 +121,9 @@ Machine-readable contracts:
 |-------|--------|
 | `/events` | `chaya`, `wifi`, `mqtt`, `ota`, `device` |
 
-Maximum **6** SSE clients. Tick every 500 ms in the app task.
+Maximum **6** SSE clients. App-task poll remains ~500 ms, but SSE gather runs only on producer dirty bits or an **8 s keepalive** (PERF-03).
+
+**SSE CORS (AP mode):** `/events` does **not** set `Access-Control-Allow-Origin`. The SPA connects with same-origin `EventSource("/events")` and CSP `connect-src 'self'`. Missing ACAO is intentional defense-in-depth against cross-origin EventSource (e.g. page on `.local` talking to `4.3.2.1`). Do not add wildcard ACAO.
 
 ## CSRF / security
 
@@ -148,7 +150,7 @@ Maximum **6** SSE clients. Tick every 500 ms in the app task.
    - `src/web/assets/web_ui_blob.S` (`.incbin` in flash read-only data)
    - `src/web/assets/web_ui_manifest.h` (path, offset, length, MIME, cache class + `kWebUiIndexHtml` literal)
 3. PlatformIO `pre:scripts/pio_pre_frontend.py` runs this before every firmware build
-4. Soft limit: compressed SPA blob ≤ 350 KiB; OTA slot ~3.75 MB
+4. Hard build budget: compressed SPA blob ≤ 350 KiB (embed script fails if exceeded); OTA slot ~3.75 MB
 5. Generated blob artifacts are gitignored and regenerated during the build
 
 ## Deferred Work

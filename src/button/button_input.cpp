@@ -1,22 +1,17 @@
 #include "button.h"
 
+#include "button_actions.h"
 #include "button_config.h"
 #include "button_internal.h"
 
+#include "async/system_lifecycle.h"
 #include "async/task_config.h"
 #include "battery/battery.h"
-#include "config/app_config.h"
 #include "display/display.h"
 #include "heart/counter.h"
 #include "hw/pins.h"
 #include "led/led.h"
 #include "led/led_internal.h"
-#include "mqtt/config.h"
-#include "mqtt/mqtt.h"
-#include "ota/ota.h"
-#include "web/admin_globals.h"
-#include "async/system_lifecycle.h"
-#include "wifi/wlan.h"
 
 #include "diag/stack_monitor.h"
 #include "diag/task_watchdog.h"
@@ -70,12 +65,13 @@ static void blinkSoftOffArmedLed() { ledPlayPresetBlocking(LedPreset::SoftOff); 
  * On success does not return (deep sleep / power cut).
  */
 static bool processPowerOff() {
-    if (otaBlocksDestructiveAction()) {
-        static unsigned long s_lastOtaWarnMs = 0;
+    const ButtonActionHooks& hooks = buttonActionHooks();
+    if (hooks.softOffAllowed != nullptr && !hooks.softOffAllowed()) {
+        static unsigned long s_lastBlockWarnMs = 0;
         const unsigned long nowMs = millis();
-        if (s_lastOtaWarnMs == 0 || nowMs - s_lastOtaWarnMs >= 5000UL) {
-            ESP_LOGW(TAG, "PWR soft-off ignored: OTA in progress");
-            s_lastOtaWarnMs = nowMs;
+        if (s_lastBlockWarnMs == 0 || nowMs - s_lastBlockWarnMs >= 5000UL) {
+            ESP_LOGW(TAG, "PWR soft-off ignored: policy blocked");
+            s_lastBlockWarnMs = nowMs;
         }
         return false;
     }
@@ -95,7 +91,11 @@ static bool processPowerOff() {
     ESP_LOGI(TAG, "PWR soft-off — stable release settle (%lu ms) then deep sleep", kSoftOffReleaseSettleMs);
     waitForPwrRelease();
     ESP_LOGI(TAG, "PWR soft-off — entering deep sleep (mv=%d pct=%d)", batteryMilliVolts(), batteryPercent());
-    batteryPowerOffAndSleep();
+    if (hooks.performSoftOff != nullptr) {
+        hooks.performSoftOff();
+    } else {
+        batteryPowerOffAndSleep();
+    }
     return true;
 }
 
@@ -147,10 +147,9 @@ void buttonPollAndProcess() {
         if (btn.heldDown) {
             const unsigned long held = nowMs - btn.pressStartMs;
             if (held >= kShortPressMinMs) {
-                const ChayaSendResult sendResult = chayaRequestSend();
-                if (sendResult != ChayaSendResult::Started) {
-                    ESP_LOGD(TAG, "BTN publish skipped: result=%u ap=%d heartReady=%d", static_cast<unsigned>(sendResult),
-                             configIsApMode() ? 1 : 0, mqttCfgIsHeartReady() ? 1 : 0);
+                const ButtonActionHooks& hooks = buttonActionHooks();
+                if (hooks.requestSend != nullptr) {
+                    hooks.requestSend();
                 }
             }
             btn.heldDown = false;

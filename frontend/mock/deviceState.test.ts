@@ -1,10 +1,12 @@
 import { afterEach, describe, expect, it } from "vitest";
 import {
+  MOCK_RATE_LIMIT_MS,
   MOCK_SCENARIOS,
   applyScenario,
   createInitialState,
   getState,
   hasFault,
+  mockRateLimitAllow,
   otaBlocksDestructiveAction,
   parseFaultKey,
   parseScenario,
@@ -83,6 +85,26 @@ describe("parseFaultKey", () => {
     expect(parseFaultKey("mqtt")).toBe("mqtt");
     expect(parseFaultKey("sse")).toBe("sse");
     expect(parseFaultKey("nope")).toBeNull();
+  });
+});
+
+describe("mockRateLimitAllow", () => {
+  it("mirrors firmware min intervals for mqtt/settings/chaya", () => {
+    const state = createInitialState("sta-connected");
+    expect(MOCK_RATE_LIMIT_MS.mqttSave).toBe(2000);
+    expect(MOCK_RATE_LIMIT_MS.settingsSave).toBe(2000);
+    expect(MOCK_RATE_LIMIT_MS.chayaSend).toBe(1000);
+
+    expect(mockRateLimitAllow("mqttSave", 1000, state)).toBe(true);
+    expect(mockRateLimitAllow("mqttSave", 1000 + 1999, state)).toBe(false);
+    expect(mockRateLimitAllow("mqttSave", 1000 + 2000, state)).toBe(true);
+
+    expect(mockRateLimitAllow("settingsSave", 50, state)).toBe(true);
+    expect(mockRateLimitAllow("settingsSave", 50 + 500, state)).toBe(false);
+
+    expect(mockRateLimitAllow("chayaSend", 10, state)).toBe(true);
+    expect(mockRateLimitAllow("chayaSend", 10 + 999, state)).toBe(false);
+    expect(mockRateLimitAllow("chayaSend", 10 + 1000, state)).toBe(true);
   });
 });
 

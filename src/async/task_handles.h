@@ -12,8 +12,6 @@ extern QueueHandle_t      g_audioCmdQueue;
 extern SemaphoreHandle_t  g_mqttClientMutex;
 /** Chaya publish path (button/web vs MQTT). */
 extern SemaphoreHandle_t  g_chayaPublishMutex;
-/** Wakes the publish caller after PUBACK or disconnect. */
-extern SemaphoreHandle_t  g_chayaPubAckSemaphore;
 /** Heart counter NVS debounce (maybeSave/flush). */
 extern SemaphoreHandle_t  g_heartDebounceMutex;
 extern SemaphoreHandle_t  g_nvsMutex;

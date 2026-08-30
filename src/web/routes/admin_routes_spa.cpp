@@ -24,6 +24,30 @@ void addSpaCorsHeader(AsyncWebServerRequest* req, AsyncWebServerResponse* resp) 
     if (req == nullptr || resp == nullptr) {
         return;
     }
+    // SEC-04: in SoftAP never mirror an arbitrary browser Origin.
+    if (configIsApMode()) {
+        if (req->hasHeader("Origin")) {
+            const String& origin = req->header("Origin");
+            if (origin == "http://4.3.2.1" || origin == "http://chaya2mqtt"
+                || origin == "http://chaya2mqtt.local") {
+                resp->addHeader(F("Access-Control-Allow-Origin"), origin);
+            }
+            return;
+        }
+        if (!webRequestHostAllowed(req)) {
+            return;
+        }
+        const String& host = req->host();
+        if (host.length() == 0U || host.length() > 120U) {
+            return;
+        }
+        char origin[140]{};
+        const int n = snprintf(origin, sizeof(origin), "http://%s", host.c_str());
+        if (n > 0 && static_cast<size_t>(n) < sizeof(origin)) {
+            resp->addHeader(F("Access-Control-Allow-Origin"), origin);
+        }
+        return;
+    }
     if (req->hasHeader("Origin")) {
         if (webRequestOriginAllowed(req)) {
             resp->addHeader(F("Access-Control-Allow-Origin"), req->header("Origin"));

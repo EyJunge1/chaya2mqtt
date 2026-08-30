@@ -157,3 +157,14 @@ export interface OtaStatus {
   error: string;
   generation: number;
 }
+
+/** Cold-boot snapshot from `/api/bootstrap` (PERF-07). */
+export interface BootstrapPayload {
+  csrf: { token: string; expiresInSeconds: number };
+  device: DeviceInfo;
+  wifi: WifiStatus;
+  chaya: ChayaStatus | null;
+  mqtt: MqttStatus | null;
+  update: OtaStatus | null;
+  settings: SettingsInfo | null;
+}

@@ -186,21 +186,85 @@ describe("api client", () => {
     );
   });
 
-  it("factoryReset posts csrf", async () => {
-    const fetchMock = vi.fn().mockResolvedValue({
-      ok: true,
-      status: 202,
-      text: async () => JSON.stringify({ ok: true, message: "factory_reset" }),
+  it("factoryReset refreshes CSRF then posts", async () => {
+    const fetchMock = vi.fn().mockImplementation(async (path: string) => {
+      if (path === "/api/csrf") {
+        return {
+          ok: true,
+          status: 200,
+          text: async () => JSON.stringify({ token: "fresh-factory", expiresInSeconds: 86400 }),
+        };
+      }
+      return {
+        ok: true,
+        status: 202,
+        text: async () => JSON.stringify({ ok: true, message: "factory_reset" }),
+      };
     });
     vi.stubGlobal("fetch", fetchMock);
     await expect(api.factoryReset()).resolves.toEqual({ ok: true, message: "factory_reset" });
+    expect(fetchMock).toHaveBeenCalledWith("/api/csrf", expect.anything());
     expect(fetchMock).toHaveBeenCalledWith(
       "/api/factory-reset",
       expect.objectContaining({
         method: "POST",
-        body: "csrf_token=abc123",
+        body: "csrf_token=fresh-factory",
       }),
     );
+  });
+
+  it("does not auto-retry destructive connect-commit after CSRF rejection", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 403,
+      text: async () => JSON.stringify({ ok: false, error: "csrf" }),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    await expect(api.commitWifiConnect()).resolves.toEqual({ ok: false, error: "csrf" });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not auto-retry OTA install after CSRF rejection", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 403,
+      text: async () => JSON.stringify({ ok: false, error: "csrf" }),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    await expect(api.installUpdate()).resolves.toEqual({ ok: false, error: "csrf" });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("encodes boolean false as 0 in form bodies", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      text: async () => JSON.stringify({ ok: true, message: "saved" }),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    await expect(api.saveMqtt({ mqtt_server: "broker", mqtt_port: 8883, mqtt_tls: false })).resolves.toEqual({
+      ok: true,
+      message: "saved",
+    });
+    const body = String(fetchMock.mock.calls[0]?.[1]?.body ?? "");
+    expect(body).toContain("mqtt_tls=0");
+  });
+
+  it("returns rate_limit ApiResult on HTTP 429 without throwing", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: false,
+        status: 429,
+        text: async () => JSON.stringify({ ok: false, error: "rate_limit" }),
+      }),
+    );
+    await expect(api.saveMqtt({ mqtt_server: "broker", mqtt_port: 8883, mqtt_tls: true })).resolves.toEqual({
+      ok: false,
+      error: "rate_limit",
+    });
+    await expect(api.saveSettings({ lang: "de" })).resolves.toEqual({ ok: false, error: "rate_limit" });
+    await expect(api.sendChaya()).resolves.toEqual({ ok: false, error: "rate_limit" });
   });
 
   it("saveSettings posts reset_days and audio fields", async () => {

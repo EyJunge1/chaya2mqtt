@@ -132,7 +132,7 @@ On a SHA-256 mismatch, sidecar error, or flash error: **no reboot**.
 
 | Parameter | Value |
 |-----------|-------|
-| Stack | 8192 bytes |
+| Stack | 12288 bytes |
 | Priority | 4 |
 | Core | 1 |
 | WDT | Registered (temporarily unregistered during `otaLoop()`) |
@@ -148,7 +148,8 @@ In the **app task** (`appTaskFn`), rollback is canceled only after a **stable ru
 
 - Helper: `otaHealthWindowElapsed()` in `src/ota/ota_health.h`
 - Default: **`kOtaHealthStableMs = 30000`** (30 s) after the first WiFi boot settlement (`wlanBootSettledAtMs()`)
-- Requirements: `wlanIsSetupComplete()` and `wlanIsBootWifiSettled()` (STA **or** AP fallback)
+- Requirements: `wlanIsSetupComplete()`, `wlanIsBootWifiSettled()`, and **STA linked** (`wlanStaConnectedOk()` / `staConnected`)
+- SoftAP-only boot does **not** cancel rollback — keeps the previous image recoverable if STA never comes up
 - MQTT availability is **not** required (broker/router are external sources of failure)
 - Then `otaTryMarkValidAfterHealthCheck()` marks the image as valid and cancels rollback
 

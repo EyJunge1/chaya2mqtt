@@ -1,4 +1,12 @@
-import type { OtaChannel, OtaPhase, OtaStatus } from "./types";
+import type {
+  ChayaStatus,
+  DeviceBatteryEvent,
+  MqttStatus,
+  OtaChannel,
+  OtaPhase,
+  OtaStatus,
+  WifiStatus,
+} from "./types";
 
 const OTA_PHASES = new Set<OtaPhase>([
   "idle",
@@ -11,6 +19,18 @@ const OTA_PHASES = new Set<OtaPhase>([
 ]);
 
 const OTA_CHANNELS = new Set<OtaChannel>(["stable", "beta"]);
+
+function asFiniteNumber(value: unknown, fallback = 0): number {
+  return typeof value === "number" && Number.isFinite(value) ? value : fallback;
+}
+
+function asBool(value: unknown, fallback = false): boolean {
+  return typeof value === "boolean" ? value : fallback;
+}
+
+function asString(value: unknown, fallback = ""): string {
+  return typeof value === "string" ? value : fallback;
+}
 
 /** Light runtime check for critical OTA JSON fields (FE-13). */
 export function parseOtaStatus(data: unknown): OtaStatus {
@@ -29,13 +49,64 @@ export function parseOtaStatus(data: unknown): OtaStatus {
   return {
     phase: phase as OtaPhase,
     channel,
-    localVersion: typeof raw.localVersion === "string" ? raw.localVersion : "",
-    availableVersion: typeof raw.availableVersion === "string" ? raw.availableVersion : "",
-    bytesDone: typeof raw.bytesDone === "number" && Number.isFinite(raw.bytesDone) ? raw.bytesDone : 0,
-    bytesTotal:
-      typeof raw.bytesTotal === "number" && Number.isFinite(raw.bytesTotal) ? raw.bytesTotal : 0,
-    error: typeof raw.error === "string" ? raw.error : "",
-    generation:
-      typeof raw.generation === "number" && Number.isFinite(raw.generation) ? raw.generation : 0,
+    localVersion: asString(raw.localVersion),
+    availableVersion: asString(raw.availableVersion),
+    bytesDone: asFiniteNumber(raw.bytesDone),
+    bytesTotal: asFiniteNumber(raw.bytesTotal),
+    error: asString(raw.error),
+    generation: asFiniteNumber(raw.generation),
+  };
+}
+
+export function parseChayaStatus(data: unknown): ChayaStatus {
+  if (!data || typeof data !== "object") {
+    throw new Error("invalid chaya status");
+  }
+  const raw = data as Record<string, unknown>;
+  return {
+    rx: asFiniteNumber(raw.rx),
+    tx: asFiniteNumber(raw.tx),
+    connected: asBool(raw.connected),
+    configured: asBool(raw.configured),
+    paired: asBool(raw.paired),
+  };
+}
+
+export function parseWifiStatus(data: unknown): WifiStatus {
+  if (!data || typeof data !== "object") {
+    throw new Error("invalid wifi status");
+  }
+  const raw = data as Record<string, unknown>;
+  if (!asBool(raw.connected)) {
+    return { connected: false };
+  }
+  return {
+    connected: true,
+    ssid: asString(raw.ssid),
+    ip: asString(raw.ip),
+    gateway: asString(raw.gateway),
+    netmask: asString(raw.netmask),
+    dns1: asString(raw.dns1),
+    dns2: asString(raw.dns2),
+    rssi: asFiniteNumber(raw.rssi),
+  };
+}
+
+export function parseMqttStatus(data: unknown): MqttStatus {
+  if (!data || typeof data !== "object") {
+    throw new Error("invalid mqtt status");
+  }
+  const raw = data as Record<string, unknown>;
+  return { connected: asBool(raw.connected) };
+}
+
+export function parseDeviceBattery(data: unknown): DeviceBatteryEvent {
+  if (!data || typeof data !== "object") {
+    throw new Error("invalid device battery");
+  }
+  const raw = data as Record<string, unknown>;
+  return {
+    batteryMv: asFiniteNumber(raw.batteryMv),
+    batteryPct: asFiniteNumber(raw.batteryPct),
   };
 }

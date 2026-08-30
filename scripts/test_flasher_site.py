@@ -10,11 +10,12 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from typing import Any
 
 ROOT = Path(__file__).resolve().parents[1]
 
 
-def load_module(name: str, relative: str):
+def load_module(name: str, relative: str) -> Any:
     """Load a repository script under a stable module name."""
     path = ROOT / relative
     spec = importlib.util.spec_from_file_location(name, path)

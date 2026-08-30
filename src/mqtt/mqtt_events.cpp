@@ -4,6 +4,7 @@
 #include "counter_payload.h"
 
 #include "async/event_types.h"
+#include "async/sse_dirty.h"
 #include "async/task_handles.h"
 #include "config.h"
 #include "audio/audio.h"
@@ -42,14 +43,6 @@ void mqttResetFragmentState() {
     s_fragExpectTotal = 0;
     s_fragHave        = 0;
     portEXIT_CRITICAL(&s_mqttFragmentMux);
-}
-
-static void mqttQueueKillClientFromEvent() {
-    if (netCmdTrySend(NetCmd::MqttKillClient)) {
-        return;
-    }
-    s_mqttKillCoalesce.store(true, std::memory_order_release);
-    ESP_LOGW(TAG, "netCmd queue full (MqttKillClient) — coalesced");
 }
 
 void applyDisconnectFailureBackoff(bool wifiSuspectDuringFailure) {
@@ -210,42 +203,9 @@ static bool mqttWithLiveClient(esp_mqtt_client_handle_t cli, uint32_t generation
     return live;
 }
 
-template <typename Fn>
-static int mqttWithLiveClientInt(esp_mqtt_client_handle_t cli, uint32_t generation, Fn&& fn) {
-    if (!mqttClientLockTimed()) {
-        return -1;
-    }
-    const bool live = (s_client == cli
-                       && s_clientGeneration.load(std::memory_order_acquire) == generation);
-    const int result = live ? fn(cli) : -1;
-    mqttClientUnlock();
-    return result;
-}
-
 static bool mqttEventDisconnectIfLive(esp_mqtt_client_handle_t cli, uint32_t generation) {
     return mqttWithLiveClient(cli, generation, [](esp_mqtt_client_handle_t c) {
         (void)esp_mqtt_client_disconnect(c);
-    });
-}
-
-static int mqttEventSubscribeIfLive(esp_mqtt_client_handle_t cli, uint32_t generation,
-                                    const char* topic, int qos) {
-    return mqttWithLiveClientInt(cli, generation, [&](esp_mqtt_client_handle_t c) {
-        return esp_mqtt_client_subscribe(c, topic, qos);
-    });
-}
-
-static int mqttEventPublishIfLive(esp_mqtt_client_handle_t cli, uint32_t generation,
-                                  const char* topic, const char* payload, int length, int qos,
-                                  int retain) {
-    return mqttWithLiveClientInt(cli, generation, [&](esp_mqtt_client_handle_t c) {
-        return esp_mqtt_client_publish(c, topic, payload, length, qos, retain);
-    });
-}
-
-static bool mqttEventMarkConnectedIfLive(esp_mqtt_client_handle_t cli, uint32_t generation) {
-    return mqttWithLiveClient(cli, generation, [](esp_mqtt_client_handle_t) {
-        s_connected.store(true, std::memory_order_release);
     });
 }
 
@@ -287,15 +247,7 @@ void mqttEventHandler(void* /*handler_args*/, esp_event_base_t /*base*/, int32_t
             strlcpy(s_mqttSubTopicCache, cfg.topicSub, sizeof(s_mqttSubTopicCache));
             s_mqttSubTopicLen = strlen(s_mqttSubTopicCache);
             portEXIT_CRITICAL(&s_mqttSubTopicMux);
-
             ESP_LOGI(TAG, "MQTT connected; subscribing (QoS 1): %s", cfg.topicSub);
-            const int mid =
-                mqttEventSubscribeIfLive(ev->client, handlerGeneration, cfg.topicSub, 1);
-            if (mid < 0) {
-                ESP_LOGE(TAG, "MQTT subscribe failed — disconnecting for retry");
-                (void)mqttEventDisconnectIfLive(ev->client, handlerGeneration);
-                break;
-            }
         } else {
             portENTER_CRITICAL(&s_mqttSubTopicMux);
             s_mqttSubTopicCache[0] = '\0';
@@ -304,16 +256,40 @@ void mqttEventHandler(void* /*handler_args*/, esp_event_base_t /*base*/, int32_t
             ESP_LOGI(TAG, "MQTT connected; no partner — skipping subscribe");
         }
 
-        constexpr const char kOnline[]   = "online";
-        constexpr int        kOnlineLen  = sizeof(kOnline) - 1;
-        if (mqttEventPublishIfLive(ev->client, handlerGeneration, lwtPublishTopic, kOnline,
-                                   kOnlineLen, 1, 1)
-            < 0) {
+        constexpr const char kOnline[]  = "online";
+        constexpr int        kOnlineLen = sizeof(kOnline) - 1;
+
+        // One mutex take for subscribe + LWT + mark connected (PERF-06).
+        bool subscribeFailed = false;
+        bool publishFailed = false;
+        const bool live = mqttWithLiveClient(ev->client, handlerGeneration, [&](esp_mqtt_client_handle_t c) {
+            if (shouldSubscribe) {
+                const int mid = esp_mqtt_client_subscribe(c, cfg.topicSub, 1);
+                if (mid < 0) {
+                    subscribeFailed = true;
+                    return;
+                }
+            }
+            if (esp_mqtt_client_publish(c, lwtPublishTopic, kOnline, kOnlineLen, 1, 1) < 0) {
+                publishFailed = true;
+                return;
+            }
+            s_connected.store(true, std::memory_order_release);
+            sseMarkDirty(kSseChaya | kSseMqtt);
+        });
+        if (!live) {
+            break;
+        }
+        if (subscribeFailed) {
+            ESP_LOGE(TAG, "MQTT subscribe failed — disconnecting for retry");
+            (void)mqttEventDisconnectIfLive(ev->client, handlerGeneration);
+            break;
+        }
+        if (publishFailed) {
             ESP_LOGW(TAG, "MQTT publish retained online failed");
             break;
         }
 
-        (void)mqttEventMarkConnectedIfLive(ev->client, handlerGeneration);
         ledPlayPreset(LedPreset::MqttUp);
         break;
     }
@@ -347,6 +323,7 @@ void mqttEventHandler(void* /*handler_args*/, esp_event_base_t /*base*/, int32_t
         mqttAbortPendingPublish(handlerGeneration);
         s_connected.store(false, std::memory_order_release);
         s_connectPending.store(false, std::memory_order_release);
+        sseMarkDirty(kSseChaya | kSseMqtt);
         mqttResetFragmentState();
         const bool intentional = s_disconnectIntentional.load(std::memory_order_acquire);
         if (intentional) {
@@ -366,7 +343,7 @@ void mqttEventHandler(void* /*handler_args*/, esp_event_base_t /*base*/, int32_t
         }
         if (!intentional) {
             applyDisconnectFailureBackoff(/*wifiSuspect=*/!wlanStaConnectedOk());
-            mqttQueueKillClientFromEvent();
+            // Keep the client handle; mqttLoop will reconnect (PERF-02).
         }
         break;
     }

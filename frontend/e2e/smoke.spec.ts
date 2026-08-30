@@ -11,7 +11,7 @@ test.beforeEach(async ({ page, request }) => {
 
 test("app boots and navigates @smoke", async ({ page }) => {
   await waitForAppReady(page);
-  await expect(page.getByText("Hearts")).toBeVisible();
+  await expect(page.getByTestId("dashboard-hearts")).toBeVisible();
   await page.getByRole("link", { name: "MQTT" }).first().click();
   await expect(page).toHaveURL(/\/mqtt$/);
   await expect(page.getByText("a1b2c3").first()).toBeVisible();
@@ -51,17 +51,18 @@ test("wifi test then commit in AP mode", async ({ page, request }) => {
 
 test("diagnostics live via SSE counters @smoke", async ({ page }) => {
   await waitForAppReady(page);
-  await expect(page.getByText("Hearts")).toBeVisible();
-  await expect(page.getByText(/\d+/).first()).toBeVisible();
+  await expect(page.getByTestId("dashboard-hearts")).toBeVisible();
+  await expect(page.getByTestId("dashboard-rx-count")).toBeVisible();
+  await expect(page.getByTestId("dashboard-tx-count")).toBeVisible();
 });
 
 test("ota check success and error paths", async ({ page, request }) => {
   await resetMock(request, "update-available");
   await waitForAppReady(page);
   await page.goto("/update");
-  await expect(page.getByRole("button", { name: /Check for updates/i })).toBeVisible();
+  await expect(page.getByTestId("update-status-phase")).toBeVisible();
   await page.getByRole("button", { name: /Check for updates/i }).click();
-  await expect(page.getByText(/available|update/i).first()).toBeVisible();
+  await expect(page.getByTestId("update-status-phase")).toBeVisible();
 
   await resetMock(request, "update-error");
   await page.reload();

@@ -1,5 +1,11 @@
 import type { ChayaStatus, DeviceBatteryEvent, MqttStatus, OtaStatus, WifiStatus } from "./types";
-import { parseOtaStatus } from "./validate";
+import {
+  parseChayaStatus,
+  parseDeviceBattery,
+  parseMqttStatus,
+  parseOtaStatus,
+  parseWifiStatus,
+} from "./validate";
 
 export type SseHandlers = {
   chaya?: (data: ChayaStatus) => void;
@@ -25,11 +31,11 @@ export function connectEvents(handlers: SseHandlers): () => void {
     });
   };
 
-  bind("chaya", handlers.chaya);
-  bind("wifi", handlers.wifi);
-  bind("mqtt", handlers.mqtt);
+  bind("chaya", handlers.chaya, parseChayaStatus);
+  bind("wifi", handlers.wifi, parseWifiStatus);
+  bind("mqtt", handlers.mqtt, parseMqttStatus);
   bind("ota", handlers.ota, parseOtaStatus);
-  bind("device", handlers.device);
+  bind("device", handlers.device, parseDeviceBattery);
   es.onerror = () => handlers.error?.();
 
   return () => es.close();

@@ -12,17 +12,16 @@
 #include "identity/device_identity.h"
 #include "heart/counter.h"
 #include "battery/battery.h"
+#include "battery/battery_pure.h"
 #include "mqtt/config.h"
 #include "mqtt/mqtt.h"
 #include "ota/ota.h"
 #include "util/log_tag.h"
 #include "web/csrf.h"
 #include "web/deferred_reboot.h"
+#include "web/rate_limit.h"
 #include "web/web_middleware.h"
 #include "web/web_utils.h"
-#include "wifi/test.h"
-#include "wifi/wlan.h"
-#include "wifi/wlan_config.h"
 
 #include <ESPAsyncWebServer.h>
 #include <cerrno>
@@ -32,6 +31,10 @@
 #include <esp_log.h>
 
 DEFINE_LOG_TAG("WEBAPI");
+
+namespace {
+WebMinIntervalLimit s_settingsSaveLimit{2000U};
+} // namespace
 
 void handleApiSettingsGet(AsyncWebServerRequest* req) {
     char lang[3]{};
@@ -66,8 +69,16 @@ void handleApiSettingsGet(AsyncWebServerRequest* req) {
 }
 
 void handleApiSettingsPost(AsyncWebServerRequest* req) {
+    if (!webMinIntervalAllow(s_settingsSaveLimit)) {
+        sendErr(req, 429, "rate_limit");
+        return;
+    }
     if (g_systemShutdownInProgress.load(std::memory_order_acquire)) {
         sendErr(req, 503, "shutdown");
+        return;
+    }
+    if (batteryCriticalLow(batteryPercent())) {
+        sendErr(req, 503, "battery_low");
         return;
     }
     uint8_t days = configGetResetPeriodDays();

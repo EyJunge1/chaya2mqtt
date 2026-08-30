@@ -63,12 +63,12 @@ Requires heart-ready config (broker **and** partner). Without a partner, device 
 | Retain | **true** |
 | Example | `"42"` |
 
-The send call waits up to **5 seconds** for the matching `MQTT_EVENT_PUBLISHED` (PUBACK).
-Only that generation- and message-ID-bound acknowledgement increments and persists
-`heartSentCounter`, triggers TX audio, and redraws the display. There is no automatic retry.
-After a caller timeout, the in-flight value remains locked until a late PUBACK or disconnect;
-after disconnect the same absolute retained value may be sent again, so QoS-1 duplicates are
-idempotent for receivers.
+Publish is **non-blocking** for the network task: it starts the retained QoS-1 message and
+continues. Only the matching `MQTT_EVENT_PUBLISHED` (PUBACK) for that generation and message ID
+increments and persists `heartSentCounter`, triggers TX audio, and redraws the display. There is
+no automatic retry. If PUBACK does not arrive within **5 seconds**, `mqttLoop` fails the pending
+async send; a late PUBACK after timeout is ignored. After disconnect the same absolute retained
+value may be sent again, so QoS-1 duplicates are idempotent for receivers.
 
 ### Subscribe (reception)
 

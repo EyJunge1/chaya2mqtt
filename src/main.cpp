@@ -15,6 +15,7 @@
 #include "config/version.h"
 #include "battery/battery.h"
 #include "button/button.h"
+#include "button/button_actions.h"
 #include "led/led.h"
 #include "hw/sd_hold.h"
 #include "heart/counter.h"
@@ -22,10 +23,25 @@
 #include "mqtt/mqtt.h"
 #include "mqtt/config.h"
 #include "network/network_task.h"
+#include "ota/ota.h"
 #include "ota/ota_task.h"
+#include "web/admin.h"
+#include "async/web_server_hooks.h"
 #include "wifi/wlan.h"
 
 DEFINE_LOG_TAG("MAIN");
+
+namespace {
+void onButtonRequestSend() {
+    (void)chayaRequestSend();
+}
+bool onButtonSoftOffAllowed() {
+    return !otaBlocksDestructiveAction();
+}
+void onButtonPerformSoftOff() {
+    batteryPowerOffAndSleep();
+}
+} // namespace
 
 void setup() {
     // Battery latch: must be HIGH before PWR is released or LiPo power cuts.
@@ -85,6 +101,7 @@ void setup() {
     const bool haveSta = wlanLoadConfigFromNvs(&bootWlan) && bootWlan.ssid[0] != '\0';
     if (!haveSta) {
         if (wlanArmSetupApMode()) {
+            displaySetContentAllowed(false);
             (void)displayRequest(DisplayMsg::Cmd::DrawSplash, DisplayRequestMode::BootIfChanged);
             if (!displayWaitDrawIdle(90000U)) {
                 ESP_LOGW(TAG, "E-Ink splash wait timed out");
@@ -92,9 +109,14 @@ void setup() {
         }
     }
 
+    webAdminInstallServerHooks();
+    webServerRegisterRoutes();
+    buttonSetActionHooks(ButtonActionHooks{onButtonRequestSend, onButtonSoftOffAllowed, onButtonPerformSoftOff});
     setupWiFi();
+    webServerBegin();
 
     mqttSetup();
+    displaySetContentAllowed(!configIsApMode() && mqttCfgIsHeartReady());
 
     // Run startup blink before the button task touches the LED GPIO (otherwise both race on ledOutput).
     buttonStartupBlink();

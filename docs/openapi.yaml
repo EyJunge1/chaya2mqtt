@@ -62,6 +62,44 @@ paths:
                     maximum: 86400
         "403":
           $ref: "#/components/responses/Forbidden"
+  /api/bootstrap:
+    get:
+      tags: [device]
+      summary: Cold-boot snapshot (csrf + device + status)
+      operationId: getBootstrap
+      responses:
+        "200":
+          description: Aggregated boot payload
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [csrf, device, wifi]
+                properties:
+                  csrf:
+                    type: object
+                    required: [token, expiresInSeconds]
+                    properties:
+                      token: { type: string }
+                      expiresInSeconds: { type: integer, minimum: 0 }
+                  device:
+                    type: object
+                  wifi:
+                    type: object
+                  chaya:
+                    nullable: true
+                    type: object
+                  mqtt:
+                    nullable: true
+                    type: object
+                  update:
+                    nullable: true
+                    type: object
+                  settings:
+                    nullable: true
+                    type: object
+        "403":
+          $ref: "#/components/responses/Forbidden"
   /api/device:
     get:
       tags: [device]
@@ -114,6 +152,8 @@ paths:
           $ref: "#/components/responses/ApiError"
         "403":
           $ref: "#/components/responses/Forbidden"
+        "429":
+          $ref: "#/components/responses/RateLimited"
         "503":
           $ref: "#/components/responses/ApiError"
   /api/wifi/status:
@@ -162,6 +202,8 @@ paths:
           description: Scan still running
         "403":
           $ref: "#/components/responses/Forbidden"
+        "429":
+          $ref: "#/components/responses/RateLimited"
   /api/wifi/connect:
     post:
       tags: [wifi]
@@ -198,6 +240,26 @@ paths:
           $ref: "#/components/responses/ApiError"
         "403":
           $ref: "#/components/responses/Forbidden"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          description: Failed to persist Wi‑Fi credentials
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErr"
+              example:
+                ok: false
+                error: save
+        "503":
+          description: Connection test could not start
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErr"
+              example:
+                ok: false
+                error: test_start
   /api/wifi/connect-status:
     get:
       tags: [wifi]
@@ -380,6 +442,8 @@ paths:
           $ref: "#/components/responses/ApiError"
         "403":
           $ref: "#/components/responses/Forbidden"
+        "429":
+          $ref: "#/components/responses/RateLimited"
         "503":
           $ref: "#/components/responses/ApiError"
   /api/settings:
@@ -451,6 +515,8 @@ paths:
           $ref: "#/components/responses/ApiError"
         "403":
           $ref: "#/components/responses/Forbidden"
+        "429":
+          $ref: "#/components/responses/RateLimited"
         "503":
           $ref: "#/components/responses/ApiError"
   /api/reboot:
@@ -475,6 +541,8 @@ paths:
           $ref: "#/components/responses/ApiError"
         "403":
           $ref: "#/components/responses/Forbidden"
+        "429":
+          $ref: "#/components/responses/RateLimited"
         "503":
           $ref: "#/components/responses/ApiError"
   /api/factory-reset:
@@ -499,6 +567,8 @@ paths:
           $ref: "#/components/responses/ApiError"
         "403":
           $ref: "#/components/responses/Forbidden"
+        "429":
+          $ref: "#/components/responses/RateLimited"
         "503":
           $ref: "#/components/responses/ApiError"
   /api/update/status:
@@ -545,6 +615,8 @@ paths:
           $ref: "#/components/responses/ApiError"
         "403":
           $ref: "#/components/responses/Forbidden"
+        "429":
+          $ref: "#/components/responses/RateLimited"
         "503":
           $ref: "#/components/responses/ApiError"
   /api/update/install:
@@ -569,6 +641,8 @@ paths:
           $ref: "#/components/responses/ApiError"
         "403":
           $ref: "#/components/responses/Forbidden"
+        "429":
+          $ref: "#/components/responses/RateLimited"
         "409":
           $ref: "#/components/responses/ApiError"
         "503":
@@ -817,3 +891,12 @@ components:
         application/json:
           schema:
             $ref: "#/components/schemas/ApiErr"
+    RateLimited:
+      description: Too many requests for this route
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ApiErr"
+          example:
+            ok: false
+            error: rate_limit

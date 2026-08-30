@@ -12,17 +12,16 @@
 #include "identity/device_identity.h"
 #include "heart/counter.h"
 #include "battery/battery.h"
+#include "battery/battery_pure.h"
 #include "mqtt/config.h"
 #include "mqtt/mqtt.h"
 #include "ota/ota.h"
 #include "util/log_tag.h"
 #include "web/csrf.h"
 #include "web/deferred_reboot.h"
+#include "web/rate_limit.h"
 #include "web/web_middleware.h"
 #include "web/web_utils.h"
-#include "wifi/test.h"
-#include "wifi/wlan.h"
-#include "wifi/wlan_config.h"
 
 #include <ESPAsyncWebServer.h>
 #include <cerrno>
@@ -32,6 +31,10 @@
 #include <esp_log.h>
 
 DEFINE_LOG_TAG("WEBAPI");
+
+namespace {
+WebMinIntervalLimit s_mqttSaveLimit{2000U};
+} // namespace
 
 void handleApiMqttStatusGet(AsyncWebServerRequest* req) {
     adminSendJsonWithBuffer<96>(req, [](char* b, size_t n) {
@@ -101,7 +104,7 @@ bool fillMqttConfigJson(char* body, size_t bodyLen, const MqttConfig& cfg) {
     }
     // Closed below after nvsOk (QUAL-01).
     n = snprintf(body + pos, bodyLen - pos, ",\"nvsOk\":%s}",
-                 g_webAdminMqttNvsWriteFailed.load(std::memory_order_acquire) ? "false" : "true");
+                 mqttCfgNvsWriteFailed() ? "false" : "true");
     if (n < 0 || pos + static_cast<size_t>(n) >= bodyLen) {
         return false;
     }
@@ -143,11 +146,19 @@ bool partnerIdInputValid(const char* partnerId) {
 }
 
 void handleApiMqttPost(AsyncWebServerRequest* req) {
+    if (!webMinIntervalAllow(s_mqttSaveLimit)) {
+        sendErr(req, 429, "rate_limit");
+        return;
+    }
     if (g_systemShutdownInProgress.load(std::memory_order_acquire)) {
         sendErr(req, 503, "shutdown");
         return;
     }
-    g_webAdminMqttNvsWriteFailed.store(false, std::memory_order_release);
+    if (batteryCriticalLow(batteryPercent())) {
+        sendErr(req, 503, "battery_low");
+        return;
+    }
+    mqttCfgSetNvsWriteFailed(false);
     MqttConfig pending{};
     if (!mqttCfgSnapshotTimed(&pending, 2000U)) {
         sendErr(req, 503, "busy");
@@ -173,6 +184,10 @@ void handleApiMqttPost(AsyncWebServerRequest* req) {
         sendErr(req, 400, "username");
         return;
     }
+    if (!mqttUsernameSyntaxOk(pending.username, sizeof(pending.username))) {
+        sendErr(req, 400, "username");
+        return;
+    }
     {
         char passBuf[sizeof(pending.password)];
         passBuf[0] = '\0';
@@ -182,6 +197,10 @@ void handleApiMqttPost(AsyncWebServerRequest* req) {
         }
         // Empty password field means "leave unchanged" (also when absent — passBuf stays empty).
         if (req->hasParam("mqtt_pass", true) && passBuf[0] != '\0') {
+            if (!mqttPasswordSyntaxOk(passBuf, sizeof(passBuf))) {
+                sendErr(req, 400, "password");
+                return;
+            }
             strlcpy(pending.password, passBuf, sizeof(pending.password));
         }
     }

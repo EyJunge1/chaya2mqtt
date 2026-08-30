@@ -28,7 +28,8 @@ extern size_t         s_mqttSubTopicLen;
 extern portMUX_TYPE   s_mqttSubTopicMux;
 
 bool mqttClientLockTimed();
-void mqttClientLock();
+/** Fail-closed timed lock (same timeout as mqttClientLockTimed). */
+bool mqttClientLock();
 void mqttClientUnlock();
 
 void mqttKillClientImpl();
@@ -39,6 +40,8 @@ bool mqttEnsureClientAllocated();
 void mqttResetFragmentState();
 void mqttHandlePublishedAck(int messageId, uint32_t clientGeneration);
 void mqttAbortPendingPublish(uint32_t clientGeneration);
+/** Fail pending PUBACK wait after kMqttPublishAckWaitMs (call from mqttLoop). */
+void mqttServicePublishAckTimeout();
 
 void applyDisconnectFailureBackoff(bool wifiSuspectDuringFailure);
 

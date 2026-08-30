@@ -2,6 +2,7 @@
 
 #include "pairing.h"
 
+#include "async/sse_dirty.h"
 #include "config/nvs_keys.h"
 #include "config/nvs_utils.h"
 #include "identity/device_identity.h"
@@ -26,6 +27,9 @@ static MqttConfig          mqttCfg{};
 static MqttConfig          s_mqttPendingCfg{};
 static SemaphoreHandle_t   s_mqttCfgMutex       = nullptr;
 static std::atomic<bool> s_mqttCfgDirty{true};
+static std::atomic<bool> s_mqttNvsWriteFailed{false};
+static std::atomic<bool> s_brokerConfigured{false};
+static std::atomic<bool> s_paired{false};
 
 namespace {
 inline void mqttCfgMutexEnsureCreated() {
@@ -70,6 +74,11 @@ bool mqttCfgPutStringOrEmpty(Preferences& prefs, const char* key, const char* va
     return w > 0U || v[0] == '\0';
 }
 
+void mqttCfgRefreshFlagsLocked() {
+    s_brokerConfigured.store(mqttCfg.server[0] != '\0', std::memory_order_release);
+    s_paired.store(mqttCfg.partnerDeviceId[0] != '\0', std::memory_order_release);
+}
+
 } // namespace
 
 void mqttCfgApplyPairingTopics(MqttConfig* cfg) {
@@ -80,10 +89,19 @@ void mqttCfgApplyPairingTopics(MqttConfig* cfg) {
 
 static void mqttCfgMarkDirty() {
     s_mqttCfgDirty.store(true, std::memory_order_release);
+    sseMarkDirty(kSseChaya | kSseMqtt);
 }
 
 bool mqttCfgConsumeDirtySnapshotNeeded() {
     return s_mqttCfgDirty.exchange(false, std::memory_order_acq_rel);
+}
+
+void mqttCfgSetNvsWriteFailed(bool failed) {
+    s_mqttNvsWriteFailed.store(failed, std::memory_order_release);
+}
+
+bool mqttCfgNvsWriteFailed() {
+    return s_mqttNvsWriteFailed.load(std::memory_order_acquire);
 }
 
 void mqttCfgSnapshot(MqttConfig* out) {
@@ -116,24 +134,16 @@ bool mqttCfgEquals(const MqttConfig* a, const MqttConfig* b) {
 }
 
 bool mqttCfgIsBrokerConfigured() {
-    mqttCfgLock();
-    const bool ok = mqttCfg.server[0] != '\0';
-    mqttCfgUnlock();
-    return ok;
+    return s_brokerConfigured.load(std::memory_order_acquire);
 }
 
 bool mqttCfgIsPaired() {
-    mqttCfgLock();
-    const bool ok = mqttCfg.partnerDeviceId[0] != '\0';
-    mqttCfgUnlock();
-    return ok;
+    return s_paired.load(std::memory_order_acquire);
 }
 
 bool mqttCfgIsHeartReady() {
-    mqttCfgLock();
-    const bool ok = mqttCfg.server[0] != '\0' && mqttCfg.partnerDeviceId[0] != '\0';
-    mqttCfgUnlock();
-    return ok;
+    return s_brokerConfigured.load(std::memory_order_acquire)
+           && s_paired.load(std::memory_order_acquire);
 }
 
 void mqttCfgTopicPubLockedCopy(char* out, size_t outLen) {
@@ -157,6 +167,7 @@ void mqttCfgStorePending(const MqttConfig* pending) {
 void mqttCfgApplyPendingToActive() {
     mqttCfgLock();
     mqttCfg = s_mqttPendingCfg;
+    mqttCfgRefreshFlagsLocked();
     mqttCfgUnlock();
     mqttCfgMarkDirty();
 }
@@ -243,6 +254,7 @@ void loadMQTTConfig() {
     mqttCfgLock();
     mqttCfg = loaded;
     s_mqttPendingCfg = loaded;
+    mqttCfgRefreshFlagsLocked();
     mqttCfgUnlock();
     mqttCfgMarkDirty();
 }

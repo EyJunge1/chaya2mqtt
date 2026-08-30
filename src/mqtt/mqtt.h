@@ -28,8 +28,8 @@ bool mqttIsConnected();
 bool mqttPublishChayaAndApplySentCounters();
 
 /**
- * Non-blocking heart publish for the LED TX sequence (STAB-02).
- * LED/button task requests work; network task runs the blocking PUBACK wait.
+ * Non-blocking heart publish for the LED TX sequence.
+ * LED/button task requests work; network task starts QoS-1 publish; PUBACK completes async.
  */
 enum class MqttChayaPublishAsync : uint8_t {
     Idle,

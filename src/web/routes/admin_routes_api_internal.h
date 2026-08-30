@@ -13,6 +13,9 @@ bool parseFormIntStrict(const String& text, int* out);
 void handleApiCsrfGet(AsyncWebServerRequest* req);
 void handleApiDeviceGet(AsyncWebServerRequest* req);
 
+/** Aggregated boot snapshot: csrf + device (+ STA extras). */
+void handleApiBootstrapGet(AsyncWebServerRequest* req);
+
 void handleApiChayaGet(AsyncWebServerRequest* req);
 void handleApiChayaSendPost(AsyncWebServerRequest* req);
 

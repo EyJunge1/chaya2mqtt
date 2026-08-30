@@ -41,10 +41,14 @@ enum class DisplayRequestMode : uint8_t {
 
 /**
  * Single entry for display commands. Returns false when the command could not be queued
- * or (PowerOffWait) the refresh timed out. Content/Boot on SoftAP: Heart is a no-op (true).
- * Content Heart is also a no-op until broker and partner are set (waiting title).
+ * or (PowerOffWait) the refresh timed out. Content Heart is a no-op until
+ * displaySetContentAllowed(true) (policy owned by Network/App).
  */
 bool displayRequest(DisplayMsg::Cmd cmd, DisplayRequestMode mode, uint32_t waitMs = 100U);
+
+/** Policy gate for heart content paints (QUAL-05). SoftAP / unpaired → false. */
+void displaySetContentAllowed(bool allowed);
+bool displayContentAllowed();
 
 /** Wait until the display task finishes the next queued draw (or times out). */
 bool displayWaitDrawIdle(uint32_t timeoutMs);

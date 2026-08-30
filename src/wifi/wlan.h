@@ -104,7 +104,7 @@ void wlanControlledRestart(const char* reasonTag);
  */
 bool wlanApSetupSnapshot(char* outSsid, size_t ssidLen, char* outIp, size_t ipLen);
 
-/** 8-digit WPA3 SoftAP PIN (display only; not exposed on the HTTP API). */
+/** SoftAP WPA PSK for WIFI QR (alphanumeric ≥20; not exposed on the HTTP API). */
 bool wlanApSetupPassSnapshot(char* outPass, size_t passLen);
 
 /** Load or create the SoftAP PIN in NVS and cache it in RAM. */

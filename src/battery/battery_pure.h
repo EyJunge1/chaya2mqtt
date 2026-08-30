@@ -33,3 +33,7 @@ inline int batteryPctFromMilliVolts(int mv) {
 inline bool batteryWarnLow(int pct) {
     return pct < kBatteryWarnPct;
 }
+
+inline bool batteryCriticalLow(int pct) {
+    return pct < kBatteryCriticalPct;
+}

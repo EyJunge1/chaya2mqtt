@@ -3,9 +3,9 @@
 #include "util/ip_format.h"
 
 #include "async/task_handles.h"
+#include "async/web_server_hooks.h"
 #include "constants.h"
 #include "identity/device_identity.h"
-#include "web/deferred_reboot.h"
 #include "wlan.h"
 #include "wlan_internal.h"
 
@@ -211,6 +211,6 @@ bool wlanCommitWifiConnectionTestAndScheduleReboot() {
     s_wifiConnTestStartMs = 0;
     s_wifiConnTestState   = WlanWifiConnectionTestState::Idle;
     wifiTestUnlock();
-    deferredRebootAfterWifiSave();
+    webRequestRebootAfterWifiSave();
     return true;
 }

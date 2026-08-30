@@ -3,6 +3,7 @@
 #include "wlan_internal.h"
 
 #include "async/event_types.h"
+#include "async/sse_dirty.h"
 #include "async/task_handles.h"
 
 #include <Arduino.h>
@@ -44,6 +45,12 @@ void wlanHandleStaReconnectNetCmd() {
         // Keep the request alive; wlanEndLowInterferenceForEpd() re-wakes the network task.
         s_staReconnectWorkPending.store(true, std::memory_order_release);
         ESP_LOGD(TAG, "WLAN reconnect deferred (EPD refresh)");
+        return;
+    }
+    if (s_wifiScanInProgress.load(std::memory_order_acquire)) {
+        // STAB-07: do not escalate soft→force while an admin scan is active.
+        s_staReconnectWorkPending.store(true, std::memory_order_release);
+        ESP_LOGD(TAG, "WLAN reconnect deferred (scan in progress)");
         return;
     }
     const unsigned long nowMs       = millis();
@@ -99,6 +106,8 @@ void wifiStationEvent(arduino_event_id_t event, arduino_event_info_t info) {
     switch (event) {
     case ARDUINO_EVENT_WIFI_STA_DISCONNECTED: {
         s_staLastGotIpWallMs.store(0UL, std::memory_order_relaxed);
+        s_staLinkOk.store(false, std::memory_order_release);
+        sseMarkDirty(kSseWifi);
         const uint8_t reason = info.wifi_sta_disconnected.reason;
         s_lastStaDisconnectReason.store(reason, std::memory_order_relaxed);
         const uint8_t* bssid = info.wifi_sta_disconnected.bssid;
@@ -117,6 +126,8 @@ void wifiStationEvent(arduino_event_id_t event, arduino_event_info_t info) {
     }
     case ARDUINO_EVENT_WIFI_STA_LOST_IP: {
         s_staLastGotIpWallMs.store(0UL, std::memory_order_relaxed);
+        s_staLinkOk.store(false, std::memory_order_release);
+        sseMarkDirty(kSseWifi);
         // Synthetic reason: treat like disconnect for recovery / escalate path.
         s_lastStaDisconnectReason.store(200U, std::memory_order_relaxed);
         ESP_LOGW(TAG, "STA_LOST_IP — queue reconnect");
@@ -129,10 +140,15 @@ void wifiStationEvent(arduino_event_id_t event, arduino_event_info_t info) {
     case ARDUINO_EVENT_WIFI_STA_GOT_IP: {
         ESP_LOGD(TAG, "GOT_IP callback core=%d", static_cast<int>(xPortGetCoreID()));
         s_staLastGotIpWallMs.store(millis(), std::memory_order_relaxed);
+        s_staLinkOk.store(true, std::memory_order_release);
+        sseMarkDirty(kSseWifi);
         s_wifiReconnectFailCount.store(0U, std::memory_order_relaxed);
         s_wifiReconnectNextAllowedMs.store(0UL, std::memory_order_relaxed);
         s_lastStaDisconnectReason.store(0U, std::memory_order_relaxed);
         s_staReconnectWorkPending.store(false, std::memory_order_release);
+        // STAB-07: cool down STA scans after (re)association.
+        s_wifiScanNextAllowedMs.store(millis() + kWifiScanAfterGotIpCooldownMs,
+                                      std::memory_order_relaxed);
         queueWifiGotIp();
         break;
     }

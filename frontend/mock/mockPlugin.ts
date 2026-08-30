@@ -12,6 +12,7 @@ import {
   hasFault,
   mockControlPayload,
   mqttPayload,
+  mockRateLimitAllow,
   otaBlocksDestructiveAction,
   otaPayload,
   parseFaultKey,
@@ -67,6 +68,17 @@ function requireStaMode(res: ServerResponse): boolean {
 function requireApMode(res: ServerResponse): boolean {
   if (getState().mode !== "ap") {
     sendJson(res, 400, { ok: false, error: "not_ap" });
+    return false;
+  }
+  return true;
+}
+
+function requireRateLimit(
+  key: "mqttSave" | "settingsSave" | "chayaSend",
+  res: ServerResponse,
+): boolean {
+  if (!mockRateLimitAllow(key)) {
+    sendJson(res, 429, { ok: false, error: "rate_limit" });
     return false;
   }
   return true;
@@ -134,6 +146,40 @@ export async function handleApi(req: IncomingMessage, res: ServerResponse): Prom
     return true;
   }
 
+  if (path === "/api/bootstrap" && method === "GET") {
+    if (failIfFault("device", res)) return true;
+    const sta = state.mode === "sta";
+    sendJson(res, 200, {
+      csrf: { token: state.csrf, expiresInSeconds: 86400 },
+      device: devicePayload(),
+      wifi: wifiPayload(),
+      chaya: sta ? chayaPayload() : null,
+      mqtt: sta ? mqttPayload() : null,
+      update: sta ? otaPayload() : null,
+      settings: sta
+        ? {
+            resetDays: state.resetDays,
+            lang: state.lang,
+            theme: state.theme,
+            ledEnabled: state.ledEnabled,
+            audioTxEnabled: state.audioTxEnabled,
+            audioRxEnabled: state.audioRxEnabled,
+            audioTxVolume: state.audioTxVolume,
+            audioRxVolume: state.audioRxVolume,
+            quietHourStart: state.quietHourStart,
+            quietHourEnd: state.quietHourEnd,
+            txHz: state.txHz,
+            txMs: state.txMs,
+            rxHz: state.rxHz,
+            rxMs: state.rxMs,
+            nvsOk: state.settingsNvsOk !== false,
+            applyPending: state.settingsApplyPending === true,
+          }
+        : null,
+    });
+    return true;
+  }
+
   if (path === "/api/device" && method === "GET") {
     if (failIfFault("device", res)) return true;
     sendJson(res, 200, devicePayload());
@@ -151,6 +197,7 @@ export async function handleApi(req: IncomingMessage, res: ServerResponse): Prom
     if (!requireStaMode(res)) return true;
     const params = parseForm(await readBody(req));
     if (!requireCsrf(params, res)) return true;
+    if (!requireRateLimit("chayaSend", res)) return true;
     if (failIfFault("heart", res)) return true;
     if (!state.mqttConnected || !state.mqtt.server || !state.mqtt.partnerId) {
       sendJson(res, 503, { ok: false, error: "unavailable" });
@@ -395,6 +442,7 @@ export async function handleApi(req: IncomingMessage, res: ServerResponse): Prom
     if (!requireStaMode(res)) return true;
     const params = parseForm(await readBody(req));
     if (!requireCsrf(params, res)) return true;
+    if (!requireRateLimit("mqttSave", res)) return true;
     if (failIfFault("mqtt-save", res)) return true;
     state.mqtt.server = params.get("mqtt_server") ?? "";
     state.mqtt.port = Number(params.get("mqtt_port") ?? "8883") || 8883;
@@ -444,8 +492,11 @@ export async function handleApi(req: IncomingMessage, res: ServerResponse): Prom
       rxHz: state.rxHz,
       rxMs: state.rxMs,
       nvsOk: state.settingsNvsOk !== false,
-      applyPending: false,
+      applyPending: state.settingsApplyPending === true,
     });
+    if (state.settingsApplyPending) {
+      state.settingsApplyPending = false;
+    }
     return true;
   }
 
@@ -453,6 +504,7 @@ export async function handleApi(req: IncomingMessage, res: ServerResponse): Prom
     if (!requireStaMode(res)) return true;
     const params = parseForm(await readBody(req));
     if (!requireCsrf(params, res)) return true;
+    if (!requireRateLimit("settingsSave", res)) return true;
     if (failIfFault("settings-save", res)) return true;
     const days = Number(params.get("reset_days") ?? String(state.resetDays));
     state.resetDays = Number.isFinite(days) ? Math.min(30, Math.max(0, days)) : state.resetDays;
@@ -561,6 +613,10 @@ export async function handleApi(req: IncomingMessage, res: ServerResponse): Prom
       }
       state.rxMs = v;
     }
+    state.settingsApplyPending = true;
+    setTimeout(() => {
+      state.settingsApplyPending = false;
+    }, 120);
     sendJson(res, 200, { ok: true, message: "accepted" });
     return true;
   }

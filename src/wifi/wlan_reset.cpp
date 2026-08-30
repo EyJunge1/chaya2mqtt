@@ -13,12 +13,10 @@
 #include "hw/pins.h"
 #include "identity/device_identity.h"
 #include "ota/ota.h"
+#include "async/system_lifecycle.h"
 #include "util/log_tag.h"
-#include "web/admin.h"
-#include "web/admin_globals.h"
 
 #include <Arduino.h>
-#include <ESPAsyncWebServer.h>
 #include <ESPmDNS.h>
 #include <WiFi.h>
 #include <cstring>
@@ -44,7 +42,6 @@ static void prepareForResetAndRestart() {
     portENTER_CRITICAL(&g_lastFailedBootSsidMux);
     g_lastFailedBootSsid[0] = '\0';
     portEXIT_CRITICAL(&g_lastFailedBootSsidMux);
-    webAdminWebServer().end();
     if (s_captiveDnsStarted.exchange(false, std::memory_order_acq_rel)) {
         g_dnsServer.stop();
     }

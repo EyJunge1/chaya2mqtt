@@ -10,22 +10,25 @@
 #include "wifi/wlan_soft_reconnect.h"
 
 void test_setup_ap_pass_syntax_and_format() {
-    TEST_ASSERT_TRUE(setupApPassSyntaxOk("00000000"));
-    TEST_ASSERT_TRUE(setupApPassSyntaxOk("12345678"));
+    TEST_ASSERT_FALSE(setupApPassSyntaxOk("00000000")); // legacy 8-digit rejected
     TEST_ASSERT_FALSE(setupApPassSyntaxOk("1234567"));
-    TEST_ASSERT_FALSE(setupApPassSyntaxOk("123456789"));
-    TEST_ASSERT_FALSE(setupApPassSyntaxOk("1234567a"));
     TEST_ASSERT_FALSE(setupApPassSyntaxOk(""));
     TEST_ASSERT_FALSE(setupApPassSyntaxOk(nullptr));
+    TEST_ASSERT_FALSE(setupApPassSyntaxOk("short"));
+    TEST_ASSERT_TRUE(setupApPassSyntaxOk("ABCDEFGHIJKLMNOPQRSTUVWX"));
+    TEST_ASSERT_TRUE(setupApPassSyntaxOk("abcdefghijklmnopqrstuvwx"));
+    TEST_ASSERT_TRUE(setupApPassSyntaxOk("0123456789ABCDEFGHIJKLMN"));
+    TEST_ASSERT_FALSE(setupApPassSyntaxOk("ABCDEFGHIJKLMNOPQRSTUVW!"));
 
     char pin[kSetupApPassBufLen]{};
-    TEST_ASSERT_TRUE(formatSetupApPassFromU32(0, pin, sizeof(pin)));
-    TEST_ASSERT_EQUAL_STRING("00000000", pin);
-    TEST_ASSERT_TRUE(formatSetupApPassFromU32(12345678U, pin, sizeof(pin)));
-    TEST_ASSERT_EQUAL_STRING("12345678", pin);
-    TEST_ASSERT_TRUE(formatSetupApPassFromU32(100000000U, pin, sizeof(pin)));
-    TEST_ASSERT_EQUAL_STRING("00000000", pin);
-    TEST_ASSERT_FALSE(formatSetupApPassFromU32(1, pin, 8));
+    uint8_t rnd[kSetupApPassLen]{};
+    for (size_t i = 0; i < kSetupApPassLen; ++i) {
+        rnd[i] = static_cast<uint8_t>(i);
+    }
+    TEST_ASSERT_TRUE(formatSetupApPassFromRandom(rnd, sizeof(rnd), pin, sizeof(pin)));
+    TEST_ASSERT_TRUE(setupApPassSyntaxOk(pin));
+    TEST_ASSERT_FALSE(formatSetupApPassFromRandom(rnd, 4U, pin, sizeof(pin)));
+    TEST_ASSERT_FALSE(formatSetupApPassFromRandom(rnd, sizeof(rnd), pin, 8U));
 }
 
 void test_wlan_boot_decision_keeps_configured_device_out_of_setup_ap() {
@@ -216,6 +219,15 @@ void test_wlan_recovery_decide() {
         static_cast<int>(WlanRecoveryAction::Restart),
         static_cast<int>(wlanRecoveryDecide(false, false, false, true, kWlanRecoveryRestartAfterMs + 10UL,
                                             kWlanRecoveryMinUptimeBeforeRestartMs + 10UL, st)));
+    // Cap restarts → ForcedReassoc instead (STAB-03).
+    st.linkDownSinceMs = 1UL;
+    st.lastForcedReassocMs = 0UL;
+    TEST_ASSERT_EQUAL_INT(
+        static_cast<int>(WlanRecoveryAction::ForcedReassoc),
+        static_cast<int>(wlanRecoveryDecide(false, false, false, true, kWlanRecoveryRestartAfterMs + 10UL,
+                                            kWlanRecoveryMinUptimeBeforeRestartMs + 10UL, st,
+                                            kWlanRecoveryMaxRestartsPerDay,
+                                            kWlanRecoveryMaxRestartsPerDay)));
 }
 
 void test_wifi_soft_reconnect_escalation_threshold() {
@@ -225,6 +237,13 @@ void test_wifi_soft_reconnect_escalation_threshold() {
     TEST_ASSERT_FALSE(wlanSoftReconnectShouldForce(1U, kWifiSoftReconnectAttemptsBeforeForce));
     TEST_ASSERT_TRUE(wlanSoftReconnectShouldForce(2U, kWifiSoftReconnectAttemptsBeforeForce));
     TEST_ASSERT_TRUE(wlanSoftReconnectShouldForce(5U, kWifiSoftReconnectAttemptsBeforeForce));
+    // Soft→Force threshold orchestration: failCount climbs then escalates (TEST-06).
+    uint32_t fails = 0;
+    while (!wlanSoftReconnectShouldForce(fails, kWifiSoftReconnectAttemptsBeforeForce)) {
+        ++fails;
+        TEST_ASSERT_TRUE(fails <= kWifiSoftReconnectAttemptsBeforeForce);
+    }
+    TEST_ASSERT_EQUAL_UINT32(kWifiSoftReconnectAttemptsBeforeForce, fails);
 }
 
 void test_wlan_epd_tx_power_from_rssi() {

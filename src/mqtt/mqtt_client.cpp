@@ -1,5 +1,6 @@
 #include "mqtt_internal.h"
 
+#include "async/sse_dirty.h"
 #include "async/task_config.h"
 #include "constants.h"
 #include "identity/device_identity.h"
@@ -54,14 +55,9 @@ bool mqttClientLockTimed() {
     return xSemaphoreTake(g_mqttClientMutex, kMqttClientLockTimeoutTicks) == pdTRUE;
 }
 
-void mqttClientLock() {
-    // Prefer timed take so a stuck holder cannot hang the caller forever (STAB-13).
-    if (g_mqttClientMutex != nullptr) {
-        if (xSemaphoreTake(g_mqttClientMutex, kMqttClientLockTimeoutTicks) != pdTRUE) {
-            ESP_LOGW(TAG, "mqtt client mutex timeout — falling back to extended wait");
-            xSemaphoreTake(g_mqttClientMutex, pdMS_TO_TICKS(10000));
-        }
-    }
+bool mqttClientLock() {
+    // Fail-closed timed take only — never blind-wait past the TWDT budget (STAB-02).
+    return mqttClientLockTimed();
 }
 
 void mqttClientUnlock() {
@@ -86,7 +82,10 @@ static void mqttFillStableClientId() {
 }
 
 bool mqttEnsureClientAllocated() {
-    mqttClientLock();
+    if (!mqttClientLock()) {
+        ESP_LOGW(TAG, "mqttEnsureClientAllocated: mutex timeout");
+        return false;
+    }
     if (s_client != nullptr) {
         mqttClientUnlock();
         return true;
@@ -249,6 +248,7 @@ void mqttKillClientImpl() {
     s_disconnectIntentional.store(false, std::memory_order_release);
     s_connected.store(false, std::memory_order_release);
     s_connectPending.store(false, std::memory_order_release);
+    sseMarkDirty(kSseChaya | kSseMqtt);
 
     const unsigned long durMs =
         static_cast<unsigned long>((esp_timer_get_time() - teardownStartUs) / 1000LL);

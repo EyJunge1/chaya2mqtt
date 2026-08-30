@@ -64,6 +64,55 @@ inline bool mqttServerSyntaxOk(const char* host, size_t maxLen) {
     return hostFieldSyntaxOk(host, maxLen);
 }
 
+/**
+ * MQTT username: empty OK (anonymous); otherwise printable ASCII (0x20–0x7E), fits in maxLen.
+ * SEC-09.
+ */
+inline bool mqttUsernameSyntaxOk(const char* user, size_t maxLen) {
+    if (user == nullptr || maxLen == 0U) {
+        return false;
+    }
+    if (user[0] == '\0') {
+        return true;
+    }
+    size_t len = 0;
+    for (const char* p = user; *p != '\0'; ++p) {
+        ++len;
+        if (len >= maxLen) {
+            return false;
+        }
+        const unsigned char c = static_cast<unsigned char>(*p);
+        if (c < 0x20U || c > 0x7EU) {
+            return false;
+        }
+    }
+    return true;
+}
+
+/**
+ * MQTT password: empty OK; no control chars (< 0x20); fits in maxLen.
+ * Allows high-bit / punctuation for strong secrets; blocks embedded-NUL truncation class. SEC-09.
+ */
+inline bool mqttPasswordSyntaxOk(const char* pass, size_t maxLen) {
+    if (pass == nullptr || maxLen == 0U) {
+        return false;
+    }
+    if (pass[0] == '\0') {
+        return true;
+    }
+    size_t len = 0;
+    for (const char* p = pass; *p != '\0'; ++p) {
+        ++len;
+        if (len >= maxLen) {
+            return false;
+        }
+        if (static_cast<unsigned char>(*p) < 0x20U) {
+            return false;
+        }
+    }
+    return true;
+}
+
 /** UI language preference: "de" or "en". */
 inline bool uiLangSyntaxOk(const char* lang) {
     return lang != nullptr && (strcmp(lang, "de") == 0 || strcmp(lang, "en") == 0);

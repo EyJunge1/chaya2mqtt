@@ -30,3 +30,8 @@ inline bool csrfSubmittedMatchesExpected(const char* submitted, const uint8_t ex
     uint8_t got[16]{};
     return hexDecode32Strict(submitted, got) && secretsEqual16(got, expectedRaw);
 }
+
+/** Current match OR (grace active AND previous match). */
+inline bool csrfAcceptSubmitted(bool currentMatch, bool previousMatch, bool previousAllowed) {
+    return currentMatch || (previousAllowed && previousMatch);
+}

@@ -88,6 +88,10 @@ export default defineConfig({
   // Relative URLs work on localhost and GitHub project pages (/chaya2mqtt/).
   base: "./",
   plugins: [localFirmwarePlugin(), svelte(), tailwindcss()],
+  test: {
+    environment: "node",
+    include: ["src/**/*.test.ts"],
+  },
   server: {
     host: "127.0.0.1",
     port: 4174,

@@ -33,6 +33,7 @@ function readFirmwareApiRoutes(): string {
 
 describe("api contract", () => {
   it("exposes expected client methods", () => {
+    expect(typeof api.getBootstrap).toBe("function");
     expect(typeof api.getDevice).toBe("function");
     expect(typeof api.getUpdateStatus).toBe("function");
     expect(typeof api.checkUpdate).toBe("function");

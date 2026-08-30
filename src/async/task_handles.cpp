@@ -16,7 +16,6 @@ QueueHandle_t      g_displayCmdQueue = nullptr;
 QueueHandle_t      g_audioCmdQueue   = nullptr;
 SemaphoreHandle_t  g_mqttClientMutex      = nullptr;
 SemaphoreHandle_t  g_chayaPublishMutex    = nullptr;
-SemaphoreHandle_t  g_chayaPubAckSemaphore = nullptr;
 SemaphoreHandle_t  g_heartDebounceMutex  = nullptr;
 SemaphoreHandle_t  g_nvsMutex             = nullptr;
 SemaphoreHandle_t  g_wifiTestMutex   = nullptr;
@@ -30,7 +29,6 @@ void asyncInfraInit() {
     g_audioCmdQueue   = xQueueCreate(kAudioCmdQueueDepth, sizeof(AudioMsg));
     g_mqttClientMutex   = xSemaphoreCreateMutex();
     g_chayaPublishMutex   = xSemaphoreCreateMutex();
-    g_chayaPubAckSemaphore = xSemaphoreCreateBinary();
     g_heartDebounceMutex  = xSemaphoreCreateMutex();
     g_nvsMutex            = xSemaphoreCreateMutex();
     g_wifiTestMutex     = xSemaphoreCreateMutex();
@@ -38,7 +36,6 @@ void asyncInfraInit() {
 
     if (g_netCmdQueue == nullptr || g_displayCmdQueue == nullptr || g_audioCmdQueue == nullptr
         || g_mqttClientMutex == nullptr || g_chayaPublishMutex == nullptr
-        || g_chayaPubAckSemaphore == nullptr
         || g_heartDebounceMutex == nullptr || g_nvsMutex == nullptr
         || g_wifiTestMutex == nullptr || g_wifiApiMutex == nullptr) {
         ESP_LOGE(TAG, "asyncInfraInit: queue/mutex allocation failed");

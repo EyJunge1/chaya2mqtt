@@ -150,24 +150,24 @@
     </div>
 
     <Panel title={i18n.t("dashboard.hearts")} hint={i18n.t("dashboard.hearts-hint")}>
-      <div class="mb-4 grid grid-cols-2 gap-3">
-        <div class="rounded-xl bg-bg px-3 py-4 text-center">
+      <div class="mb-4 grid grid-cols-2 gap-3" data-testid="dashboard-hearts">
+        <div class="rounded-xl bg-bg px-3 py-4 text-center" data-testid="dashboard-rx">
           <div
             class="inline-flex items-center justify-center gap-1 text-xs uppercase tracking-wide text-muted"
           >
             <Heart size={12} fill="currentColor" class="text-accent" aria-hidden="true" />
             {i18n.t("dashboard.rx")}
           </div>
-          <div class="mt-1 text-3xl font-bold text-text-bright">{chaya.rx}</div>
+          <div class="mt-1 text-3xl font-bold text-text-bright" data-testid="dashboard-rx-count">{chaya.rx}</div>
         </div>
-        <div class="rounded-xl bg-bg px-3 py-4 text-center">
+        <div class="rounded-xl bg-bg px-3 py-4 text-center" data-testid="dashboard-tx">
           <div
             class="inline-flex items-center justify-center gap-1 text-xs uppercase tracking-wide text-muted"
           >
             <Heart size={12} fill="currentColor" class="text-accent" aria-hidden="true" />
             {i18n.t("dashboard.tx")}
           </div>
-          <div class="mt-1 text-3xl font-bold text-text-bright">{chaya.tx}</div>
+          <div class="mt-1 text-3xl font-bold text-text-bright" data-testid="dashboard-tx-count">{chaya.tx}</div>
         </div>
       </div>
       <PrimaryButton

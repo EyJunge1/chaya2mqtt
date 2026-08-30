@@ -11,7 +11,8 @@
     "check": "svelte-check --tsconfig ./tsconfig.json",
     "lint": "eslint .",
     "format": "prettier --write \"src/**/*.{ts,svelte,css}\" \"*.{ts,js,json,html}\" \"eslint.config.js\" \"svelte.config.js\"",
-    "format:check": "prettier --check \"src/**/*.{ts,svelte,css}\" \"*.{ts,js,json,html}\" \"eslint.config.js\" \"svelte.config.js\""
+    "format:check": "prettier --check \"src/**/*.{ts,svelte,css}\" \"*.{ts,js,json,html}\" \"eslint.config.js\" \"svelte.config.js\"",
+    "test": "vitest run"
   },
   "dependencies": {
     "@lucide/svelte": "^1.34.0",
@@ -34,6 +35,7 @@
     "tailwindcss": "^4.3.3",
     "typescript": "^6.0.3",
     "typescript-eslint": "^8.68.0",
-    "vite": "^8.2.2"
+    "vite": "^8.2.2",
+    "vitest": "^4.1.11"
   }
 }

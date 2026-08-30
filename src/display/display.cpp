@@ -2,15 +2,26 @@
 #include "display_task_internal.h"
 #include "internal.h"
 
-#include "mqtt/config.h"
 #include "util/log_tag.h"
-#include "wifi/wlan.h"
 
 #include <Arduino.h>
+#include <atomic>
 #include <esp_log.h>
 #include <freertos/FreeRTOS.h>
 
 DEFINE_LOG_TAG("DISP");
+
+namespace {
+std::atomic<bool> s_contentAllowed{false};
+} // namespace
+
+void displaySetContentAllowed(bool allowed) {
+    s_contentAllowed.store(allowed, std::memory_order_release);
+}
+
+bool displayContentAllowed() {
+    return s_contentAllowed.load(std::memory_order_acquire);
+}
 
 void displaySetDesiredHeartIcon(DisplayHeartIcon icon) {
     displayTaskSetDesiredHeartIcon(icon);
@@ -27,15 +38,14 @@ bool displayRequest(DisplayMsg::Cmd cmd, DisplayRequestMode mode, uint32_t waitM
             ESP_LOGW(TAG, "displayRequest Content only supports DrawHeart");
             return false;
         }
-        // SoftAP QR and waiting title (no broker/partner yet): never overlay heart content.
-        if (configIsApMode() || !mqttCfgIsHeartReady()) {
+        if (!displayContentAllowed()) {
             return true;
         }
         return displayPostHeartRedraw(pdMS_TO_TICKS(waitMs));
     }
     case DisplayRequestMode::BootIfChanged: {
         if (cmd == DisplayMsg::Cmd::DrawHeart) {
-            if (configIsApMode()) {
+            if (!displayContentAllowed()) {
                 return true;
             }
             displayTaskDrainDrawIdleSem();

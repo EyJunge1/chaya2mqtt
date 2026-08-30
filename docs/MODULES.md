@@ -236,7 +236,7 @@ ESP-IDF `esp_mqtt_client` over `mqtts://` with a TLS bundle (`tls/`).
 | `mqttLoop()` | Reconnect logic, prechecks, client initialization |
 | `mqttDisconnect()` | Stop and destroy client |
 | `chayaRequestSend()` | Single send entry (button + web): guards + LED TX sequence → publish |
-| `mqttPublishChayaAndApplySentCounters()` | Publish retained QoS 1; return after matching PUBACK or 5 s timeout |
+| `mqttPublishChayaAndApplySentCounters()` | Start retained QoS 1 publish; counters apply on PUBACK (network task does not wait) |
 | `mqttIsConnected()` | Connection status |
 | `mqttPublishBlocked()` | True while applying settings |
 | `mqttBeginSettingsApply()` / `mqttEndSettingsApply()` | Publishing lock |
@@ -265,7 +265,7 @@ Event handler (`MQTT_EVENT_DATA`): parse payload → `heartCounterStoreFromRemot
 | `wlanLoop()` | Captive DNS, mDNS restart, WiFi scan service, recovery |
 | `wlanRecoveryServiceLoop()` | Forced reassociation after an extended STA outage; restart with guards |
 | `wlanApSetupSnapshot(...)` | SoftAP SSID and IP for display and API |
-| `wlanApSetupPassSnapshot(...)` | 8-digit SoftAP PIN (WIFI QR payload; not shown as plain text) |
+| `wlanApSetupPassSnapshot(...)` | SoftAP WPA-PSK for WIFI QR payload (not shown as plain text) |
 | `wlanSaveConfigToNvs(...)` | Write NVS `wifi` (packed `cfg_v2`: DHCP/static, DNS, NTP) |
 | `configSaveWiFiCredentials(...)` | Compatibility wrapper: stores a DHCP-only configuration |
 | `configIsApMode()` | SoftAP setup mode? |
@@ -433,7 +433,7 @@ Details: [WEB_ADMIN.md](WEB_ADMIN.md)
 | File | Purpose |
 |------|---------|
 | `ota.h` / `ota.cpp` | Automatic check logic, download queue |
-| `ota_task.cpp` | OTA task (8192 stack, priority 4) |
+| `ota_task.cpp` | OTA task (12288 stack, priority 4) |
 | `github.h` / `github.cpp` | GitHub Releases API, CalVer comparison |
 | `flash.h` / `flash.cpp` | TLS + SHA-256 sidecar, Arduino `HTTPUpdate` |
 | `version_cmp.h` | CalVer/beta (`-rc.N`) comparison (header-only) |

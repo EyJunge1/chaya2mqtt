@@ -51,6 +51,7 @@ char              s_bootAttemptSsid[kWifiSsidMaxLen]{};
 unsigned long     s_bootStaConnectStartMs = 0;
 
 std::atomic<unsigned long> s_staLastGotIpWallMs{0};
+std::atomic<bool> s_staLinkOk{false};
 
 WlanScanRow       s_wifiScanCache[kWlanWifiScanCacheMaxRows]{};
 WlanScanRow       s_wifiScanRowWork[kWlanWifiScanCacheMaxRows]{};
@@ -73,14 +74,15 @@ bool wlanEnsureSetupApPass() {
         return true;
     }
 
-    uint32_t rnd = 0;
-    esp_fill_random(&rnd, sizeof(rnd));
-    if (!formatSetupApPassFromU32(rnd, s_setupApPass, sizeof(s_setupApPass))) {
+    // Migrate away from legacy 8-digit PIN / invalid NVS values (SEC-03).
+    uint8_t rnd[kSetupApPassLen]{};
+    esp_fill_random(rnd, sizeof(rnd));
+    if (!formatSetupApPassFromRandom(rnd, sizeof(rnd), s_setupApPass, sizeof(s_setupApPass))) {
         s_setupApPass[0] = '\0';
         return false;
     }
     if (!app_nvs::writeString(kNvsNsWifi, kNvsKeyWifiApPin, s_setupApPass)) {
-        ESP_LOGW(TAG, "AP PIN NVS write failed; using RAM-only PIN");
+        ESP_LOGW(TAG, "AP PSK NVS write failed; using RAM-only PSK");
     }
     return true;
 }
@@ -137,6 +139,7 @@ bool wlanArmSetupApMode() {
         return false;
     }
     g_apMode.store(true, std::memory_order_relaxed);
+    s_staLinkOk.store(false, std::memory_order_release);
     return true;
 }
 
@@ -330,10 +333,8 @@ void wlanLoop() {
 }
 
 bool wlanStaConnectedOk() {
-    wlanWifiApiLock();
-    const bool ok = WiFi.status() == WL_CONNECTED && WiFi.localIP()[0] != 0;
-    wlanWifiApiUnlock();
-    return ok;
+    // PERF-04: event-driven atomic; no WiFi API mutex on the hot path.
+    return s_staLinkOk.load(std::memory_order_acquire);
 }
 
 bool wlanStaStableForMqtt() {

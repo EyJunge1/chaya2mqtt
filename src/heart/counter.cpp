@@ -2,6 +2,7 @@
 #include "counter_internal.h"
 #include "counter_pure.h"
 
+#include "async/sse_dirty.h"
 #include "config/app_config.h"
 
 #include <Arduino.h>
@@ -37,6 +38,7 @@ void heartCounterStoreFromRemote(int value) {
     portENTER_CRITICAL(&s_heartDisplayMux);
     heartCounter.store(value, std::memory_order_relaxed);
     portEXIT_CRITICAL(&s_heartDisplayMux);
+    sseMarkDirty(kSseChaya);
 }
 
 void heartSentCounterApplyAfterSuccessfulPublish() {
@@ -44,6 +46,7 @@ void heartSentCounterApplyAfterSuccessfulPublish() {
     const int cur = heartSentCounter.load(std::memory_order_relaxed);
     heartSentCounter.store(heartSentCounterNextPure(cur), std::memory_order_relaxed);
     portEXIT_CRITICAL(&s_heartDisplayMux);
+    sseMarkDirty(kSseChaya);
 }
 
 void heartCounterFillDrawSnapshot(HeartCounterDrawSnapshot* out) {
@@ -76,6 +79,7 @@ void counterResetValuesRam() {
     s_rxCounter.resetCommittedAndTimestamps(t);
     s_txCounter.resetCommittedAndTimestamps(t);
     heartDebounceUnlock();
+    sseMarkDirty(kSseChaya);
 }
 } // namespace
 

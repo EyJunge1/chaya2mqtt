@@ -52,7 +52,7 @@ const translations = {
     "flash.confirmText": "Flash Chaya2MQTT {version} to the connected device.",
     "flash.eraseLabel": "Erase flash before install",
     "flash.eraseHint":
-      "Only for first installs or when clearing all settings. Removes previous firmware and NVS data.",
+      "Leave unchecked for normal updates. Enable only for first install or recovery when settings are corrupt — erases firmware and all NVS data.",
     "flash.install": "Install",
     "flash.cancel": "Cancel",
     "flash.runningTitle": "Installing…",
@@ -143,7 +143,7 @@ const translations = {
     "flash.confirmText": "Chaya2MQTT {version} auf das verbundene Gerät flashen.",
     "flash.eraseLabel": "Flash vor der Installation löschen",
     "flash.eraseHint":
-      "Nur bei Erstinstallation oder zum Löschen aller Einstellungen. Entfernt alte Firmware und NVS-Daten.",
+      "Für normale Updates ausgelassen lassen. Nur bei Erstinstallation oder Recovery bei kaputten Einstellungen — löscht Firmware und alle NVS-Daten.",
     "flash.install": "Installieren",
     "flash.cancel": "Abbrechen",
     "flash.runningTitle": "Installation läuft …",

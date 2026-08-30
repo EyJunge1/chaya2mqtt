@@ -42,7 +42,7 @@ bool csrfTokenMatches(const char* submitted) {
     portEXIT_CRITICAL(&s_csrfMux);
     const bool currentMatch  = csrfSubmittedMatchesExpected(submitted, currentCopy);
     const bool previousMatch = csrfSubmittedMatchesExpected(submitted, previousCopy);
-    return currentMatch || (previousAllowed && previousMatch);
+    return csrfAcceptSubmitted(currentMatch, previousMatch, previousAllowed);
 }
 
 } // namespace

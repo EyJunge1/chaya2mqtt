@@ -121,10 +121,12 @@ inline bool writeString(const char* ns, const char* key, const char* value) {
     detail::lock();
     Preferences prefs;
     if (!prefs.begin(ns, false)) { detail::unlock(); return false; }
-    const size_t w = prefs.putString(key, value != nullptr ? value : "");
+    const char* v = value != nullptr ? value : "";
+    const size_t w = prefs.putString(key, v);
     prefs.end();
     detail::unlock();
-    return w > 0U;
+    // putString("") returns 0 (strlen) — treat empty string as success (QUAL-04).
+    return w > 0U || v[0] == '\0';
 }
 
 } // namespace app_nvs

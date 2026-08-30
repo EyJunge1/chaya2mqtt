@@ -1,4 +1,4 @@
-import { api, refreshCsrf } from "../api/client.ts";
+import { api } from "../api/client.ts";
 import type { ChayaStatus, DeviceInfo, MqttStatus, OtaStatus, WifiStatus } from "../api/types.ts";
 import { pushToast } from "../components/toastStack.ts";
 import type { ShowToast, ToastItem, ToastVariant } from "../components/toastStack.ts";
@@ -27,6 +27,7 @@ export class DeviceStore {
   bootError = $state(false);
   booting = $state(true);
   refreshSeq = $state(0);
+  private refreshGeneration = 0;
 
   readonly sseKey = $derived(
     this.device ? `${this.device.deviceId}:${this.device.mode}:${this.refreshSeq}` : "",
@@ -41,6 +42,7 @@ export class DeviceStore {
   };
 
   reset = () => {
+    this.refreshGeneration += 1;
     this.device = null;
     this.chaya = emptyChaya();
     this.wifi = emptyWifi();
@@ -54,22 +56,16 @@ export class DeviceStore {
   };
 
   refreshDevice = async () => {
-    await refreshCsrf();
-    const d = await api.getDevice();
-    const [c, w, m, updateStatus, settings] = await Promise.all([
-      d.mode === "sta" ? api.getChaya() : Promise.resolve(emptyChaya()),
-      api.getWifiStatus(),
-      d.mode === "sta" ? api.getMqttStatus() : Promise.resolve(emptyMqtt()),
-      d.mode === "sta" ? api.getUpdateStatus().catch(() => null) : Promise.resolve(null),
-      d.mode === "sta" ? api.getSettings().catch(() => null) : Promise.resolve(null),
-    ]);
-    this.device = d;
-    this.chaya = c;
-    this.wifi = w;
-    this.mqtt = m;
-    this.ota = updateStatus;
-    if (settings) {
-      applyDeviceUiPrefs(settings.lang, settings.theme);
+    const gen = ++this.refreshGeneration;
+    const boot = await api.getBootstrap();
+    if (gen !== this.refreshGeneration) return;
+    this.device = boot.device;
+    this.wifi = boot.wifi;
+    this.chaya = boot.chaya ?? emptyChaya();
+    this.mqtt = boot.mqtt ?? emptyMqtt();
+    this.ota = boot.update;
+    if (boot.settings) {
+      applyDeviceUiPrefs(boot.settings.lang, boot.settings.theme);
     }
     this.bootError = false;
     this.refreshSeq += 1;

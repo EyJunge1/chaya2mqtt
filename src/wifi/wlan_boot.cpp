@@ -10,10 +10,8 @@
 #include "led/led.h"
 #include "mqtt/config.h"
 #include "util/ip_format.h"
-#include "web/admin.h"
 
 #include <Arduino.h>
-#include <ESPAsyncWebServer.h>
 #include <ESPmDNS.h>
 #include <WiFi.h>
 #include <cstring>
@@ -139,6 +137,7 @@ void setupWifiFinishStaConnected() {
 
     // The setup QR remains until STA connectivity is proven. Only then show
     // the waiting title or the operational heart (broker + partner required).
+    displaySetContentAllowed(mqttCfgIsHeartReady());
     if (mqttCfgIsHeartReady()) {
         (void)displayRequest(DisplayMsg::Cmd::DrawHeart, DisplayRequestMode::BootIfChanged);
     } else {
@@ -169,6 +168,7 @@ static bool wlanBringUpSetupSoftApLocked(const char* apPass, const char** outAut
 
 static bool wlanFinishSetupSoftAp(const char* apAuth) {
     g_apMode.store(true, std::memory_order_relaxed);
+    s_staLinkOk.store(false, std::memory_order_release);
     delay(50);
     wlanWifiApiLock();
     WiFi.persistent(false);
@@ -299,6 +299,7 @@ void setupWifiStartApFallback(const char* attemptedSsid) {
         return;
     }
     (void)wlanFinishSetupSoftAp(apAuth);
+    displaySetContentAllowed(false);
     if (!splashAlreadyDrawn) {
         (void)displayRequest(DisplayMsg::Cmd::DrawSplash, DisplayRequestMode::BootIfChanged);
     }
@@ -395,7 +396,6 @@ void setupWiFi() {
     s_bootStaFinishDone.store(false, std::memory_order_release);
     s_staReconnectWorkPending.store(false, std::memory_order_release);
     s_staGotIpWorkPending.store(false, std::memory_order_release);
-    webAdminRegisterRoutes();
 
     WlanConfig cfg{};
     const bool haveCfg = wlanLoadConfigFromNvs(&cfg);
@@ -415,7 +415,6 @@ void setupWiFi() {
     }
 
     s_wifiSetupComplete.store(true, std::memory_order_release);
-    webAdminWebServer().begin();
 }
 
 bool wlanIsSetupComplete() {

@@ -87,6 +87,27 @@ describe("WifiTestingPage", () => {
     vi.unstubAllGlobals();
   });
 
+  it("falls back to / when commit next is a public IPv4", async () => {
+    getWifiConnectStatus.mockResolvedValue({ state: "ok", ssid: "HomeNet" });
+    commitWifiConnect.mockResolvedValue({
+      ok: true,
+      message: "committed",
+      next: "http://8.8.8.8/",
+    });
+    const replaceSpy = vi.fn();
+    vi.stubGlobal("location", { ...window.location, replace: replaceSpy } as Location);
+    const timeoutSpy = vi.spyOn(window, "setTimeout");
+    render(WifiTestingPage, { props: { onToast: vi.fn() } });
+
+    await fireEvent.click(await screen.findByRole("button", { name: "Save & reboot" }));
+    await waitFor(() => expect(commitWifiConnect).toHaveBeenCalledOnce());
+    const redirectCb = timeoutSpy.mock.calls.find((c) => c[1] === 2000)?.[0] as () => void;
+    redirectCb();
+    expect(replaceSpy).toHaveBeenCalledWith("/");
+    timeoutSpy.mockRestore();
+    vi.unstubAllGlobals();
+  });
+
   it("falls back to / when commit next is not an allowed redirect", async () => {
     getWifiConnectStatus.mockResolvedValue({ state: "ok", ssid: "HomeNet" });
     commitWifiConnect.mockResolvedValue({

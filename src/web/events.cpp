@@ -1,10 +1,12 @@
 #include "events.h"
 
+#include "async/sse_dirty.h"
 #include "battery/battery.h"
 #include "heart/counter.h"
 #include "mqtt/config.h"
 #include "mqtt/mqtt.h"
 #include "ota/ota.h"
+#include "sse_dirty_pure.h"
 #include "web_utils.h"
 #include "wifi/wlan.h"
 
@@ -25,14 +27,15 @@ DEFINE_LOG_TAG("SSE");
 
 // /events SSE hub for dashboard scripts.
 // s_esCacheMux protects last-sent caches; webEventsTick() is the sole writer.
+// PERF-03: producers mark dirty bits; idle clients skip gather until keepalive.
 
 namespace {
 
 AsyncEventSource s_events("/events");
 
 constexpr size_t kMaxSseClients = 6U;
+constexpr uint32_t kSseKeepaliveMs = 8000U;
 
-std::atomic<bool> s_forceBroadcast{false};
 std::atomic<bool> s_loggedFirstSseClient{false};
 
 bool s_haveLastChaya = false;
@@ -59,21 +62,23 @@ int s_lastBatteryPct = INT_MIN;
 
 portMUX_TYPE s_esCacheMux = portMUX_INITIALIZER_UNLOCKED;
 
-static void onEsConnect(AsyncEventSourceClient *) {
+static void onEsConnect(AsyncEventSourceClient*) {
     if (!s_loggedFirstSseClient.exchange(true, std::memory_order_acq_rel)) {
         ESP_LOGD(TAG, "SSE: first client connected");
     }
-    s_forceBroadcast.store(true, std::memory_order_release);
+    sseMarkDirty(kSseAll);
 }
 
-static size_t buildChayaPayload(int rx, int tx, bool connected, bool configured, bool paired, char *buf, size_t bufLen) {
-    return static_cast<size_t>(snprintf(buf, bufLen, "{\"rx\":%d,\"tx\":%d,\"connected\":%s,\"configured\":%s,\"paired\":%s}", rx,
-                                        tx, connected ? "true" : "false", configured ? "true" : "false",
+static size_t buildChayaPayload(int rx, int tx, bool connected, bool configured, bool paired, char* buf,
+                                size_t bufLen) {
+    return static_cast<size_t>(snprintf(buf, bufLen,
+                                        "{\"rx\":%d,\"tx\":%d,\"connected\":%s,\"configured\":%s,\"paired\":%s}",
+                                        rx, tx, connected ? "true" : "false", configured ? "true" : "false",
                                         paired ? "true" : "false"));
 }
 
-static size_t buildWifiStatusPayload(bool connected, const char *ssid, const char *ipStr, const char *gateway,
-                                     const char *netmask, const char *dns1, const char *dns2, int rssi, char *buf,
+static size_t buildWifiStatusPayload(bool connected, const char* ssid, const char* ipStr, const char* gateway,
+                                     const char* netmask, const char* dns1, const char* dns2, int rssi, char* buf,
                                      size_t bufLen) {
     if (!connected) {
         return static_cast<size_t>(snprintf(buf, bufLen, "{\"connected\":false}"));
@@ -91,26 +96,27 @@ static size_t buildWifiStatusPayload(bool connected, const char *ssid, const cha
     const int tail = snprintf(buf + pos, remain,
                               ",\"ip\":\"%s\",\"gateway\":\"%s\",\"netmask\":\"%s\",\"dns1\":\"%s\",\"dns2\":\"%s\","
                               "\"rssi\":%d}",
-                              ipStr != nullptr ? ipStr : "", gateway != nullptr ? gateway : "", netmask != nullptr ? netmask : "",
-                              dns1 != nullptr ? dns1 : "", dns2 != nullptr ? dns2 : "", rssi);
+                              ipStr != nullptr ? ipStr : "", gateway != nullptr ? gateway : "",
+                              netmask != nullptr ? netmask : "", dns1 != nullptr ? dns1 : "",
+                              dns2 != nullptr ? dns2 : "", rssi);
     if (tail < 0 || static_cast<size_t>(tail) >= remain) {
         return 0;
     }
     return pos + static_cast<size_t>(tail);
 }
 
-static size_t buildMqttStatusPayload(bool connected, char *buf, size_t bufLen) {
+static size_t buildMqttStatusPayload(bool connected, char* buf, size_t bufLen) {
     return static_cast<size_t>(snprintf(buf, bufLen, "{\"connected\":%s}", connected ? "true" : "false"));
 }
 
-static size_t buildDeviceBatteryPayload(int mv, int pct, char *buf, size_t bufLen) {
+static size_t buildDeviceBatteryPayload(int mv, int pct, char* buf, size_t bufLen) {
     return static_cast<size_t>(snprintf(buf, bufLen, "{\"batteryMv\":%d,\"batteryPct\":%d}", mv, pct));
 }
 
 } // namespace
 
-void webEventsRegister(AsyncWebServer &ws) {
-    s_events.authorizeConnect([](AsyncWebServerRequest *req) {
+void webEventsRegister(AsyncWebServer& ws) {
+    s_events.authorizeConnect([](AsyncWebServerRequest* req) {
         if (!webRequestHostAllowed(req) || !webRequestOriginAllowed(req)) {
             return false;
         }
@@ -128,7 +134,7 @@ void webEventsTick() {
         return;
     }
 
-    static unsigned s_wifiRfSkip = 99U;
+    static uint32_t s_lastWorkMs = 0U;
     static bool s_cachedWifiConn = false;
     static char s_cachedCurSsid[kWifiSsidMaxLen]{};
     static char s_cachedCurIp[16]{};
@@ -138,14 +144,36 @@ void webEventsTick() {
     static char s_cachedDns2[16]{};
     static int s_cachedRssi = 0;
 
-    const int rx = heartDisplayRxDelta();
-    const int tx = heartDisplayTxDelta();
-    const bool mqttLineOk = mqttIsConnected();
-    const bool mqttPageRelevant = mqttCfgIsBrokerConfigured();
-    const bool mqttPaired = mqttCfgIsPaired();
-    const bool force = s_forceBroadcast.exchange(false, std::memory_order_acq_rel);
-    if (force) {
-        s_wifiRfSkip = 99U;
+    const uint32_t nowMs = millis();
+    const uint32_t pending = sseConsumeDirty();
+    bool keepalive = false;
+    const uint32_t workBits =
+        sseTickSelectBits(pending, nowMs, s_lastWorkMs, kSseKeepaliveMs, &keepalive);
+    if (workBits == 0U) {
+        return;
+    }
+    s_lastWorkMs = nowMs;
+
+    const bool wantChaya = (workBits & kSseChaya) != 0U;
+    const bool wantWifi = (workBits & kSseWifi) != 0U;
+    const bool wantMqtt = (workBits & kSseMqtt) != 0U;
+    const bool wantOta = (workBits & kSseOta) != 0U;
+    const bool wantDevice = (workBits & kSseDevice) != 0U;
+    const bool force = (workBits & kSseAll) == kSseAll;
+
+    int rx = 0;
+    int tx = 0;
+    bool mqttLineOk = false;
+    bool mqttPageRelevant = false;
+    bool mqttPaired = false;
+    if (wantChaya || wantMqtt) {
+        mqttLineOk = mqttIsConnected();
+        mqttPageRelevant = mqttCfgIsBrokerConfigured();
+        mqttPaired = mqttCfgIsPaired();
+    }
+    if (wantChaya) {
+        rx = heartDisplayRxDelta();
+        tx = heartDisplayTxDelta();
     }
 
     bool wifiConn = false;
@@ -156,10 +184,10 @@ void webEventsTick() {
     char curDns1[16]{};
     char curDns2[16]{};
     int rssi = 0;
-    if (s_wifiRfSkip >= 4U) {
-        s_wifiRfSkip = 0U;
-        if (wlanFillStaNetSnapshot(&wifiConn, curSsid, sizeof(curSsid), curIp, sizeof(curIp), curGateway, sizeof(curGateway),
-                                   curNetmask, sizeof(curNetmask), curDns1, sizeof(curDns1), curDns2, sizeof(curDns2), &rssi)) {
+    if (wantWifi) {
+        if (wlanFillStaNetSnapshot(&wifiConn, curSsid, sizeof(curSsid), curIp, sizeof(curIp), curGateway,
+                                   sizeof(curGateway), curNetmask, sizeof(curNetmask), curDns1, sizeof(curDns1),
+                                   curDns2, sizeof(curDns2), &rssi)) {
             s_cachedWifiConn = wifiConn;
             strlcpy(s_cachedCurSsid, curSsid, sizeof(s_cachedCurSsid));
             strlcpy(s_cachedCurIp, curIp, sizeof(s_cachedCurIp));
@@ -178,25 +206,21 @@ void webEventsTick() {
             strlcpy(curDns2, s_cachedDns2, sizeof(curDns2));
             rssi = s_cachedRssi;
         }
-    } else {
-        ++s_wifiRfSkip;
-        wifiConn = s_cachedWifiConn;
-        strlcpy(curSsid, s_cachedCurSsid, sizeof(curSsid));
-        strlcpy(curIp, s_cachedCurIp, sizeof(curIp));
-        strlcpy(curGateway, s_cachedGateway, sizeof(curGateway));
-        strlcpy(curNetmask, s_cachedNetmask, sizeof(curNetmask));
-        strlcpy(curDns1, s_cachedDns1, sizeof(curDns1));
-        strlcpy(curDns2, s_cachedDns2, sizeof(curDns2));
-        rssi = s_cachedRssi;
     }
 
     const bool mqttConnNow = mqttPageRelevant ? mqttIsConnected() : false;
 
     OtaStatus otaSt{};
-    otaCopyStatus(&otaSt);
+    if (wantOta) {
+        otaCopyStatus(&otaSt);
+    }
 
-    const int batteryMv = batteryMilliVolts();
-    const int batteryPct = batteryPercent();
+    int batteryMv = 0;
+    int batteryPct = 0;
+    if (wantDevice) {
+        batteryMv = batteryMilliVolts();
+        batteryPct = batteryPercent();
+    }
 
     bool chayaDirty = false;
     bool wifiDirty = false;
@@ -204,59 +228,70 @@ void webEventsTick() {
     bool otaDirty = force;
     bool deviceDirty = force;
     portENTER_CRITICAL(&s_esCacheMux);
-    chayaDirty = force || !s_haveLastChaya || s_lastRx != rx || s_lastTx != tx || s_lastMqttConn != mqttLineOk ||
-                 s_lastMqttConfigured != mqttPageRelevant || s_lastMqttPaired != mqttPaired;
-    if (chayaDirty) {
-        s_haveLastChaya = true;
-        s_lastRx = rx;
-        s_lastTx = tx;
-        s_lastMqttConn = mqttLineOk;
-        s_lastMqttConfigured = mqttPageRelevant;
-        s_lastMqttPaired = mqttPaired;
-    }
-    constexpr int kWifiRssiHysteresisDbm = 3;
-    const bool wifiOtherDirty =
-        force || !s_haveLastWifi || s_lastWifiConnected != wifiConn ||
-        strcmp(s_lastWifiSsid, curSsid) != 0 || strcmp(s_lastWifiIp, curIp) != 0 ||
-        strcmp(s_lastWifiGateway, curGateway) != 0 || strcmp(s_lastWifiNetmask, curNetmask) != 0 ||
-        strcmp(s_lastWifiDns1, curDns1) != 0 || strcmp(s_lastWifiDns2, curDns2) != 0;
-    const int rssiDelta = rssi > s_lastWifiRssi ? rssi - s_lastWifiRssi : s_lastWifiRssi - rssi;
-    wifiDirty = wifiOtherDirty || rssiDelta >= kWifiRssiHysteresisDbm;
-    if (wifiDirty) {
-        s_haveLastWifi = true;
-        s_lastWifiConnected = wifiConn;
-        strlcpy(s_lastWifiSsid, curSsid, sizeof(s_lastWifiSsid));
-        strlcpy(s_lastWifiIp, curIp, sizeof(s_lastWifiIp));
-        strlcpy(s_lastWifiGateway, curGateway, sizeof(s_lastWifiGateway));
-        strlcpy(s_lastWifiNetmask, curNetmask, sizeof(s_lastWifiNetmask));
-        strlcpy(s_lastWifiDns1, curDns1, sizeof(s_lastWifiDns1));
-        strlcpy(s_lastWifiDns2, curDns2, sizeof(s_lastWifiDns2));
-        s_lastWifiRssi = rssi;
-    }
-    if (mqttPageRelevant) {
-        if (!s_haveLastMqttStatus || s_lastMqttPageConn != mqttConnNow) {
-            mqttStatusDirty = true;
+    if (wantChaya) {
+        chayaDirty = force || !s_haveLastChaya || s_lastRx != rx || s_lastTx != tx || s_lastMqttConn != mqttLineOk
+                     || s_lastMqttConfigured != mqttPageRelevant || s_lastMqttPaired != mqttPaired;
+        if (chayaDirty) {
+            s_haveLastChaya = true;
+            s_lastRx = rx;
+            s_lastTx = tx;
+            s_lastMqttConn = mqttLineOk;
+            s_lastMqttConfigured = mqttPageRelevant;
+            s_lastMqttPaired = mqttPaired;
         }
-        if (mqttStatusDirty) {
-            s_haveLastMqttStatus = true;
-            s_lastMqttPageConn = mqttConnNow;
+    }
+    if (wantWifi) {
+        constexpr int kWifiRssiHysteresisDbm = 3;
+        const bool wifiOtherDirty =
+            force || keepalive || !s_haveLastWifi || s_lastWifiConnected != wifiConn
+            || strcmp(s_lastWifiSsid, curSsid) != 0 || strcmp(s_lastWifiIp, curIp) != 0
+            || strcmp(s_lastWifiGateway, curGateway) != 0 || strcmp(s_lastWifiNetmask, curNetmask) != 0
+            || strcmp(s_lastWifiDns1, curDns1) != 0 || strcmp(s_lastWifiDns2, curDns2) != 0;
+        const int rssiDelta = rssi > s_lastWifiRssi ? rssi - s_lastWifiRssi : s_lastWifiRssi - rssi;
+        wifiDirty = wifiOtherDirty || rssiDelta >= kWifiRssiHysteresisDbm;
+        if (wifiDirty) {
+            s_haveLastWifi = true;
+            s_lastWifiConnected = wifiConn;
+            strlcpy(s_lastWifiSsid, curSsid, sizeof(s_lastWifiSsid));
+            strlcpy(s_lastWifiIp, curIp, sizeof(s_lastWifiIp));
+            strlcpy(s_lastWifiGateway, curGateway, sizeof(s_lastWifiGateway));
+            strlcpy(s_lastWifiNetmask, curNetmask, sizeof(s_lastWifiNetmask));
+            strlcpy(s_lastWifiDns1, curDns1, sizeof(s_lastWifiDns1));
+            strlcpy(s_lastWifiDns2, curDns2, sizeof(s_lastWifiDns2));
+            s_lastWifiRssi = rssi;
         }
-    } else {
-        s_haveLastMqttStatus = false;
     }
-    if (!s_haveLastOta || s_lastOtaGeneration != otaSt.generation) {
-        otaDirty = true;
+    if (wantMqtt) {
+        if (mqttPageRelevant) {
+            if (!s_haveLastMqttStatus || s_lastMqttPageConn != mqttConnNow) {
+                mqttStatusDirty = true;
+            }
+            if (mqttStatusDirty) {
+                s_haveLastMqttStatus = true;
+                s_lastMqttPageConn = mqttConnNow;
+            }
+        } else {
+            s_haveLastMqttStatus = false;
+            mqttStatusDirty = false;
+        }
     }
-    if (otaDirty) {
-        s_haveLastOta = true;
-        s_lastOtaGeneration = otaSt.generation;
+    if (wantOta) {
+        if (!s_haveLastOta || s_lastOtaGeneration != otaSt.generation) {
+            otaDirty = true;
+        }
+        if (otaDirty) {
+            s_haveLastOta = true;
+            s_lastOtaGeneration = otaSt.generation;
+        }
     }
-    if (!s_haveLastDevice || s_lastBatteryPct != batteryPct) {
-        deviceDirty = true;
-    }
-    if (deviceDirty) {
-        s_haveLastDevice = true;
-        s_lastBatteryPct = batteryPct;
+    if (wantDevice) {
+        if (!s_haveLastDevice || s_lastBatteryPct != batteryPct) {
+            deviceDirty = true;
+        }
+        if (deviceDirty) {
+            s_haveLastDevice = true;
+            s_lastBatteryPct = batteryPct;
+        }
     }
     portEXIT_CRITICAL(&s_esCacheMux);
 
@@ -272,9 +307,11 @@ void webEventsTick() {
     if (wifiDirty) {
         size_t plen = 0;
         if (wifiConn) {
-            plen = buildWifiStatusPayload(true, curSsid, curIp, curGateway, curNetmask, curDns1, curDns2, rssi, buf, sizeof(buf));
+            plen = buildWifiStatusPayload(true, curSsid, curIp, curGateway, curNetmask, curDns1, curDns2, rssi, buf,
+                                          sizeof(buf));
         } else {
-            plen = buildWifiStatusPayload(false, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, 0, buf, sizeof(buf));
+            plen = buildWifiStatusPayload(false, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, 0, buf,
+                                          sizeof(buf));
         }
         if (plen > 0U && plen < sizeof(buf)) {
             s_events.send(buf, "wifi");

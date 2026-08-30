@@ -18,13 +18,25 @@
   const IPV4_HOST =
     /^(?:(?:25[0-5]|2[0-4]\d|[01]?\d{1,2})\.){3}(?:25[0-5]|2[0-4]\d|[01]?\d{1,2})$/;
 
+  /** Private + link-local IPv4 only (RFC1918 / 169.254.0.0/16). */
+  function isPrivateOrLinkLocalIpv4(host: string): boolean {
+    const m = IPV4_HOST.exec(host);
+    if (!m) return false;
+    const parts = host.split(".").map((p) => Number(p));
+    const [a, b] = parts;
+    if (a === 10) return true;
+    if (a === 172 && b >= 16 && b <= 31) return true;
+    if (a === 192 && b === 168) return true;
+    if (a === 169 && b === 254) return true;
+    return false;
+  }
+
   function isAllowedRedirectNext(next: string): boolean {
     if (next.startsWith("/") && !next.startsWith("//")) return true;
     try {
       const url = new URL(next);
       if (url.protocol !== "http:") return false;
-      if (!IPV4_HOST.test(url.hostname)) return false;
-      return true;
+      return isPrivateOrLinkLocalIpv4(url.hostname);
     } catch {
       return false;
     }

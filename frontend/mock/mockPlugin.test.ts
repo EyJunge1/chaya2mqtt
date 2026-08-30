@@ -249,6 +249,32 @@ describe("mock API parity", () => {
     expect(getState().faults.settings).toBe(false);
   });
 
+  it("rate-limits mqtt/settings/chaya POSTs with 429 rate_limit", async () => {
+    const mqttBody = csrfBody({
+      mqtt_server: "mqtt.example.com",
+      mqtt_port: "8883",
+      mqtt_tls: "1",
+    });
+    const firstMqtt = await callApi("POST", "/api/mqtt", mqttBody);
+    expect(firstMqtt.status).toBe(200);
+    const secondMqtt = await callApi("POST", "/api/mqtt", mqttBody);
+    expect(secondMqtt.status).toBe(429);
+    expect(secondMqtt.body).toEqual({ ok: false, error: "rate_limit" });
+
+    const settingsBody = csrfBody({ lang: "de" });
+    const firstSettings = await callApi("POST", "/api/settings", settingsBody);
+    expect(firstSettings.status).toBe(200);
+    const secondSettings = await callApi("POST", "/api/settings", settingsBody);
+    expect(secondSettings.status).toBe(429);
+    expect(secondSettings.body).toEqual({ ok: false, error: "rate_limit" });
+
+    const firstSend = await callApi("POST", "/api/chaya/send", csrfBody());
+    expect(firstSend.status).toBe(202);
+    const secondSend = await callApi("POST", "/api/chaya/send", csrfBody());
+    expect(secondSend.status).toBe(429);
+    expect(secondSend.body).toEqual({ ok: false, error: "rate_limit" });
+  });
+
   it("exposes mock control state", async () => {
     await callApi("POST", "/api/_mock/scenario", "scenario=sse-disconnected");
     const res = await callApi("GET", "/api/_mock/state");

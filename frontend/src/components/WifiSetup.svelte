@@ -283,7 +283,7 @@
         <TextInput
           type="password"
           bind:value={password}
-          maxlength={64}
+          maxlength={63}
           autocomplete="current-password"
         />
       </Field>

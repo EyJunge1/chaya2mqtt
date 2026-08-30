@@ -1,5 +1,6 @@
 import type {
   ApiResult,
+  BootstrapPayload,
   ChayaStatus,
   DeviceInfo,
   MqttConfigView,
@@ -19,13 +20,11 @@ let csrfRefreshPromise: Promise<string> | null = null;
 
 const csrfRetryablePosts = new Set([
   "/api/wifi/connect",
-  "/api/wifi/connect-commit",
   "/api/wifi/connect-retry",
   "/api/wifi/connect-abort",
   "/api/mqtt",
   "/api/settings",
   "/api/update/check",
-  "/api/update/install",
 ]);
 
 export function setCsrfToken(token: string): void {
@@ -46,7 +45,7 @@ function formBody(fields: Record<string, string | number | boolean | undefined>)
   for (const [key, value] of Object.entries(fields)) {
     if (value === undefined) continue;
     if (typeof value === "boolean") {
-      if (value) body.set(key, "1");
+      body.set(key, value ? "1" : "0");
       continue;
     }
     body.set(key, String(value));
@@ -111,6 +110,16 @@ export async function refreshCsrf(): Promise<string> {
 }
 
 export const api = {
+  getBootstrap: async (): Promise<BootstrapPayload> => {
+    const raw = await apiGet<BootstrapPayload>("/api/bootstrap");
+    if (raw.csrf?.token) {
+      setCsrfToken(raw.csrf.token);
+    }
+    return {
+      ...raw,
+      update: raw.update ? parseOtaStatus(raw.update) : null,
+    };
+  },
   getDevice: () => apiGet<DeviceInfo>("/api/device"),
   getChaya: () => apiGet<ChayaStatus>("/api/chaya"),
   sendChaya: () => apiPost("/api/chaya/send"),
@@ -166,8 +175,14 @@ export const api = {
     rx_hz?: number;
     rx_ms?: number;
   }) => apiPost("/api/settings", fields),
-  reboot: () => apiPost("/api/reboot"),
-  factoryReset: () => apiPost("/api/factory-reset"),
+  reboot: async () => {
+    await refreshCsrf();
+    return apiPost("/api/reboot");
+  },
+  factoryReset: async () => {
+    await refreshCsrf();
+    return apiPost("/api/factory-reset");
+  },
   getUpdateStatus: async () => parseOtaStatus(await apiGet<unknown>("/api/update/status")),
   checkUpdate: (channel?: OtaChannel) => apiPost("/api/update/check", channel ? { channel } : {}),
   installUpdate: () => apiPost("/api/update/install"),

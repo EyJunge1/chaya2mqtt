@@ -59,7 +59,7 @@ If `pio: command not found` appears, PlatformIO is located at `~/.platformio/pen
 ## Initial setup (WiFi & MQTT)
 
 1. Power the device or restart it after flashing.
-2. If no WiFi configuration is stored, the ESP32-S3 opens the WPA2/WPA3 **`Chaya2MQTT`** access point with an individual 8-digit PIN. The E-Ink display shows the WIFI QR. On battery, press **PWR** to start (firmware must hold GPIO17 HIGH).
+2. If no WiFi configuration is stored, the ESP32-S3 opens the WPA2/WPA3 **`Chaya2MQTT`** access point with an individual alphanumeric SoftAP password. The E-Ink display shows the WIFI QR (join by scanning only). On battery, press **PWR** to start (firmware must hold GPIO17 HIGH).
 3. Scan the WIFI QR on the display with your phone camera (or join `Chaya2MQTT` manually using its displayed PIN) and open the captive portal / browser (`http://chaya2mqtt.local` or `http://4.3.2.1`).
 4. Enter the **WiFi** SSID and password. After switching to STA mode, configure MQTT under **MQTT**:
    - **MQTT server** (hostname or IP) — required
@@ -148,7 +148,7 @@ The 1.54G has **8 MB** flash. `partitions_chaya_8mb.csv` is a dual-OTA map (~3
 | [MODULES.md](MODULES.md) | Code reference for all modules |
 | [MQTT.md](MQTT.md) | Protocol, topics, TLS, pairing |
 | [WEB_ADMIN.md](WEB_ADMIN.md) | HTTP routes, CSRF, SSE |
-| [openapi.yaml](openapi.yaml) | REST API (OpenAPI 3.2) |
+| [openapi.yaml](openapi.yaml) | REST API (OpenAPI 3.1) |
 | [asyncapi.yaml](asyncapi.yaml) | SSE events (AsyncAPI 3) |
 | [HARDWARE.md](HARDWARE.md) | The only board: 1.54G SKU 34586, pins, battery |
 | [OTA.md](OTA.md) | Firmware updates via GitHub |

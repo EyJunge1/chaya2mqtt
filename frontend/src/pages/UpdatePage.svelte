@@ -189,6 +189,7 @@
                 ? i18n.t("update.phase.idle")
                 : i18n.t(phaseLabelKey(status.phase)),
             span: 2,
+            testId: "update-status-phase",
           },
         ]}
       />

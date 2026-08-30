@@ -57,14 +57,17 @@
   }
 
   /** Wait for deferred apply; surface NVS failure via nvsOk (QUAL-01). */
-  async function waitForSettingsPersist(): Promise<SettingsInfo | null> {
+  async function waitForSettingsPersist(seq: number): Promise<SettingsInfo | null> {
     for (let i = 0; i < 25; i++) {
+      if (seq !== loadSeq) return null;
       const s = await api.getSettings();
+      if (seq !== loadSeq) return null;
       if (!s.applyPending) {
         return s;
       }
       await new Promise((r) => setTimeout(r, 80));
     }
+    if (seq !== loadSeq) return null;
     return api.getSettings();
   }
 
@@ -80,6 +83,7 @@
   async function save(e: SubmitEvent) {
     e.preventDefault();
     if (!settings) return;
+    const seq = loadSeq;
     busy = true;
     try {
       const res = await api.saveSettings({
@@ -96,11 +100,13 @@
         rx_hz: settings.rxHz,
         rx_ms: settings.rxMs,
       });
+      if (seq !== loadSeq) return;
       if (!res.ok) {
         onToast(i18n.t("toast.save-failed"), "error");
         return;
       }
-      const applied = await waitForSettingsPersist();
+      const applied = await waitForSettingsPersist(seq);
+      if (seq !== loadSeq) return;
       if (applied) {
         settings = applied;
         quietHoursEnabled = applied.quietHourStart !== applied.quietHourEnd;
@@ -112,9 +118,10 @@
       onToast(i18n.t("toast.saved"), "success");
       await onDeviceRefresh();
     } catch {
+      if (seq !== loadSeq) return;
       onToast(i18n.t("toast.save-failed"), "error");
     } finally {
-      busy = false;
+      if (seq === loadSeq) busy = false;
     }
   }
 

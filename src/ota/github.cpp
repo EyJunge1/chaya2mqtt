@@ -15,8 +15,10 @@
 #include <WiFiClientSecure.h>
 #include <algorithm>
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <Arduino.h>
+#include <esp_heap_caps.h>
 #include <esp_log.h>
 
 #include "diag/task_watchdog.h"
@@ -41,7 +43,26 @@ constexpr const char kGithubDownloadBase[] =
 constexpr size_t kGithubJsonBuf = 16384;
 constexpr unsigned kGithubMaxReleasePages = 20U;
 
-char s_githubJsonBuf[kGithubJsonBuf];
+char* s_githubJsonBuf = nullptr;
+
+bool ensureGithubJsonBuf() {
+    if (s_githubJsonBuf != nullptr) {
+        return true;
+    }
+#if defined(BOARD_HAS_PSRAM)
+    s_githubJsonBuf = static_cast<char*>(
+        heap_caps_malloc(kGithubJsonBuf, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
+#endif
+    if (s_githubJsonBuf == nullptr) {
+        s_githubJsonBuf = static_cast<char*>(malloc(kGithubJsonBuf));
+    }
+    if (s_githubJsonBuf == nullptr) {
+        ESP_LOGE(TAG, "GitHub JSON buffer alloc failed");
+        return false;
+    }
+    s_githubJsonBuf[0] = '\0';
+    return true;
+}
 
 void stripLeadingV(const char* tag, char* out, size_t outLen) {
     if (out == nullptr || outLen == 0U) {
@@ -83,6 +104,9 @@ bool httpGetGithubJson(const char* url, size_t* outLen, bool allowTruncated = fa
     *outLen = 0;
     if (outHasNext != nullptr) {
         *outHasNext = false;
+    }
+    if (!ensureGithubJsonBuf()) {
+        return false;
     }
     s_githubJsonBuf[0] = '\0';
 

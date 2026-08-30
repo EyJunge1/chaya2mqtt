@@ -1,8 +1,13 @@
 import { ESPLoader, Transport } from "esptool-js";
 import type { FlashManifest, FlashProgress } from "./types";
+import {
+  isSha256Hex,
+  parseSha256SidecarText,
+  resolvePartUrl,
+  sidecarUrlForPart,
+} from "./flashVerify";
 
 const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
-const SHA256_HEX_RE = /^[0-9a-fA-F]{64}$/;
 
 async function hardReset(transport: Transport, esploader: ESPLoader): Promise<void> {
   await transport.setRTS(true);
@@ -32,31 +37,23 @@ async function sha256Hex(data: Uint8Array): Promise<string> {
   return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, "0")).join("");
 }
 
-/** Sidecar next to the binary: firmware.factory.bin → firmware.factory.sha256 */
-function sidecarUrlForPart(partUrl: string): string {
-  if (/\.bin$/i.test(partUrl)) {
-    return partUrl.replace(/\.bin$/i, ".sha256");
-  }
-  return `${partUrl}.sha256`;
-}
-
 async function loadExpectedSha256(
   partUrl: string,
   manifestSha256: string | undefined,
 ): Promise<string> {
-  if (manifestSha256 && SHA256_HEX_RE.test(manifestSha256)) {
-    return manifestSha256.toLowerCase();
+  if (isSha256Hex(manifestSha256)) {
+    return manifestSha256!.toLowerCase();
   }
   const sidecarUrl = sidecarUrlForPart(partUrl);
   const response = await fetch(sidecarUrl, { cache: "no-store" });
   if (!response.ok) {
     throw new Error(`Missing firmware SHA-256 sidecar (${response.status})`);
   }
-  const text = (await response.text()).trim().split(/\s+/)[0] ?? "";
-  if (!SHA256_HEX_RE.test(text)) {
+  const parsed = parseSha256SidecarText(await response.text());
+  if (!parsed) {
     throw new Error("Invalid firmware SHA-256 sidecar");
   }
-  return text.toLowerCase();
+  return parsed;
 }
 
 /**
@@ -152,7 +149,7 @@ export async function flashFirmware(options: {
 
   try {
     for (const part of build.parts) {
-      const partUrl = new URL(part.path, manifestUrl).href;
+      const partUrl = resolvePartUrl(part.path, manifestUrl.href);
       const data = await fetchPart(partUrl);
       const expected = await loadExpectedSha256(partUrl, part.sha256);
       const actual = await sha256Hex(data);

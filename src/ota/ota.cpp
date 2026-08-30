@@ -6,6 +6,7 @@
 
 #include "battery/battery.h"
 #include "battery/battery_config.h"
+#include "async/sse_dirty.h"
 #include "config/nvs_keys.h"
 #include "config/nvs_utils.h"
 #include "constants.h"
@@ -71,6 +72,7 @@ const char* channelName(OtaChannel c) {
 
 void bumpLocked() {
     ++s_status.generation;
+    sseMarkDirty(kSseOta);
 }
 
 void setPhaseLocked(OtaPhase phase) {

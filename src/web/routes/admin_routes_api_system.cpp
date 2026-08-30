@@ -9,9 +9,8 @@
 #include "config/app_config.h"
 #include "config/version.h"
 #include "constants.h"
-#include "identity/device_identity.h"
-#include "heart/counter.h"
 #include "battery/battery.h"
+#include "battery/battery_pure.h"
 #include "mqtt/config.h"
 #include "mqtt/mqtt.h"
 #include "ota/ota.h"
@@ -21,9 +20,6 @@
 #include "web/rate_limit.h"
 #include "web/web_middleware.h"
 #include "web/web_utils.h"
-#include "wifi/test.h"
-#include "wifi/wlan.h"
-#include "wifi/wlan_config.h"
 
 #include <ESPAsyncWebServer.h>
 #include <cerrno>
@@ -60,6 +56,10 @@ void handleApiResetPost(AsyncWebServerRequest* req, NetCmd cmd, const char* mess
     }
     if (g_systemShutdownInProgress.load(std::memory_order_acquire)) {
         sendErr(req, 503, "shutdown");
+        return;
+    }
+    if (batteryCriticalLow(batteryPercent())) {
+        sendErr(req, 503, "battery");
         return;
     }
     if (otaBlocksDestructiveAction()) {

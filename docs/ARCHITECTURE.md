@@ -39,7 +39,7 @@ flowchart TB
 | **network** | 7168 | 5 | 1 | `network/network_task.cpp` | `wlanLoop()` (including recovery), `mqttLoop()`, `NetCmd` queue |
 | **button** | 4096 | 8 | 1 | `button/button_input.cpp`, `led/led.cpp` | BOOT debounce, LED patterns, MQTT send |
 | **app** | 4096 | 4 | 1 | `async/app_task.cpp` | `webAdminLoop()`, OTA health, counter resets/NVS saves, battery poll |
-| **ota** | 8192 | 4 | 1 | `ota/ota_task.cpp` | `otaLoop()` (GitHub + Download) |
+| **ota** | 12288 | 4 | 1 | `ota/ota_task.cpp` | `otaLoop()` (GitHub + Download) |
 | **display** | 8192 | 3 | 1 | `display/display_task.cpp` | Exclusive SPI/EPD access |
 | **audio** | 6144 | 3 | 1 | `audio/audio.cpp` | ES8311 playback queue (mic stays off) |
 
@@ -50,6 +50,8 @@ The **display task is intentionally excluded** because a full 1.54G refresh can 
 All application tasks are pinned to core 1. Framework/network tasks use core 0 where configurable:
 
 - AsyncTCP is explicitly pinned to core 0 (priority 10, queue 64, stack 16384 bytes).
+
+This Core-1 pinning is **by design** until FreeRTOS runtime stats under EPD+MQTT+SSE load show starving of low-priority tasks (audit STAB-10). Do not move Display/Audio to core 0 without that measurement — AsyncTCP/WiFi already occupy core 0.
 - WiFi/lwIP run in their ESP-IDF-managed contexts.
 - `esp_mqtt_client` owns a separate task (priority 5, stack 10240 bytes); its core is left to ESP-IDF.
 - WiFi event callbacks only update atomics and enqueue `NetCmd` work. WiFi, SNTP, mDNS, and
@@ -84,7 +86,6 @@ At startup, `asyncInfraInit()` (in `async/task_handles.cpp`) creates:
 | Mutex | Purpose |
 |-------|---------|
 | `g_chayaPublishMutex` | Chaya publish path (button/web vs. MQTT) |
-| `g_chayaPubAckSemaphore` | Wake blocked sender after matching QoS-1 PUBACK/disconnect |
 | `g_mqttClientMutex` | Allocate MQTT client / `esp_mqtt_*` |
 | `g_heartDebounceMutex` | NVS persistence after a successful publish |
 | `g_nvsMutex` | Thread-safe `Preferences` wrapper |
@@ -98,9 +99,10 @@ At startup, `asyncInfraInit()` (in `async/task_handles.cpp`) creates:
 2. `g_mqttClientMutex`
 3. optional `g_heartDebounceMutex`
 
-Heart publishing retains one generation/message-ID-bound pending state. Counter/NVS/audio/display
-effects happen exactly once in the PUBACK event; a 5-second caller timeout does not discard a still
-live pending publish. Native simulator cases cover ACK, late/absent ACK, disconnect, and competing
+Heart publishing retains one generation/message-ID-bound pending state. The network task only
+*starts* the QoS-1 publish; PUBACK, disconnect abort, or a 5-second timeout (serviced in
+`mqttLoop`) complete the async result. Counter/NVS/audio/display effects happen exactly once on
+matching PUBACK. Native simulator cases cover ACK, late/absent ACK, disconnect, and competing
 senders without requiring HIL in CI.
 
 ## Module overview
@@ -218,9 +220,10 @@ sequenceDiagram
     B->>M: chayaRequestSend()
     W->>M: chayaRequestSend()
     M->>L: ledStartChayaSendSequence()
-    L->>M: mqttPublishChayaAndApplySentCounters()
-    M->>M: retained publish to topic_pub
-    M-->>M: wait for matching PUBACK max 5 s
+    L->>M: mqttRequestChayaPublishAsync()
+    Note over M: Network task starts retained QoS-1 publish (non-blocking)
+    M->>M: mqttPublishChayaAndApplySentCounters()
+    M-->>M: PUBACK / timeout / disconnect (async)
     M->>C: heartSentCounterApplyAfterSuccessfulPublish()
     M->>D: displayRequest DrawHeart Content
 

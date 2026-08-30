@@ -125,13 +125,24 @@ static void mqttLoopTryReconnect(MqttConfig& loopCfg, unsigned long now) {
         return;
     }
 
-    mqttClientLock();
+    if (!mqttClientLock()) {
+        ESP_LOGW(TAG, "MQTT start skipped: mutex timeout");
+        applyDisconnectFailureBackoff(/*wifiSuspect=*/!wlanStaConnectedOk());
+        return;
+    }
     s_connectPending.store(true, std::memory_order_release);
-    const esp_err_t sr = s_client != nullptr ? esp_mqtt_client_start(s_client) : ESP_FAIL;
+    esp_err_t sr = ESP_FAIL;
+    if (s_client != nullptr) {
+        // Prefer reconnect on an existing handle after unintentional disconnect (PERF-02).
+        sr = esp_mqtt_client_reconnect(s_client);
+        if (sr != ESP_OK) {
+            sr = esp_mqtt_client_start(s_client);
+        }
+    }
     mqttClientUnlock();
 
     if (sr != ESP_OK) {
-        ESP_LOGE(TAG, "esp_mqtt_client_start failed: %s", esp_err_to_name(sr));
+        ESP_LOGE(TAG, "esp_mqtt_client_start/reconnect failed: %s", esp_err_to_name(sr));
         s_connectPending.store(false, std::memory_order_release);
         applyDisconnectFailureBackoff(/*wifiSuspect=*/!wlanStaConnectedOk());
         mqttKillClient();
@@ -144,14 +155,25 @@ void mqttLoop() {
         return;
     }
 
+    mqttServicePublishAckTimeout();
+
     if (s_mqttKillCoalesce.exchange(false, std::memory_order_acq_rel)) {
         mqttKillClient();
     }
 
     static MqttConfig s_loopCfg{};
+    static bool s_haveOfflineSnap = false;
     const bool connectedEarly = mqttIsConnected();
-    if (!connectedEarly || mqttCfgConsumeDirtySnapshotNeeded()) {
+    const bool dirty = mqttCfgConsumeDirtySnapshotNeeded();
+    // PERF-05: while offline, snapshot only on first entry or dirty config.
+    if (dirty || (!connectedEarly && !s_haveOfflineSnap)) {
         mqttCfgSnapshot(&s_loopCfg);
+        if (!connectedEarly) {
+            s_haveOfflineSnap = true;
+        }
+    }
+    if (connectedEarly) {
+        s_haveOfflineSnap = false;
     }
 
     if (s_loopCfg.server[0] == '\0') {
