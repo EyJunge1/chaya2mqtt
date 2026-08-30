@@ -76,7 +76,7 @@ Legacy keys `topic_pub` / `topic_sub` are removed when saving. Topics now exist 
 | `device_id` | String | (random) | Own 6-char hex device ID (MQTT topics, client ID, LAN hostname) |
 | `rstPeriod` | UChar | `7` | Display reset period in UTC days (0=off, 1–30) |
 | `ui_lang` | String | `en` | UI language (`en` / `de`) |
-| `ui_theme` | String | `light` | Web UI theme (`light` / `dark`) |
+| `ui_theme` | String | `system` | Web UI theme (`system` / `light` / `dark`; appearance follows OS when `system`) |
 | `led_en` | UChar | `1` | Header user LED (`1`=activity blinks, `0`=off) |
 | `disp_view` | UChar | `0` | Last painted E-Ink view (`0`=unknown, `1`=heart, `2`=setup QR, `3`=product title, `4`=heart-crack, `5`=power-off) |
 | `snd_tx_en` | UChar | `0` | TX (send) click enabled (`1` = on; default off) |

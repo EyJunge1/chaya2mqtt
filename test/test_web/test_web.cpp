@@ -14,7 +14,8 @@ void test_ui_pref_syntax() {
     TEST_ASSERT_FALSE(uiLangSyntaxOk(nullptr));
     TEST_ASSERT_TRUE(uiThemeSyntaxOk("dark"));
     TEST_ASSERT_TRUE(uiThemeSyntaxOk("light"));
-    TEST_ASSERT_FALSE(uiThemeSyntaxOk("system"));
+    TEST_ASSERT_TRUE(uiThemeSyntaxOk("system"));
+    TEST_ASSERT_FALSE(uiThemeSyntaxOk("auto"));
     TEST_ASSERT_FALSE(uiThemeSyntaxOk(nullptr));
 }
 

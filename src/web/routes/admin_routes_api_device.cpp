@@ -200,7 +200,7 @@ void handleApiBootstrapGet(AsyncWebServerRequest* req) {
         pos += otaLen;
 
         char lang[3]{};
-        char theme[6]{};
+        char theme[8]{};
         configCopyUiLang(lang, sizeof(lang));
         configCopyUiTheme(theme, sizeof(theme));
         n = snprintf(

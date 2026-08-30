@@ -16,7 +16,7 @@ bool configSetResetPeriodDays(uint8_t days);
 void configCopyUiLang(char* out, size_t outLen);
 bool configSetUiLang(const char* lang);
 
-/** UI theme: "light" or "dark" (default "light"). Snapshot under mux (QUAL-07). */
+/** UI theme: "system", "light", or "dark" (default "system"). Snapshot under mux (QUAL-07). */
 void configCopyUiTheme(char* out, size_t outLen);
 bool configSetUiTheme(const char* theme);
 

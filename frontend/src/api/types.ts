@@ -106,7 +106,7 @@ export interface MqttConfigView {
 }
 
 export type UiLang = "de" | "en";
-export type UiTheme = "dark" | "light";
+export type UiTheme = "dark" | "light" | "system";
 
 export interface SettingsInfo {
   resetDays: number;

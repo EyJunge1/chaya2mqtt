@@ -150,6 +150,7 @@ export const translations = {
     "settings.reset-hint": "0 = off, 1–30 days",
     "settings.theme-dark": "Dark",
     "settings.theme-light": "Light",
+    "settings.theme-system": "System",
     "settings.led": "LED",
     "settings.led-enabled": "Status LED",
     "settings.led-enabled-hint":
@@ -383,6 +384,7 @@ export const translations = {
     "settings.reset-hint": "0 = aus, 1–30 Tage",
     "settings.theme-dark": "Dunkel",
     "settings.theme-light": "Hell",
+    "settings.theme-system": "System",
     "settings.led": "LED",
     "settings.led-enabled": "Status-LED",
     "settings.led-enabled-hint":

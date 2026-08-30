@@ -146,7 +146,7 @@ export interface MockState {
   };
   resetDays: number;
   lang: "de" | "en";
-  theme: "dark" | "light";
+  theme: "dark" | "light" | "system";
   ledEnabled: boolean;
   audioTxEnabled: boolean;
   audioRxEnabled: boolean;
@@ -316,7 +316,7 @@ function resetBaselineSettings(target: MockState): void {
   target.ledEnabled = true;
   target.resetDays = 7;
   target.lang = "en";
-  target.theme = "light";
+  target.theme = "system";
   target.txHz = 880;
   target.txMs = 80;
   target.rxHz = 660;
@@ -360,7 +360,7 @@ export function createInitialState(scenario: MockScenario = "sta-connected"): Mo
     mqtt: defaultMqtt(deviceId),
     resetDays: 7,
     lang: "en",
-    theme: "light",
+    theme: "system",
     ledEnabled: true,
     audioTxEnabled: false,
     audioRxEnabled: false,

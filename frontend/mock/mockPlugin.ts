@@ -500,7 +500,7 @@ export async function handleApi(req: IncomingMessage, res: ServerResponse): Prom
       return true;
     }
     const theme = params.get("theme");
-    if (theme === "dark" || theme === "light") state.theme = theme;
+    if (theme === "dark" || theme === "light" || theme === "system") state.theme = theme;
     else if (theme != null) {
       sendJson(res, 400, { ok: false, error: "theme" });
       return true;

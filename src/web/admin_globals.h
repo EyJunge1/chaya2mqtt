@@ -18,7 +18,7 @@ extern std::atomic<bool> g_webAdminSettingsNvsWriteFailed;
 
 extern uint8_t      g_webAdminPendingResetDays;
 extern char         g_webAdminPendingUiLang[3];
-extern char         g_webAdminPendingUiTheme[6];
+extern char         g_webAdminPendingUiTheme[8];
 extern bool         g_webAdminPendingLedEnabled;
 extern bool         g_webAdminPendingAudioTxEnabled;
 extern bool         g_webAdminPendingAudioRxEnabled;

@@ -80,7 +80,7 @@ void webAdminLoop() {
         && !g_systemShutdownInProgress.load(std::memory_order_acquire)) {
         uint8_t daysApply;
         char langApply[3];
-        char themeApply[6];
+        char themeApply[8];
         bool ledEnabledApply;
         bool audioTxEnabledApply;
         bool audioRxEnabledApply;

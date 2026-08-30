@@ -469,7 +469,7 @@ paths:
                   properties:
                     reset_days: { type: integer, minimum: 0, maximum: 30 }
                     lang: { type: string, enum: [de, en] }
-                    theme: { type: string, enum: [dark, light] }
+                    theme: { type: string, enum: [system, dark, light] }
                     led_enabled:
                       {
                         type: integer,
@@ -788,7 +788,7 @@ components:
       properties:
         resetDays: { type: integer, minimum: 0, maximum: 30 }
         lang: { type: string, enum: [de, en] }
-        theme: { type: string, enum: [dark, light] }
+        theme: { type: string, enum: [system, dark, light] }
         ledEnabled:
           type: boolean
           description: Header user LED activity (false = dark except factory reset)

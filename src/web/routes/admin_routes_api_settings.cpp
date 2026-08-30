@@ -33,7 +33,7 @@ DEFINE_LOG_TAG("WEBAPI");
 
 void handleApiSettingsGet(AsyncWebServerRequest* req) {
     char lang[3]{};
-    char theme[6]{};
+    char theme[8]{};
     configCopyUiLang(lang, sizeof(lang));
     configCopyUiTheme(theme, sizeof(theme));
     char body[512];
@@ -74,7 +74,7 @@ void handleApiSettingsPost(AsyncWebServerRequest* req) {
     }
     uint8_t days = configGetResetPeriodDays();
     char lang[3];
-    char theme[6];
+    char theme[8];
     bool ledEnabled      = configGetLedEnabled();
     bool audioTxEnabled  = configGetAudioTxEnabled();
     bool audioRxEnabled  = configGetAudioRxEnabled();

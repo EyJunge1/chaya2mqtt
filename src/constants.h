@@ -118,9 +118,11 @@ inline bool uiLangSyntaxOk(const char* lang) {
     return lang != nullptr && (strcmp(lang, "de") == 0 || strcmp(lang, "en") == 0);
 }
 
-/** UI theme preference: "dark" or "light". */
+/** UI theme preference: "system", "dark", or "light". */
 inline bool uiThemeSyntaxOk(const char* theme) {
-    return theme != nullptr && (strcmp(theme, "dark") == 0 || strcmp(theme, "light") == 0);
+    return theme != nullptr
+           && (strcmp(theme, "system") == 0 || strcmp(theme, "dark") == 0
+               || strcmp(theme, "light") == 0);
 }
 
 /** Boolean form value: "0"/"1" or "true"/"false". */

@@ -4,7 +4,7 @@
   import { i18n } from "../i18n/i18n.svelte.ts";
   import { persistUiPrefsDebounced } from "../prefs/uiPrefs.ts";
   import { themeView } from "../theme/theme.svelte.ts";
-  import { toggleTheme } from "../theme/store.ts";
+  import { toggleTheme, type ThemePreference } from "../theme/store.ts";
   import { cn } from "../ui/cn.ts";
   import { HOVER_SURFACE } from "../ui/styles.ts";
   import { GITHUB_REPO_URL } from "./github.ts";
@@ -12,9 +12,18 @@
 
   let { class: className = "" }: { class?: string } = $props();
 
+  const CYCLE: ThemePreference[] = ["system", "light", "dark"];
+
   const isDark = $derived(themeView.theme === "dark");
+  const nextPreference = $derived(
+    CYCLE[(CYCLE.indexOf(themeView.preference) + 1) % CYCLE.length]!,
+  );
   const themeLabel = $derived(
-    isDark ? i18n.t("settings.theme-light") : i18n.t("settings.theme-dark"),
+    nextPreference === "system"
+      ? i18n.t("settings.theme-system")
+      : nextPreference === "light"
+        ? i18n.t("settings.theme-light")
+        : i18n.t("settings.theme-dark"),
   );
   const langLabel = $derived(i18n.language.toUpperCase());
 

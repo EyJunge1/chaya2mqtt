@@ -24,7 +24,7 @@ struct AudioTone {
 
 static std::atomic<uint8_t> s_resetPeriodDaysCached{7};
 static char s_uiLangCached[3] = "en";
-static char s_uiThemeCached[6] = "light";
+static char s_uiThemeCached[8] = "system";
 static std::atomic<bool> s_ledEnabledCached{true};
 static std::atomic<DisplayView> s_displayViewCached{DisplayView::Unknown};
 static std::atomic<bool> s_audioTxEnabledCached{false};
@@ -125,7 +125,7 @@ void configLoadUiPrefsFromNvs() {
     if (uiThemeSyntaxOk(theme)) {
         strlcpy(s_uiThemeCached, theme, sizeof(s_uiThemeCached));
     } else {
-        strlcpy(s_uiThemeCached, "light", sizeof(s_uiThemeCached));
+        strlcpy(s_uiThemeCached, "system", sizeof(s_uiThemeCached));
     }
     portEXIT_CRITICAL(&s_uiPrefsMux);
 }
@@ -420,6 +420,6 @@ void app_configResetRamAfterFactoryClear() {
     s_audioRxMsCached.store(kAudioDefaultRxMs, std::memory_order_relaxed);
     portENTER_CRITICAL(&s_uiPrefsMux);
     strlcpy(s_uiLangCached, "en", sizeof(s_uiLangCached));
-    strlcpy(s_uiThemeCached, "light", sizeof(s_uiThemeCached));
+    strlcpy(s_uiThemeCached, "system", sizeof(s_uiThemeCached));
     portEXIT_CRITICAL(&s_uiPrefsMux);
 }
