@@ -14,6 +14,7 @@
 #include "heart/counter.h"
 #include "led/led.h"
 #include "ota/ota.h"
+#include "wifi/wlan.h"
 #include "csrf.h"
 #include "events.h"
 

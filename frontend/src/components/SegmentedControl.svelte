@@ -66,6 +66,7 @@
 <div
   role="radiogroup"
   aria-label={label}
+  tabindex="-1"
   class={cn(
     "grid grid-cols-2 gap-1 rounded-xl border border-border bg-bg p-1",
     compact && "shrink-0 rounded-lg",
