@@ -21,23 +21,14 @@ namespace {
 
 std::atomic<int> s_batteryMv{0};
 std::atomic<int> s_batteryPct{0};
-bool             s_adcAttenuationApplied{false};
 
 int readPackMilliVolts() {
     const auto pin = static_cast<uint8_t>(pins::kBatAdc);
-    // Arduino ADC: first analogReadMilliVolts configures the channel; attenuation
-    // before that logs "Pin is not configured as analog channel".
-    if (!s_adcAttenuationApplied) {
-        (void)analogReadMilliVolts(pin);
-        analogSetPinAttenuation(pin, ADC_11db);
-        s_adcAttenuationApplied = true;
-    }
     int sum = 0;
     for (int i = 0; i < kBatteryAdcSamples; ++i) {
         sum += static_cast<int>(analogReadMilliVolts(pin));
     }
-    const int pinMv = sum / kBatteryAdcSamples;
-    return pinMv * kBatteryDividerRatio;
+    return (sum / kBatteryAdcSamples) * kBatteryDividerRatio;
 }
 
 }  // namespace
