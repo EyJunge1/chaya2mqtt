@@ -73,7 +73,7 @@ jobs:
                 scripts/fetch_flasher_releases.py|scripts/generate_flasher_site.py|scripts/test_flasher_site.py)
                   flasher=true
                   ;;
-                scripts/patch_gxepd2_busy_wait.py|scripts/test_patch_gxepd2_busy_wait.py|scripts/pio_native_asan.py)
+                scripts/pio_native_asan.py)
                   firmware_tests=true
                   firmware_build=true
                   ;;

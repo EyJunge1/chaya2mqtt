@@ -154,6 +154,8 @@ The 1.54G has **8 MB** flash. `partitions_chaya_8mb.csv` is a dual-OTA map (~3
 | [OTA.md](OTA.md) | Firmware updates via GitHub |
 | [CONFIGURATION.md](CONFIGURATION.md) | NVS namespaces, defaults |
 | [DISPLAY.md](DISPLAY.md) | Display task, Lucide icons, delta logic |
+| [UPSTREAM_ARDUINO_ESP32.md](UPSTREAM_ARDUINO_ESP32.md) | Core upstream PRs / workarounds |
+| [UPSTREAM_LIBS.md](UPSTREAM_LIBS.md) | Third-party libs: no further upstream needed |
 
 ## License
 

@@ -38,7 +38,6 @@ check-flasher:
 check-firmware: check-firmware-tests check-firmware-build
 
 check-firmware-tests:
-	python3 scripts/test_patch_gxepd2_busy_wait.py
 	"$(PIO)" test -e native
 	"$(PIO)" test -e native-asan
 	"$(PIO)" pkg install -g -t tool-cppcheck
