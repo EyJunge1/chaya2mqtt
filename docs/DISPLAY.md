@@ -163,7 +163,7 @@ sequenceDiagram
 
 | Screen | Content | TextSize |
 |--------|---------|----------|
-| SoftAP `SetupQr` | Red „Chaya2MQTT" above a bottom-aligned WIFI QR; no battery | Title 3 (min 1) |
+| SoftAP `SetupQr` | Red „Chaya2MQTT" above WIFI QR with equal top/bottom frame pads; no battery | Title 3 (min 1) |
 | Product `ProductTitle` | Centered red „Chaya2MQTT" with top-right battery | Title 3 (min 1) |
 
 ## Panel power / SPI

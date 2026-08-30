@@ -313,7 +313,7 @@ counters after the active display command. Splash and power-off commands keep pr
 | `displayInit()` | Initialize SPI + EPD |
 | `displayStartTask()` | FreeRTOS task (8192 stack, priority 3) |
 | `drawHeartWithNumber(icon)` | Lucide heart / heart-crack + RX/TX deltas + arrows + battery |
-| `drawSplashScreen()` | SoftAP: red title + bottom-aligned WIFI QR for phone camera join |
+| `drawSplashScreen()` | SoftAP: red title + WIFI QR with equal top/bottom frame pads for phone camera join |
 | `displayRequest(cmd, mode, waitMs)` | Single entry: Content / BootIfChanged / PowerOffWait |
 | `displayWaitDrawIdle()` | Wait until the display task finishes the next draw |
 

@@ -340,7 +340,7 @@ DisplayView drawSplashScreen() {
         const int dw = epd.width();
         const int dh = epd.height();
         const int qrSize = qrcodegen_getSize(s_qrcode);
-        // Quiet zone: 4 modules left/right/bottom (QR standard). Top is the title band.
+        // Quiet zone: 4 modules left/right (QR standard). Vertical outer pads match title↔frame.
         static constexpr int kQuiet = 4;
         static constexpr const char kSplashTitle[] = "Chaya2MQTT";
         const int totalMods = qrSize + 2 * kQuiet;
@@ -348,11 +348,9 @@ DisplayView drawSplashScreen() {
         if (scale < 1) {
             scale = 1;
         }
-        const int drawn   = totalMods * scale;
+        const int drawn = totalMods * scale;
         const int originX = (dw - drawn) / 2;
-        // Sit the modules near the bottom; keep a thin white pad so pixels are not clipped.
-        static constexpr int kBottomPadPx = 4;
-        const int originY = dh - kBottomPadPx - qrSize * scale;
+        const int qrPx    = qrSize * scale;
         const uint16_t dark  = GxEPD_BLACK;
         const uint16_t light = GxEPD_WHITE;
 
@@ -365,7 +363,9 @@ DisplayView drawSplashScreen() {
         for (;;) {
             epd.setTextSize(titleSize);
             epd.getTextBounds(kSplashTitle, 0, 0, &tx1, &ty1, &tw, &th);
-            if (static_cast<int>(tw) <= dw - 4 && static_cast<int>(th) + 2 <= originY) {
+            // Need room for equal top/bottom frame pads (min 4 px each) plus the QR.
+            const int free = dh - qrPx - static_cast<int>(th);
+            if (static_cast<int>(tw) <= dw - 4 && free >= 8) {
                 break;
             }
             if (titleSize <= 1) {
@@ -373,9 +373,12 @@ DisplayView drawSplashScreen() {
             }
             titleSize--;
         }
+        // Equal thirds: title↔top frame, title↔QR, QR↔bottom frame.
+        const int free     = std::max(0, dh - qrPx - static_cast<int>(th));
+        const int outerPad = free / 3;
         const int titleCursorX = (dw - static_cast<int>(tw)) / 2 - static_cast<int>(tx1);
-        const int titleCursorY =
-            (originY - static_cast<int>(th)) / 2 - static_cast<int>(ty1);
+        const int titleCursorY = outerPad - static_cast<int>(ty1);
+        const int originY      = dh - outerPad - qrPx;
 
         const uint32_t drawStartedMs = millis();
         epd.setFullWindow();
