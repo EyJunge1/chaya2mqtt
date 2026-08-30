@@ -49,6 +49,15 @@ void test_wifi_qr_payload() {
     TEST_ASSERT_TRUE(wifiQrBuildWpaPayload("Chaya2MQTT", "12345678", out, sizeof(out)));
     TEST_ASSERT_EQUAL_STRING("WIFI:T:WPA;S:Chaya2MQTT;P:12345678;;", out);
 
+    // 24-char SoftAP PSK → ~52-byte MeCard. QR v3-M is 42 bytes; v4-M is 62.
+    TEST_ASSERT_TRUE(wifiQrBuildWpaPayload("Chaya2MQTT", "ABCDEFGHIJKLMNOPQRSTUVWX", out,
+                                           sizeof(out)));
+    TEST_ASSERT_EQUAL_STRING("WIFI:T:WPA;S:Chaya2MQTT;P:ABCDEFGHIJKLMNOPQRSTUVWX;;", out);
+    const size_t setupPayloadLen = std::strlen(out);
+    TEST_ASSERT_EQUAL_UINT(52U, setupPayloadLen);
+    TEST_ASSERT_TRUE(setupPayloadLen > 42U);
+    TEST_ASSERT_TRUE(setupPayloadLen <= 62U);
+
     TEST_ASSERT_TRUE(wifiQrBuildWpaPayload("A;B", "x:y", out, sizeof(out)));
     TEST_ASSERT_EQUAL_STRING("WIFI:T:WPA;S:A\\;B;P:x\\:y;;", out);
 

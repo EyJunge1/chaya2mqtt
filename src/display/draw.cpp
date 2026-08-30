@@ -30,7 +30,9 @@ DEFINE_LOG_TAG("DISP");
 namespace {
 
 // QR work buffers live in BSS — display task stack is too small for encode + draw locals.
-static constexpr int kQrMaxVersion = 3;
+// Setup AP WIFI MeCard is ~52 bytes (SSID + 24-char PSK). Version 3-M holds 42 bytes;
+// version 4-M holds 62. 1.54" 200×200 still scales to 4 px/module with quiet zone.
+static constexpr int kQrMaxVersion = 4;
 static uint8_t s_qrTempBuf[qrcodegen_BUFFER_LEN_FOR_VERSION(kQrMaxVersion)];
 static uint8_t s_qrcode[qrcodegen_BUFFER_LEN_FOR_VERSION(kQrMaxVersion)];
 static char    s_wifiQrPayload[kWifiQrPayloadMaxLen];
@@ -316,21 +318,19 @@ DisplayView drawSplashScreen() {
         static_cast<void>(apIp);
         if (!wifiQrBuildWpaPayload(apSsid, apPass, s_wifiQrPayload, sizeof(s_wifiQrPayload))) {
             ESP_LOGE(TAG, "AP WIFI QR payload failed");
-            // AP-mode fallback: no battery icon.
-            drawCenteredTextScreen(kSetupApSsid, 3, 1, GxEPD_RED, false);
+            drawCenteredTextScreen(kSetupApSsid, 3, 1, GxEPD_RED, true);
             displayPanel().hibernate();
             displaySuspendSpiLowPower();
             return DisplayView::ProductTitle;
         }
 
-        // Version 3 (29 modules) holds our ~40-byte MeCard with ECC-M.
         const bool ok = qrcodegen_encodeText(
             s_wifiQrPayload, s_qrTempBuf, s_qrcode, qrcodegen_Ecc_MEDIUM, 1, kQrMaxVersion,
             qrcodegen_Mask_AUTO, true);
         if (!ok) {
-            ESP_LOGE(TAG, "AP WIFI QR encode failed");
-            // AP-mode fallback: no battery icon.
-            drawCenteredTextScreen(kSetupApSsid, 3, 1, GxEPD_RED, false);
+            ESP_LOGE(TAG, "AP WIFI QR encode failed (len=%u)",
+                     static_cast<unsigned>(std::strlen(s_wifiQrPayload)));
+            drawCenteredTextScreen(kSetupApSsid, 3, 1, GxEPD_RED, true);
             displayPanel().hibernate();
             displaySuspendSpiLowPower();
             return DisplayView::ProductTitle;
@@ -397,7 +397,7 @@ DisplayView drawSplashScreen() {
                                  static_cast<int16_t>(scale), static_cast<int16_t>(scale), dark);
                 }
             }
-            // SoftAP/setup splash intentionally omits the battery icon.
+            // SoftAP/setup QR splash intentionally omits the battery icon.
         } while (epd.nextPage());
         [[maybe_unused]] const uint32_t drawMs = millis() - drawStartedMs;
         epd.hibernate();
