@@ -173,7 +173,7 @@ sequenceDiagram
 10. **MQTT:** Configure client (do not connect yet)
 11. **Start tasks:** Audio, button, network, OTA, app
 12. **Operational drawing:** After STA `GOT_IP` (broker **and** partner → heart via `mqttCfgIsHeartReady()`; otherwise splash/waiting title) or when SoftAP setup finishes. Content heart redraws are no-ops until heart-ready. Applying MQTT settings that make the device heart-ready queues `DrawHeart` with `BootIfChanged`; broker-only (no partner) keeps/queues the waiting title splash.
-13. **OTA verification (deferred):** In the app task, only after 30 s of stable runtime since WiFi boot settlement (`ota_health.h` → `otaTryMarkValidAfterHealthCheck()`; no immediate marking in `setup()`)
+13. **OTA verification (deferred):** `verifyRollbackLater()` skips Arduino’s auto-mark in `initArduino()`; the app task marks valid only after 30 s of stable STA runtime since WiFi boot settlement (`ota_health.h` → `otaTryMarkValidAfterHealthCheck()`)
 
 ## NetCmd – network command queue
 

@@ -144,6 +144,8 @@ Before rebooting after a successful flash:
 
 ## Boot after OTA
 
+Arduino-ESP32 would otherwise auto-mark a pending OTA image as valid inside `initArduino()` (`verifyOta()`). chaya overrides `verifyRollbackLater()` in `src/ota/ota.cpp` so the image stays `ESP_OTA_IMG_PENDING_VERIFY` until the app health gate runs.
+
 In the **app task** (`appTaskFn`), rollback is canceled only after a **stable runtime window**:
 
 - Helper: `otaHealthWindowElapsed()` in `src/ota/ota_health.h`

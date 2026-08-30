@@ -26,6 +26,11 @@
 
 DEFINE_LOG_TAG("OTA");
 
+// Defer Arduino auto-mark in initArduino(); health gate marks later.
+extern "C" bool verifyRollbackLater() {
+    return true;
+}
+
 namespace {
 
 std::atomic<bool> g_otaCheckRequested{false};
