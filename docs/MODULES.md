@@ -82,7 +82,6 @@ Namespaces stay separate (`wifi` / `mqtt` / `cfg` / `chaya`). Do not fold MQTT/W
 10. `mqttSetup()`
 11. `buttonStartupBlink()` (before the button task!)
 12. `audioStartTask()`, `buttonStartTask()`, `networkTaskStart()`, `otaTaskStart()`, `appTaskStart()`
-13. `ledEnableGpioHoldForLightSleep()`
 
 **`loop()`:** `vTaskDelete(nullptr)`—terminates immediately.
 
@@ -393,7 +392,6 @@ LED priority: MQTT TX sequence > finite pattern > E-Ink/RX refresh pulse > idle.
 |----------|-------------|
 | `ledInit()` | Configure GPIO |
 | `ledApplyEnabled()` | Force off when user disabled LED in settings |
-| `ledEnableGpioHoldForLightSleep()` | Hold LED level for light sleep |
 | `ledIsActivityActive()` | TX sequence, pattern, or refresh pulse running? |
 | `ledIsTxSendBusy()` | MQTT TX send sequence running (blocks a second send) |
 | `ledStartChayaSendSequence()` | Arm TX sequence (prefer `chayaRequestSend()`) |

@@ -280,7 +280,6 @@ void runInstall() {
 
     flushAllHeartCountersIfDirty();
     delay(200);
-    releaseGpioHoldBeforeRestart();
     ESP.restart();
 }
 

@@ -7,7 +7,6 @@
 
 #include <Arduino.h>
 #include <atomic>
-#include <driver/gpio.h>
 #include <driver/rtc_io.h>
 #include <esp_log.h>
 #include <esp_sleep.h>
@@ -72,7 +71,6 @@ void batteryPowerOffAndSleep() {
     }
 
     ESP_LOGI(TAG, "deep sleep arm wake=PWR mv=%d pct=%d", batteryMilliVolts(), batteryPercent());
-    gpio_hold_dis(static_cast<gpio_num_t>(pins::kBatControl));
     digitalWrite(pins::kBatControl, LOW);
     pinMode(pins::kBatControl, OUTPUT);
     digitalWrite(pins::kBatControl, LOW);

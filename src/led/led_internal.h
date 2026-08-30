@@ -35,7 +35,6 @@ void armLedPhase(unsigned long durationMs);
 void ledOutput(int level);
 /** Internal active-low LED write that bypasses the user preference. */
 void ledOutputForced(int level);
-void ledHoldWhenIdle();
 
 void advanceLedSequence();
 void startMqttSendLedSequence();

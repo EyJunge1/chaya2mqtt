@@ -139,7 +139,6 @@ On a SHA-256 mismatch, sidecar error, or flash error: **no reboot**.
 
 Before rebooting after a successful flash:
 - `flushAllHeartCountersIfDirty()`
-- `releaseGpioHoldBeforeRestart()`
 - `ESP.restart()`
 
 ## Boot after OTA

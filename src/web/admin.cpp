@@ -155,7 +155,6 @@ void webAdminLoop() {
         g_webAdminWifiReconnectRequested.store(false, std::memory_order_release);
         flushAllHeartCountersIfDirty();
         delay(200);
-        releaseGpioHoldBeforeRestart();
         ESP.restart();
     }
 }

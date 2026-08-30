@@ -10,7 +10,6 @@
 #include "constants.h"
 #include "diag/task_watchdog.h"
 #include "heart/counter.h"
-#include "hw/pins.h"
 #include "identity/device_identity.h"
 #include "ota/ota.h"
 #include "async/system_lifecycle.h"
@@ -20,7 +19,6 @@
 #include <ESPmDNS.h>
 #include <WiFi.h>
 #include <cstring>
-#include <driver/gpio.h>
 #include <esp_heap_caps.h>
 #include <esp_log.h>
 #include <esp_wifi.h>
@@ -28,12 +26,6 @@
 #include <nvs_flash.h>
 
 DEFINE_LOG_TAG("WIFI");
-
-void releaseGpioHoldBeforeRestart() {
-    (void)gpio_hold_dis(static_cast<gpio_num_t>(pins::kSpiCs));
-    (void)gpio_hold_dis(static_cast<gpio_num_t>(pins::kDisplayPwrEn));
-    (void)gpio_hold_dis(static_cast<gpio_num_t>(pins::kButtonLed));
-}
 
 static void prepareForResetAndRestart() {
     g_systemShutdownInProgress.store(true, std::memory_order_release);
@@ -97,7 +89,6 @@ void wlanControlledRestart(const char* reasonTag) {
     flushAllHeartCountersIfDirty();
     prepareForResetAndRestart();
     delay(200);
-    releaseGpioHoldBeforeRestart();
     ESP.restart();
 }
 
@@ -128,6 +119,5 @@ void resetAllSettings() {
     }
     counterResetRamAfterFactoryClear();
     delay(500);
-    releaseGpioHoldBeforeRestart();
     ESP.restart();
 }

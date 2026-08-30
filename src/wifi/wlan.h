@@ -14,8 +14,6 @@ bool wlanIsSetupComplete();
 /** True after boot STA connect attempt finished (connected or AP fallback). */
 bool wlanIsBootWifiSettled();
 
-void releaseGpioHoldBeforeRestart();
-
 /** Persist full WLAN config (SSID/pass + IP mode + NTP). */
 bool wlanSaveConfigToNvs(const WlanConfig& cfg);
 

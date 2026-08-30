@@ -18,12 +18,10 @@ enum class LedPreset : uint8_t {
 };
 
 void ledInit();
-/** After the startup blink: hold the LED level in light sleep (fewer glitches). */
-void ledEnableGpioHoldForLightSleep();
 /** Force the header LED off when the user disabled it in settings. */
 void ledApplyEnabled();
 
-/** True while TX sequence, pattern, or refresh pulse is active (adaptive light sleep). */
+/** True while TX sequence, pattern, or refresh pulse is active. */
 bool ledIsActivityActive();
 
 /** True while the MQTT TX send sequence is running (blocks a second send). */

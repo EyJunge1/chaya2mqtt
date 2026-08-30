@@ -11,7 +11,6 @@
 
 #include <Arduino.h>
 #include <cstdint>
-#include <driver/gpio.h>
 
 #include <esp_log.h>
 #include <freertos/FreeRTOS.h>
@@ -103,7 +102,6 @@ void armLedPhase(unsigned long durationMs) {
 
 void ledOutputForced(int level) {
     // Header user LED is active-low: HIGH in the state machine means "on".
-    gpio_hold_dis(static_cast<gpio_num_t>(kButtonLedPin));
     digitalWrite(kButtonLedPin, level == HIGH ? LOW : HIGH);
 }
 
@@ -123,16 +121,7 @@ void ledInit() {
 void ledApplyEnabled() {
     if (!configGetLedEnabled()) {
         ledOutputForced(LOW);
-        ledHoldWhenIdle();
     }
-}
-
-void ledEnableGpioHoldForLightSleep() {
-    ledHoldWhenIdle();
-}
-
-void ledHoldWhenIdle() {
-    gpio_hold_en(static_cast<gpio_num_t>(kButtonLedPin));
 }
 
 bool ledActivityActive() {
@@ -252,7 +241,6 @@ static void finishToIdleOrBackground() {
         return;
     }
     ledTxPhase.store(LedTxPhase::Idle, std::memory_order_relaxed);
-    ledHoldWhenIdle();
 }
 
 void advanceLedSequence() {
@@ -352,7 +340,6 @@ void advanceLedSequence() {
         }
         if (!s_refreshWanted.load(std::memory_order_acquire)) {
             ledTxPhase.store(LedTxPhase::Idle, std::memory_order_relaxed);
-            ledHoldWhenIdle();
             break;
         }
         ledOutput(LOW);
@@ -367,7 +354,6 @@ void advanceLedSequence() {
         }
         if (!s_refreshWanted.load(std::memory_order_acquire)) {
             ledTxPhase.store(LedTxPhase::Idle, std::memory_order_relaxed);
-            ledHoldWhenIdle();
             break;
         }
         ledOutput(HIGH);
