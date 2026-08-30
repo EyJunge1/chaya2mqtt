@@ -112,7 +112,7 @@ constexpr unsigned long kWifiScanKickMinIntervalMs = 20000UL;
 constexpr unsigned long kWifiScanFailBackoffMs     = 5000UL;
 constexpr unsigned long kWifiReconnectBaseBackoffMs = 3000UL;
 constexpr unsigned long kWifiReconnectMaxBackoffMs  = 120000UL;
-/** Soft `WiFi.reconnect()` attempts before escalating to disconnect+begin. */
+/** Soft `WiFi.STA.connect()` attempts before escalating to disconnect+begin. */
 constexpr uint32_t      kWifiSoftReconnectAttemptsBeforeForce = 2U;
 constexpr unsigned long kApDnsPollIntervalMs        = 5000UL;
 

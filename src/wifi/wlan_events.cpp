@@ -10,7 +10,6 @@
 #include <WiFi.h>
 #include <algorithm>
 #include <esp_log.h>
-#include <esp_wifi.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/queue.h>
 
@@ -82,10 +81,10 @@ void wlanHandleStaReconnectNetCmd() {
         }
         const wifi_mode_t mode = WiFi.getMode();
         if (mode == WIFI_STA || mode == WIFI_AP_STA) {
-            // Unlike WiFi.reconnect(), this never disconnects a connection that won the race.
-            const esp_err_t err = esp_wifi_connect();
-            if (err != ESP_OK) {
-                ESP_LOGD(TAG, "esp_wifi_connect: %s", esp_err_to_name(err));
+            // Soft path: STA.connect() does not disconnect if already associated.
+            // Skip-above already requires WL_CONNECTED + IP (L2-only is not enough).
+            if (!WiFi.STA.connect()) {
+                ESP_LOGD(TAG, "WiFi.STA.connect() failed");
             }
         }
         wlanWifiApiUnlock();

@@ -36,25 +36,18 @@ In chaya gibt es **keine** vendored Kopien von `HTTPUpdate` / `Update` / `HTTPCl
 - **Core:** nach erfolgreichem `nvs_set_str` Rückgabe `strlen(value)` → `""` sieht aus wie Failure
 - **Upstream:** bei leerem Erfolg `1` zurückgeben + Docs/Test (PR oben)
 
-### 3. WiFi soft-reconnect ohne Disconnect-Race
-
-- **chaya:** `esp_wifi_connect()` statt `WiFi.reconnect()` in `src/wifi/wlan_events.cpp`
-- **Core:** `STAClass::reconnect()` disconnectet bei bestehender Verbindung zuerst
-- **Upstream:** `reconnect(bool forceDisconnect = true)` oder `tryReconnect()` + Doku zum Race
-- **Bleibt App:** Soft→Force-Recovery-State-Machine
-
-### 4. `WiFi.setInactiveTime()` fehlt
+### 3. `WiFi.setInactiveTime()` fehlt
 
 - **chaya:** `esp_wifi_set_inactive_time(WIFI_IF_STA, …)` in `src/wifi/wlan_boot.cpp`
 - **Upstream:** STA-Wrapper analog zu `setSleep` / `setTxPower`
 
-### 5. SNTP: DHCP Option 42 + Fallback ohne `configTime`-Overwrite
+### 4. SNTP: DHCP Option 42 + Fallback ohne `configTime`-Overwrite
 
 - **chaya:** `esp_sntp_*` in `src/wifi/wlan_boot.cpp`
 - **Problem:** `configTime()` stoppt SNTP und setzt feste Server — DHCP-NTP geht verloren
 - **Upstream:** Helper z. B. `configTimeFromDhcp(fallback…)` oder Docs + API, die DHCP-Slots erhält
 
-### 6. Deep-Sleep EXT1 + RTC-Pulls
+### 5. Deep-Sleep EXT1 + RTC-Pulls
 
 - **chaya:** `rtc_gpio_pull*`, `esp_sleep_enable_ext1_wakeup_io`, `esp_deep_sleep_start` in `src/battery/battery.cpp`
 - **Core:** im Wesentlichen `ESP.deepSleep(time_us)` / Light-Sleep-GPIO — kein High-Level für EXT1 + RTC-Pulls
@@ -64,22 +57,22 @@ In chaya gibt es **keine** vendored Kopien von `HTTPUpdate` / `Update` / `HTTPCl
 
 ## Low
 
-### 7. `gpio_hold_en` / `gpio_hold_dis` Wrapper
+### 6. `gpio_hold_en` / `gpio_hold_dis` Wrapper
 
 - **chaya:** LED/Power in `src/led/led.cpp`, Reset, Battery
-- **Upstream:** `gpioHoldEnable` / `Disable` in der HAL (passt gut zu Deep-Sleep #6)
+- **Upstream:** `gpioHoldEnable` / `Disable` in der HAL (passt gut zu Deep-Sleep #5)
 
-### 8. HTTPUpdate `const char*` URL-Overloads
+### 7. HTTPUpdate `const char*` URL-Overloads
 
 - **chaya:** erzwungene `String(resolvedBin)` / `String(resolvedSha)` in `src/ota/flash.cpp` (STAB-07)
 - **Upstream:** parallele `const char*`-Overloads (Heap/Stabilität, kein Funktionsbug)
 
-### 9. Optional: `HTTPUpdate::onVerifying()`
+### 8. Optional: `HTTPUpdate::onVerifying()`
 
 - Verify nur indirekt über `onProgress` wenn `done >= total`
 - Komfort-Callback, kein Security-Fix
 
-### 10. Docs: WiFi / Preferences und Multithreading
+### 9. Docs: WiFi / Preferences und Multithreading
 
 - chaya braucht `g_wifiApiMutex` / `g_nvsMutex`
 - Core-APIs sind faktisch nicht multithread-sicher
@@ -115,7 +108,7 @@ In chaya gibt es **keine** vendored Kopien von `HTTPUpdate` / `Update` / `HTTPCl
 ## Empfohlene PR-Reihenfolge
 
 1. **Preferences empty putString** — offen [#12866](https://github.com/espressif/arduino-esp32/pull/12866)
-2. **WiFi soft reconnect** + **setInactiveTime** (ggf. ein WiFi-PR)
+2. **setInactiveTime** — fehlender STA-Wrapper
 3. **Redirect-Filter** — Security, thematisch an Sidecar-Serie (nach HTTPUpdate-Serie)
 4. **SNTP DHCP+Fallback** und **DeepSleep EXT1** — mehr API-Diskussion
 5. Low: gpioHold, `const char*` URLs, MT-Docs
@@ -125,4 +118,4 @@ In chaya gibt es **keine** vendored Kopien von `HTTPUpdate` / `Update` / `HTTPCl
 
 ## Fazit
 
-Kein zweiter großer Feature-Block wie die Checksum-Serie. Offen in Arbeit: SHA-512 ([#12865](https://github.com/espressif/arduino-esp32/pull/12865)) und Preferences empty string ([#12866](https://github.com/espressif/arduino-esp32/pull/12866)). Nächster sinnvoller non-HTTPUpdate-Kandidat: **WiFi soft-reconnect / setInactiveTime**.
+Kein zweiter großer Feature-Block wie die Checksum-Serie. Offen in Arbeit: SHA-512 ([#12865](https://github.com/espressif/arduino-esp32/pull/12865)) und Preferences empty string ([#12866](https://github.com/espressif/arduino-esp32/pull/12866)). Nächster sinnvoller non-HTTPUpdate-Kandidat: **`WiFi.setInactiveTime()`**.
