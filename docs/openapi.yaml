@@ -185,19 +185,38 @@ paths:
   /api/wifi/scan:
     get:
       tags: [wifi]
-      summary: Scan access points
-      operationId: scanWifi
+      summary: Read cached access-point scan
+      operationId: getWifiScan
+      description: >
+        Read-only snapshot. Does not start a sweep; POST /api/wifi/scan kicks.
+        `status` is idle (never started), pending (kick or sweep in flight),
+        ready (aps present), or failed (last sweep failed).
       responses:
         "200":
-          description: Scan results
+          description: Scan snapshot
           content:
             application/json:
               schema:
-                type: array
-                items:
-                  $ref: "#/components/schemas/WifiScanAp"
+                $ref: "#/components/schemas/WifiScanSnapshot"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+    post:
+      tags: [wifi]
+      summary: Start access-point scan
+      operationId: startWifiScan
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/CsrfForm"
+      responses:
         "202":
-          description: Scan still running
+          description: Scan kicked; poll GET for results
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiOk"
         "403":
           $ref: "#/components/responses/Forbidden"
   /api/wifi/connect:
@@ -740,6 +759,17 @@ components:
         ssid: { type: string }
         rssi: { type: integer }
         open: { type: boolean }
+    WifiScanSnapshot:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+          enum: [idle, pending, ready, failed]
+        aps:
+          type: array
+          items:
+            $ref: "#/components/schemas/WifiScanAp"
     MqttConfigView:
       type: object
       required: [deviceId, server, port, tls, username, hasPassword, topicPub, topicSub, partnerId]

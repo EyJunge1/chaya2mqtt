@@ -229,16 +229,24 @@ describe("mock API parity", () => {
 
   it("returns empty and failed wifi scans", async () => {
     await callApi("POST", "/api/_mock/scenario", "scenario=wifi-scan-empty");
-    const pending = await callApi("GET", "/api/wifi/scan");
-    expect(pending.status).toBe(202);
+    const idle = await callApi("GET", "/api/wifi/scan");
+    expect(idle.status).toBe(200);
+    expect(idle.body).toEqual({ status: "idle" });
+    const kicked = await callApi("POST", "/api/wifi/scan", csrfBody());
+    expect(kicked.status).toBe(202);
+    expect(kicked.body).toEqual({ ok: true });
     getState().scanReadyAt = 1;
     const empty = await callApi("GET", "/api/wifi/scan");
     expect(empty.status).toBe(200);
-    expect(empty.body).toEqual([]);
+    expect(empty.body).toEqual({ status: "ready", aps: [] });
+    const cached = await callApi("GET", "/api/wifi/scan");
+    expect(cached.status).toBe(200);
+    expect(cached.body).toEqual({ status: "ready", aps: [] });
 
     await callApi("POST", "/api/_mock/scenario", "scenario=wifi-scan-fail");
     const fail = await callApi("GET", "/api/wifi/scan");
-    expect(fail.status).toBe(500);
+    expect(fail.status).toBe(200);
+    expect(fail.body).toEqual({ status: "failed" });
   });
 
   it("clears faults via mock control endpoint", async () => {

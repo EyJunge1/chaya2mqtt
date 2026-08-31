@@ -83,7 +83,8 @@ Mutations expect `application/x-www-form-urlencoded`, including `csrf_token`.
 | `/api/chaya/send` | POST | CSRF + STA | Send heart (queued; requires broker + partner) |
 | `/api/wifi/status` | GET | Host | Link status including current IP/gateway/netmask/DNS |
 | `/api/wifi/config` | GET | Host | Stored WiFi configuration (without password) |
-| `/api/wifi/scan` | GET | Host | AP list or **202** |
+| `/api/wifi/scan` | GET | Host | Snapshot `{status: idle\|pending\|ready\|failed}`; `aps` only when `ready` (does not start a scan) |
+| `/api/wifi/scan` | POST | CSRF | Invalidate cache and kick a sweep (**202** `{"ok":true}`) |
 | `/api/wifi/connect` | POST | CSRF | Credentials + IP mode/DNS/NTP; AP test or STA save + reboot |
 | `/api/wifi/connect-status` | GET | AP | Test state |
 | `/api/wifi/connect-commit` | POST | AP + CSRF | Save + reboot |
@@ -134,7 +135,7 @@ Maximum **6** SSE clients. App-task poll remains ~500 ms, but SSE gather runs 
 - `/api/csrf` returns `token` plus `expiresInSeconds`; tokens rotate lazily every 24 hours and the
   previous token remains valid for a 5-minute grace period
 - Every POST includes `csrf_token`. The frontend performs a single-flight refresh and one retry
-  only for idempotent settings/check operations; heart send, WiFi commit, reboot, factory reset,
+  only for idempotent settings/check/scan operations; heart send, WiFi commit, reboot, factory reset,
   and OTA install are never repeated automatically
 - Host/origin allowlist in STA mode; in AP/captive mode Host/Origin checks are skipped so captive
   browsers can complete setup (see Access warning / SEC-10)

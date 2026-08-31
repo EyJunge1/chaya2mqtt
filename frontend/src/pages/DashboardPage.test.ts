@@ -5,12 +5,14 @@ import { setLanguage } from "../i18n/store.ts";
 import DashboardPage from "./DashboardPage.svelte";
 
 const sendChaya = vi.fn();
+const startWifiScan = vi.fn();
 const scanWifi = vi.fn();
 const getWifiConfig = vi.fn();
 
 vi.mock("../api/client", () => ({
   api: {
     sendChaya: () => sendChaya(),
+    startWifiScan: () => startWifiScan(),
     scanWifi: () => scanWifi(),
     getWifiConfig: () => getWifiConfig(),
   },
@@ -78,7 +80,8 @@ describe("DashboardPage", () => {
 
   it("shows Wi-Fi setup in AP mode without the display-scan card", async () => {
     setLanguage("en");
-    scanWifi.mockResolvedValue([]);
+    startWifiScan.mockResolvedValue({ ok: true });
+    scanWifi.mockResolvedValue({ status: "ready", aps: [] });
     getWifiConfig.mockResolvedValue({
       ssid: "",
       mode: "dhcp",

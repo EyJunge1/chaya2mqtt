@@ -10,15 +10,16 @@ import type {
   WifiConfig,
   WifiConnectFields,
   WifiConnectStatus,
-  WifiScanAp,
+  WifiScanSnapshot,
   WifiStatus,
 } from "./types";
-import { parseOtaStatus } from "./validate";
+import { parseOtaStatus, parseWifiScanSnapshot } from "./validate";
 
 let csrfToken = "";
 let csrfRefreshPromise: Promise<string> | null = null;
 
 const csrfRetryablePosts = new Set([
+  "/api/wifi/scan",
   "/api/wifi/connect",
   "/api/wifi/connect-retry",
   "/api/wifi/connect-abort",
@@ -125,11 +126,11 @@ export const api = {
   sendChaya: () => apiPost("/api/chaya/send"),
   getWifiStatus: () => apiGet<WifiStatus>("/api/wifi/status"),
   getWifiConfig: () => apiGet<WifiConfig>("/api/wifi/config"),
-  scanWifi: async (): Promise<WifiScanAp[] | "pending"> => {
+  startWifiScan: () => apiPost("/api/wifi/scan"),
+  scanWifi: async (): Promise<WifiScanSnapshot> => {
     const res = await fetch("/api/wifi/scan", { credentials: "same-origin" });
-    if (res.status === 202) return "pending";
     if (!res.ok) throw new Error(`wifi scan failed (${res.status})`);
-    return parseJson<WifiScanAp[]>(res);
+    return parseWifiScanSnapshot(await parseJson<unknown>(res));
   },
   connectWifi: (fields: WifiConnectFields) =>
     apiPost("/api/wifi/connect", {

@@ -25,6 +25,7 @@ bool appendWifiRuntimeFields(char* body, size_t bodyLen, size_t* pos, const char
 void handleApiWifiStatusGet(AsyncWebServerRequest* req);
 void handleApiWifiConfigGet(AsyncWebServerRequest* req);
 void handleApiWifiScanGet(AsyncWebServerRequest* req);
+void handleApiWifiScanPost(AsyncWebServerRequest* req);
 void handleApiWifiConnectPost(AsyncWebServerRequest* req);
 void handleApiWifiConnectStatusGet(AsyncWebServerRequest* req);
 void handleApiWifiConnectCommitPost(AsyncWebServerRequest* req);

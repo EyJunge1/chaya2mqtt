@@ -39,6 +39,8 @@ describe("api contract", () => {
     expect(typeof api.checkUpdate).toBe("function");
     expect(typeof api.installUpdate).toBe("function");
     expect(typeof api.sendChaya).toBe("function");
+    expect(typeof api.startWifiScan).toBe("function");
+    expect(typeof api.scanWifi).toBe("function");
   });
 
   it("keeps mock plugin aligned with GET/POST paths", () => {

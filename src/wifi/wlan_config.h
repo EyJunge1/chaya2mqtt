@@ -108,7 +108,6 @@ inline WlanBootAction wlanBootDecide(bool hasStaCredentials, bool staConnected,
 constexpr unsigned long kStaStableAfterGotIpMs   = 3000UL;
 /** After GOT_IP, defer admin STA scans to avoid disconnect races (STAB-07). */
 constexpr unsigned long kWifiScanAfterGotIpCooldownMs = 45000UL;
-constexpr unsigned long kWifiScanKickMinIntervalMs = 20000UL;
 constexpr unsigned long kWifiScanFailBackoffMs     = 5000UL;
 constexpr unsigned long kWifiReconnectBaseBackoffMs = 3000UL;
 constexpr unsigned long kWifiReconnectMaxBackoffMs  = 120000UL;

@@ -212,31 +212,41 @@ export async function handleApi(req: IncomingMessage, res: ServerResponse): Prom
     return true;
   }
 
+  if (path === "/api/wifi/scan" && method === "POST") {
+    const params = parseForm(await readBody(req));
+    if (!requireCsrf(params, res)) return true;
+    if (failIfFault("wifi-scan", res)) return true;
+    state.scanReadyAt = Date.now() + 800;
+    sendJson(res, 202, { ok: true });
+    return true;
+  }
+
   if (path === "/api/wifi/scan" && method === "GET") {
     if (failIfFault("wifi-scan", res)) return true;
     if (state.scanMode === "fail") {
-      sendJson(res, 500, { ok: false, error: "scan_failed" });
+      sendJson(res, 200, { status: "failed" });
       return true;
     }
     if (state.scanReadyAt === 0) {
-      state.scanReadyAt = Date.now() + 800;
-      sendJson(res, 202, null);
+      sendJson(res, 200, { status: "idle" });
       return true;
     }
     if (Date.now() < state.scanReadyAt) {
-      sendJson(res, 202, null);
+      sendJson(res, 200, { status: "pending" });
       return true;
     }
-    state.scanReadyAt = 0;
     if (state.scanMode === "empty") {
-      sendJson(res, 200, []);
+      sendJson(res, 200, { status: "ready", aps: [] });
       return true;
     }
-    sendJson(res, 200, [
-      { ssid: "MockNet", rssi: -48, open: false },
-      { ssid: "CafeGuest", rssi: -67, open: true },
-      { ssid: "IoT-Lab", rssi: -72, open: false },
-    ]);
+    sendJson(res, 200, {
+      status: "ready",
+      aps: [
+        { ssid: "MockNet", rssi: -48, open: false },
+        { ssid: "CafeGuest", rssi: -67, open: true },
+        { ssid: "IoT-Lab", rssi: -72, open: false },
+      ],
+    });
     return true;
   }
 

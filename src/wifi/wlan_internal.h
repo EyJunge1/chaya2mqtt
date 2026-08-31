@@ -44,9 +44,9 @@ extern size_t            s_wifiScanCacheCount;
 extern std::atomic<bool> s_wifiScanKick;
 extern std::atomic<bool> s_wifiScanInProgress;
 extern std::atomic<bool> s_wifiScanHasValidCache;
+extern std::atomic<bool> s_wifiScanFailed;
 extern portMUX_TYPE      s_wifiScanCacheMux;
 
-extern std::atomic<unsigned long> s_lastWifiScanKickMs;
 extern std::atomic<unsigned long> s_wifiScanNextAllowedMs;
 
 void setupWifiFinishStaConnected();

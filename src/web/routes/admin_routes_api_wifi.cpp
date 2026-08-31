@@ -27,6 +27,7 @@
 #include <ESPAsyncWebServer.h>
 #include <cerrno>
 #include <climits>
+#include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <esp_log.h>
@@ -214,19 +215,27 @@ bool parseWifiConfigFromRequest(AsyncWebServerRequest* req, WlanConfig* cfg, con
 }
 
 void handleApiWifiScanGet(AsyncWebServerRequest* req) {
-    // Polling GETs must not 429: the UI checks every ~500 ms while the async scan
-    // runs (~2–3 s). Rate-limit only the underlying kick via s_wifiScanNextAllowedMs.
-    if (!wlanWifiScanCacheReady()) {
-        wlanRequestWifiScanRefresh();
-        webSendEmpty(req, 202);
+    // Read-only: POST /api/wifi/scan kicks. Polling GETs must not start a sweep.
+    const WlanWifiScanStatus st = wlanWifiScanStatus();
+    if (st != WlanWifiScanStatus::Ready) {
+        const char* status = st == WlanWifiScanStatus::Pending ? "pending"
+                             : st == WlanWifiScanStatus::Failed ? "failed"
+                                                                : "idle";
+        char body[40]{};
+        const int n = snprintf(body, sizeof(body), "{\"status\":\"%s\"}", status);
+        if (n < 0 || static_cast<size_t>(n) >= sizeof(body)) {
+            webSendJson(req, 200, "{\"status\":\"idle\"}");
+            return;
+        }
+        webSendJson(req, 200, body);
         return;
     }
     AsyncResponseStream* resp = beginResponseStreamOr500(req, "application/json");
     if (resp == nullptr) {
         return;
     }
+    resp->print(F("{\"status\":\"ready\",\"aps\":["));
     const size_t n = wlanWifiScanCachedCount();
-    resp->print('[');
     for (size_t i = 0; i < n; ++i) {
         WlanScanRow row{};
         if (!wlanWifiScanCopyRowAt(i, &row)) {
@@ -241,9 +250,13 @@ void handleApiWifiScanGet(AsyncWebServerRequest* req) {
         resp->print(row.rssi);
         resp->print(row.open ? F(",\"open\":true}") : F(",\"open\":false}"));
     }
-    resp->print(']');
+    resp->print(F("]}"));
     req->send(resp);
-    // PERF-07: do not re-kick after a successful cache hit; UI refresh re-requests when needed.
+}
+
+void handleApiWifiScanPost(AsyncWebServerRequest* req) {
+    wlanRequestWifiScanRefresh();
+    sendOk(req, 202);
 }
 
 void handleApiWifiConnectPost(AsyncWebServerRequest* req) {
@@ -354,6 +367,11 @@ void adminRoutesRegisterApiWifi(AsyncWebServer& ws) {
         AsyncCallbackWebHandler& h = ws.on("/api/wifi/scan", HTTP_GET,
                                            [](AsyncWebServerRequest* rq) { handleApiWifiScanGet(rq); });
         h.addMiddleware(mwRequireAllowedHost());
+    }
+    {
+        AsyncCallbackWebHandler& h = ws.on("/api/wifi/scan", HTTP_POST,
+                                           [](AsyncWebServerRequest* rq) { handleApiWifiScanPost(rq); });
+        h.addMiddleware(mwApiPostCsrf());
     }
     {
         AsyncCallbackWebHandler& h = ws.on("/api/wifi/connect", HTTP_POST,

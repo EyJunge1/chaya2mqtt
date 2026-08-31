@@ -59,9 +59,9 @@ size_t            s_wifiScanCacheCount = 0;
 std::atomic<bool> s_wifiScanKick{false};
 std::atomic<bool> s_wifiScanInProgress{false};
 std::atomic<bool> s_wifiScanHasValidCache{false};
+std::atomic<bool> s_wifiScanFailed{false};
 portMUX_TYPE      s_wifiScanCacheMux = portMUX_INITIALIZER_UNLOCKED;
 
-std::atomic<unsigned long> s_lastWifiScanKickMs{0};
 std::atomic<unsigned long> s_wifiScanNextAllowedMs{0};
 
 static char s_setupApPass[kSetupApPassBufLen]{};

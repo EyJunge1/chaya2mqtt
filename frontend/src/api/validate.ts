@@ -5,6 +5,8 @@ import type {
   OtaChannel,
   OtaPhase,
   OtaStatus,
+  WifiScanAp,
+  WifiScanSnapshot,
   WifiStatus,
 } from "./types";
 
@@ -70,6 +72,35 @@ export function parseChayaStatus(data: unknown): ChayaStatus {
     configured: asBool(raw.configured),
     paired: asBool(raw.paired),
   };
+}
+
+export function parseWifiScanSnapshot(data: unknown): WifiScanSnapshot {
+  if (!data || typeof data !== "object") {
+    throw new Error("invalid wifi scan");
+  }
+  const raw = data as Record<string, unknown>;
+  const status = raw.status;
+  if (status === "ready") {
+    if (!Array.isArray(raw.aps)) {
+      throw new Error("invalid wifi scan aps");
+    }
+    const aps: WifiScanAp[] = raw.aps.map((row) => {
+      if (!row || typeof row !== "object") {
+        throw new Error("invalid wifi scan ap");
+      }
+      const ap = row as Record<string, unknown>;
+      return {
+        ssid: asString(ap.ssid),
+        rssi: asFiniteNumber(ap.rssi),
+        open: asBool(ap.open),
+      };
+    });
+    return { status: "ready", aps };
+  }
+  if (status === "idle" || status === "pending" || status === "failed") {
+    return { status };
+  }
+  throw new Error(`invalid wifi scan status: ${String(status)}`);
 }
 
 export function parseWifiStatus(data: unknown): WifiStatus {

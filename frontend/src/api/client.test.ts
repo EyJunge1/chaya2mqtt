@@ -83,16 +83,78 @@ describe("api client", () => {
     );
   });
 
-  it("scanWifi returns pending on 202", async () => {
+  it("scanWifi parses a pending snapshot", async () => {
     vi.stubGlobal(
       "fetch",
       vi.fn().mockResolvedValue({
-        ok: false,
-        status: 202,
-        text: async () => "",
+        ok: true,
+        status: 200,
+        text: async () => JSON.stringify({ status: "pending" }),
       }),
     );
-    await expect(api.scanWifi()).resolves.toBe("pending");
+    await expect(api.scanWifi()).resolves.toEqual({ status: "pending" });
+  });
+
+  it("scanWifi parses a ready snapshot", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        text: async () => JSON.stringify({ status: "ready", aps: [{ ssid: "Home", rssi: -40, open: false }] }),
+      }),
+    );
+    await expect(api.scanWifi()).resolves.toEqual({
+      status: "ready",
+      aps: [{ ssid: "Home", rssi: -40, open: false }],
+    });
+  });
+
+  it("startWifiScan posts csrf and accepts 202", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 202,
+      text: async () => JSON.stringify({ ok: true }),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    await expect(api.startWifiScan()).resolves.toEqual({ ok: true });
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/wifi/scan",
+      expect.objectContaining({
+        method: "POST",
+        body: "csrf_token=abc123",
+      }),
+    );
+  });
+
+  it("retries startWifiScan after CSRF rejection", async () => {
+    let attempts = 0;
+    const fetchMock = vi.fn().mockImplementation(async (path: string) => {
+      if (path === "/api/csrf") {
+        return {
+          ok: true,
+          status: 200,
+          text: async () => JSON.stringify({ token: "fresh-scan", expiresInSeconds: 86400 }),
+        };
+      }
+      attempts += 1;
+      if (attempts === 1) {
+        return {
+          ok: false,
+          status: 403,
+          text: async () => JSON.stringify({ ok: false, error: "csrf" }),
+        };
+      }
+      return {
+        ok: true,
+        status: 202,
+        text: async () => JSON.stringify({ ok: true }),
+      };
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    await expect(api.startWifiScan()).resolves.toEqual({ ok: true });
+    expect(fetchMock).toHaveBeenCalledWith("/api/csrf", expect.anything());
+    expect(String(fetchMock.mock.calls[2]?.[1]?.body ?? "")).toContain("csrf_token=fresh-scan");
   });
 
   it("connectWifi posts network fields and csrf", async () => {

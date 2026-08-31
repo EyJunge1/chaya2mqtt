@@ -79,6 +79,14 @@ export interface WifiScanAp {
   open: boolean;
 }
 
+export type WifiScanStatus = "idle" | "pending" | "ready" | "failed";
+
+export type WifiScanSnapshot =
+  | { status: "idle" }
+  | { status: "pending" }
+  | { status: "failed" }
+  | { status: "ready"; aps: WifiScanAp[] };
+
 export type WifiConnectState = "idle" | "testing" | "ok" | "fail";
 
 export interface WifiConnectStatus {

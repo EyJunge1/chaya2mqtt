@@ -47,7 +47,17 @@ bool wlanNtpSynced();
 /** Modem PS: true when MQTT session up; false helps reconnect after drop. */
 void wlanSetStaPowerSaveMqttActive(bool mqttSessionActive);
 
+/** Invalidate the scan snapshot immediately and kick a sweep unless one is running. */
 void wlanRequestWifiScanRefresh();
+
+enum class WlanWifiScanStatus : uint8_t {
+    Idle,
+    Pending,
+    Ready,
+    Failed,
+};
+
+WlanWifiScanStatus wlanWifiScanStatus();
 
 bool wlanWifiScanCacheReady();
 

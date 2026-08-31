@@ -15,13 +15,11 @@
 DEFINE_LOG_TAG("WIFI");
 
 void wlanRequestWifiScanRefresh() {
-    const unsigned long now  = millis();
-    const unsigned long last = s_lastWifiScanKickMs.load(std::memory_order_relaxed);
-    if (last != 0UL && (now - last) < kWifiScanKickMinIntervalMs) {
-        return;
+    s_wifiScanFailed.store(false, std::memory_order_release);
+    s_wifiScanHasValidCache.store(false, std::memory_order_release);
+    if (!s_wifiScanInProgress.load(std::memory_order_acquire)) {
+        s_wifiScanKick.store(true, std::memory_order_release);
     }
-    s_lastWifiScanKickMs.store(now, std::memory_order_relaxed);
-    s_wifiScanKick.store(true, std::memory_order_release);
 }
 
 void wifiScanStopForEpdLocked() {
@@ -35,9 +33,22 @@ void wifiScanStopForEpdLocked() {
     ESP_LOGI(TAG, "WLAN scan paused for EPD refresh");
 }
 
+WlanWifiScanStatus wlanWifiScanStatus() {
+    if (s_wifiScanInProgress.load(std::memory_order_acquire)
+        || s_wifiScanKick.load(std::memory_order_acquire)) {
+        return WlanWifiScanStatus::Pending;
+    }
+    if (s_wifiScanHasValidCache.load(std::memory_order_acquire)) {
+        return WlanWifiScanStatus::Ready;
+    }
+    if (s_wifiScanFailed.load(std::memory_order_acquire)) {
+        return WlanWifiScanStatus::Failed;
+    }
+    return WlanWifiScanStatus::Idle;
+}
+
 bool wlanWifiScanCacheReady() {
-    return s_wifiScanHasValidCache.load(std::memory_order_acquire)
-           && !s_wifiScanInProgress.load(std::memory_order_acquire);
+    return wlanWifiScanStatus() == WlanWifiScanStatus::Ready;
 }
 
 size_t wlanWifiScanCopySnapshot(WlanScanRow* out, size_t maxRows) {
@@ -113,12 +124,15 @@ void wifiScanServiceOnMainTask() {
         WiFi.scanDelete();
         s_wifiScanInProgress.store(false, std::memory_order_release);
         s_wifiScanHasValidCache.store(false, std::memory_order_release);
+        s_wifiScanFailed.store(true, std::memory_order_release);
         s_wifiScanNextAllowedMs.store(millis() + kWifiScanFailBackoffMs, std::memory_order_relaxed);
         wlanWifiApiUnlock();
         return;
     }
     if (n < 0) {
         s_wifiScanInProgress.store(false, std::memory_order_release);
+        s_wifiScanHasValidCache.store(false, std::memory_order_release);
+        s_wifiScanFailed.store(true, std::memory_order_release);
         wlanWifiApiUnlock();
         return;
     }
@@ -162,6 +176,7 @@ void wifiScanServiceOnMainTask() {
     portEXIT_CRITICAL(&s_wifiScanCacheMux);
     WiFi.scanDelete();
     s_wifiScanInProgress.store(false, std::memory_order_release);
+    s_wifiScanFailed.store(false, std::memory_order_release);
     s_wifiScanHasValidCache.store(true, std::memory_order_release);
     ESP_LOGI(TAG, "WLAN scan done, %u AP(s)", static_cast<unsigned>(rowCount));
     wlanWifiApiUnlock();
