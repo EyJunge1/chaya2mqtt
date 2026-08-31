@@ -112,7 +112,7 @@ or configuration snapshot may return `503` with `busy` or `shutdown`.
 
 Machine-readable contracts:
 
-- REST: [openapi.yaml](openapi.yaml) (OpenAPI 3.1)
+- REST: [openapi.yaml](openapi.yaml) (OpenAPI 3.2)
 - SSE: [asyncapi.yaml](asyncapi.yaml) (AsyncAPI 3)
 
 ## Server-Sent Events
