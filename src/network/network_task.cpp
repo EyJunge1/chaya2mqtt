@@ -29,6 +29,11 @@ DEFINE_LOG_TAG("NET");
 
 static bool s_mqttSettingsChangedDeferred = false;
 
+static void mqttFinishSettingsApply() {
+    mqttEndSettingsApply();
+    mqttCfgSetApplyPending(false);
+}
+
 static void handleNetCommand(NetCmd cmd) {
     static const char* const kNetCmdNames[] = {
         "MqttSettingsChanged", "MqttKillClient", "WifiGotIp",
@@ -48,7 +53,7 @@ static void handleNetCommand(NetCmd cmd) {
         ESP_LOGI(TAG, "MQTT settings apply: start");
         mqttBeginSettingsApply();
         if (!mqttCfgHasUnappliedPending()) {
-            mqttEndSettingsApply();
+            mqttFinishSettingsApply();
             ESP_LOGI(TAG, "MQTT settings apply: nothing pending");
             break;
         }
@@ -58,7 +63,7 @@ static void handleNetCommand(NetCmd cmd) {
         if (mqttCfgMatchesNvs()) {
             mqttSetup();
             mqttPostponeConnect(3000UL);
-            mqttEndSettingsApply();
+            mqttFinishSettingsApply();
             chayaTaskWatchdogReset();
             // Waiting title ↔ operational heart (view change; bypass Content coalesce).
             displaySetContentAllowed(!configIsApMode() && mqttCfgIsHeartReady());
@@ -80,7 +85,7 @@ static void handleNetCommand(NetCmd cmd) {
         chayaTaskWatchdogReset();
         mqttSetup();
         mqttPostponeConnect(3000UL);
-        mqttEndSettingsApply();
+        mqttFinishSettingsApply();
         chayaTaskWatchdogReset();
         // Waiting title ↔ operational heart (view change; bypass Content coalesce).
         displaySetContentAllowed(!configIsApMode() && mqttCfgIsHeartReady());

@@ -103,6 +103,8 @@ export interface MqttConfigView {
   partnerId: string;
   /** Present when firmware reports deferred MQTT NVS apply status (QUAL-01). */
   nvsOk?: boolean;
+  /** True while a changing POST is queued or the network task is still applying (QUAL-04). */
+  applyPending?: boolean;
 }
 
 export type UiLang = "de" | "en";

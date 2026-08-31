@@ -28,6 +28,7 @@ static MqttConfig          s_mqttPendingCfg{};
 static SemaphoreHandle_t   s_mqttCfgMutex       = nullptr;
 static std::atomic<bool> s_mqttCfgDirty{true};
 static std::atomic<bool> s_mqttNvsWriteFailed{false};
+static std::atomic<bool> s_mqttApplyPending{false};
 static std::atomic<bool> s_brokerConfigured{false};
 static std::atomic<bool> s_paired{false};
 
@@ -102,6 +103,14 @@ void mqttCfgSetNvsWriteFailed(bool failed) {
 
 bool mqttCfgNvsWriteFailed() {
     return s_mqttNvsWriteFailed.load(std::memory_order_acquire);
+}
+
+void mqttCfgSetApplyPending(bool pending) {
+    s_mqttApplyPending.store(pending, std::memory_order_release);
+}
+
+bool mqttCfgApplyPending() {
+    return s_mqttApplyPending.load(std::memory_order_acquire);
 }
 
 void mqttCfgSnapshot(MqttConfig* out) {

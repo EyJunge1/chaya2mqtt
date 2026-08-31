@@ -766,6 +766,11 @@ components:
             type: boolean,
             description: false when last deferred MQTT NVS persist failed (QUAL-01),
           }
+        applyPending:
+          {
+            type: boolean,
+            description: true while a changing MQTT POST is queued or the network task is still applying (QUAL-04),
+          }
     SettingsInfo:
       type: object
       required:

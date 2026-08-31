@@ -21,6 +21,8 @@
 
   const MQTT_PLAIN_PORT = 1883;
   const MQTT_TLS_PORT = 8883;
+  const MQTT_APPLY_POLL_MS = 200;
+  const MQTT_APPLY_POLL_MAX = 150;
 
   type MqttProtocol = "mqtt" | "mqtts";
 
@@ -88,8 +90,27 @@
     cfg.tls = nextTls;
   }
 
+  /** Wait for deferred apply; surface NVS failure via nvsOk (QUAL-01). */
+  async function waitForMqttPersist(seq: number): Promise<MqttConfigView | "aborted" | "timeout"> {
+    for (let i = 0; i < MQTT_APPLY_POLL_MAX; i++) {
+      if (seq !== loadSeq) return "aborted";
+      const next = await api.getMqttConfig();
+      if (seq !== loadSeq) return "aborted";
+      if (!next.applyPending) {
+        return next;
+      }
+      await new Promise((r) => setTimeout(r, MQTT_APPLY_POLL_MS));
+    }
+    if (seq !== loadSeq) return "aborted";
+    const last = await api.getMqttConfig();
+    if (seq !== loadSeq) return "aborted";
+    return last.applyPending ? "timeout" : last;
+  }
+
   async function persist(nextPartner: string) {
     if (!cfg) return;
+    const seq = loadSeq;
+    const submittedTls = cfg.tls;
     busy = true;
     try {
       const res = await api.saveMqtt({
@@ -100,6 +121,7 @@
         mqtt_pass: password || undefined,
         partner_id: nextPartner.trim().toLowerCase(),
       });
+      if (seq !== loadSeq) return;
       if (!res.ok) {
         onToast(
           res.error === "partner" ? i18n.t("toast.partner-invalid") : i18n.t("toast.save-failed"),
@@ -108,22 +130,28 @@
         return;
       }
       password = "";
-      const next = await api.getMqttConfig();
-      cfg = next;
-      partner = next.partnerId;
-      if (next.nvsOk === false) {
+      const applied = await waitForMqttPersist(seq);
+      if (seq !== loadSeq || applied === "aborted") return;
+      if (applied === "timeout") {
+        onToast(i18n.t("toast.save-failed"), "error");
+        return;
+      }
+      cfg = applied;
+      partner = applied.partnerId;
+      if (applied.nvsOk === false) {
         onToast(i18n.t("toast.save-failed"), "error");
         return;
       }
       onToast(i18n.t("toast.mqtt-saved"), "success");
-      if (!next.tls) {
+      if (!submittedTls) {
         onToast(i18n.t("toast.mqtt-tls-off"), "warning");
       }
       await onDeviceRefresh?.();
     } catch {
+      if (seq !== loadSeq) return;
       onToast(i18n.t("toast.save-failed"), "error");
     } finally {
-      busy = false;
+      if (seq === loadSeq) busy = false;
     }
   }
 

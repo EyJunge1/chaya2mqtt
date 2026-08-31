@@ -421,6 +421,7 @@ export async function handleApi(req: IncomingMessage, res: ServerResponse): Prom
       topicSub: state.mqtt.topicSub,
       partnerId: state.mqtt.partnerId,
       nvsOk: state.mqttNvsOk !== false,
+      applyPending: false,
     });
     return true;
   }

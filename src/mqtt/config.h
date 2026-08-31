@@ -58,3 +58,7 @@ bool mqttCfgSnapshotTimed(MqttConfig* out, uint32_t timeoutMs);
 /** Last MQTT NVS save failed (web MQTT page status). Owner: mqtt/config (QUAL-06). */
 void mqttCfgSetNvsWriteFailed(bool failed);
 bool mqttCfgNvsWriteFailed();
+
+/** True from a changing POST /api/mqtt until network-task apply finishes (including NVS). */
+void mqttCfgSetApplyPending(bool pending);
+bool mqttCfgApplyPending();

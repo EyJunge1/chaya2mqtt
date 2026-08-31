@@ -67,7 +67,9 @@ describe("MqttPage", () => {
         partner_id: "abcdef",
       });
     });
-    expect(onToast).toHaveBeenCalledWith("toast.mqtt-saved", "success");
+    await waitFor(() => {
+      expect(onToast).toHaveBeenCalledWith("toast.mqtt-saved", "success");
+    });
     expect(onDeviceRefresh).toHaveBeenCalled();
   });
 
@@ -91,7 +93,9 @@ describe("MqttPage", () => {
         partner_id: "f5e6d7",
       });
     });
-    expect(onToast).toHaveBeenCalledWith("toast.mqtt-saved", "success");
+    await waitFor(() => {
+      expect(onToast).toHaveBeenCalledWith("toast.mqtt-saved", "success");
+    });
   });
 
   it("unpairs without clearing the broker", async () => {
@@ -114,7 +118,9 @@ describe("MqttPage", () => {
         partner_id: "",
       });
     });
-    expect(onToast).toHaveBeenCalledWith("toast.mqtt-saved", "success");
+    await waitFor(() => {
+      expect(onToast).toHaveBeenCalledWith("toast.mqtt-saved", "success");
+    });
   });
 
   it("switches protocol and auto-adjusts default ports", async () => {
@@ -185,10 +191,10 @@ describe("MqttPage", () => {
     expect(container.querySelector(".lucide-radio-off")).toBeInTheDocument();
   });
 
-  it("toasts a TLS hint when saving without TLS", async () => {
+  it("toasts a TLS hint from the submitted form, not the first GET", async () => {
     getMqttConfig
       .mockResolvedValueOnce(cfg({ tls: false, port: 1883 }))
-      .mockResolvedValueOnce(cfg({ tls: false, port: 1883 }));
+      .mockResolvedValueOnce(cfg({ tls: true, port: 8883, applyPending: false }));
     saveMqtt.mockResolvedValue({ ok: true });
     const onToast = vi.fn();
     render(MqttPage, { props: { mqtt: { connected: true }, onToast } });
@@ -200,6 +206,51 @@ describe("MqttPage", () => {
       expect(onToast).toHaveBeenCalledWith("toast.mqtt-saved", "success");
     });
     expect(onToast).toHaveBeenCalledWith("toast.mqtt-tls-off", "warning");
+  });
+
+  it("waits for applyPending before replacing the form", async () => {
+    const onToast = vi.fn();
+    getMqttConfig
+      .mockResolvedValueOnce(cfg())
+      .mockResolvedValueOnce(cfg({ applyPending: true }))
+      .mockResolvedValueOnce(
+        cfg({ partnerId: "abcdef", topicSub: "chaya2mqtt/abcdef", applyPending: false }),
+      );
+    render(MqttPage, { props: { mqtt: { connected: true }, onToast } });
+
+    await screen.findByDisplayValue("mqtt.example.com");
+    fireEvent.change(screen.getByDisplayValue("f5e6d7"), { target: { value: "abcdef" } });
+    fireEvent.click(screen.getByRole("button", { name: "common.save" }));
+
+    await waitFor(() => {
+      expect(saveMqtt).toHaveBeenCalled();
+    });
+    expect(screen.getByDisplayValue("abcdef")).toBeTruthy();
+    expect(onToast).not.toHaveBeenCalled();
+
+    await waitFor(() => {
+      expect(onToast).toHaveBeenCalledWith("toast.mqtt-saved", "success");
+    });
+    expect(screen.getByDisplayValue("abcdef")).toBeTruthy();
+    expect(getMqttConfig).toHaveBeenCalledTimes(3);
+  });
+
+  it("shows save-failed when nvsOk is false after apply", async () => {
+    const onToast = vi.fn();
+    const onDeviceRefresh = vi.fn().mockResolvedValue(undefined);
+    getMqttConfig
+      .mockResolvedValueOnce(cfg())
+      .mockResolvedValueOnce(cfg({ nvsOk: false, applyPending: false }));
+    render(MqttPage, { props: { mqtt: { connected: true }, onToast, onDeviceRefresh } });
+
+    await screen.findByDisplayValue("mqtt.example.com");
+    fireEvent.click(screen.getByRole("button", { name: "common.save" }));
+
+    await waitFor(() => {
+      expect(onToast).toHaveBeenCalledWith("toast.save-failed", "error");
+    });
+    expect(onToast).not.toHaveBeenCalledWith("toast.mqtt-saved", "success");
+    expect(onDeviceRefresh).not.toHaveBeenCalled();
   });
 
   it("reloads config when refreshSeq changes", async () => {

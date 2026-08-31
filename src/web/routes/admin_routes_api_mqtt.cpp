@@ -97,9 +97,10 @@ bool fillMqttConfigJson(char* body, size_t bodyLen, const MqttConfig& cfg) {
     if (pos + 2U > bodyLen) {
         return false;
     }
-    // Closed below after nvsOk (QUAL-01).
-    n = snprintf(body + pos, bodyLen - pos, ",\"nvsOk\":%s}",
-                 mqttCfgNvsWriteFailed() ? "false" : "true");
+    // Closed below after nvsOk / applyPending (QUAL-01 / QUAL-04).
+    n = snprintf(body + pos, bodyLen - pos, ",\"nvsOk\":%s,\"applyPending\":%s}",
+                 mqttCfgNvsWriteFailed() ? "false" : "true",
+                 mqttCfgApplyPending() ? "true" : "false");
     if (n < 0 || pos + static_cast<size_t>(n) >= bodyLen) {
         return false;
     }
@@ -232,6 +233,7 @@ void handleApiMqttPost(AsyncWebServerRequest* req) {
     }
     if (!mqttCfgEquals(&pending, &active)) {
         mqttCfgStorePending(&pending);
+        mqttCfgSetApplyPending(true);
         g_webAdminMqttApplyVersion.fetch_add(1U, std::memory_order_acq_rel);
         ESP_LOGI(TAG, "MQTT settings accepted broker=%s:%u tls=%s", pending.server,
                  static_cast<unsigned>(pending.port), pending.tls ? "yes" : "no");

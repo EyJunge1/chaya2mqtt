@@ -210,6 +210,7 @@ The active `MqttConfig` is static in `config.cpp`. It is accessed only through A
 | `mqttCfgSnapshot(MqttConfig*)` | Thread-safe copy |
 | `mqttCfgStorePending(...)` | Web form → pending |
 | `mqttCfgApplyPendingToActive()` | Pending → Active |
+| `mqttCfgSetApplyPending(bool)` / `mqttCfgApplyPending()` | Web apply in flight (POST until NVS/apply finishes); GET `/api/mqtt` `applyPending` |
 | `mqttCfgApplyPairingTopics(MqttConfig*)` | Derive topics from own ID + partner ID (without a partner: empty subscribe topic) |
 
 Sanitization when loading NVS: invalid servers/topics/partner IDs are cleaned up.
