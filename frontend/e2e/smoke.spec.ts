@@ -45,8 +45,12 @@ test("wifi test then commit in AP mode", async ({ page, request }) => {
   await expect(page.getByRole("button", { name: "Save & reboot" })).toBeEnabled({
     timeout: 15_000,
   });
+  const commit = page.waitForResponse(
+    (r) => r.url().includes("/api/wifi/connect-commit") && r.request().method() === "POST",
+  );
   await page.getByRole("button", { name: "Save & reboot" }).click();
-  await expect(page).toHaveURL(/\/$/);
+  expect((await commit).status()).toBe(200);
+  await expect(page.getByText(/rebooting|Neustart/i)).toBeVisible();
 });
 
 test("diagnostics live via SSE counters @smoke", async ({ page }) => {
