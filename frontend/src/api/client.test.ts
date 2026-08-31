@@ -242,7 +242,9 @@ describe("api client", () => {
       text: async () => JSON.stringify({ ok: true, message: "saved" }),
     });
     vi.stubGlobal("fetch", fetchMock);
-    await expect(api.saveMqtt({ mqtt_server: "broker", mqtt_port: 8883, mqtt_tls: false })).resolves.toEqual({
+    await expect(
+      api.saveMqtt({ mqtt_server: "broker", mqtt_port: 8883, mqtt_tls: false }),
+    ).resolves.toEqual({
       ok: true,
       message: "saved",
     });
@@ -259,7 +261,9 @@ describe("api client", () => {
         text: async () => JSON.stringify({ ok: false, error: "busy" }),
       }),
     );
-    await expect(api.saveMqtt({ mqtt_server: "broker", mqtt_port: 8883, mqtt_tls: true })).resolves.toEqual({
+    await expect(
+      api.saveMqtt({ mqtt_server: "broker", mqtt_port: 8883, mqtt_tls: true }),
+    ).resolves.toEqual({
       ok: false,
       error: "busy",
     });

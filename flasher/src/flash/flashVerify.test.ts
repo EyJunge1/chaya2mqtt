@@ -39,9 +39,9 @@ describe("flashVerify", () => {
     expect(() =>
       resolvePartUrl("https://evil.example/x.bin", "https://host/flash/manifest.json"),
     ).toThrow(/Absolute/);
-    expect(() => resolvePartUrl("//evil.example/x.bin", "https://host/flash/manifest.json")).toThrow(
-      /Absolute/,
-    );
+    expect(() =>
+      resolvePartUrl("//evil.example/x.bin", "https://host/flash/manifest.json"),
+    ).toThrow(/Absolute/);
     expect(() => resolvePartUrl("http://other/x.bin", "https://host/flash/manifest.json")).toThrow(
       /Absolute/,
     );

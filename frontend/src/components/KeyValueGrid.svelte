@@ -16,7 +16,10 @@
 
 <dl class={cn("grid gap-3 text-sm sm:grid-cols-2", className)}>
   {#each items as item (item.label)}
-    <div class={cn(item.span === 2 ? "sm:col-span-2" : undefined, item.className)} data-testid={item.testId}>
+    <div
+      class={cn(item.span === 2 ? "sm:col-span-2" : undefined, item.className)}
+      data-testid={item.testId}
+    >
       <dt class="text-muted">{item.label}</dt>
       <dd class={cn("font-semibold text-text-bright", item.valueClass)}>
         {#if typeof item.value === "function"}

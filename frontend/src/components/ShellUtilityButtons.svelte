@@ -15,9 +15,7 @@
   const CYCLE: ThemePreference[] = ["system", "light", "dark"];
 
   const isDark = $derived(themeView.theme === "dark");
-  const nextPreference = $derived(
-    CYCLE[(CYCLE.indexOf(themeView.preference) + 1) % CYCLE.length]!,
-  );
+  const nextPreference = $derived(CYCLE[(CYCLE.indexOf(themeView.preference) + 1) % CYCLE.length]!);
   const themeLabel = $derived(
     nextPreference === "system"
       ? i18n.t("settings.theme-system")

@@ -1,11 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import {
-  getTheme,
-  getThemePreference,
-  setTheme,
-  subscribeTheme,
-  toggleTheme,
-} from "./store";
+import { getTheme, getThemePreference, setTheme, subscribeTheme, toggleTheme } from "./store";
 
 afterEach(() => {
   vi.unstubAllGlobals();

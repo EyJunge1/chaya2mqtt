@@ -138,12 +138,17 @@ test("ota install confirm starts downloading", async ({ page, request }) => {
   await waitForAppReady(page);
   await page.goto("/update");
   await page.getByRole("button", { name: /Check for updates/i }).click();
-  await expect(page.getByRole("button", { name: /Install update|Update installieren/i })).toBeVisible({
+  await expect(
+    page.getByRole("button", { name: /Install update|Update installieren/i }),
+  ).toBeVisible({
     timeout: 10_000,
   });
   await page.getByRole("button", { name: /Install update|Update installieren/i }).click();
   await expect(page.getByRole("dialog")).toBeVisible();
-  await page.getByRole("dialog").getByRole("button", { name: /Install update|Update installieren/i }).click();
+  await page
+    .getByRole("dialog")
+    .getByRole("button", { name: /Install update|Update installieren/i })
+    .click();
   await expect(page.getByText(/Downloading|Herunterladen/i).first()).toBeVisible({
     timeout: 10_000,
   });
@@ -156,9 +161,15 @@ test("factory reset confirm posts and enters AP setup", async ({ page, request }
   const resetPromise = page.waitForResponse(
     (r) => r.url().includes("/api/factory-reset") && r.request().method() === "POST",
   );
-  await page.getByRole("main").getByRole("button", { name: /Delete everything|Alles löschen/i }).click();
+  await page
+    .getByRole("main")
+    .getByRole("button", { name: /Delete everything|Alles löschen/i })
+    .click();
   await expect(page.getByRole("dialog")).toBeVisible();
-  await page.getByRole("dialog").getByRole("button", { name: /Delete everything|Alles löschen/i }).click();
+  await page
+    .getByRole("dialog")
+    .getByRole("button", { name: /Delete everything|Alles löschen/i })
+    .click();
   const res = await resetPromise;
   expect(res.status()).toBe(202);
   // Mock switches to ap-setup after reset (FE-14).

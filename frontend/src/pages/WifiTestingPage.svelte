@@ -15,8 +15,7 @@
   let prevState = $state<WifiConnectStatus["state"] | null>(null);
   let redirectTimerId: ReturnType<typeof setTimeout> | undefined;
 
-  const IPV4_HOST =
-    /^(?:(?:25[0-5]|2[0-4]\d|[01]?\d{1,2})\.){3}(?:25[0-5]|2[0-4]\d|[01]?\d{1,2})$/;
+  const IPV4_HOST = /^(?:(?:25[0-5]|2[0-4]\d|[01]?\d{1,2})\.){3}(?:25[0-5]|2[0-4]\d|[01]?\d{1,2})$/;
 
   /** Private + link-local IPv4 only (RFC1918 / 169.254.0.0/16). */
   function isPrivateOrLinkLocalIpv4(host: string): boolean {

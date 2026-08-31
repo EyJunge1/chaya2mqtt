@@ -158,7 +158,9 @@
             <Heart size={12} fill="currentColor" class="text-accent" aria-hidden="true" />
             {i18n.t("dashboard.rx")}
           </div>
-          <div class="mt-1 text-3xl font-bold text-text-bright" data-testid="dashboard-rx-count">{chaya.rx}</div>
+          <div class="mt-1 text-3xl font-bold text-text-bright" data-testid="dashboard-rx-count">
+            {chaya.rx}
+          </div>
         </div>
         <div class="rounded-xl bg-bg px-3 py-4 text-center" data-testid="dashboard-tx">
           <div
@@ -167,7 +169,9 @@
             <Heart size={12} fill="currentColor" class="text-accent" aria-hidden="true" />
             {i18n.t("dashboard.tx")}
           </div>
-          <div class="mt-1 text-3xl font-bold text-text-bright" data-testid="dashboard-tx-count">{chaya.tx}</div>
+          <div class="mt-1 text-3xl font-bold text-text-bright" data-testid="dashboard-tx-count">
+            {chaya.tx}
+          </div>
         </div>
       </div>
       <PrimaryButton

@@ -9,9 +9,7 @@
         try {
           var stored = localStorage.getItem("chaya2mqtt.theme");
           var pref =
-            stored === "dark" || stored === "light" || stored === "system"
-              ? stored
-              : "system";
+            stored === "dark" || stored === "light" || stored === "system" ? stored : "system";
           var dark = false;
           if (pref === "light") dark = false;
           else if (pref === "dark") dark = true;
