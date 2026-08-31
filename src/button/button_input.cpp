@@ -3,6 +3,7 @@
 #include "button_actions.h"
 #include "button_config.h"
 #include "button_internal.h"
+#include "button_soft_off_pure.h"
 
 #include "async/system_lifecycle.h"
 #include "async/task_config.h"
@@ -34,31 +35,28 @@ std::atomic<TaskHandle_t> s_buttonTaskHandle{nullptr};
 ButtonState btn{};
 PwrButtonState pwr{};
 
+/** Blocking SoftOff LED ack while still held (≥2 s). Queued patterns would stall during shutdown. */
+static void blinkSoftOffArmedLed() { ledPlayPresetBlocking(LedPreset::SoftOff); }
+
+/** Wait until PWR is stably HIGH. Timeout cuts the latch and keeps waiting (KEEP_AWAKE). */
 static void waitForPwrRelease() {
-    unsigned long releasedSinceMs = 0;
+    SoftOffReleaseSettle settle{};
     const unsigned long startedMs = millis();
+    bool cutLatchOnTimeout = false;
     for (;;) {
         const unsigned long nowMs = millis();
-        if (nowMs - startedMs >= kSoftOffReleaseTimeoutMs) {
-            ESP_LOGW(TAG, "PWR soft-off: release timeout (%lu ms) — sleeping anyway",
+        if (!cutLatchOnTimeout && nowMs - startedMs >= kSoftOffReleaseTimeoutMs) {
+            ESP_LOGW(TAG, "PWR soft-off: release timeout (%lu ms) — cutting latch, still waiting",
                      kSoftOffReleaseTimeoutMs);
-            return;
+            batteryCutLatch();
+            cutLatchOnTimeout = true;
         }
-        if (digitalRead(pins::kPwrButton) != LOW) {
-            if (releasedSinceMs == 0) {
-                releasedSinceMs = nowMs;
-            } else if (nowMs - releasedSinceMs >= kSoftOffReleaseSettleMs) {
-                return;
-            }
-        } else {
-            releasedSinceMs = 0;
+        if (softOffReleaseSettled(settle, digitalRead(pins::kPwrButton), nowMs, kSoftOffReleaseSettleMs)) {
+            return;
         }
         vTaskDelay(pdMS_TO_TICKS(10));
     }
 }
-
-/** Blocking SoftOff LED ack while still held (≥2 s). Queued patterns would stall during shutdown. */
-static void blinkSoftOffArmedLed() { ledPlayPresetBlocking(LedPreset::SoftOff); }
 
 /**
  * Soft-off after long-press release. Returns false if blocked (e.g. OTA).

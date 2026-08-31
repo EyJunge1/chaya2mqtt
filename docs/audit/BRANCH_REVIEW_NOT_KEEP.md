@@ -54,11 +54,11 @@ Poll-GET nach Cache-Hit nicht neu kicken: richtig (sonst Scan-Sturm). Aber Refre
 
 Pfeile/Home/End ändern den Wert, bewegen den Fokus nicht. Nach dem Wechsel hat das fokussierte Element `tabindex="-1"`.
 
-### Soft-Off-Timeout 15 s wirkt nicht wie gedacht
+### Soft-Off-Timeout 15 s wirkt nicht wie gedacht — erledigt
 
-`waitForPwrRelease()` schläft nach 15 s trotzdem. Wake ist `EXT1 ANY_LOW` auf PWR. Klebt der Taster LOW: Latch aus → Deep-Sleep → sofort wieder wach → Latch wieder HIGH. Nutzer denkt „aus“, Gerät bleibt an.
+`waitForPwrRelease()` schlief nach 15 s trotzdem. Wake ist `EXT1 ANY_LOW` auf PWR (pegelgesteuert). Klebt der Taster LOW: Latch aus → Deep-Sleep → sofort wieder wach → Latch wieder HIGH.
 
-**Tun:** bei Timeout kein EXT1 armieren (Batterie wirklich tot) oder anderen Stuck-Pfad.
+**Umgesetzt:** Timeout schneidet den Latch und wartet weiter (KEEP_AWAKE). `batteryPowerOffAndSleep()` armiert EXT1 nur wenn PWR nicht LOW ist.
 
 ---
 
@@ -144,5 +144,5 @@ SoftAP 24-Zeichen-PSK, Host-Allowlist, CSRF nur Body, Flasher SHA-256, Display-U
 3. WiFi-Scan expliziter Refresh
 4. OTA-Walker entschlacken (Allowlist lassen)
 5. SoftAP WPA2-Fallback wieder
-6. Soft-Off Stuck-Pfad
+6. Soft-Off Stuck-Pfad — erledigt
 7. Optional entschlacken: SPA-ACAO, MQTT-ASCII-User, Web-Hook-Registry, RSSI-Hysterese, SegmentedControl-Fokus, clang-tidy CI

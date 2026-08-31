@@ -337,7 +337,7 @@ Geometry details: [DISPLAY.md](DISPLAY.md)
 
 **Files:** `battery/battery.h`, `battery/battery.cpp`, `battery/battery_pure.h`, `battery/battery_config.h`
 
-GPIO4 ADC, `VBAT = VADC × 2`, averaged in the app task about every 30 s. Always treated as a LiPo. `batteryPowerOffAndSleep()` arms active-low PWR wake, drives `kBatControl` LOW, and enters deep sleep if USB still powers the ESP32. ETA6098 charge termination/recharge is autonomous and is not controlled from firmware.
+GPIO4 ADC, `VBAT = VADC × 2`, averaged in the app task about every 30 s. Always treated as a LiPo. `batteryCutLatch()` drives `kBatControl` LOW. `batteryPowerOffAndSleep()` waits for a stable PWR HIGH (300 ms), arms EXT1 ANY_LOW only then, cuts the latch, and re-checks the RTC pad immediately before `esp_deep_sleep_start()` so a still-LOW PWR cannot bounce-wake. ETA6098 charge termination/recharge is autonomous and is not controlled from firmware.
 
 ## `hw/` – power-save hold-off + pin map
 
@@ -355,11 +355,11 @@ cycle, so bursts do not grow an unbounded audio backlog.
 
 ## `button/` – BOOT, PWR latch
 
-**Files:** `button/button.h`, `button/button_config.h`, `button/button_internal.h`, `button/button_debounce_pure.h`, `button/button_input.cpp`
+**Files:** `button/button.h`, `button/button_config.h`, `button/button_internal.h`, `button/button_debounce_pure.h`, `button/button_soft_off_pure.h`, `button/button_input.cpp`
 
 | File | Responsibility |
 |------|----------------|
-| `button_input.cpp` | BOOT GPIO/ISR and debounce; PWR arms soft-off after ≥2 s (LED ack via `led/`), runs shutdown on release |
+| `button_input.cpp` | BOOT GPIO/ISR and debounce; PWR arms soft-off after ≥2 s (LED ack via `led/`), runs shutdown on release. After the E-Ink power-off view, waits for PWR HIGH + 300 ms settle before sleep. A 15 s timeout cuts the battery latch and keeps waiting (no EXT1 while PWR is LOW). |
 
 | Constant | Value | Meaning |
 |----------|-------|---------|

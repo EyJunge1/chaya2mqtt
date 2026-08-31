@@ -3,6 +3,7 @@
 #include "audio/audio_pure.h"
 #include "async/queue_coalesce_pure.h"
 #include "button/button_debounce_pure.h"
+#include "button/button_soft_off_pure.h"
 #include "display/display_config.h"
 #include "display/display_link_pure.h"
 #include "display/display_refresh_pure.h"
@@ -308,6 +309,28 @@ void test_debounce_commits_after_stable_ms() {
     TEST_ASSERT_EQUAL_INT(0, st.debouncedLevel);
 }
 
+void test_soft_off_may_arm_ext1_wake() {
+    TEST_ASSERT_FALSE(softOffMayArmExt1Wake(0));
+    TEST_ASSERT_TRUE(softOffMayArmExt1Wake(1));
+}
+
+void test_soft_off_release_settle() {
+    SoftOffReleaseSettle st{};
+    TEST_ASSERT_FALSE(softOffReleaseSettled(st, 0, 1000, 300));
+    TEST_ASSERT_EQUAL_UINT(0, st.highSinceMs);
+
+    TEST_ASSERT_FALSE(softOffReleaseSettled(st, 1, 2000, 300));
+    TEST_ASSERT_EQUAL_UINT(2000, st.highSinceMs);
+    TEST_ASSERT_FALSE(softOffReleaseSettled(st, 1, 2299, 300));
+    TEST_ASSERT_TRUE(softOffReleaseSettled(st, 1, 2300, 300));
+
+    TEST_ASSERT_FALSE(softOffReleaseSettled(st, 0, 2400, 300));
+    TEST_ASSERT_EQUAL_UINT(0, st.highSinceMs);
+    TEST_ASSERT_FALSE(softOffReleaseSettled(st, 1, 2500, 300));
+    TEST_ASSERT_FALSE(softOffReleaseSettled(st, 1, 2799, 300));
+    TEST_ASSERT_TRUE(softOffReleaseSettled(st, 1, 2800, 300));
+}
+
 void test_debounce_resets_timer_on_bounce() {
     DebouncedGpioState st{};
     st.lastRawReading       = 1;
@@ -340,6 +363,8 @@ int main(int, char**) {
     RUN_TEST(test_led_pattern_single_pulse_no_off);
     RUN_TEST(test_led_pattern_normalize_zero_count);
     RUN_TEST(test_debounce_commits_after_stable_ms);
+    RUN_TEST(test_soft_off_may_arm_ext1_wake);
+    RUN_TEST(test_soft_off_release_settle);
     RUN_TEST(test_debounce_resets_timer_on_bounce);
     return UNITY_END();
 }
