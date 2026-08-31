@@ -20,15 +20,15 @@ void test_setup_ap_pass_syntax_and_format() {
     TEST_ASSERT_TRUE(setupApPassSyntaxOk("0123456789ABCDEFGHIJKLMN"));
     TEST_ASSERT_FALSE(setupApPassSyntaxOk("ABCDEFGHIJKLMNOPQRSTUVW!"));
 
-    char pin[kSetupApPassBufLen]{};
+    char psk[kSetupApPassBufLen]{};
     uint8_t rnd[kSetupApPassLen]{};
     for (size_t i = 0; i < kSetupApPassLen; ++i) {
         rnd[i] = static_cast<uint8_t>(i);
     }
-    TEST_ASSERT_TRUE(formatSetupApPassFromRandom(rnd, sizeof(rnd), pin, sizeof(pin)));
-    TEST_ASSERT_TRUE(setupApPassSyntaxOk(pin));
-    TEST_ASSERT_FALSE(formatSetupApPassFromRandom(rnd, 4U, pin, sizeof(pin)));
-    TEST_ASSERT_FALSE(formatSetupApPassFromRandom(rnd, sizeof(rnd), pin, 8U));
+    TEST_ASSERT_TRUE(formatSetupApPassFromRandom(rnd, sizeof(rnd), psk, sizeof(psk)));
+    TEST_ASSERT_TRUE(setupApPassSyntaxOk(psk));
+    TEST_ASSERT_FALSE(formatSetupApPassFromRandom(rnd, 4U, psk, sizeof(psk)));
+    TEST_ASSERT_FALSE(formatSetupApPassFromRandom(rnd, sizeof(rnd), psk, 8U));
 }
 
 void test_wlan_boot_decision_keeps_configured_device_out_of_setup_ap() {

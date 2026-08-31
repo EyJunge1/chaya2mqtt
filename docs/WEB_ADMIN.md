@@ -130,7 +130,7 @@ Maximum **6** SSE clients. App-task poll remains ~500 ms, but SSE gather runs 
 - No web login; the admin UI is accessible to participants on the local network (see warning under
   **Access** — LAN participants can fully control the device)
 - Admin is HTTP-only: credentials travel in cleartext on the LAN
-- SoftAP PIN is 8 decimal digits (shown on the E-Ink WIFI QR)
+- SoftAP uses a 24-character alphanumeric WPA-PSK (WIFI QR only — no manual typing fallback)
 - `/api/csrf` returns `token` plus `expiresInSeconds`; tokens rotate lazily every 24 hours and the
   previous token remains valid for a 5-minute grace period
 - Every POST includes `csrf_token`. The frontend performs a single-flight refresh and one retry

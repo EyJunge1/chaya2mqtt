@@ -264,7 +264,7 @@ All settings are stored in **NVS** (Non-Volatile Storage). There are four namesp
 
 | Namespace | Content |
 |-----------|---------|
-| `wifi` | Packed `cfg_v2` (SSID/password, DHCP/static, DNS, NTP), SoftAP PIN |
+| `wifi` | Packed `cfg_v2` (SSID/password, DHCP/static, DNS, NTP), SoftAP PSK |
 | `mqtt` | Broker, credentials, partner ID (topics derived in RAM only) |
 | `cfg` | Reset period, UI/LED/audio prefs, OTA check day and channel |
 | `chaya` | Counters; baselines in packed `baseBlob` |

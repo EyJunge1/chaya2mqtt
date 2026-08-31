@@ -74,7 +74,7 @@ bool wlanEnsureSetupApPass() {
         return true;
     }
 
-    // Migrate away from legacy 8-digit PIN / invalid NVS values (SEC-03).
+    // Migrate away from legacy 8-digit PSK / invalid NVS values (SEC-03).
     uint8_t rnd[kSetupApPassLen]{};
     esp_fill_random(rnd, sizeof(rnd));
     if (!formatSetupApPassFromRandom(rnd, sizeof(rnd), s_setupApPass, sizeof(s_setupApPass))) {
@@ -135,7 +135,7 @@ void wlanNoteCaptiveDnsStarted() {
 
 bool wlanArmSetupApMode() {
     if (!wlanEnsureSetupApPass()) {
-        ESP_LOGE(TAG, "setup PIN unavailable");
+        ESP_LOGE(TAG, "setup PSK unavailable");
         return false;
     }
     g_apMode.store(true, std::memory_order_relaxed);

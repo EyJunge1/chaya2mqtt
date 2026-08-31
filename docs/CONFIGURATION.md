@@ -6,7 +6,7 @@ All persistent settings are stored in the ESP32-S3 **NVS** (Non-Volatile Storage
 
 | Namespace | Module | Description |
 |-----------|--------|-------------|
-| `wifi` | `wifi/wlan_*.cpp` | WiFi credentials, IP/DNS/NTP, SoftAP PIN |
+| `wifi` | `wifi/wlan_*.cpp` | WiFi credentials, IP/DNS/NTP, SoftAP PSK |
 | `mqtt` | `mqtt/config.cpp` | Broker configuration |
 | `cfg` | `config/app_config.cpp`, `ota/ota.cpp` | App settings, OTA check day |
 | `chaya` | `heart/counter_nvs.cpp` | Counters and baselines |
@@ -19,7 +19,7 @@ All persistent settings are stored in the ESP32-S3 **NVS** (Non-Volatile Storage
 | `cred_v1` | Bytes (packed) | Legacy: SSID + password only (migrated to DHCP when loaded) |
 | `ssid` | String | Legacy format (fallback) |
 | `pass` | String | Legacy format (fallback) |
-| `ap_pin` | String | SoftAP WPA-PSK (≥20 alphanumeric) for WIFI QR (created on first setup AP; legacy 8-digit PINs are regenerated) |
+| `ap_pin` | String | SoftAP WPA-PSK (24 alphanumeric) for WIFI QR (created on first setup AP; legacy 8-digit values are regenerated) |
 
 When saving, legacy keys (`ssid`, `pass`, `cred_v1`) are removed and only `cfg_v2` is written.
 

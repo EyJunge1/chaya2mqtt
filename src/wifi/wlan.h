@@ -105,10 +105,10 @@ bool wlanApSetupSnapshot(char* outSsid, size_t ssidLen, char* outIp, size_t ipLe
 /** SoftAP WPA PSK for WIFI QR (alphanumeric ≥20; not exposed on the HTTP API). */
 bool wlanApSetupPassSnapshot(char* outPass, size_t passLen);
 
-/** Load or create the SoftAP PIN in NVS and cache it in RAM. */
+/** Load or create the SoftAP PSK in NVS and cache it in RAM. */
 bool wlanEnsureSetupApPass();
 
-/** Cache setup PIN and mark AP mode so the WIFI QR can be painted before RF. */
+/** Cache setup PSK and mark AP mode so the WIFI QR can be painted before RF. */
 bool wlanArmSetupApMode();
 
 /** Briefly drop WiFi TX while the E-Ink panel refreshes (~15–20 s). */

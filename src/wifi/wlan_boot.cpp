@@ -265,12 +265,12 @@ void setupWifiStartApFallback(const char* attemptedSsid) {
     }
 
     if (!wlanEnsureSetupApPass()) {
-        ESP_LOGE(TAG, "WiFi.softAP: setup PIN unavailable");
+        ESP_LOGE(TAG, "WiFi.softAP: setup PSK unavailable");
         return;
     }
     char apPass[kSetupApPassBufLen]{};
     if (!wlanApSetupPassSnapshot(apPass, sizeof(apPass))) {
-        ESP_LOGE(TAG, "WiFi.softAP: setup PIN snapshot failed");
+        ESP_LOGE(TAG, "WiFi.softAP: setup PSK snapshot failed");
         return;
     }
 
