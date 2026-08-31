@@ -168,7 +168,7 @@ sequenceDiagram
 
 ## Panel power / SPI
 
-Follows Waveshare [`08_E_paper_test`](https://github.com/waveshareteam/ESP32-S3-ePaper-1.54G/tree/main/Example/Arduino_3.2.0/examples/08_E_paper_test) for board wiring and GxEPD2 stock panel timing (A/B: Demo-Reset/Busy not required — [UPSTREAM_LIBS.md](UPSTREAM_LIBS.md)):
+Follows Waveshare [`08_E_paper_test`](https://github.com/waveshareteam/ESP32-S3-ePaper-1.54G/tree/main/Example/Arduino_3.2.0/examples/08_E_paper_test) for board wiring and GxEPD2 stock panel timing (A/B: Demo-Reset/Busy not required):
 - `EPD3V3_EN` (GPIO6) LOW once at boot (`digitalWrite(EPD_PWR, LOW)`); no rail cycle between frames
 - Custom SPI pins (`SCK=12`, `MOSI=13`, `CS=11`) attached **before** `init()` so ESP32-S3 defaults do not swap CS/SDI
 - SPI stays attached between draws; `hibernate()` wakes via RST, not `SPI.end()`
