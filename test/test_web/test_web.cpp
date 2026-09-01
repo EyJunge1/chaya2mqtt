@@ -39,8 +39,7 @@ void test_form_bool_syntax() {
 }
 
 void test_hex_codec_roundtrip() {
-    const uint8_t raw[16] = {0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07,
-                             0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0xff};
+    const uint8_t raw[16] = {0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0xff};
     char hex[33]{};
     hexEncode16(raw, hex);
     TEST_ASSERT_EQUAL_STRING("000102030405060708090a0b0c0d0eff", hex);
@@ -55,8 +54,7 @@ void test_hex_codec_roundtrip() {
 }
 
 void test_csrf_submitted_matches_expected() {
-    const uint8_t raw[16] = {0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07,
-                             0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0xff};
+    const uint8_t raw[16] = {0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0xff};
     char hex[33]{};
     hexEncode16(raw, hex);
     TEST_ASSERT_TRUE(csrfSubmittedMatchesExpected(hex, raw));
@@ -85,13 +83,12 @@ void test_csrf_accept_or_policy() {
 }
 
 void test_host_validate() {
-    constexpr const char* hostname = "chaya2mqtt-a1b2c3";
+    constexpr const char *hostname = "chaya2mqtt-a1b2c3";
     TEST_ASSERT_FALSE(webHostCStringAllowed("", false, hostname, nullptr));
     TEST_ASSERT_TRUE(webHostCStringAllowed("", true, kDeviceHostname, nullptr));
     TEST_ASSERT_TRUE(webHostCStringAllowed("chaya2mqtt-a1b2c3", false, hostname, nullptr));
     TEST_ASSERT_TRUE(webHostCStringAllowed("Chaya2MQTT-a1b2c3.local", false, hostname, nullptr));
-    TEST_ASSERT_TRUE(
-        webHostCStringAllowed("chaya2mqtt-a1b2c3.local:80", false, hostname, nullptr));
+    TEST_ASSERT_TRUE(webHostCStringAllowed("chaya2mqtt-a1b2c3.local:80", false, hostname, nullptr));
     TEST_ASSERT_TRUE(webHostCStringAllowed("4.3.2.1", true, kDeviceHostname, nullptr));
     TEST_ASSERT_TRUE(webHostCStringAllowed("chaya2mqtt", true, kDeviceHostname, nullptr));
     TEST_ASSERT_TRUE(webHostCStringAllowed("chaya2mqtt.local", true, kDeviceHostname, nullptr));
@@ -99,12 +96,9 @@ void test_host_validate() {
     TEST_ASSERT_FALSE(webHostCStringAllowed("evil.example", true, kDeviceHostname, nullptr));
     TEST_ASSERT_FALSE(webHostCStringAllowed("chaya2mqtt.local", false, hostname, nullptr));
     TEST_ASSERT_FALSE(webHostCStringAllowed("evil.example", false, hostname, nullptr));
-    TEST_ASSERT_TRUE(
-        webHostCStringAllowed("192.168.1.2", false, hostname, "192.168.1.2"));
-    TEST_ASSERT_TRUE(
-        webHostCStringAllowed("192.168.1.2:8080", false, hostname, "192.168.1.2"));
-    TEST_ASSERT_FALSE(
-        webHostCStringAllowed("192.168.1.3", false, hostname, "192.168.1.2"));
+    TEST_ASSERT_TRUE(webHostCStringAllowed("192.168.1.2", false, hostname, "192.168.1.2"));
+    TEST_ASSERT_TRUE(webHostCStringAllowed("192.168.1.2:8080", false, hostname, "192.168.1.2"));
+    TEST_ASSERT_FALSE(webHostCStringAllowed("192.168.1.3", false, hostname, "192.168.1.2"));
     TEST_ASSERT_FALSE(webHostCStringAllowed("chaya2mqtt-a1b2c3", false, nullptr, nullptr));
 }
 
@@ -112,8 +106,7 @@ void test_spa_asset_lookup() {
     static const SpaAssetEntry entries[] = {
         {"/", 0u, 10u, "text/html; charset=utf-8", SpaCacheClass::NoCache},
         {"/index.html", 10u, 20u, "text/html; charset=utf-8", SpaCacheClass::NoCache},
-        {"/assets/app-abc.js", 30u, 40u, "application/javascript; charset=utf-8",
-         SpaCacheClass::Immutable},
+        {"/assets/app-abc.js", 30u, 40u, "application/javascript; charset=utf-8", SpaCacheClass::Immutable},
     };
     const size_t count = sizeof(entries) / sizeof(entries[0]);
 
@@ -134,30 +127,26 @@ void test_spa_asset_lookup() {
     TEST_ASSERT_FALSE(spaShouldFallbackToIndex("/api/mqtt"));
     TEST_ASSERT_FALSE(spaShouldFallbackToIndex("/assets/missing.js"));
 
-    const SpaAssetEntry* js = spaFindAsset(entries, count, "/assets/app-abc.js");
+    const SpaAssetEntry *js = spaFindAsset(entries, count, "/assets/app-abc.js");
     TEST_ASSERT_NOT_NULL(js);
     TEST_ASSERT_EQUAL_UINT32(30u, js->offset);
     TEST_ASSERT_EQUAL_UINT32(40u, js->length);
 
-    const SpaAssetEntry* index = spaFindIndex(entries, count);
+    const SpaAssetEntry *index = spaFindIndex(entries, count);
     TEST_ASSERT_NOT_NULL(index);
     TEST_ASSERT_EQUAL_STRING("/index.html", index->path);
 
-    TEST_ASSERT_EQUAL_INT(static_cast<int>(SpaCacheClass::Immutable),
-                          static_cast<int>(spaCacheClassForPath("/assets/x.css")));
-    TEST_ASSERT_EQUAL_INT(static_cast<int>(SpaCacheClass::NoCache),
-                          static_cast<int>(spaCacheClassForPath("/index.html")));
+    TEST_ASSERT_EQUAL_INT(static_cast<int>(SpaCacheClass::Immutable), static_cast<int>(spaCacheClassForPath("/assets/x.css")));
+    TEST_ASSERT_EQUAL_INT(static_cast<int>(SpaCacheClass::NoCache), static_cast<int>(spaCacheClassForPath("/index.html")));
     TEST_ASSERT_EQUAL_STRING("text/css; charset=utf-8", spaContentTypeForPath("/assets/a.css"));
-    TEST_ASSERT_EQUAL_STRING("application/javascript; charset=utf-8",
-                             spaContentTypeForPath("/assets/a.js"));
+    TEST_ASSERT_EQUAL_STRING("application/javascript; charset=utf-8", spaContentTypeForPath("/assets/a.js"));
     TEST_ASSERT_FALSE(spaAssetUsesGzip("/index.html"));
     TEST_ASSERT_TRUE(spaAssetUsesGzip("/assets/a.js"));
 }
 
 void test_sse_tick_select_bits() {
     bool keepalive = false;
-    TEST_ASSERT_EQUAL_UINT32(kSseChaya,
-                             sseTickSelectBits(kSseChaya, 1000U, 0U, 8000U, &keepalive));
+    TEST_ASSERT_EQUAL_UINT32(kSseChaya, sseTickSelectBits(kSseChaya, 1000U, 0U, 8000U, &keepalive));
     TEST_ASSERT_FALSE(keepalive);
 
     keepalive = true;
@@ -165,17 +154,15 @@ void test_sse_tick_select_bits() {
     TEST_ASSERT_FALSE(keepalive);
 
     keepalive = false;
-    TEST_ASSERT_EQUAL_UINT32(kSseWifi | kSseDevice,
-                             sseTickSelectBits(0U, 9000U, 500U, 8000U, &keepalive));
+    TEST_ASSERT_EQUAL_UINT32(kSseWifi | kSseDevice, sseTickSelectBits(0U, 9000U, 500U, 8000U, &keepalive));
     TEST_ASSERT_TRUE(keepalive);
 
     keepalive = false;
-    TEST_ASSERT_EQUAL_UINT32(kSseWifi | kSseDevice,
-                             sseTickSelectBits(0U, 100U, 0U, 8000U, &keepalive));
+    TEST_ASSERT_EQUAL_UINT32(kSseWifi | kSseDevice, sseTickSelectBits(0U, 100U, 0U, 8000U, &keepalive));
     TEST_ASSERT_TRUE(keepalive);
 }
 
-int main(int, char**) {
+int main(int, char **) {
     UNITY_BEGIN();
     RUN_TEST(test_ui_pref_syntax);
     RUN_TEST(test_form_bool_syntax);

@@ -3,7 +3,7 @@
 class AsyncWebServer;
 
 /** AsyncWebServer instance (port 80). */
-AsyncWebServer& webAdminWebServer();
+AsyncWebServer &webAdminWebServer();
 
 /** Register all HTTP routes once (before webAdminWebServer().begin()). */
 void webAdminRegisterRoutes();

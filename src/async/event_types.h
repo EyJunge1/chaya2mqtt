@@ -20,7 +20,7 @@ struct DisplayMsg {
         DrawSplash,
         DrawPowerOff,
     };
-    Cmd      cmd;
+    Cmd cmd;
     uint32_t payload;
 };
 

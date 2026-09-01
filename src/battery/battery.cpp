@@ -1,8 +1,8 @@
 #include "battery.h"
 
+#include "async/sse_dirty.h"
 #include "battery_config.h"
 #include "battery_pure.h"
-#include "async/sse_dirty.h"
 #include "button/button_config.h"
 #include "button/button_soft_off_pure.h"
 #include "hw/pins.h"
@@ -51,8 +51,7 @@ void waitPwrSettledHigh(gpio_num_t pwrGpio, bool rtcPad) {
     SoftOffReleaseSettle settle{};
     for (;;) {
         const unsigned long nowMs = millis();
-        if (softOffReleaseSettled(settle, pwrLevelForExt1(pwrGpio, rtcPad), nowMs,
-                                  kSoftOffReleaseSettleMs)) {
+        if (softOffReleaseSettled(settle, pwrLevelForExt1(pwrGpio, rtcPad), nowMs, kSoftOffReleaseSettleMs)) {
             return;
         }
         delay(10);
@@ -60,8 +59,7 @@ void waitPwrSettledHigh(gpio_num_t pwrGpio, bool rtcPad) {
 }
 
 void armPwrExt1Wake() {
-    const esp_err_t wakeErr =
-        esp_sleep_enable_ext1_wakeup_io(1ULL << pins::kPwrButton, ESP_EXT1_WAKEUP_ANY_LOW);
+    const esp_err_t wakeErr = esp_sleep_enable_ext1_wakeup_io(1ULL << pins::kPwrButton, ESP_EXT1_WAKEUP_ANY_LOW);
     if (wakeErr == ESP_OK) {
         return;
     }
@@ -71,18 +69,14 @@ void armPwrExt1Wake() {
     }
 }
 
-void disarmPwrExt1Wake() {
-    (void)esp_sleep_disable_wakeup_source(ESP_SLEEP_WAKEUP_EXT1);
-}
+void disarmPwrExt1Wake() { (void)esp_sleep_disable_wakeup_source(ESP_SLEEP_WAKEUP_EXT1); }
 
-}  // namespace
+} // namespace
 
-void batteryInit() {
-    batteryPoll();
-}
+void batteryInit() { batteryPoll(); }
 
 void batteryPoll() {
-    const int mv  = readPackMilliVolts();
+    const int mv = readPackMilliVolts();
     const int pct = batteryPctFromMilliVolts(mv);
     const int prevMv = s_batteryMv.load(std::memory_order_relaxed);
     const int prevPct = s_batteryPct.load(std::memory_order_relaxed);
@@ -94,13 +88,9 @@ void batteryPoll() {
     ESP_LOGD(TAG, "VBAT %d mV (%d%%)", mv, pct);
 }
 
-int batteryMilliVolts() {
-    return s_batteryMv.load(std::memory_order_relaxed);
-}
+int batteryMilliVolts() { return s_batteryMv.load(std::memory_order_relaxed); }
 
-int batteryPercent() {
-    return s_batteryPct.load(std::memory_order_relaxed);
-}
+int batteryPercent() { return s_batteryPct.load(std::memory_order_relaxed); }
 
 void batteryCutLatch() {
     digitalWrite(pins::kBatControl, LOW);

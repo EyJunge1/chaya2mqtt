@@ -5,10 +5,10 @@
 #include "tls/tls_bundle.h"
 #include "tls/tls_bundle_setup.h"
 
+#include <Arduino.h>
 #include <HTTPClient.h>
 #include <HTTPUpdate.h>
 #include <WiFiClientSecure.h>
-#include <Arduino.h>
 
 #include "diag/task_watchdog.h"
 #include "util/log_tag.h"
@@ -20,18 +20,17 @@ DEFINE_LOG_TAG("OTA");
 
 namespace {
 
-constexpr int    kHttpClientTimeoutMs = 30000;
-constexpr int    kOtaMaxRedirects     = 5;
+constexpr int kHttpClientTimeoutMs = 30000;
+constexpr int kOtaMaxRedirects = 5;
 constexpr size_t kOtaResolvedUrlBytes = 768U;
 
 bool isHttpRedirect(int code) {
-    return code == HTTP_CODE_MOVED_PERMANENTLY || code == HTTP_CODE_FOUND
-           || code == HTTP_CODE_SEE_OTHER || code == HTTP_CODE_TEMPORARY_REDIRECT
-           || code == 308;
+    return code == HTTP_CODE_MOVED_PERMANENTLY || code == HTTP_CODE_FOUND || code == HTTP_CODE_SEE_OTHER ||
+           code == HTTP_CODE_TEMPORARY_REDIRECT || code == 308;
 }
 
 /** Resolve relative Location against the current absolute URL into out. */
-bool resolveHttpLocation(const char* baseUrl, const String& location, char* out, size_t outLen) {
+bool resolveHttpLocation(const char *baseUrl, const String &location, char *out, size_t outLen) {
     if (out == nullptr || outLen == 0U || baseUrl == nullptr) {
         return false;
     }
@@ -48,14 +47,13 @@ bool resolveHttpLocation(const char* baseUrl, const String& location, char* out,
     }
     // Absolute path on same origin.
     if (location.startsWith("/")) {
-        const char* schemeEnd = strstr(baseUrl, "://");
+        const char *schemeEnd = strstr(baseUrl, "://");
         if (schemeEnd == nullptr) {
             return false;
         }
-        const char* hostStart = schemeEnd + 3;
-        const char* pathStart = strchr(hostStart, '/');
-        const size_t originLen =
-            (pathStart != nullptr) ? static_cast<size_t>(pathStart - baseUrl) : strlen(baseUrl);
+        const char *hostStart = schemeEnd + 3;
+        const char *pathStart = strchr(hostStart, '/');
+        const size_t originLen = (pathStart != nullptr) ? static_cast<size_t>(pathStart - baseUrl) : strlen(baseUrl);
         if (originLen + location.length() >= outLen) {
             return false;
         }
@@ -65,7 +63,7 @@ bool resolveHttpLocation(const char* baseUrl, const String& location, char* out,
         return true;
     }
     // Relative path: replace final path segment.
-    const char* slash = strrchr(baseUrl, '/');
+    const char *slash = strrchr(baseUrl, '/');
     if (slash == nullptr) {
         return false;
     }
@@ -79,19 +77,17 @@ bool resolveHttpLocation(const char* baseUrl, const String& location, char* out,
     return true;
 }
 
-bool isGithubReleaseDownloadUrl(const char* url) {
-    return otaReleaseDownloadUrlAllowed(url, OtaDownloadAsset::Firmware)
-           || otaReleaseDownloadUrlAllowed(url, OtaDownloadAsset::Sha256);
+bool isGithubReleaseDownloadUrl(const char *url) {
+    return otaReleaseDownloadUrlAllowed(url, OtaDownloadAsset::Firmware) ||
+           otaReleaseDownloadUrlAllowed(url, OtaDownloadAsset::Sha256);
 }
 
 /**
  * HEAD GitHub release URLs only. Parse each Location and check the allowlist (SEC-11).
  * Stop at the first CDN hop — do not probe the signed URL (expiry / no GET confirm).
  */
-bool otaResolveDownloadUrl(WiFiClientSecure& tls, const char* startUrl, OtaDownloadAsset asset,
-                           char* outUrl, size_t outLen) {
-    if (startUrl == nullptr || outUrl == nullptr || outLen == 0U
-        || !otaReleaseDownloadUrlAllowed(startUrl, asset)) {
+bool otaResolveDownloadUrl(WiFiClientSecure &tls, const char *startUrl, OtaDownloadAsset asset, char *outUrl, size_t outLen) {
+    if (startUrl == nullptr || outUrl == nullptr || outLen == 0U || !otaReleaseDownloadUrlAllowed(startUrl, asset)) {
         return false;
     }
     if (strlen(startUrl) >= outLen) {
@@ -150,14 +146,13 @@ bool otaResolveDownloadUrl(WiFiClientSecure& tls, const char* startUrl, OtaDownl
 
 } // namespace
 
-bool otaFlashVerifiedInstall(const char* binUrl, const char* sha256Url) {
-    if (binUrl == nullptr || binUrl[0] == '\0' || sha256Url == nullptr
-        || sha256Url[0] == '\0') {
+bool otaFlashVerifiedInstall(const char *binUrl, const char *sha256Url) {
+    if (binUrl == nullptr || binUrl[0] == '\0' || sha256Url == nullptr || sha256Url[0] == '\0') {
         ESP_LOGE(TAG, "OTA firmware or SHA-256 sidecar URL missing");
         return false;
     }
-    if (!otaReleaseDownloadUrlAllowed(binUrl, OtaDownloadAsset::Firmware)
-        || !otaReleaseDownloadUrlAllowed(sha256Url, OtaDownloadAsset::Sha256)) {
+    if (!otaReleaseDownloadUrlAllowed(binUrl, OtaDownloadAsset::Firmware) ||
+        !otaReleaseDownloadUrlAllowed(sha256Url, OtaDownloadAsset::Sha256)) {
         ESP_LOGE(TAG, "OTA download URL rejected by allowlist");
         return false;
     }
@@ -168,19 +163,16 @@ bool otaFlashVerifiedInstall(const char* binUrl, const char* sha256Url) {
     }
 
     WiFiClientSecure tls;
-    tls.setCACertBundle(x509_crt_bundle_start,
-                        static_cast<size_t>(x509_crt_bundle_end - x509_crt_bundle_start));
+    tls.setCACertBundle(x509_crt_bundle_start, static_cast<size_t>(x509_crt_bundle_end - x509_crt_bundle_start));
     tls.setTimeout(30000);
 
     char resolvedBin[kOtaResolvedUrlBytes]{};
     char resolvedSha[kOtaResolvedUrlBytes]{};
-    if (!otaResolveDownloadUrl(tls, binUrl, OtaDownloadAsset::Firmware, resolvedBin,
-                               sizeof(resolvedBin))) {
+    if (!otaResolveDownloadUrl(tls, binUrl, OtaDownloadAsset::Firmware, resolvedBin, sizeof(resolvedBin))) {
         ESP_LOGE(TAG, "OTA firmware URL redirect resolve failed");
         return false;
     }
-    if (!otaResolveDownloadUrl(tls, sha256Url, OtaDownloadAsset::Sha256, resolvedSha,
-                               sizeof(resolvedSha))) {
+    if (!otaResolveDownloadUrl(tls, sha256Url, OtaDownloadAsset::Sha256, resolvedSha, sizeof(resolvedSha))) {
         ESP_LOGE(TAG, "OTA SHA-256 URL redirect resolve failed");
         return false;
     }
@@ -196,7 +188,7 @@ bool otaFlashVerifiedInstall(const char* binUrl, const char* sha256Url) {
         chayaTaskWatchdogReset();
     });
     updater.onProgress([](int current, int total) {
-        const uint32_t done  = static_cast<uint32_t>(current < 0 ? 0 : current);
+        const uint32_t done = static_cast<uint32_t>(current < 0 ? 0 : current);
         const uint32_t bytes = static_cast<uint32_t>(total < 0 ? 0 : total);
         if (bytes > 0U && done >= bytes) {
             // HTTPUpdate calls Update.end() (including SHA-256 verification) after this.
@@ -206,9 +198,7 @@ bool otaFlashVerifiedInstall(const char* binUrl, const char* sha256Url) {
         }
         chayaTaskWatchdogReset();
     });
-    updater.onEnd([]() {
-        chayaTaskWatchdogReset();
-    });
+    updater.onEnd([]() { chayaTaskWatchdogReset(); });
     updater.onError([](int err) {
         ESP_LOGE(TAG, "HTTPUpdate error %d", err);
         chayaTaskWatchdogReset();

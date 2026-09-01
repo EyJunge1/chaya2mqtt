@@ -4,17 +4,17 @@
 
 /** Finite blink pattern for the green header user LED (GPIO3). */
 struct LedBlinkPattern {
-    uint8_t  count;  // full on(+off) cycles; min 1
+    uint8_t count; // full on(+off) cycles; min 1
     uint16_t onMs;
     uint16_t offMs;
 };
 
 enum class LedPreset : uint8_t {
-    Boot,      // 3× 200/200
-    WifiUp,    // 2× 80/80
-    MqttUp,    // 1× 150/0
-    LinkDown,  // 4× 50/50
-    SoftOff,   // 3× 60/60 — soft-off armed (≥2 s hold)
+    Boot,     // 3× 200/200
+    WifiUp,   // 2× 80/80
+    MqttUp,   // 1× 150/0
+    LinkDown, // 4× 50/50
+    SoftOff,  // 3× 60/60 — soft-off armed (≥2 s hold)
 };
 
 void ledInit();

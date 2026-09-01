@@ -1,18 +1,18 @@
 #include "app_task.h"
 
 #include "async/task_handles.h"
+#include "battery/battery.h"
+#include "battery/battery_config.h"
 #include "config/app_config.h"
-#include "heart/counter.h"
 #include "display/display.h"
 #include "display/display_config.h"
 #include "display/display_link_pure.h"
-#include "battery/battery.h"
-#include "battery/battery_config.h"
+#include "heart/counter.h"
 #include "led/led.h"
 #include "mqtt/mqtt.h"
-#include "web/admin.h"
 #include "ota/ota.h"
 #include "ota/ota_health.h"
+#include "web/admin.h"
 #include "wifi/wlan.h"
 
 #include "async/task_config.h"
@@ -51,8 +51,8 @@ static void appTaskPollDisplayLinkStatus() {
 
     const bool wifiConnected = wlanStaConnectedOk();
     const bool mqttConnected = mqttIsConnected();
-    const DisplayHeartIcon icon = displayHeartIconDecide(
-        false, wifiConnected, mqttConnected, millis(), kDisplayOfflineGraceMs, s_link);
+    const DisplayHeartIcon icon =
+        displayHeartIconDecide(false, wifiConnected, mqttConnected, millis(), kDisplayOfflineGraceMs, s_link);
     if (icon == s_lastIcon) {
         return;
     }
@@ -62,20 +62,19 @@ static void appTaskPollDisplayLinkStatus() {
     if (icon == DisplayHeartIcon::Crack) {
         ledPlayPreset(LedPreset::LinkDown);
     }
-    ESP_LOGI(TAG, "display heart icon -> %s",
-             icon == DisplayHeartIcon::Crack ? "crack" : "filled");
+    ESP_LOGI(TAG, "display heart icon -> %s", icon == DisplayHeartIcon::Crack ? "crack" : "filled");
 }
 
-static void appTaskFn(void*) {
+static void appTaskFn(void *) {
     chayaTaskWatchdogSubscribe(TAG);
     static uint32_t s_stackLogCounter = 0;
-    static uint32_t s_heapLogCounter  = 0;
-    static uint32_t s_batterySkip     = 60U;
+    static uint32_t s_heapLogCounter = 0;
+    static uint32_t s_batterySkip = 60U;
     for (;;) {
         (void)ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(500));
 
-        if (otaHealthWindowElapsed(wlanIsSetupComplete(), wlanIsBootWifiSettled(),
-                                   wlanStaConnectedOk(), wlanBootSettledAtMs(), millis())) {
+        if (otaHealthWindowElapsed(wlanIsSetupComplete(), wlanIsBootWifiSettled(), wlanStaConnectedOk(), wlanBootSettledAtMs(),
+                                   millis())) {
             otaTryMarkValidAfterHealthCheck();
         }
 
@@ -103,8 +102,7 @@ static void appTaskFn(void*) {
         ++s_heapLogCounter;
         if (s_heapLogCounter >= 120U) {
             s_heapLogCounter = 0U;
-            ESP_LOGI(TAG, "heap free=%zu min=%zu largest=%zu",
-                     static_cast<size_t>(esp_get_free_heap_size()),
+            ESP_LOGI(TAG, "heap free=%zu min=%zu largest=%zu", static_cast<size_t>(esp_get_free_heap_size()),
                      static_cast<size_t>(esp_get_minimum_free_heap_size()),
                      static_cast<size_t>(heap_caps_get_largest_free_block(MALLOC_CAP_8BIT)));
         }
@@ -115,8 +113,7 @@ static void appTaskFn(void*) {
 }
 
 void appTaskStart() {
-    const BaseType_t ok = xTaskCreatePinnedToCore(appTaskFn, "app", kAppTaskStackBytes, nullptr, 4,
-                                                  &s_appTaskHandle, 1);
+    const BaseType_t ok = xTaskCreatePinnedToCore(appTaskFn, "app", kAppTaskStackBytes, nullptr, 4, &s_appTaskHandle, 1);
     if (ok != pdPASS) {
         ESP_LOGE(TAG, "app task create failed");
         abort();

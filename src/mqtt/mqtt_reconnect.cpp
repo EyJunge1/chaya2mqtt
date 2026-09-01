@@ -18,55 +18,46 @@ DEFINE_LOG_TAG("MQTT");
 
 unsigned long mqttConnectPrecheckDeferMs() {
     const bool brokerOk = mqttCfgIsBrokerConfigured();
-    const bool wifiOk   = wlanStaConnectedOk();
+    const bool wifiOk = wlanStaConnectedOk();
     const bool stableOk = wlanStaStableForMqtt();
-    const bool ntpOk    = wlanNtpSynced();
-    const unsigned long defer =
-        mqttConnectPrecheckDeferMsPure(brokerOk, wifiOk, stableOk, ntpOk);
+    const bool ntpOk = wlanNtpSynced();
+    const unsigned long defer = mqttConnectPrecheckDeferMsPure(brokerOk, wifiOk, stableOk, ntpOk);
     if (!brokerOk) {
-        ESP_LOGW(TAG,
-                 "No MQTT broker configured — use setup AP or /mqtt on the provisioning network");
+        ESP_LOGW(TAG, "No MQTT broker configured — use setup AP or /mqtt on the provisioning network");
     } else if (!wifiOk) {
         ESP_LOGD(TAG, "WiFi not connected, deferring MQTT attempt");
     } else if (!stableOk) {
         ESP_LOGD(TAG, "WiFi not stable yet after GOT_IP, deferring MQTT attempt");
     } else if (!ntpOk) {
-        ESP_LOGI(TAG, "NTP not synced — deferring MQTT/TLS (retry in %lu ms)",
-                 static_cast<unsigned long>(kMqttNtpRetryMs));
+        ESP_LOGI(TAG, "NTP not synced — deferring MQTT/TLS (retry in %lu ms)", static_cast<unsigned long>(kMqttNtpRetryMs));
     }
     return defer;
 }
 
-void mqttDisconnect() {
-    mqttKillClient();
-}
+void mqttDisconnect() { mqttKillClient(); }
 
-void mqttRequestKillClientDeferred() {
-    s_mqttKillCoalesce.store(true, std::memory_order_release);
-}
+void mqttRequestKillClientDeferred() { s_mqttKillCoalesce.store(true, std::memory_order_release); }
 
 void mqttSetup() {
     ESP_LOGI(TAG, "MQTT setup (kill+reset backoff)");
     mqttKillClient();
     portENTER_CRITICAL(&s_mqttBackoffMux);
-    lastMqttAttemptAt    = 0;
-    mqttBackoffMs        = 0;
+    lastMqttAttemptAt = 0;
+    mqttBackoffMs = 0;
     mqttCurrentBackoffMs = kMqttBackoffInitialMs;
     portEXIT_CRITICAL(&s_mqttBackoffMux);
 }
 
-bool mqttIsConnected() {
-    return s_connected.load(std::memory_order_acquire);
-}
+bool mqttIsConnected() { return s_connected.load(std::memory_order_acquire); }
 
-static void mqttLoopApplyWifiPowerSaveOnConnectChange(bool connected, bool& wasConnected) {
+static void mqttLoopApplyWifiPowerSaveOnConnectChange(bool connected, bool &wasConnected) {
     if (wasConnected && !connected) {
         wlanSetStaPowerSaveMqttActive(false);
     }
     if (connected && !wasConnected) {
         portENTER_CRITICAL(&s_mqttBackoffMux);
-        lastMqttAttemptAt    = 0;
-        mqttBackoffMs        = 0;
+        lastMqttAttemptAt = 0;
+        mqttBackoffMs = 0;
         mqttCurrentBackoffMs = kMqttBackoffInitialMs;
         portEXIT_CRITICAL(&s_mqttBackoffMux);
         wlanSetStaPowerSaveMqttActive(true);
@@ -74,8 +65,8 @@ static void mqttLoopApplyWifiPowerSaveOnConnectChange(bool connected, bool& wasC
     wasConnected = connected;
 }
 
-static void mqttLoopTryReconnect(MqttConfig& loopCfg, unsigned long now) {
-    const bool pending   = s_connectPending.load(std::memory_order_acquire);
+static void mqttLoopTryReconnect(MqttConfig &loopCfg, unsigned long now) {
+    const bool pending = s_connectPending.load(std::memory_order_acquire);
     const bool connected = mqttIsConnected();
     if (connected || pending) {
         return;
@@ -90,7 +81,7 @@ static void mqttLoopTryReconnect(MqttConfig& loopCfg, unsigned long now) {
     portEXIT_CRITICAL(&s_mqttBackoffMux);
 
     if (!backoffElapsed) {
-        unsigned long remMs    = 0;
+        unsigned long remMs = 0;
         unsigned long periodMs = 0;
         portENTER_CRITICAL(&s_mqttBackoffMux);
         periodMs = mqttBackoffMs;
@@ -195,7 +186,7 @@ void mqttLoop() {
     const unsigned long now = millis();
 
     static bool wasConnected = false;
-    const bool              connected = mqttIsConnected();
+    const bool connected = mqttIsConnected();
     mqttLoopApplyWifiPowerSaveOnConnectChange(connected, wasConnected);
 
     mqttLoopTryReconnect(s_loopCfg, now);
@@ -204,6 +195,6 @@ void mqttLoop() {
 void mqttPostponeConnect(unsigned long delayMs) {
     portENTER_CRITICAL(&s_mqttBackoffMux);
     lastMqttAttemptAt = millis();
-    mqttBackoffMs     = delayMs;
+    mqttBackoffMs = delayMs;
     portEXIT_CRITICAL(&s_mqttBackoffMux);
 }

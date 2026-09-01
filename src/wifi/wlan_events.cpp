@@ -1,6 +1,6 @@
 #include "wlan_config.h"
-#include "wlan_soft_reconnect.h"
 #include "wlan_internal.h"
+#include "wlan_soft_reconnect.h"
 
 #include "async/event_types.h"
 #include "async/sse_dirty.h"
@@ -52,7 +52,7 @@ void wlanHandleStaReconnectNetCmd() {
         ESP_LOGD(TAG, "WLAN reconnect deferred (scan in progress)");
         return;
     }
-    const unsigned long nowMs       = millis();
+    const unsigned long nowMs = millis();
     const unsigned long nextAllowed = s_wifiReconnectNextAllowedMs.load(std::memory_order_relaxed);
     if (nextAllowed != 0UL && static_cast<std::int32_t>(nowMs - nextAllowed) < 0) {
         // Keep the coalesced request alive; wlanLoop() retries when the backoff expires.
@@ -62,16 +62,15 @@ void wlanHandleStaReconnectNetCmd() {
     }
 
     const uint32_t fails = s_wifiReconnectFailCount.load(std::memory_order_relaxed);
-    const uint8_t  reason =
-        s_lastStaDisconnectReason.load(std::memory_order_relaxed);
+    const uint8_t reason = s_lastStaDisconnectReason.load(std::memory_order_relaxed);
 
     if (wlanSoftReconnectShouldForce(fails, kWifiSoftReconnectAttemptsBeforeForce)) {
-        ESP_LOGW(TAG, "WLAN soft reconnect exhausted (fails=%u reason=%u) — force reassoc",
-                 static_cast<unsigned>(fails), static_cast<unsigned>(reason));
+        ESP_LOGW(TAG, "WLAN soft reconnect exhausted (fails=%u reason=%u) — force reassoc", static_cast<unsigned>(fails),
+                 static_cast<unsigned>(reason));
         wlanForceStaReassoc("event-escalate");
     } else {
-        ESP_LOGW(TAG, "WLAN disconnected, soft reconnect (fails=%u reason=%u)...",
-                 static_cast<unsigned>(fails), static_cast<unsigned>(reason));
+        ESP_LOGW(TAG, "WLAN disconnected, soft reconnect (fails=%u reason=%u)...", static_cast<unsigned>(fails),
+                 static_cast<unsigned>(reason));
         wlanWifiApiLock();
         const bool connected = WiFi.status() == WL_CONNECTED && WiFi.localIP()[0] != 0;
         if (connected) {
@@ -90,10 +89,8 @@ void wlanHandleStaReconnectNetCmd() {
         wlanWifiApiUnlock();
     }
 
-    const uint32_t shift =
-        std::min(fails, static_cast<uint32_t>(6));
-    const unsigned long backoff =
-        std::min(kWifiReconnectBaseBackoffMs * (1UL << shift), kWifiReconnectMaxBackoffMs);
+    const uint32_t shift = std::min(fails, static_cast<uint32_t>(6));
+    const unsigned long backoff = std::min(kWifiReconnectBaseBackoffMs * (1UL << shift), kWifiReconnectMaxBackoffMs);
     s_wifiReconnectFailCount.fetch_add(1, std::memory_order_relaxed);
     s_wifiReconnectNextAllowedMs.store(nowMs + backoff, std::memory_order_relaxed);
 }
@@ -109,14 +106,12 @@ void wifiStationEvent(arduino_event_id_t event, arduino_event_info_t info) {
         sseMarkDirty(kSseWifi);
         const uint8_t reason = info.wifi_sta_disconnected.reason;
         s_lastStaDisconnectReason.store(reason, std::memory_order_relaxed);
-        const uint8_t* bssid = info.wifi_sta_disconnected.bssid;
+        const uint8_t *bssid = info.wifi_sta_disconnected.bssid;
         ESP_LOGW(TAG,
                  "STA_DISCONNECTED reason=%u ssid='%.32s' rssi=%d "
                  "bssid=%02x:%02x:%02x:%02x:%02x:%02x",
-                 static_cast<unsigned>(reason),
-                 reinterpret_cast<const char*>(info.wifi_sta_disconnected.ssid),
-                 static_cast<int>(info.wifi_sta_disconnected.rssi), bssid[0], bssid[1], bssid[2],
-                 bssid[3], bssid[4], bssid[5]);
+                 static_cast<unsigned>(reason), reinterpret_cast<const char *>(info.wifi_sta_disconnected.ssid),
+                 static_cast<int>(info.wifi_sta_disconnected.rssi), bssid[0], bssid[1], bssid[2], bssid[3], bssid[4], bssid[5]);
         if (!s_wifiSetupComplete.load(std::memory_order_acquire)) {
             break;
         }
@@ -146,8 +141,7 @@ void wifiStationEvent(arduino_event_id_t event, arduino_event_info_t info) {
         s_lastStaDisconnectReason.store(0U, std::memory_order_relaxed);
         s_staReconnectWorkPending.store(false, std::memory_order_release);
         // STAB-07: cool down STA scans after (re)association.
-        s_wifiScanNextAllowedMs.store(millis() + kWifiScanAfterGotIpCooldownMs,
-                                      std::memory_order_relaxed);
+        s_wifiScanNextAllowedMs.store(millis() + kWifiScanAfterGotIpCooldownMs, std::memory_order_relaxed);
         queueWifiGotIp();
         break;
     }

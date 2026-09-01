@@ -6,11 +6,11 @@
 
 #include "async/event_types.h"
 #include "async/task_handles.h"
+#include "battery/battery.h"
+#include "battery/battery_pure.h"
 #include "config/app_config.h"
 #include "config/version.h"
 #include "constants.h"
-#include "battery/battery.h"
-#include "battery/battery_pure.h"
 #include "mqtt/config.h"
 #include "mqtt/mqtt.h"
 #include "ota/ota.h"
@@ -29,7 +29,7 @@
 
 DEFINE_LOG_TAG("WEBAPI");
 
-void handleApiRebootPost(AsyncWebServerRequest* req) {
+void handleApiRebootPost(AsyncWebServerRequest *req) {
     if (g_systemShutdownInProgress.load(std::memory_order_acquire)) {
         sendErr(req, 503, "shutdown");
         return;
@@ -39,7 +39,7 @@ void handleApiRebootPost(AsyncWebServerRequest* req) {
     sendOk(req, 200, "\"message\":\"rebooting\"");
 }
 
-void handleApiResetPost(AsyncWebServerRequest* req, NetCmd cmd, const char* message) {
+void handleApiResetPost(AsyncWebServerRequest *req, NetCmd cmd, const char *message) {
     if (g_systemShutdownInProgress.load(std::memory_order_acquire)) {
         sendErr(req, 503, "shutdown");
         return;
@@ -62,20 +62,16 @@ void handleApiResetPost(AsyncWebServerRequest* req, NetCmd cmd, const char* mess
     sendOk(req, 202, n > 0 && static_cast<size_t>(n) < sizeof(extra) ? extra : nullptr);
 }
 
-
-void adminRoutesRegisterApiSystem(AsyncWebServer& ws) {
+void adminRoutesRegisterApiSystem(AsyncWebServer &ws) {
     {
-        AsyncCallbackWebHandler& h =
-            ws.on("/api/reboot", HTTP_POST, [](AsyncWebServerRequest* rq) { handleApiRebootPost(rq); });
+        AsyncCallbackWebHandler &h = ws.on("/api/reboot", HTTP_POST, [](AsyncWebServerRequest *rq) { handleApiRebootPost(rq); });
         h.addMiddleware(mwApiStaMode());
         h.addMiddleware(mwApiPostCsrf());
     }
     {
-        AsyncCallbackWebHandler& h =
-            ws.on("/api/factory-reset", HTTP_POST,
-                  [](AsyncWebServerRequest* rq) {
-                      handleApiResetPost(rq, NetCmd::FactoryResetRequested, "factory_reset");
-                  });
+        AsyncCallbackWebHandler &h = ws.on("/api/factory-reset", HTTP_POST, [](AsyncWebServerRequest *rq) {
+            handleApiResetPost(rq, NetCmd::FactoryResetRequested, "factory_reset");
+        });
         h.addMiddleware(mwApiStaMode());
         h.addMiddleware(mwApiPostCsrf());
     }

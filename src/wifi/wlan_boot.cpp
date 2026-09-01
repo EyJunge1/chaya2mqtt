@@ -5,8 +5,8 @@
 #include "wlan_internal.h"
 
 #include "constants.h"
-#include "identity/device_identity.h"
 #include "display/display.h"
+#include "identity/device_identity.h"
 #include "led/led.h"
 #include "mqtt/config.h"
 #include "util/ip_format.h"
@@ -26,7 +26,7 @@ DEFINE_LOG_TAG("WIFI");
 
 WlanConfig s_activeWlanConfig{};
 
-static void wlanFillStaHostname(char* out, size_t outLen) {
+static void wlanFillStaHostname(char *out, size_t outLen) {
     if (!buildDeviceStaHostname(out, outLen)) {
         strlcpy(out, kDeviceHostname, outLen);
         ESP_LOGE(TAG, "Device ID unavailable; using non-unique STA hostname");
@@ -34,11 +34,11 @@ static void wlanFillStaHostname(char* out, size_t outLen) {
 }
 
 static bool sntpSlotHasServer(uint8_t idx) {
-    const char* name = esp_sntp_getservername(idx);
+    const char *name = esp_sntp_getservername(idx);
     if (name != nullptr && name[0] != '\0') {
         return true;
     }
-    const ip_addr_t* addr = esp_sntp_getserver(idx);
+    const ip_addr_t *addr = esp_sntp_getserver(idx);
     return addr != nullptr && !ip_addr_isany(addr);
 }
 
@@ -48,12 +48,11 @@ void wlanEnableDhcpNtpRequest() {
 #endif
 }
 
-void wlanApplyNtpFromConfig(const WlanConfig& cfg) {
+void wlanApplyNtpFromConfig(const WlanConfig &cfg) {
     if (cfg.ntp1[0] != '\0') {
-        const char* ntp2 = cfg.ntp2[0] != '\0' ? cfg.ntp2 : nullptr;
+        const char *ntp2 = cfg.ntp2[0] != '\0' ? cfg.ntp2 : nullptr;
         configTime(0, 0, cfg.ntp1, ntp2);
-        ESP_LOGI(TAG, "NTP override: %s%s%s", cfg.ntp1, ntp2 != nullptr ? " / " : "",
-                 ntp2 != nullptr ? ntp2 : "");
+        ESP_LOGI(TAG, "NTP override: %s%s%s", cfg.ntp1, ntp2 != nullptr ? " / " : "", ntp2 != nullptr ? ntp2 : "");
         return;
     }
 
@@ -78,13 +77,12 @@ void wlanApplyNtpFromConfig(const WlanConfig& cfg) {
     }
 }
 
-void setupWifiBeginStaConnectAsync(const WlanConfig& cfg) {
+void setupWifiBeginStaConnectAsync(const WlanConfig &cfg) {
     s_activeWlanConfig = cfg;
     strlcpy(s_bootAttemptSsid, cfg.ssid, sizeof(s_bootAttemptSsid));
     char staHostname[kDeviceStaHostnameBufLen]{};
     wlanFillStaHostname(staHostname, sizeof(staHostname));
-    ESP_LOGI(TAG, "WLAN STA connecting to '%s' (%s)…", cfg.ssid,
-             cfg.mode == WlanIpMode::Static ? "static" : "dhcp");
+    ESP_LOGI(TAG, "WLAN STA connecting to '%s' (%s)…", cfg.ssid, cfg.mode == WlanIpMode::Static ? "static" : "dhcp");
     wlanWifiApiLock();
     WiFi.setHostname(staHostname);
     WiFi.mode(WIFI_STA);
@@ -145,10 +143,10 @@ void setupWifiFinishStaConnected() {
     }
 }
 
-static int8_t           s_epdSavedTxPowerQdbm = 0;
+static int8_t s_epdSavedTxPowerQdbm = 0;
 static std::atomic<bool> s_epdTxPowerSaved{false};
 
-static bool wlanBringUpSetupSoftApLocked(const char* apPass, const char** outAuth) {
+static bool wlanBringUpSetupSoftApLocked(const char *apPass, const char **outAuth) {
     WiFi.softAPConfig(IPAddress(4, 3, 2, 1), IPAddress(4, 3, 2, 1), IPAddress(255, 255, 255, 0));
     WiFi.setHostname(kDeviceHostname);
     WiFi.mode(WIFI_AP_STA);
@@ -159,7 +157,7 @@ static bool wlanBringUpSetupSoftApLocked(const char* apPass, const char** outAut
     return WiFi.softAP(kSetupApSsid, apPass, 1, 0, 4, false, WIFI_AUTH_WPA2_WPA3_PSK);
 }
 
-static bool wlanFinishSetupSoftAp(const char* apAuth) {
+static bool wlanFinishSetupSoftAp(const char *apAuth) {
     g_apMode.store(true, std::memory_order_relaxed);
     s_staLinkOk.store(false, std::memory_order_release);
     delay(50);
@@ -186,9 +184,7 @@ static bool wlanFinishSetupSoftAp(const char* apAuth) {
     return true;
 }
 
-bool wlanEpdRefreshActive() {
-    return s_epdRefreshActive.load(std::memory_order_acquire);
-}
+bool wlanEpdRefreshActive() { return s_epdRefreshActive.load(std::memory_order_acquire); }
 
 bool wlanBeginLowInterferenceForEpd() {
     s_epdRefreshActive.store(true, std::memory_order_release);
@@ -220,27 +216,23 @@ bool wlanBeginLowInterferenceForEpd() {
         if (esp_wifi_set_max_tx_power(target) != ESP_OK) {
             wlanWifiApiUnlock();
             s_epdRefreshActive.store(false, std::memory_order_release);
-            ESP_LOGE(TAG, "EPD refresh refused: failed to set WiFi TX power to %d",
-                     static_cast<int>(target));
+            ESP_LOGE(TAG, "EPD refresh refused: failed to set WiFi TX power to %d", static_cast<int>(target));
             return false;
         }
         s_epdSavedTxPowerQdbm = cur;
         s_epdTxPowerSaved.store(true, std::memory_order_release);
-        ESP_LOGI(TAG, "EPD low-TX begin saved_qdbm=%d rssi=%d target=%d", static_cast<int>(cur),
-                 rssi, static_cast<int>(target));
+        ESP_LOGI(TAG, "EPD low-TX begin saved_qdbm=%d rssi=%d target=%d", static_cast<int>(cur), rssi, static_cast<int>(target));
     }
     wlanWifiApiUnlock();
     return true;
 }
 
 void wlanRestoreTxPowerAfterEpd() {
-    if (s_epdRefreshActive.load(std::memory_order_acquire)
-        || !s_epdTxPowerSaved.load(std::memory_order_acquire)
-        || !wlanWifiApiLockTimed(200U)) {
+    if (s_epdRefreshActive.load(std::memory_order_acquire) || !s_epdTxPowerSaved.load(std::memory_order_acquire) ||
+        !wlanWifiApiLockTimed(200U)) {
         return;
     }
-    if (s_epdTxPowerSaved.load(std::memory_order_acquire)
-        && esp_wifi_set_max_tx_power(s_epdSavedTxPowerQdbm) == ESP_OK) {
+    if (s_epdTxPowerSaved.load(std::memory_order_acquire) && esp_wifi_set_max_tx_power(s_epdSavedTxPowerQdbm) == ESP_OK) {
         ESP_LOGI(TAG, "EPD low-TX end restored_qdbm=%d", static_cast<int>(s_epdSavedTxPowerQdbm));
         s_epdTxPowerSaved.store(false, std::memory_order_release);
     }
@@ -257,7 +249,7 @@ void wlanEndLowInterferenceForEpd() {
     // on its next bounded poll; no WiFi API calls block the display task here.
 }
 
-void setupWifiStartApFallback(const char* attemptedSsid) {
+void setupWifiStartApFallback(const char *attemptedSsid) {
     if (attemptedSsid[0] != '\0') {
         portENTER_CRITICAL(&g_lastFailedBootSsidMux);
         strlcpy(g_lastFailedBootSsid, attemptedSsid, sizeof(g_lastFailedBootSsid));
@@ -283,7 +275,7 @@ void setupWifiStartApFallback(const char* attemptedSsid) {
     wlanWifiApiUnlock();
     delay(100);
 
-    const char* apAuth = nullptr;
+    const char *apAuth = nullptr;
     wlanWifiApiLock();
     const bool apOk = wlanBringUpSetupSoftApLocked(apPass, &apAuth);
     wlanWifiApiUnlock();
@@ -313,12 +305,10 @@ void wlanHandleStaGotIpNetCmd() {
     }
 
     bool finishedBoot = false;
-    const bool wasBootPending =
-        s_bootStaConnectPending.exchange(false, std::memory_order_acq_rel);
+    const bool wasBootPending = s_bootStaConnectPending.exchange(false, std::memory_order_acq_rel);
     if (wasBootPending) {
         bool expectedFinish = false;
-        if (s_bootStaFinishDone.compare_exchange_strong(expectedFinish, true,
-                                                       std::memory_order_acq_rel)) {
+        if (s_bootStaFinishDone.compare_exchange_strong(expectedFinish, true, std::memory_order_acq_rel)) {
             setupWifiFinishStaConnected();
             finishedBoot = true;
         }
@@ -358,8 +348,7 @@ void wlanBootConnectServiceLoop() {
     case WlanBootAction::FinishSta: {
         s_bootStaConnectPending.store(false, std::memory_order_release);
         bool expectedFinish = false;
-        if (s_bootStaFinishDone.compare_exchange_strong(expectedFinish, true,
-                                                       std::memory_order_acq_rel)) {
+        if (s_bootStaFinishDone.compare_exchange_strong(expectedFinish, true, std::memory_order_acq_rel)) {
             setupWifiFinishStaConnected();
         }
         s_bootWifiSettled.store(true, std::memory_order_release);
@@ -368,9 +357,7 @@ void wlanBootConnectServiceLoop() {
     }
     case WlanBootAction::ContinueStaOnly:
         s_bootStaConnectPending.store(false, std::memory_order_release);
-        ESP_LOGW(TAG,
-                 "WLAN STA boot timeout for '%s' — setup AP remains disabled; continuing recovery",
-                 s_bootAttemptSsid);
+        ESP_LOGW(TAG, "WLAN STA boot timeout for '%s' — setup AP remains disabled; continuing recovery", s_bootAttemptSsid);
         s_bootWifiSettled.store(true, std::memory_order_release);
         wlanNoteBootSettledNow();
         return;
@@ -410,10 +397,6 @@ void setupWiFi() {
     s_wifiSetupComplete.store(true, std::memory_order_release);
 }
 
-bool wlanIsSetupComplete() {
-    return s_wifiSetupComplete.load(std::memory_order_acquire);
-}
+bool wlanIsSetupComplete() { return s_wifiSetupComplete.load(std::memory_order_acquire); }
 
-bool wlanIsBootWifiSettled() {
-    return s_bootWifiSettled.load(std::memory_order_acquire);
-}
+bool wlanIsBootWifiSettled() { return s_bootWifiSettled.load(std::memory_order_acquire); }

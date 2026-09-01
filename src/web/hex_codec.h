@@ -6,7 +6,7 @@
 #include <cstring>
 
 /** Constant-time compare of two 16-byte secrets. */
-inline bool secretsEqual16(const uint8_t* a, const uint8_t* b) {
+inline bool secretsEqual16(const uint8_t *a, const uint8_t *b) {
     if (a == nullptr || b == nullptr) {
         return false;
     }
@@ -18,27 +18,27 @@ inline bool secretsEqual16(const uint8_t* a, const uint8_t* b) {
 }
 
 /** Encode 16 raw bytes to 32 lowercase hex chars + NUL (outHex33 must be >= 33). */
-inline void hexEncode16(const uint8_t* in, char* outHex33) {
+inline void hexEncode16(const uint8_t *in, char *outHex33) {
     if (in == nullptr || outHex33 == nullptr) {
         return;
     }
-    static const char* kHex = "0123456789abcdef";
+    static const char *kHex = "0123456789abcdef";
     for (size_t i = 0; i < 16; ++i) {
-        outHex33[i * 2]     = kHex[in[i] >> 4];
+        outHex33[i * 2] = kHex[in[i] >> 4];
         outHex33[i * 2 + 1] = kHex[in[i] & 0x0f];
     }
     outHex33[32] = '\0';
 }
 
 /** Decode exactly 32 hex chars into 16 bytes. */
-inline bool hexDecode32Strict(const char* hex, uint8_t out16[16]) {
+inline bool hexDecode32Strict(const char *hex, uint8_t out16[16]) {
     if (hex == nullptr || out16 == nullptr || std::strlen(hex) != 32U) {
         return false;
     }
     for (size_t i = 0; i < 16; ++i) {
-        char                buf[3] = {hex[i * 2], hex[i * 2 + 1], '\0'};
-        char*               endPtr = nullptr;
-        const unsigned long v      = std::strtoul(buf, &endPtr, 16);
+        char buf[3] = {hex[i * 2], hex[i * 2 + 1], '\0'};
+        char *endPtr = nullptr;
+        const unsigned long v = std::strtoul(buf, &endPtr, 16);
         if (endPtr != buf + 2 || v > 255) {
             return false;
         }

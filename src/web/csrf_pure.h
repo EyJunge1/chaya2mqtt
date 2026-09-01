@@ -5,7 +5,7 @@
 
 #include "hex_codec.h"
 
-constexpr uint32_t kCsrfTokenTtlMs   = 24UL * 60UL * 60UL * 1000UL;
+constexpr uint32_t kCsrfTokenTtlMs = 24UL * 60UL * 60UL * 1000UL;
 constexpr uint32_t kCsrfTokenGraceMs = 5UL * 60UL * 1000UL;
 
 inline bool csrfTokenNeedsRotation(uint32_t nowMs, uint32_t issuedAtMs) {
@@ -20,7 +20,7 @@ inline bool csrfPreviousTokenAllowed(uint32_t nowMs, uint32_t rotatedAtMs) {
  * Host-testable CSRF match: submitted form value must be exactly 32 hex chars
  * decoding to the expected 16-byte secret (constant-time compare).
  */
-inline bool csrfSubmittedMatchesExpected(const char* submitted, const uint8_t expectedRaw[16]) {
+inline bool csrfSubmittedMatchesExpected(const char *submitted, const uint8_t expectedRaw[16]) {
     if (submitted == nullptr || expectedRaw == nullptr) {
         return false;
     }

@@ -15,21 +15,13 @@ namespace {
 std::atomic<bool> s_contentAllowed{false};
 } // namespace
 
-void displaySetContentAllowed(bool allowed) {
-    s_contentAllowed.store(allowed, std::memory_order_release);
-}
+void displaySetContentAllowed(bool allowed) { s_contentAllowed.store(allowed, std::memory_order_release); }
 
-bool displayContentAllowed() {
-    return s_contentAllowed.load(std::memory_order_acquire);
-}
+bool displayContentAllowed() { return s_contentAllowed.load(std::memory_order_acquire); }
 
-void displaySetDesiredHeartIcon(DisplayHeartIcon icon) {
-    displayTaskSetDesiredHeartIcon(icon);
-}
+void displaySetDesiredHeartIcon(DisplayHeartIcon icon) { displayTaskSetDesiredHeartIcon(icon); }
 
-DisplayHeartIcon displayDesiredHeartIcon() {
-    return displayTaskDesiredHeartIcon();
-}
+DisplayHeartIcon displayDesiredHeartIcon() { return displayTaskDesiredHeartIcon(); }
 
 bool displayRequest(DisplayMsg::Cmd cmd, DisplayRequestMode mode, uint32_t waitMs) {
     switch (mode) {
@@ -54,8 +46,7 @@ bool displayRequest(DisplayMsg::Cmd cmd, DisplayRequestMode mode, uint32_t waitM
         if (cmd == DisplayMsg::Cmd::DrawSplash) {
             displayTaskDrainDrawIdleSem();
             ESP_LOGI(TAG, "splash queued");
-            if (displayPostMsg(DisplayMsg::Cmd::DrawSplash, kDrawOnlyIfViewChanged,
-                               pdMS_TO_TICKS(waitMs))) {
+            if (displayPostMsg(DisplayMsg::Cmd::DrawSplash, kDrawOnlyIfViewChanged, pdMS_TO_TICKS(waitMs))) {
                 displayTaskSetSplashDrawPending(false);
                 return true;
             }
@@ -76,9 +67,7 @@ bool displayRequest(DisplayMsg::Cmd cmd, DisplayRequestMode mode, uint32_t waitM
     return false;
 }
 
-bool displayWaitDrawIdle(uint32_t timeoutMs) {
-    return displayTaskWaitDrawIdle(timeoutMs);
-}
+bool displayWaitDrawIdle(uint32_t timeoutMs) { return displayTaskWaitDrawIdle(timeoutMs); }
 
 void displayInit() {
     displayHwInitPins();
@@ -90,6 +79,4 @@ void displayInit() {
     displayInitGxEpd();
 }
 
-void displayStartTask() {
-    displayTaskStart();
-}
+void displayStartTask() { displayTaskStart(); }

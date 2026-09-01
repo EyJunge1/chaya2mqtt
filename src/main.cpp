@@ -1,44 +1,38 @@
 #include <Arduino.h>
+#include <esp32-hal-cpu.h>
 #include <esp_bt.h>
 #include <esp_log.h>
 #include <esp_pm.h>
 #include <esp_system.h>
-#include <esp32-hal-cpu.h>
 
 #include "util/log_tag.h"
 
 #include "async/app_task.h"
 #include "async/task_handles.h"
 
+#include "async/web_server_hooks.h"
 #include "audio/audio.h"
-#include "config/app_config.h"
-#include "config/version.h"
 #include "battery/battery.h"
 #include "button/button.h"
 #include "button/button_actions.h"
-#include "hw/sd_hold.h"
-#include "heart/counter.h"
+#include "config/app_config.h"
+#include "config/version.h"
 #include "display/display.h"
-#include "mqtt/mqtt.h"
+#include "heart/counter.h"
+#include "hw/sd_hold.h"
 #include "mqtt/config.h"
+#include "mqtt/mqtt.h"
 #include "network/network_task.h"
 #include "ota/ota.h"
 #include "ota/ota_task.h"
-#include "async/web_server_hooks.h"
 #include "wifi/wlan.h"
 
 DEFINE_LOG_TAG("MAIN");
 
 namespace {
-void onButtonRequestSend() {
-    (void)chayaRequestSend();
-}
-bool onButtonSoftOffAllowed() {
-    return !otaBlocksDestructiveAction();
-}
-void onButtonPerformSoftOff() {
-    batteryPowerOffAndSleep();
-}
+void onButtonRequestSend() { (void)chayaRequestSend(); }
+bool onButtonSoftOffAllowed() { return !otaBlocksDestructiveAction(); }
+void onButtonPerformSoftOff() { batteryPowerOffAndSleep(); }
 } // namespace
 
 void setup() {
@@ -57,8 +51,8 @@ void setup() {
     // DFS: idle min 80 MHz (WiFi). No light sleep (keep web + MQTT responsive).
     {
         esp_pm_config_t pm_cfg = {};
-        pm_cfg.max_freq_mhz       = 240;
-        pm_cfg.min_freq_mhz       = 80;
+        pm_cfg.max_freq_mhz = 240;
+        pm_cfg.min_freq_mhz = 80;
         pm_cfg.light_sleep_enable = false;
         const esp_err_t pm_err = esp_pm_configure(&pm_cfg);
         if (pm_err != ESP_OK && pm_err != ESP_ERR_NOT_SUPPORTED) {
@@ -83,8 +77,7 @@ void setup() {
     esp_log_level_set("transport_base", ESP_LOG_INFO);
 #endif
     ESP_LOGI(TAG, "=== Chaya2MQTT === rst:%d", static_cast<int>(esp_reset_reason()));
-    ESP_LOGI(TAG, "Firmware %s | heap free=%zu min_free=%zu", APP_VERSION,
-             static_cast<size_t>(esp_get_free_heap_size()),
+    ESP_LOGI(TAG, "Firmware %s | heap free=%zu min_free=%zu", APP_VERSION, static_cast<size_t>(esp_get_free_heap_size()),
              static_cast<size_t>(esp_get_minimum_free_heap_size()));
 
     loadMQTTConfig();
@@ -127,6 +120,4 @@ void setup() {
     ESP_LOGI(TAG, "Setup complete");
 }
 
-void loop() {
-    vTaskDelete(nullptr);
-}
+void loop() { vTaskDelete(nullptr); }

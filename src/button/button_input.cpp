@@ -46,8 +46,7 @@ static void waitForPwrRelease() {
     for (;;) {
         const unsigned long nowMs = millis();
         if (!cutLatchOnTimeout && nowMs - startedMs >= kSoftOffReleaseTimeoutMs) {
-            ESP_LOGW(TAG, "PWR soft-off: release timeout (%lu ms) — cutting latch, still waiting",
-                     kSoftOffReleaseTimeoutMs);
+            ESP_LOGW(TAG, "PWR soft-off: release timeout (%lu ms) — cutting latch, still waiting", kSoftOffReleaseTimeoutMs);
             batteryCutLatch();
             cutLatchOnTimeout = true;
         }
@@ -63,7 +62,7 @@ static void waitForPwrRelease() {
  * On success does not return (deep sleep / power cut).
  */
 static bool processPowerOff() {
-    const ButtonActionHooks& hooks = buttonActionHooks();
+    const ButtonActionHooks &hooks = buttonActionHooks();
     if (hooks.softOffAllowed != nullptr && !hooks.softOffAllowed()) {
         static unsigned long s_lastBlockWarnMs = 0;
         const unsigned long nowMs = millis();
@@ -145,7 +144,7 @@ void buttonPollAndProcess() {
         if (btn.heldDown) {
             const unsigned long held = nowMs - btn.pressStartMs;
             if (held >= kShortPressMinMs) {
-                const ButtonActionHooks& hooks = buttonActionHooks();
+                const ButtonActionHooks &hooks = buttonActionHooks();
                 if (hooks.requestSend != nullptr) {
                     hooks.requestSend();
                 }

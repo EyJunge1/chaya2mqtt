@@ -48,8 +48,7 @@ bool publishAckPending() {
 
 void completePublishAsync(PublishAsyncState state) {
     uint8_t expected = static_cast<uint8_t>(PublishAsyncState::Pending);
-    (void)s_publishAsync.compare_exchange_strong(expected, static_cast<uint8_t>(state),
-                                                 std::memory_order_acq_rel);
+    (void)s_publishAsync.compare_exchange_strong(expected, static_cast<uint8_t>(state), std::memory_order_acq_rel);
 }
 
 void failPendingPublishAck(uint32_t clientGeneration) {
@@ -62,7 +61,7 @@ void failPendingPublishAck(uint32_t clientGeneration) {
     }
 }
 
-}  // namespace
+} // namespace
 
 void mqttHandlePublishedAck(int messageId, uint32_t clientGeneration) {
     portENTER_CRITICAL(&s_publishAckMux);
@@ -80,9 +79,7 @@ void mqttHandlePublishedAck(int messageId, uint32_t clientGeneration) {
     completePublishAsync(PublishAsyncState::Ok);
 }
 
-void mqttAbortPendingPublish(uint32_t clientGeneration) {
-    failPendingPublishAck(clientGeneration);
-}
+void mqttAbortPendingPublish(uint32_t clientGeneration) { failPendingPublishAck(clientGeneration); }
 
 void mqttServicePublishAckTimeout() {
     if (!publishAckPending()) {
@@ -105,8 +102,7 @@ void mqttServicePublishAckTimeout() {
     if (generation == 0) {
         return;
     }
-    ESP_LOGW(TAG, "QoS 1 PUBACK timeout (wait_ms=%lu)",
-             static_cast<unsigned long>(kMqttPublishAckWaitMs));
+    ESP_LOGW(TAG, "QoS 1 PUBACK timeout (wait_ms=%lu)", static_cast<unsigned long>(kMqttPublishAckWaitMs));
     failPendingPublishAck(generation);
 }
 
@@ -187,8 +183,7 @@ MqttChayaPublishAsync mqttRequestChayaPublishAsync() {
     if (s_publishAsync.compare_exchange_strong(expected, static_cast<uint8_t>(PublishAsyncState::Pending),
                                                std::memory_order_acq_rel)) {
         if (!netCmdTrySend(NetCmd::ChayaPublish)) {
-            s_publishAsync.store(static_cast<uint8_t>(PublishAsyncState::Fail),
-                                 std::memory_order_release);
+            s_publishAsync.store(static_cast<uint8_t>(PublishAsyncState::Fail), std::memory_order_release);
             ESP_LOGW(TAG, "ChayaPublish netCmd queue full");
             return MqttChayaPublishAsync::Fail;
         }
@@ -211,14 +206,12 @@ MqttChayaPublishAsync mqttPollChayaPublishAsync() {
 }
 
 void mqttRunChayaPublishOnNetworkTask() {
-    if (s_publishAsync.load(std::memory_order_acquire)
-        != static_cast<uint8_t>(PublishAsyncState::Pending)) {
+    if (s_publishAsync.load(std::memory_order_acquire) != static_cast<uint8_t>(PublishAsyncState::Pending)) {
         return;
     }
     // Start only — PUBACK / timeout complete Ok/Fail asynchronously (STAB-04 / PERF-01).
     if (!mqttPublishChayaAndApplySentCounters()) {
-        s_publishAsync.store(static_cast<uint8_t>(PublishAsyncState::Fail),
-                             std::memory_order_release);
+        s_publishAsync.store(static_cast<uint8_t>(PublishAsyncState::Fail), std::memory_order_release);
     }
 }
 

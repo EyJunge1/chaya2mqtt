@@ -23,9 +23,9 @@ DEFINE_LOG_TAG("WIFI_TST");
 
 static constexpr unsigned long kWifiConnectionTestTimeoutMs = 15000UL;
 
-static WlanConfig                  s_wifiConnTestCfg{};
-static unsigned long               s_wifiConnTestStartMs = 0;
-static WlanWifiConnectionTestState s_wifiConnTestState   = WlanWifiConnectionTestState::Idle;
+static WlanConfig s_wifiConnTestCfg{};
+static unsigned long s_wifiConnTestStartMs = 0;
+static WlanWifiConnectionTestState s_wifiConnTestState = WlanWifiConnectionTestState::Idle;
 
 static inline void wifiTestLock() {
     if (g_wifiTestMutex != nullptr) {
@@ -88,7 +88,7 @@ void wifiConnectionTestServiceLoop() {
     wifiTestUnlock();
 }
 
-bool wlanWifiConnectionTestSsidSnapshot(char* outSsid, size_t maxLen) {
+bool wlanWifiConnectionTestSsidSnapshot(char *outSsid, size_t maxLen) {
     if (outSsid == nullptr || maxLen == 0U) {
         return false;
     }
@@ -120,7 +120,7 @@ void wlanAbortWifiConnectionTest() {
     disconnectStaIfaceKeepSoftAp();
     wlanConfigClear(&s_wifiConnTestCfg);
     s_wifiConnTestStartMs = 0;
-    s_wifiConnTestState   = WlanWifiConnectionTestState::Idle;
+    s_wifiConnTestState = WlanWifiConnectionTestState::Idle;
     wifiTestUnlock();
 }
 
@@ -135,7 +135,7 @@ bool wlanRetryWifiConnectionTest() {
     return wlanStartWifiConnectionTest(cfgCopy);
 }
 
-bool wlanStartWifiConnectionTest(const WlanConfig& cfg) {
+bool wlanStartWifiConnectionTest(const WlanConfig &cfg) {
     if (!configIsApMode() || cfg.ssid[0] == '\0' || wlanConfigValidate(&cfg) != nullptr) {
         return false;
     }
@@ -152,9 +152,9 @@ bool wlanStartWifiConnectionTest(const WlanConfig& cfg) {
         ESP_LOGW(TAG, "WLAN connection test deferred: EPD refresh started");
         return false;
     }
-    s_wifiConnTestCfg     = cfg;
+    s_wifiConnTestCfg = cfg;
     s_wifiConnTestStartMs = millis();
-    s_wifiConnTestState   = WlanWifiConnectionTestState::Testing;
+    s_wifiConnTestState = WlanWifiConnectionTestState::Testing;
 
     wlanWifiApiLock();
     if (WiFi.getMode() != WIFI_AP_STA && WiFi.getMode() != WIFI_AP) {
@@ -209,7 +209,7 @@ bool wlanCommitWifiConnectionTestAndScheduleReboot() {
     disconnectStaIfaceKeepSoftAp();
     wlanConfigClear(&s_wifiConnTestCfg);
     s_wifiConnTestStartMs = 0;
-    s_wifiConnTestState   = WlanWifiConnectionTestState::Idle;
+    s_wifiConnTestState = WlanWifiConnectionTestState::Idle;
     wifiTestUnlock();
     webRequestRebootAfterWifiSave();
     return true;

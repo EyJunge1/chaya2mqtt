@@ -6,13 +6,13 @@
 
 #include "async/event_types.h"
 #include "async/task_handles.h"
+#include "battery/battery.h"
+#include "battery/battery_pure.h"
 #include "config/app_config.h"
 #include "config/version.h"
 #include "constants.h"
-#include "identity/device_identity.h"
 #include "heart/counter.h"
-#include "battery/battery.h"
-#include "battery/battery_pure.h"
+#include "identity/device_identity.h"
 #include "mqtt/config.h"
 #include "mqtt/mqtt.h"
 #include "ota/ota.h"
@@ -31,31 +31,27 @@
 
 DEFINE_LOG_TAG("WEBAPI");
 
-void handleApiSettingsGet(AsyncWebServerRequest* req) {
+void handleApiSettingsGet(AsyncWebServerRequest *req) {
     char lang[3]{};
     char theme[8]{};
     configCopyUiLang(lang, sizeof(lang));
     configCopyUiTheme(theme, sizeof(theme));
     char body[512];
-    const int n = snprintf(
-        body, sizeof(body),
-        "{\"resetDays\":%u,\"lang\":\"%s\",\"theme\":\"%s\","
-        "\"ledEnabled\":%s,\"audioTxEnabled\":%s,\"audioRxEnabled\":%s,"
-        "\"audioTxVolume\":%u,\"audioRxVolume\":%u,\"quietHourStart\":%u,\"quietHourEnd\":%u,"
-        "\"txHz\":%u,\"txMs\":%u,\"rxHz\":%u,\"rxMs\":%u,"
-        "\"nvsOk\":%s,\"applyPending\":%s}",
-        static_cast<unsigned>(configGetResetPeriodDays()), lang, theme,
-        configGetLedEnabled() ? "true" : "false",
-        configGetAudioTxEnabled() ? "true" : "false",
-        configGetAudioRxEnabled() ? "true" : "false",
-        static_cast<unsigned>(configGetAudioTxVolume()),
-        static_cast<unsigned>(configGetAudioRxVolume()),
-        static_cast<unsigned>(configGetAudioQuietStart()),
-        static_cast<unsigned>(configGetAudioQuietEnd()),
-        static_cast<unsigned>(configGetAudioTxHz()), static_cast<unsigned>(configGetAudioTxMs()),
-        static_cast<unsigned>(configGetAudioRxHz()), static_cast<unsigned>(configGetAudioRxMs()),
-        g_webAdminSettingsNvsWriteFailed.load(std::memory_order_acquire) ? "false" : "true",
-        g_webAdminSettingsApplyPending.load(std::memory_order_acquire) ? "true" : "false");
+    const int n =
+        snprintf(body, sizeof(body),
+                 "{\"resetDays\":%u,\"lang\":\"%s\",\"theme\":\"%s\","
+                 "\"ledEnabled\":%s,\"audioTxEnabled\":%s,\"audioRxEnabled\":%s,"
+                 "\"audioTxVolume\":%u,\"audioRxVolume\":%u,\"quietHourStart\":%u,\"quietHourEnd\":%u,"
+                 "\"txHz\":%u,\"txMs\":%u,\"rxHz\":%u,\"rxMs\":%u,"
+                 "\"nvsOk\":%s,\"applyPending\":%s}",
+                 static_cast<unsigned>(configGetResetPeriodDays()), lang, theme, configGetLedEnabled() ? "true" : "false",
+                 configGetAudioTxEnabled() ? "true" : "false", configGetAudioRxEnabled() ? "true" : "false",
+                 static_cast<unsigned>(configGetAudioTxVolume()), static_cast<unsigned>(configGetAudioRxVolume()),
+                 static_cast<unsigned>(configGetAudioQuietStart()), static_cast<unsigned>(configGetAudioQuietEnd()),
+                 static_cast<unsigned>(configGetAudioTxHz()), static_cast<unsigned>(configGetAudioTxMs()),
+                 static_cast<unsigned>(configGetAudioRxHz()), static_cast<unsigned>(configGetAudioRxMs()),
+                 g_webAdminSettingsNvsWriteFailed.load(std::memory_order_acquire) ? "false" : "true",
+                 g_webAdminSettingsApplyPending.load(std::memory_order_acquire) ? "true" : "false");
     if (n < 0 || static_cast<size_t>(n) >= sizeof(body)) {
         sendErr(req, 500, "json");
         return;
@@ -63,7 +59,7 @@ void handleApiSettingsGet(AsyncWebServerRequest* req) {
     webSendJson(req, 200, body);
 }
 
-void handleApiSettingsPost(AsyncWebServerRequest* req) {
+void handleApiSettingsPost(AsyncWebServerRequest *req) {
     if (g_systemShutdownInProgress.load(std::memory_order_acquire)) {
         sendErr(req, 503, "shutdown");
         return;
@@ -75,17 +71,17 @@ void handleApiSettingsPost(AsyncWebServerRequest* req) {
     uint8_t days = configGetResetPeriodDays();
     char lang[3];
     char theme[8];
-    bool ledEnabled      = configGetLedEnabled();
-    bool audioTxEnabled  = configGetAudioTxEnabled();
-    bool audioRxEnabled  = configGetAudioRxEnabled();
-    uint8_t audioTxVol   = configGetAudioTxVolume();
-    uint8_t audioRxVol   = configGetAudioRxVolume();
-    uint8_t quiet0       = configGetAudioQuietStart();
-    uint8_t quiet1       = configGetAudioQuietEnd();
-    uint16_t txHz        = configGetAudioTxHz();
-    uint16_t txMs        = configGetAudioTxMs();
-    uint16_t rxHz        = configGetAudioRxHz();
-    uint16_t rxMs        = configGetAudioRxMs();
+    bool ledEnabled = configGetLedEnabled();
+    bool audioTxEnabled = configGetAudioTxEnabled();
+    bool audioRxEnabled = configGetAudioRxEnabled();
+    uint8_t audioTxVol = configGetAudioTxVolume();
+    uint8_t audioRxVol = configGetAudioRxVolume();
+    uint8_t quiet0 = configGetAudioQuietStart();
+    uint8_t quiet1 = configGetAudioQuietEnd();
+    uint16_t txHz = configGetAudioTxHz();
+    uint16_t txMs = configGetAudioTxMs();
+    uint16_t rxHz = configGetAudioRxHz();
+    uint16_t rxMs = configGetAudioRxMs();
     configCopyUiLang(lang, sizeof(lang));
     configCopyUiTheme(theme, sizeof(theme));
 
@@ -150,34 +146,33 @@ void handleApiSettingsPost(AsyncWebServerRequest* req) {
     g_webAdminPendingResetDays = days;
     strlcpy(g_webAdminPendingUiLang, lang, sizeof(g_webAdminPendingUiLang));
     strlcpy(g_webAdminPendingUiTheme, theme, sizeof(g_webAdminPendingUiTheme));
-    g_webAdminPendingLedEnabled      = ledEnabled;
-    g_webAdminPendingAudioTxEnabled  = audioTxEnabled;
-    g_webAdminPendingAudioRxEnabled  = audioRxEnabled;
-    g_webAdminPendingAudioTxVolume   = audioTxVol;
-    g_webAdminPendingAudioRxVolume   = audioRxVol;
-    g_webAdminPendingQuiet0          = quiet0;
-    g_webAdminPendingQuiet1          = quiet1;
-    g_webAdminPendingTxHz            = txHz;
-    g_webAdminPendingTxMs            = txMs;
-    g_webAdminPendingRxHz            = rxHz;
-    g_webAdminPendingRxMs            = rxMs;
+    g_webAdminPendingLedEnabled = ledEnabled;
+    g_webAdminPendingAudioTxEnabled = audioTxEnabled;
+    g_webAdminPendingAudioRxEnabled = audioRxEnabled;
+    g_webAdminPendingAudioTxVolume = audioTxVol;
+    g_webAdminPendingAudioRxVolume = audioRxVol;
+    g_webAdminPendingQuiet0 = quiet0;
+    g_webAdminPendingQuiet1 = quiet1;
+    g_webAdminPendingTxHz = txHz;
+    g_webAdminPendingTxMs = txMs;
+    g_webAdminPendingRxHz = rxHz;
+    g_webAdminPendingRxMs = rxMs;
     portEXIT_CRITICAL(&g_webAdminSettingsPendingMux);
     g_webAdminSettingsApplyPending.store(true, std::memory_order_release);
     g_webAdminSettingsNvsWriteFailed.store(false, std::memory_order_release);
     sendOk(req, 200, "\"message\":\"accepted\"");
 }
 
-
-void adminRoutesRegisterApiSettings(AsyncWebServer& ws) {
+void adminRoutesRegisterApiSettings(AsyncWebServer &ws) {
     {
-        AsyncCallbackWebHandler& h = ws.on("/api/settings", HTTP_GET,
-                                           [](AsyncWebServerRequest* rq) { handleApiSettingsGet(rq); });
+        AsyncCallbackWebHandler &h =
+            ws.on("/api/settings", HTTP_GET, [](AsyncWebServerRequest *rq) { handleApiSettingsGet(rq); });
         h.addMiddleware(mwRequireAllowedHost());
         h.addMiddleware(mwApiStaMode());
     }
     {
-        AsyncCallbackWebHandler& h = ws.on("/api/settings", HTTP_POST,
-                                           [](AsyncWebServerRequest* rq) { handleApiSettingsPost(rq); });
+        AsyncCallbackWebHandler &h =
+            ws.on("/api/settings", HTTP_POST, [](AsyncWebServerRequest *rq) { handleApiSettingsPost(rq); });
         h.addMiddleware(mwApiStaMode());
         h.addMiddleware(mwApiPostCsrf());
     }

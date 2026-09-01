@@ -55,10 +55,8 @@ void test_device_id_syntax() {
 }
 
 void test_device_id_create_mode() {
-    TEST_ASSERT_EQUAL(static_cast<int>(DeviceIdCreateMode::FromMacMigrate),
-                      static_cast<int>(deviceIdCreateMode(true)));
-    TEST_ASSERT_EQUAL(static_cast<int>(DeviceIdCreateMode::FromRandom),
-                      static_cast<int>(deviceIdCreateMode(false)));
+    TEST_ASSERT_EQUAL(static_cast<int>(DeviceIdCreateMode::FromMacMigrate), static_cast<int>(deviceIdCreateMode(true)));
+    TEST_ASSERT_EQUAL(static_cast<int>(DeviceIdCreateMode::FromRandom), static_cast<int>(deviceIdCreateMode(false)));
 }
 
 void test_device_id_format_from_bytes() {
@@ -147,8 +145,7 @@ void test_backoff_helpers() {
     TEST_ASSERT_TRUE(mqttBackoffElapsed(st, 0));
     const unsigned long wait = mqttNextFailureBackoffMs(st, false);
     TEST_ASSERT_EQUAL_UINT32(kMqttBackoffInitialMs, wait);
-    TEST_ASSERT_TRUE(st.currentBackoffMs > kMqttBackoffInitialMs
-                     || st.currentBackoffMs == kMqttBackoffMaxMs);
+    TEST_ASSERT_TRUE(st.currentBackoffMs > kMqttBackoffInitialMs || st.currentBackoffMs == kMqttBackoffMaxMs);
 
     mqttBackoffResetOnConnect(st);
     TEST_ASSERT_EQUAL_UINT32(kMqttBackoffInitialMs, st.currentBackoffMs);
@@ -157,12 +154,9 @@ void test_backoff_helpers() {
     const unsigned long wifiWait = mqttNextFailureBackoffMs(wifiSt, true);
     TEST_ASSERT_TRUE(wifiWait >= kMqttWifiLostDuringTlsBackoffMs);
 
-    TEST_ASSERT_EQUAL_UINT32(kMqttBrokerMissingBackoffMs,
-                             mqttConnectPrecheckDeferMsPure(false, true, true, true));
-    TEST_ASSERT_EQUAL_UINT32(kMqttWifiDownBackoffMs,
-                             mqttConnectPrecheckDeferMsPure(true, false, false, false));
-    TEST_ASSERT_EQUAL_UINT32(kMqttNtpRetryMs,
-                             mqttConnectPrecheckDeferMsPure(true, true, false, true));
+    TEST_ASSERT_EQUAL_UINT32(kMqttBrokerMissingBackoffMs, mqttConnectPrecheckDeferMsPure(false, true, true, true));
+    TEST_ASSERT_EQUAL_UINT32(kMqttWifiDownBackoffMs, mqttConnectPrecheckDeferMsPure(true, false, false, false));
+    TEST_ASSERT_EQUAL_UINT32(kMqttNtpRetryMs, mqttConnectPrecheckDeferMsPure(true, true, false, true));
     TEST_ASSERT_EQUAL_UINT32(0U, mqttConnectPrecheckDeferMsPure(true, true, true, true));
 }
 
@@ -184,7 +178,7 @@ void test_publish_ack_state() {
     TEST_ASSERT_FALSE(mqttPublishAckWasConfirmed(state, 9, 4U));
 }
 
-int main(int, char**) {
+int main(int, char **) {
     UNITY_BEGIN();
     RUN_TEST(test_mqtt_topic_syntax);
     RUN_TEST(test_mqtt_server_syntax);

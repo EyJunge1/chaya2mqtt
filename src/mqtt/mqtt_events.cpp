@@ -6,8 +6,8 @@
 #include "async/event_types.h"
 #include "async/sse_dirty.h"
 #include "async/task_handles.h"
-#include "config.h"
 #include "audio/audio.h"
+#include "config.h"
 #include "display/display.h"
 #include "heart/counter.h"
 #include "led/led.h"
@@ -28,20 +28,20 @@
 
 DEFINE_LOG_TAG("MQTT");
 
-unsigned long lastMqttAttemptAt    = 0;
-unsigned long mqttBackoffMs        = 0;
+unsigned long lastMqttAttemptAt = 0;
+unsigned long mqttBackoffMs = 0;
 unsigned long mqttCurrentBackoffMs = kMqttBackoffInitialMs;
-portMUX_TYPE  s_mqttBackoffMux     = portMUX_INITIALIZER_UNLOCKED;
+portMUX_TYPE s_mqttBackoffMux = portMUX_INITIALIZER_UNLOCKED;
 
-static char     s_fragAccBuf[16];
+static char s_fragAccBuf[16];
 static uint32_t s_fragExpectTotal = 0;
-static unsigned s_fragHave        = 0;
+static unsigned s_fragHave = 0;
 static portMUX_TYPE s_mqttFragmentMux = portMUX_INITIALIZER_UNLOCKED;
 
 void mqttResetFragmentState() {
     portENTER_CRITICAL(&s_mqttFragmentMux);
     s_fragExpectTotal = 0;
-    s_fragHave        = 0;
+    s_fragHave = 0;
     portEXIT_CRITICAL(&s_mqttFragmentMux);
 }
 
@@ -58,13 +58,13 @@ void applyDisconnectFailureBackoff(bool wifiSuspectDuringFailure) {
     }
     portENTER_CRITICAL(&s_mqttBackoffMux);
     mqttCurrentBackoffMs = st.currentBackoffMs;
-    mqttBackoffMs        = waitMs;
-    lastMqttAttemptAt    = millis();
+    mqttBackoffMs = waitMs;
+    lastMqttAttemptAt = millis();
     portEXIT_CRITICAL(&s_mqttBackoffMux);
     ESP_LOGI(TAG, "Next connect attempt in %lu s", waitMs / 1000UL);
 }
 
-static void handleCounterPayload(const char* payload, unsigned int length) {
+static void handleCounterPayload(const char *payload, unsigned int length) {
     long parsed = 0;
     if (!mqttParseCounterPayload(payload, length, &parsed)) {
         ESP_LOGD(TAG, "Invalid counter payload (len=%u)", length);
@@ -92,45 +92,43 @@ static bool feedFragmentedPayload(esp_mqtt_event_handle_t ev) {
         return false;
     }
 
-    char     completePayload[sizeof(s_fragAccBuf)]{};
+    char completePayload[sizeof(s_fragAccBuf)]{};
     uint32_t completeLength = 0;
-    bool     rejected       = false;
-    bool     partial        = false;
-    [[maybe_unused]] unsigned partialHave  = 0;
+    bool rejected = false;
+    bool partial = false;
+    [[maybe_unused]] unsigned partialHave = 0;
     [[maybe_unused]] uint32_t partialTotal = 0;
 
     portENTER_CRITICAL(&s_mqttFragmentMux);
     if (ev->topic != nullptr && ev->topic_len > 0 && ev->current_data_offset == 0) {
-        s_fragHave        = 0;
+        s_fragHave = 0;
         s_fragExpectTotal = static_cast<uint32_t>(ev->total_data_len);
         const uint32_t kMaxStored = sizeof(s_fragAccBuf) - 1U;
         if (s_fragExpectTotal == 0U || s_fragExpectTotal > kMaxStored) {
             s_fragExpectTotal = 0;
-            rejected          = true;
+            rejected = true;
         }
     }
 
     if (!rejected && s_fragExpectTotal > 0U) {
         const unsigned add = static_cast<unsigned>(ev->data_len);
-        const bool offsetMatches =
-            static_cast<uint32_t>(ev->current_data_offset) == static_cast<uint32_t>(s_fragHave);
-        if (!offsetMatches || s_fragHave > s_fragExpectTotal
-            || add > s_fragExpectTotal - s_fragHave) {
+        const bool offsetMatches = static_cast<uint32_t>(ev->current_data_offset) == static_cast<uint32_t>(s_fragHave);
+        if (!offsetMatches || s_fragHave > s_fragExpectTotal || add > s_fragExpectTotal - s_fragHave) {
             s_fragExpectTotal = 0;
-            s_fragHave        = 0;
-            rejected          = true;
+            s_fragHave = 0;
+            rejected = true;
         } else {
             memcpy(s_fragAccBuf + s_fragHave, ev->data, add);
             s_fragHave += add;
             if (s_fragHave < s_fragExpectTotal) {
-                partial      = true;
-                partialHave  = s_fragHave;
+                partial = true;
+                partialHave = s_fragHave;
                 partialTotal = s_fragExpectTotal;
             } else {
                 completeLength = s_fragExpectTotal;
                 memcpy(completePayload, s_fragAccBuf, completeLength);
                 s_fragExpectTotal = 0;
-                s_fragHave        = 0;
+                s_fragHave = 0;
             }
         }
     }
@@ -158,13 +156,13 @@ static bool topicMatchesSubscribe(const esp_mqtt_event_handle_t ev) {
     }
     portENTER_CRITICAL(&s_mqttSubTopicMux);
     const size_t cachedLen = s_mqttSubTopicLen;
-    const bool   match     = (cachedLen > 0U) && (static_cast<size_t>(ev->topic_len) == cachedLen)
-                         && (memcmp(ev->topic, s_mqttSubTopicCache, cachedLen) == 0);
+    const bool match = (cachedLen > 0U) && (static_cast<size_t>(ev->topic_len) == cachedLen) &&
+                       (memcmp(ev->topic, s_mqttSubTopicCache, cachedLen) == 0);
     portEXIT_CRITICAL(&s_mqttSubTopicMux);
     return match;
 }
 
-static bool mqttEventClientStillLive(esp_mqtt_client_handle_t cli, uint32_t* outGeneration) {
+static bool mqttEventClientStillLive(esp_mqtt_client_handle_t cli, uint32_t *outGeneration) {
     if (cli == nullptr) {
         return false;
     }
@@ -183,19 +181,16 @@ static bool mqttEventGenerationStillValid(uint32_t generation) {
     if (!mqttClientLockTimed()) {
         return false;
     }
-    const bool valid = (s_client != nullptr
-                        && s_clientGeneration.load(std::memory_order_acquire) == generation);
+    const bool valid = (s_client != nullptr && s_clientGeneration.load(std::memory_order_acquire) == generation);
     mqttClientUnlock();
     return valid;
 }
 
-template <typename Fn>
-static bool mqttWithLiveClient(esp_mqtt_client_handle_t cli, uint32_t generation, Fn&& fn) {
+template <typename Fn> static bool mqttWithLiveClient(esp_mqtt_client_handle_t cli, uint32_t generation, Fn &&fn) {
     if (!mqttClientLockTimed()) {
         return false;
     }
-    const bool live = (s_client == cli
-                       && s_clientGeneration.load(std::memory_order_acquire) == generation);
+    const bool live = (s_client == cli && s_clientGeneration.load(std::memory_order_acquire) == generation);
     if (live) {
         fn(cli);
     }
@@ -204,13 +199,10 @@ static bool mqttWithLiveClient(esp_mqtt_client_handle_t cli, uint32_t generation
 }
 
 static bool mqttEventDisconnectIfLive(esp_mqtt_client_handle_t cli, uint32_t generation) {
-    return mqttWithLiveClient(cli, generation, [](esp_mqtt_client_handle_t c) {
-        (void)esp_mqtt_client_disconnect(c);
-    });
+    return mqttWithLiveClient(cli, generation, [](esp_mqtt_client_handle_t c) { (void)esp_mqtt_client_disconnect(c); });
 }
 
-void mqttEventHandler(void* /*handler_args*/, esp_event_base_t /*base*/, int32_t event_id,
-                      void* event_data) {
+void mqttEventHandler(void * /*handler_args*/, esp_event_base_t /*base*/, int32_t event_id, void *event_data) {
     const esp_mqtt_event_handle_t ev = static_cast<esp_mqtt_event_handle_t>(event_data);
     if (ev == nullptr) {
         return;
@@ -240,8 +232,7 @@ void mqttEventHandler(void* /*handler_args*/, esp_event_base_t /*base*/, int32_t
         mqttCurrentBackoffMs = kMqttBackoffInitialMs;
         portEXIT_CRITICAL(&s_mqttBackoffMux);
 
-        const bool shouldSubscribe =
-            cfg.partnerDeviceId[0] != '\0' && mqttTopicSyntaxOk(cfg.topicSub, sizeof(cfg.topicSub));
+        const bool shouldSubscribe = cfg.partnerDeviceId[0] != '\0' && mqttTopicSyntaxOk(cfg.topicSub, sizeof(cfg.topicSub));
         if (shouldSubscribe) {
             portENTER_CRITICAL(&s_mqttSubTopicMux);
             strlcpy(s_mqttSubTopicCache, cfg.topicSub, sizeof(s_mqttSubTopicCache));
@@ -251,13 +242,13 @@ void mqttEventHandler(void* /*handler_args*/, esp_event_base_t /*base*/, int32_t
         } else {
             portENTER_CRITICAL(&s_mqttSubTopicMux);
             s_mqttSubTopicCache[0] = '\0';
-            s_mqttSubTopicLen      = 0U;
+            s_mqttSubTopicLen = 0U;
             portEXIT_CRITICAL(&s_mqttSubTopicMux);
             ESP_LOGI(TAG, "MQTT connected; no partner — skipping subscribe");
         }
 
-        constexpr const char kOnline[]  = "online";
-        constexpr int        kOnlineLen = sizeof(kOnline) - 1;
+        constexpr const char kOnline[] = "online";
+        constexpr int kOnlineLen = sizeof(kOnline) - 1;
 
         // One mutex take for subscribe + LWT + mark connected (PERF-06).
         bool subscribeFailed = false;
@@ -310,8 +301,7 @@ void mqttEventHandler(void* /*handler_args*/, esp_event_base_t /*base*/, int32_t
 
     case MQTT_EVENT_PUBLISHED:
         if (mqttEventGenerationStillValid(handlerGeneration)) {
-            ESP_LOGD(TAG, "PUBACK msg_id=%d gen=%u", ev->msg_id,
-                     static_cast<unsigned>(handlerGeneration));
+            ESP_LOGD(TAG, "PUBACK msg_id=%d gen=%u", ev->msg_id, static_cast<unsigned>(handlerGeneration));
             mqttHandlePublishedAck(ev->msg_id, handlerGeneration);
         }
         break;
@@ -330,12 +320,10 @@ void mqttEventHandler(void* /*handler_args*/, esp_event_base_t /*base*/, int32_t
             ESP_LOGI(TAG, "MQTT disconnected (intentional teardown)");
             s_disconnectIntentional.store(false, std::memory_order_release);
         } else {
-            const esp_mqtt_error_codes_t* eh = ev->error_handle;
+            const esp_mqtt_error_codes_t *eh = ev->error_handle;
             if (eh != nullptr) {
-                ESP_LOGW(TAG,
-                         "MQTT disconnected: error_type=%d connect_rc=%d tls=%s sock_errno=%d",
-                         static_cast<int>(eh->error_type),
-                         static_cast<int>(eh->connect_return_code),
+                ESP_LOGW(TAG, "MQTT disconnected: error_type=%d connect_rc=%d tls=%s sock_errno=%d",
+                         static_cast<int>(eh->error_type), static_cast<int>(eh->connect_return_code),
                          esp_err_to_name(eh->esp_tls_last_esp_err), eh->esp_transport_sock_errno);
             } else {
                 ESP_LOGW(TAG, "MQTT disconnected");
@@ -350,12 +338,10 @@ void mqttEventHandler(void* /*handler_args*/, esp_event_base_t /*base*/, int32_t
 
     case MQTT_EVENT_ERROR:
         if (ev->error_handle != nullptr) {
-            const esp_mqtt_error_codes_t* eh = ev->error_handle;
-            ESP_LOGW(TAG,
-                     "MQTT EVENT_ERROR: error_type=%d connect_rc=%d tls=%s sock_errno=%d",
-                     static_cast<int>(eh->error_type),
-                     static_cast<int>(eh->connect_return_code),
-                     esp_err_to_name(eh->esp_tls_last_esp_err), eh->esp_transport_sock_errno);
+            const esp_mqtt_error_codes_t *eh = ev->error_handle;
+            ESP_LOGW(TAG, "MQTT EVENT_ERROR: error_type=%d connect_rc=%d tls=%s sock_errno=%d", static_cast<int>(eh->error_type),
+                     static_cast<int>(eh->connect_return_code), esp_err_to_name(eh->esp_tls_last_esp_err),
+                     eh->esp_transport_sock_errno);
             if (eh->error_type == MQTT_ERROR_TYPE_SUBSCRIBE_FAILED) {
                 ESP_LOGE(TAG, "MQTT subscribe rejected by broker");
                 (void)mqttEventDisconnectIfLive(ev->client, handlerGeneration);

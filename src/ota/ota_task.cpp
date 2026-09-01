@@ -27,8 +27,7 @@ constexpr uint32_t kOtaIdlePollMs = 1000U;
 static void waitForOtaWakeOrTimeout() {
     uint32_t remainingMs = kOtaIdleWaitMs;
     while (remainingMs > 0) {
-        const uint32_t sliceMs =
-            (remainingMs > kOtaIdlePollMs) ? kOtaIdlePollMs : remainingMs;
+        const uint32_t sliceMs = (remainingMs > kOtaIdlePollMs) ? kOtaIdlePollMs : remainingMs;
         if (ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(sliceMs)) > 0) {
             return;
         }
@@ -37,7 +36,7 @@ static void waitForOtaWakeOrTimeout() {
     }
 }
 
-static void otaTaskFn(void*) {
+static void otaTaskFn(void *) {
     static uint32_t s_stackLogCounter = 0;
     for (;;) {
         chayaTaskWatchdogUnsubscribe(TAG);
@@ -56,8 +55,7 @@ void otaTaskWake() {
 }
 
 void otaTaskStart() {
-    const BaseType_t ok = xTaskCreatePinnedToCore(otaTaskFn, "ota", kOtaTaskStackBytes, nullptr, 4,
-                                                  &s_otaTaskHandle, 1);
+    const BaseType_t ok = xTaskCreatePinnedToCore(otaTaskFn, "ota", kOtaTaskStackBytes, nullptr, 4, &s_otaTaskHandle, 1);
     if (ok != pdPASS) {
         ESP_LOGE(TAG, "OTA task create failed");
         abort();

@@ -32,16 +32,11 @@ void test_setup_ap_pass_syntax_and_format() {
 }
 
 void test_wlan_boot_decision_keeps_configured_device_out_of_setup_ap() {
-    TEST_ASSERT_EQUAL_INT(static_cast<int>(WlanBootAction::StartSetupAp),
-                          static_cast<int>(wlanBootDecide(false, false, false)));
-    TEST_ASSERT_EQUAL_INT(static_cast<int>(WlanBootAction::WaitForSta),
-                          static_cast<int>(wlanBootDecide(true, false, false)));
-    TEST_ASSERT_EQUAL_INT(static_cast<int>(WlanBootAction::FinishSta),
-                          static_cast<int>(wlanBootDecide(true, true, false)));
-    TEST_ASSERT_EQUAL_INT(static_cast<int>(WlanBootAction::ContinueStaOnly),
-                          static_cast<int>(wlanBootDecide(true, false, true)));
-    TEST_ASSERT_EQUAL_INT(static_cast<int>(WlanBootAction::FinishSta),
-                          static_cast<int>(wlanBootDecide(true, true, true)));
+    TEST_ASSERT_EQUAL_INT(static_cast<int>(WlanBootAction::StartSetupAp), static_cast<int>(wlanBootDecide(false, false, false)));
+    TEST_ASSERT_EQUAL_INT(static_cast<int>(WlanBootAction::WaitForSta), static_cast<int>(wlanBootDecide(true, false, false)));
+    TEST_ASSERT_EQUAL_INT(static_cast<int>(WlanBootAction::FinishSta), static_cast<int>(wlanBootDecide(true, true, false)));
+    TEST_ASSERT_EQUAL_INT(static_cast<int>(WlanBootAction::ContinueStaOnly), static_cast<int>(wlanBootDecide(true, false, true)));
+    TEST_ASSERT_EQUAL_INT(static_cast<int>(WlanBootAction::FinishSta), static_cast<int>(wlanBootDecide(true, true, true)));
 }
 
 void test_wifi_qr_payload() {
@@ -50,8 +45,7 @@ void test_wifi_qr_payload() {
     TEST_ASSERT_EQUAL_STRING("WIFI:T:WPA;S:Chaya2MQTT;P:12345678;;", out);
 
     // 24-char SoftAP PSK → ~52-byte MeCard. QR v3-M is 42 bytes; v4-M is 62.
-    TEST_ASSERT_TRUE(wifiQrBuildWpaPayload("Chaya2MQTT", "ABCDEFGHIJKLMNOPQRSTUVWX", out,
-                                           sizeof(out)));
+    TEST_ASSERT_TRUE(wifiQrBuildWpaPayload("Chaya2MQTT", "ABCDEFGHIJKLMNOPQRSTUVWX", out, sizeof(out)));
     TEST_ASSERT_EQUAL_STRING("WIFI:T:WPA;S:Chaya2MQTT;P:ABCDEFGHIJKLMNOPQRSTUVWX;;", out);
     const size_t setupPayloadLen = std::strlen(out);
     TEST_ASSERT_EQUAL_UINT(52U, setupPayloadLen);
@@ -201,42 +195,34 @@ void test_wlan_recovery_decide() {
     TEST_ASSERT_TRUE(st.linkDownSinceMs != 0UL);
 
     const unsigned long downStart = st.linkDownSinceMs;
-    TEST_ASSERT_EQUAL_INT(
-        static_cast<int>(WlanRecoveryAction::None),
-        static_cast<int>(wlanRecoveryDecide(false, false, false, true, downStart + 1000UL, 1000UL, st)));
+    TEST_ASSERT_EQUAL_INT(static_cast<int>(WlanRecoveryAction::None),
+                          static_cast<int>(wlanRecoveryDecide(false, false, false, true, downStart + 1000UL, 1000UL, st)));
 
     TEST_ASSERT_EQUAL_INT(
         static_cast<int>(WlanRecoveryAction::ForcedReassoc),
-        static_cast<int>(wlanRecoveryDecide(false, false, false, true,
-                                            downStart + kWlanRecoveryLinkDownGraceMs, 1000UL, st)));
+        static_cast<int>(wlanRecoveryDecide(false, false, false, true, downStart + kWlanRecoveryLinkDownGraceMs, 1000UL, st)));
 
     // Cooldown prevents immediate second reassoc.
-    TEST_ASSERT_EQUAL_INT(
-        static_cast<int>(WlanRecoveryAction::None),
-        static_cast<int>(wlanRecoveryDecide(false, false, false, true,
-                                            downStart + kWlanRecoveryLinkDownGraceMs + 1000UL, 1000UL,
-                                            st)));
+    TEST_ASSERT_EQUAL_INT(static_cast<int>(WlanRecoveryAction::None),
+                          static_cast<int>(wlanRecoveryDecide(false, false, false, true,
+                                                              downStart + kWlanRecoveryLinkDownGraceMs + 1000UL, 1000UL, st)));
 
     // Restart requires long outage + min uptime; blocked during OTA.
     st.linkDownSinceMs = 1UL;
     st.lastForcedReassocMs = 1UL;
-    TEST_ASSERT_EQUAL_INT(
-        static_cast<int>(WlanRecoveryAction::None),
-        static_cast<int>(wlanRecoveryDecide(false, false, true, true, kWlanRecoveryRestartAfterMs + 10UL,
-                                            kWlanRecoveryMinUptimeBeforeRestartMs + 10UL, st)));
-    TEST_ASSERT_EQUAL_INT(
-        static_cast<int>(WlanRecoveryAction::Restart),
-        static_cast<int>(wlanRecoveryDecide(false, false, false, true, kWlanRecoveryRestartAfterMs + 10UL,
-                                            kWlanRecoveryMinUptimeBeforeRestartMs + 10UL, st)));
+    TEST_ASSERT_EQUAL_INT(static_cast<int>(WlanRecoveryAction::None),
+                          static_cast<int>(wlanRecoveryDecide(false, false, true, true, kWlanRecoveryRestartAfterMs + 10UL,
+                                                              kWlanRecoveryMinUptimeBeforeRestartMs + 10UL, st)));
+    TEST_ASSERT_EQUAL_INT(static_cast<int>(WlanRecoveryAction::Restart),
+                          static_cast<int>(wlanRecoveryDecide(false, false, false, true, kWlanRecoveryRestartAfterMs + 10UL,
+                                                              kWlanRecoveryMinUptimeBeforeRestartMs + 10UL, st)));
     // Cap restarts → ForcedReassoc instead (STAB-03).
     st.linkDownSinceMs = 1UL;
     st.lastForcedReassocMs = 0UL;
-    TEST_ASSERT_EQUAL_INT(
-        static_cast<int>(WlanRecoveryAction::ForcedReassoc),
-        static_cast<int>(wlanRecoveryDecide(false, false, false, true, kWlanRecoveryRestartAfterMs + 10UL,
-                                            kWlanRecoveryMinUptimeBeforeRestartMs + 10UL, st,
-                                            kWlanRecoveryMaxRestartsPerDay,
-                                            kWlanRecoveryMaxRestartsPerDay)));
+    TEST_ASSERT_EQUAL_INT(static_cast<int>(WlanRecoveryAction::ForcedReassoc),
+                          static_cast<int>(wlanRecoveryDecide(false, false, false, true, kWlanRecoveryRestartAfterMs + 10UL,
+                                                              kWlanRecoveryMinUptimeBeforeRestartMs + 10UL, st,
+                                                              kWlanRecoveryMaxRestartsPerDay, kWlanRecoveryMaxRestartsPerDay)));
 }
 
 void test_wifi_soft_reconnect_escalation_threshold() {
@@ -257,23 +243,15 @@ void test_wifi_soft_reconnect_escalation_threshold() {
 
 void test_wlan_epd_tx_power_from_rssi() {
     constexpr int8_t kCur = 52; // 13 dBm configured max
-    TEST_ASSERT_EQUAL_INT8(kWifiEpdTxPowerStrongQdbm,
-                           wlanEpdTxPowerQuarterDbmFromRssi(-55, kCur));
-    TEST_ASSERT_EQUAL_INT8(kWifiEpdTxPowerStrongQdbm,
-                           wlanEpdTxPowerQuarterDbmFromRssi(-40, kCur));
-    TEST_ASSERT_EQUAL_INT8(kWifiEpdTxPowerMediumQdbm,
-                           wlanEpdTxPowerQuarterDbmFromRssi(-56, kCur));
-    TEST_ASSERT_EQUAL_INT8(kWifiEpdTxPowerMediumQdbm,
-                           wlanEpdTxPowerQuarterDbmFromRssi(-64, kCur));
-    TEST_ASSERT_EQUAL_INT8(kWifiEpdTxPowerWeakQdbm,
-                           wlanEpdTxPowerQuarterDbmFromRssi(-65, kCur));
-    TEST_ASSERT_EQUAL_INT8(kWifiEpdTxPowerWeakQdbm,
-                           wlanEpdTxPowerQuarterDbmFromRssi(-90, kCur));
+    TEST_ASSERT_EQUAL_INT8(kWifiEpdTxPowerStrongQdbm, wlanEpdTxPowerQuarterDbmFromRssi(-55, kCur));
+    TEST_ASSERT_EQUAL_INT8(kWifiEpdTxPowerStrongQdbm, wlanEpdTxPowerQuarterDbmFromRssi(-40, kCur));
+    TEST_ASSERT_EQUAL_INT8(kWifiEpdTxPowerMediumQdbm, wlanEpdTxPowerQuarterDbmFromRssi(-56, kCur));
+    TEST_ASSERT_EQUAL_INT8(kWifiEpdTxPowerMediumQdbm, wlanEpdTxPowerQuarterDbmFromRssi(-64, kCur));
+    TEST_ASSERT_EQUAL_INT8(kWifiEpdTxPowerWeakQdbm, wlanEpdTxPowerQuarterDbmFromRssi(-65, kCur));
+    TEST_ASSERT_EQUAL_INT8(kWifiEpdTxPowerWeakQdbm, wlanEpdTxPowerQuarterDbmFromRssi(-90, kCur));
     // Unknown / not associated
-    TEST_ASSERT_EQUAL_INT8(kWifiEpdTxPowerWeakQdbm,
-                           wlanEpdTxPowerQuarterDbmFromRssi(0, kCur));
-    TEST_ASSERT_EQUAL_INT8(kWifiEpdTxPowerWeakQdbm,
-                           wlanEpdTxPowerQuarterDbmFromRssi(1, kCur));
+    TEST_ASSERT_EQUAL_INT8(kWifiEpdTxPowerWeakQdbm, wlanEpdTxPowerQuarterDbmFromRssi(0, kCur));
+    TEST_ASSERT_EQUAL_INT8(kWifiEpdTxPowerWeakQdbm, wlanEpdTxPowerQuarterDbmFromRssi(1, kCur));
     // Never raise above the current max
     TEST_ASSERT_EQUAL_INT8(6, wlanEpdTxPowerQuarterDbmFromRssi(-90, 6));
     TEST_ASSERT_EQUAL_INT8(20, wlanEpdTxPowerQuarterDbmFromRssi(-60, 20));
@@ -297,7 +275,7 @@ void test_wlan_unpack_invalid_static_falls_back_dhcp() {
     TEST_ASSERT_EQUAL_STRING("", out.ip);
 }
 
-int main(int, char**) {
+int main(int, char **) {
     UNITY_BEGIN();
     RUN_TEST(test_setup_ap_pass_syntax_and_format);
     RUN_TEST(test_wlan_boot_decision_keeps_configured_device_out_of_setup_ap);

@@ -9,8 +9,8 @@
 #include <atomic>
 #include <freertos/portmacro.h>
 
-std::atomic<bool>     s_chayaNvsWritesSuspended{false};
-portMUX_TYPE          s_heartDisplayMux = portMUX_INITIALIZER_UNLOCKED;
+std::atomic<bool> s_chayaNvsWritesSuspended{false};
+portMUX_TYPE s_heartDisplayMux = portMUX_INITIALIZER_UNLOCKED;
 std::atomic<uint32_t> s_lastResetCalendarDayUtc{UINT32_MAX};
 
 std::atomic<int> heartCounter{0};
@@ -18,7 +18,7 @@ std::atomic<int> heartSentCounter{0};
 std::atomic<int> counterBaseline{0};
 std::atomic<int> sentCountBaseline{0};
 
-static int heartDisplayDelta(std::atomic<int>& counter, std::atomic<int>& baseline) {
+static int heartDisplayDelta(std::atomic<int> &counter, std::atomic<int> &baseline) {
     portENTER_CRITICAL(&s_heartDisplayMux);
     const int c = counter.load(std::memory_order_relaxed);
     const int b = baseline.load(std::memory_order_relaxed);
@@ -26,13 +26,9 @@ static int heartDisplayDelta(std::atomic<int>& counter, std::atomic<int>& baseli
     return heartCounterDeltaPure(c, b);
 }
 
-int heartDisplayRxDelta() {
-    return heartDisplayDelta(heartCounter, counterBaseline);
-}
+int heartDisplayRxDelta() { return heartDisplayDelta(heartCounter, counterBaseline); }
 
-int heartDisplayTxDelta() {
-    return heartDisplayDelta(heartSentCounter, sentCountBaseline);
-}
+int heartDisplayTxDelta() { return heartDisplayDelta(heartSentCounter, sentCountBaseline); }
 
 void heartCounterStoreFromRemote(int value) {
     portENTER_CRITICAL(&s_heartDisplayMux);
@@ -49,14 +45,14 @@ void heartSentCounterApplyAfterSuccessfulPublish() {
     sseMarkDirty(kSseChaya);
 }
 
-void heartCounterFillDrawSnapshot(HeartCounterDrawSnapshot* out) {
+void heartCounterFillDrawSnapshot(HeartCounterDrawSnapshot *out) {
     if (out == nullptr) {
         return;
     }
     portENTER_CRITICAL(&s_heartDisplayMux);
-    out->heartCounterRaw      = heartCounter.load(std::memory_order_relaxed);
-    out->counterBaselineRaw   = counterBaseline.load(std::memory_order_relaxed);
-    out->heartSentCounterRaw  = heartSentCounter.load(std::memory_order_relaxed);
+    out->heartCounterRaw = heartCounter.load(std::memory_order_relaxed);
+    out->counterBaselineRaw = counterBaseline.load(std::memory_order_relaxed);
+    out->heartSentCounterRaw = heartSentCounter.load(std::memory_order_relaxed);
     out->sentCountBaselineRaw = sentCountBaseline.load(std::memory_order_relaxed);
     portEXIT_CRITICAL(&s_heartDisplayMux);
 }

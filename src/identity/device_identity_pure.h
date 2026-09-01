@@ -9,7 +9,7 @@
 /** How `buildDeviceId` obtains a missing / invalid NVS value. */
 enum class DeviceIdCreateMode : uint8_t {
     FromMacMigrate = 0,
-    FromRandom     = 1,
+    FromRandom = 1,
 };
 
 /**
@@ -21,7 +21,7 @@ inline DeviceIdCreateMode deviceIdCreateMode(bool hadPriorSetupConfig) {
 }
 
 /** Format 3 bytes as 6 lowercase hex chars; false if buffer too small or syntax fails. */
-inline bool deviceIdFormatFromBytes(const uint8_t bytes[3], char* out, size_t outLen) {
+inline bool deviceIdFormatFromBytes(const uint8_t bytes[3], char *out, size_t outLen) {
     if (bytes == nullptr || out == nullptr || outLen < kDeviceIdBufLen) {
         if (out != nullptr && outLen > 0U) {
             out[0] = '\0';

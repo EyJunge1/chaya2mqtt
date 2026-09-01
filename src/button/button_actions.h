@@ -9,10 +9,10 @@ using ButtonSoftOffAllowedFn = bool (*)();
 using ButtonPerformSoftOffFn = void (*)();
 
 struct ButtonActionHooks {
-    ButtonRequestSendFn requestSend       = nullptr;
+    ButtonRequestSendFn requestSend = nullptr;
     ButtonSoftOffAllowedFn softOffAllowed = nullptr;
     ButtonPerformSoftOffFn performSoftOff = nullptr;
 };
 
-void buttonSetActionHooks(const ButtonActionHooks& hooks);
-const ButtonActionHooks& buttonActionHooks();
+void buttonSetActionHooks(const ButtonActionHooks &hooks);
+const ButtonActionHooks &buttonActionHooks();

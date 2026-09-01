@@ -8,7 +8,7 @@
 /** Which Lucide heart glyph the STA heart screen should show. */
 enum class DisplayHeartIcon : uint8_t {
     Filled = 0,
-    Crack  = 1,
+    Crack = 1,
 };
 
 /** Tracks continuous Wi-Fi/MQTT outage for the heart-crack grace period. */
@@ -30,9 +30,8 @@ inline bool displayLinkIsOnline(bool apMode, bool wifiOk, bool mqttOk) {
  * graceMs of continuous outage; returns to filled immediately when healthy again.
  * Millis wrap is handled via unsigned subtraction.
  */
-inline DisplayHeartIcon displayHeartIconDecide(bool apMode, bool wifiOk, bool mqttOk,
-                                               unsigned long nowMs, unsigned long graceMs,
-                                               DisplayLinkState& st) {
+inline DisplayHeartIcon displayHeartIconDecide(bool apMode, bool wifiOk, bool mqttOk, unsigned long nowMs, unsigned long graceMs,
+                                               DisplayLinkState &st) {
     if (displayLinkIsOnline(apMode, wifiOk, mqttOk)) {
         st.outageSinceMs = 0UL;
         return DisplayHeartIcon::Filled;

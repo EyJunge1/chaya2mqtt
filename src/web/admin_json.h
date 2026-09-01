@@ -7,10 +7,9 @@
 #include <cstddef>
 #include <cstdio>
 
-void sendErr(AsyncWebServerRequest* req, int code, const char* error);
+void sendErr(AsyncWebServerRequest *req, int code, const char *error);
 
-template<size_t N, typename Fn>
-bool adminSendJsonWithBuffer(AsyncWebServerRequest* req, Fn&& build) {
+template <size_t N, typename Fn> bool adminSendJsonWithBuffer(AsyncWebServerRequest *req, Fn &&build) {
     char buf[N];
     if (!build(buf, N)) {
         sendErr(req, 500, "json");

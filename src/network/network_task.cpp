@@ -35,14 +35,12 @@ static void mqttFinishSettingsApply() {
 }
 
 static void handleNetCommand(NetCmd cmd) {
-    static const char* const kNetCmdNames[] = {
-        "MqttSettingsChanged", "MqttKillClient", "WifiGotIp",
-        "WifiReconnect",       "ChayaSendRequested", "ChayaPublish", "FactoryResetRequested",
+    static const char *const kNetCmdNames[] = {
+        "MqttSettingsChanged", "MqttKillClient",        "WifiGotIp", "WifiReconnect", "ChayaSendRequested",
+        "ChayaPublish",        "FactoryResetRequested",
     };
     const unsigned idx = static_cast<unsigned>(cmd);
-    ESP_LOGI(TAG, "netCmd=%s",
-             idx < (sizeof(kNetCmdNames) / sizeof(kNetCmdNames[0])) ? kNetCmdNames[idx]
-                                                                   : "?");
+    ESP_LOGI(TAG, "netCmd=%s", idx < (sizeof(kNetCmdNames) / sizeof(kNetCmdNames[0])) ? kNetCmdNames[idx] : "?");
     switch (cmd) {
     case NetCmd::MqttSettingsChanged: {
         if (wlanEpdRefreshActive()) {
@@ -123,11 +121,10 @@ static void handleNetCommand(NetCmd cmd) {
     }
 }
 
-static void networkTaskFn(void*) {
+static void networkTaskFn(void *) {
     chayaTaskWatchdogSubscribe(TAG);
     ESP_LOGI(TAG, "network task core=%d poll=%u/%u ms", static_cast<int>(xPortGetCoreID()),
-             static_cast<unsigned>(kNetworkPollApMs),
-             static_cast<unsigned>(kNetworkPollStaMs));
+             static_cast<unsigned>(kNetworkPollApMs), static_cast<unsigned>(kNetworkPollStaMs));
     static uint32_t s_stackLogCounter = 0;
     for (;;) {
         NetCmd cmd;
@@ -156,8 +153,7 @@ static void networkTaskFn(void*) {
 }
 
 void networkTaskStart() {
-    const BaseType_t ok = xTaskCreatePinnedToCore(networkTaskFn, "network",
-                                                  kNetworkTaskStackBytes, nullptr, 5, nullptr, 1);
+    const BaseType_t ok = xTaskCreatePinnedToCore(networkTaskFn, "network", kNetworkTaskStackBytes, nullptr, 5, nullptr, 1);
     if (ok != pdPASS) {
         ESP_LOGE(TAG, "network task create failed");
         abort();

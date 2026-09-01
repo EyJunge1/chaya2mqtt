@@ -6,13 +6,13 @@
 
 #include "async/event_types.h"
 #include "async/task_handles.h"
+#include "battery/battery.h"
+#include "battery/battery_pure.h"
 #include "config/app_config.h"
 #include "config/version.h"
 #include "constants.h"
-#include "identity/device_identity.h"
 #include "heart/counter.h"
-#include "battery/battery.h"
-#include "battery/battery_pure.h"
+#include "identity/device_identity.h"
 #include "mqtt/config.h"
 #include "mqtt/mqtt.h"
 #include "ota/ota.h"
@@ -31,15 +31,14 @@
 
 DEFINE_LOG_TAG("WEBAPI");
 
-void handleApiMqttStatusGet(AsyncWebServerRequest* req) {
-    adminSendJsonWithBuffer<96>(req, [](char* b, size_t n) {
-        const int w =
-            snprintf(b, n, "{\"connected\":%s}", mqttIsConnected() ? "true" : "false");
+void handleApiMqttStatusGet(AsyncWebServerRequest *req) {
+    adminSendJsonWithBuffer<96>(req, [](char *b, size_t n) {
+        const int w = snprintf(b, n, "{\"connected\":%s}", mqttIsConnected() ? "true" : "false");
         return w > 0 && static_cast<size_t>(w) < n;
     });
 }
 
-bool fillMqttConfigJson(char* body, size_t bodyLen, const MqttConfig& cfg) {
+bool fillMqttConfigJson(char *body, size_t bodyLen, const MqttConfig &cfg) {
     char deviceId[kDeviceIdBufLen]{};
     buildDeviceId(deviceId, sizeof(deviceId));
 
@@ -60,8 +59,8 @@ bool fillMqttConfigJson(char* body, size_t bodyLen, const MqttConfig& cfg) {
     if (!appendJsonStringQuotedEscaped(cfg.server, body, bodyLen, &pos)) {
         return false;
     }
-    n = snprintf(body + pos, bodyLen - pos, ",\"port\":%u,\"tls\":%s,\"username\":",
-                 static_cast<unsigned>(cfg.port), cfg.tls ? "true" : "false");
+    n = snprintf(body + pos, bodyLen - pos, ",\"port\":%u,\"tls\":%s,\"username\":", static_cast<unsigned>(cfg.port),
+                 cfg.tls ? "true" : "false");
     if (n < 0 || pos + static_cast<size_t>(n) >= bodyLen) {
         return false;
     }
@@ -69,8 +68,7 @@ bool fillMqttConfigJson(char* body, size_t bodyLen, const MqttConfig& cfg) {
     if (!appendJsonStringQuotedEscaped(cfg.username, body, bodyLen, &pos)) {
         return false;
     }
-    n = snprintf(body + pos, bodyLen - pos, ",\"hasPassword\":%s,\"topicPub\":",
-                 cfg.password[0] != '\0' ? "true" : "false");
+    n = snprintf(body + pos, bodyLen - pos, ",\"hasPassword\":%s,\"topicPub\":", cfg.password[0] != '\0' ? "true" : "false");
     if (n < 0 || pos + static_cast<size_t>(n) >= bodyLen) {
         return false;
     }
@@ -98,8 +96,7 @@ bool fillMqttConfigJson(char* body, size_t bodyLen, const MqttConfig& cfg) {
         return false;
     }
     // Closed below after nvsOk / applyPending (QUAL-01 / QUAL-04).
-    n = snprintf(body + pos, bodyLen - pos, ",\"nvsOk\":%s,\"applyPending\":%s}",
-                 mqttCfgNvsWriteFailed() ? "false" : "true",
+    n = snprintf(body + pos, bodyLen - pos, ",\"nvsOk\":%s,\"applyPending\":%s}", mqttCfgNvsWriteFailed() ? "false" : "true",
                  mqttCfgApplyPending() ? "true" : "false");
     if (n < 0 || pos + static_cast<size_t>(n) >= bodyLen) {
         return false;
@@ -107,7 +104,7 @@ bool fillMqttConfigJson(char* body, size_t bodyLen, const MqttConfig& cfg) {
     return true;
 }
 
-void handleApiMqttGet(AsyncWebServerRequest* req) {
+void handleApiMqttGet(AsyncWebServerRequest *req) {
     MqttConfig cfg{};
     if (!mqttCfgSnapshotTimed(&cfg, 2000U)) {
         sendErr(req, 503, "busy");
@@ -121,7 +118,7 @@ void handleApiMqttGet(AsyncWebServerRequest* req) {
     webSendJson(req, 200, body);
 }
 
-void normalizePartnerIdInput(char* id, size_t idLen) {
+void normalizePartnerIdInput(char *id, size_t idLen) {
     if (id == nullptr || idLen == 0U) {
         return;
     }
@@ -132,7 +129,7 @@ void normalizePartnerIdInput(char* id, size_t idLen) {
     }
 }
 
-bool partnerIdInputValid(const char* partnerId) {
+bool partnerIdInputValid(const char *partnerId) {
     if (!deviceIdSyntaxOk(partnerId)) {
         return false;
     }
@@ -141,7 +138,7 @@ bool partnerIdInputValid(const char* partnerId) {
     return strcmp(partnerId, ownId) != 0;
 }
 
-void handleApiMqttPost(AsyncWebServerRequest* req) {
+void handleApiMqttPost(AsyncWebServerRequest *req) {
     if (g_systemShutdownInProgress.load(std::memory_order_acquire)) {
         sendErr(req, 503, "shutdown");
         return;
@@ -196,8 +193,7 @@ void handleApiMqttPost(AsyncWebServerRequest* req) {
             strlcpy(pending.password, passBuf, sizeof(pending.password));
         }
     }
-    if (!adminApplyOptionalString(req, "partner_id", pending.partnerDeviceId,
-                                  sizeof(pending.partnerDeviceId))) {
+    if (!adminApplyOptionalString(req, "partner_id", pending.partnerDeviceId, sizeof(pending.partnerDeviceId))) {
         sendErr(req, 400, "partner");
         return;
     }
@@ -218,8 +214,7 @@ void handleApiMqttPost(AsyncWebServerRequest* req) {
         return;
     }
     if (pending.partnerDeviceId[0] != '\0') {
-        if (!mqttTopicSyntaxOk(pending.topicSub, sizeof(pending.topicSub))
-            || strcmp(pending.topicPub, pending.topicSub) == 0) {
+        if (!mqttTopicSyntaxOk(pending.topicSub, sizeof(pending.topicSub)) || strcmp(pending.topicPub, pending.topicSub) == 0) {
             sendErr(req, 400, "partner");
             return;
         }
@@ -235,31 +230,28 @@ void handleApiMqttPost(AsyncWebServerRequest* req) {
         mqttCfgStorePending(&pending);
         mqttCfgSetApplyPending(true);
         g_webAdminMqttApplyVersion.fetch_add(1U, std::memory_order_acq_rel);
-        ESP_LOGI(TAG, "MQTT settings accepted broker=%s:%u tls=%s", pending.server,
-                 static_cast<unsigned>(pending.port), pending.tls ? "yes" : "no");
+        ESP_LOGI(TAG, "MQTT settings accepted broker=%s:%u tls=%s", pending.server, static_cast<unsigned>(pending.port),
+                 pending.tls ? "yes" : "no");
     } else {
         ESP_LOGI(TAG, "MQTT settings unchanged");
     }
     sendOk(req, 200, "\"message\":\"saved\"");
 }
 
-
-void adminRoutesRegisterApiMqtt(AsyncWebServer& ws) {
+void adminRoutesRegisterApiMqtt(AsyncWebServer &ws) {
     {
-        AsyncCallbackWebHandler& h = ws.on("/api/mqtt/status", HTTP_GET,
-                                           [](AsyncWebServerRequest* rq) { handleApiMqttStatusGet(rq); });
+        AsyncCallbackWebHandler &h =
+            ws.on("/api/mqtt/status", HTTP_GET, [](AsyncWebServerRequest *rq) { handleApiMqttStatusGet(rq); });
         h.addMiddleware(mwRequireAllowedHost());
         h.addMiddleware(mwApiStaMode());
     }
     {
-        AsyncCallbackWebHandler& h =
-            ws.on("/api/mqtt", HTTP_GET, [](AsyncWebServerRequest* rq) { handleApiMqttGet(rq); });
+        AsyncCallbackWebHandler &h = ws.on("/api/mqtt", HTTP_GET, [](AsyncWebServerRequest *rq) { handleApiMqttGet(rq); });
         h.addMiddleware(mwRequireAllowedHost());
         h.addMiddleware(mwApiStaMode());
     }
     {
-        AsyncCallbackWebHandler& h =
-            ws.on("/api/mqtt", HTTP_POST, [](AsyncWebServerRequest* rq) { handleApiMqttPost(rq); });
+        AsyncCallbackWebHandler &h = ws.on("/api/mqtt", HTTP_POST, [](AsyncWebServerRequest *rq) { handleApiMqttPost(rq); });
         h.addMiddleware(mwApiStaMode());
         h.addMiddleware(mwApiPostCsrf());
     }

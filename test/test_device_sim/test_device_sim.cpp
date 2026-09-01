@@ -224,7 +224,7 @@ void test_sim_disconnect_aborts_pending_publish() {
     TEST_ASSERT_EQUAL_INT(0, dev.localTxCounter());
 }
 
-int main(int, char**) {
+int main(int, char **) {
     UNITY_BEGIN();
     RUN_TEST(test_sim_first_connect_and_pair);
     RUN_TEST(test_sim_disconnect_reconnect_backoff);

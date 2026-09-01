@@ -16,7 +16,7 @@
 
 DEFINE_LOG_TAG("WEBAPI");
 
-void sendOk(AsyncWebServerRequest* req, int code, const char* extraJson) {
+void sendOk(AsyncWebServerRequest *req, int code, const char *extraJson) {
     if (extraJson == nullptr || extraJson[0] == '\0') {
         webSendJson(req, code, "{\"ok\":true}");
         return;
@@ -30,11 +30,10 @@ void sendOk(AsyncWebServerRequest* req, int code, const char* extraJson) {
     webSendJson(req, code, buf);
 }
 
-void sendErr(AsyncWebServerRequest* req, int code, const char* error) {
+void sendErr(AsyncWebServerRequest *req, int code, const char *error) {
     ESP_LOGW(TAG, "API error %d: %s", code, error != nullptr ? error : "error");
     char buf[128];
-    const int n = snprintf(buf, sizeof(buf), "{\"ok\":false,\"error\":\"%s\"}",
-                           error != nullptr ? error : "error");
+    const int n = snprintf(buf, sizeof(buf), "{\"ok\":false,\"error\":\"%s\"}", error != nullptr ? error : "error");
     if (n < 0 || static_cast<size_t>(n) >= sizeof(buf)) {
         webSendJson(req, code, "{\"ok\":false,\"error\":\"error\"}");
         return;
@@ -42,23 +41,21 @@ void sendErr(AsyncWebServerRequest* req, int code, const char* error) {
     webSendJson(req, code, buf);
 }
 
-bool parseFormIntStrict(const String& text, int* out) {
+bool parseFormIntStrict(const String &text, int *out) {
     if (out == nullptr || text.length() == 0U) {
         return false;
     }
     errno = 0;
-    char* end = nullptr;
+    char *end = nullptr;
     const long value = strtol(text.c_str(), &end, 10);
-    if (errno == ERANGE || end == text.c_str() || *end != '\0' || value < INT_MIN
-        || value > INT_MAX) {
+    if (errno == ERANGE || end == text.c_str() || *end != '\0' || value < INT_MIN || value > INT_MAX) {
         return false;
     }
     *out = static_cast<int>(value);
     return true;
 }
 
-
-void adminRoutesRegisterApi(AsyncWebServer& ws) {
+void adminRoutesRegisterApi(AsyncWebServer &ws) {
     adminRoutesRegisterApiDevice(ws);
     adminRoutesRegisterApiChaya(ws);
     adminRoutesRegisterApiWifi(ws);

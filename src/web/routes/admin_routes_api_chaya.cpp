@@ -44,14 +44,13 @@ void handleApiChayaSendPost(AsyncWebServerRequest *req) {
 
 void adminRoutesRegisterApiChaya(AsyncWebServer &ws) {
     {
-        AsyncCallbackWebHandler &h =
-            ws.on("/api/chaya", HTTP_GET, [](AsyncWebServerRequest *rq) { handleApiChayaGet(rq); });
+        AsyncCallbackWebHandler &h = ws.on("/api/chaya", HTTP_GET, [](AsyncWebServerRequest *rq) { handleApiChayaGet(rq); });
         h.addMiddleware(mwRequireAllowedHost());
         h.addMiddleware(mwApiStaMode());
     }
     {
-        AsyncCallbackWebHandler &h = ws.on(
-            "/api/chaya/send", HTTP_POST, [](AsyncWebServerRequest *rq) { handleApiChayaSendPost(rq); });
+        AsyncCallbackWebHandler &h =
+            ws.on("/api/chaya/send", HTTP_POST, [](AsyncWebServerRequest *rq) { handleApiChayaSendPost(rq); });
         h.addMiddleware(mwApiStaMode());
         h.addMiddleware(mwApiPostCsrf());
     }

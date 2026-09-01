@@ -12,9 +12,8 @@ constexpr unsigned long kOtaHealthStableMs = 30000UL;
  * Without @p staConnected, never mark valid — keeps rollback available after a
  * boot that settles offline (ContinueStaOnly / STAB-03).
  */
-inline bool otaHealthWindowElapsed(bool setupComplete, bool bootSettled, bool staConnected,
-                                   unsigned long settledAtMs, unsigned long nowMs,
-                                   unsigned long windowMs = kOtaHealthStableMs) {
+inline bool otaHealthWindowElapsed(bool setupComplete, bool bootSettled, bool staConnected, unsigned long settledAtMs,
+                                   unsigned long nowMs, unsigned long windowMs = kOtaHealthStableMs) {
     if (!setupComplete || !bootSettled || !staConnected || settledAtMs == 0UL) {
         return false;
     }

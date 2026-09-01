@@ -27,7 +27,7 @@ struct HeartCounterDrawSnapshot {
     int heartSentCounterRaw{};
     int sentCountBaselineRaw{};
 };
-void heartCounterFillDrawSnapshot(HeartCounterDrawSnapshot* out);
+void heartCounterFillDrawSnapshot(HeartCounterDrawSnapshot *out);
 
 void loadHeartCounter();
 void counterSuspendNvsSavesForFactoryReset();

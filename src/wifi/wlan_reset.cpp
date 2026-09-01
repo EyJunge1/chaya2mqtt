@@ -4,6 +4,7 @@
 #include "wlan_config.h"
 #include "wlan_internal.h"
 
+#include "async/system_lifecycle.h"
 #include "async/task_handles.h"
 #include "config/nvs_keys.h"
 #include "config/nvs_utils.h"
@@ -12,7 +13,6 @@
 #include "heart/counter.h"
 #include "identity/device_identity.h"
 #include "ota/ota.h"
-#include "async/system_lifecycle.h"
 #include "util/log_tag.h"
 
 #include <Arduino.h>
@@ -47,7 +47,7 @@ static void prepareForResetAndRestart() {
     wlanWifiApiUnlock();
 }
 
-void wlanForceStaReassoc(const char* reasonTag) {
+void wlanForceStaReassoc(const char *reasonTag) {
     if (g_apMode.load(std::memory_order_relaxed) || s_activeWlanConfig.ssid[0] == '\0') {
         return;
     }
@@ -65,8 +65,7 @@ void wlanForceStaReassoc(const char* reasonTag) {
              reasonTag != nullptr ? reasonTag : "n/a", s_activeWlanConfig.ssid,
              static_cast<unsigned>(s_lastStaDisconnectReason.load(std::memory_order_relaxed)),
              haveAp ? static_cast<int>(ap.rssi) : 0, haveAp ? static_cast<unsigned>(ap.primary) : 0U,
-             static_cast<size_t>(esp_get_free_heap_size()),
-             static_cast<size_t>(esp_get_minimum_free_heap_size()),
+             static_cast<size_t>(esp_get_free_heap_size()), static_cast<size_t>(esp_get_minimum_free_heap_size()),
              static_cast<size_t>(heap_caps_get_largest_free_block(MALLOC_CAP_8BIT)));
 
     if (WiFi.getMode() == WIFI_STA || WiFi.getMode() == WIFI_AP_STA) {
@@ -84,7 +83,7 @@ void wlanForceStaReassoc(const char* reasonTag) {
     wlanWifiApiUnlock();
 }
 
-void wlanControlledRestart(const char* reasonTag) {
+void wlanControlledRestart(const char *reasonTag) {
     ESP_LOGE(TAG, "WLAN controlled restart (%s)", reasonTag != nullptr ? reasonTag : "n/a");
     flushAllHeartCountersIfDirty();
     prepareForResetAndRestart();

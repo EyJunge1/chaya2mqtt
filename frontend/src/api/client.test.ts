@@ -101,7 +101,8 @@ describe("api client", () => {
       vi.fn().mockResolvedValue({
         ok: true,
         status: 200,
-        text: async () => JSON.stringify({ status: "ready", aps: [{ ssid: "Home", rssi: -40, open: false }] }),
+        text: async () =>
+          JSON.stringify({ status: "ready", aps: [{ ssid: "Home", rssi: -40, open: false }] }),
       }),
     );
     await expect(api.scanWifi()).resolves.toEqual({

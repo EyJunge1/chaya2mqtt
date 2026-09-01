@@ -8,25 +8,25 @@
 
 struct PackedWifiCredentials {
     uint32_t magic;
-    char     ssid[kWifiSsidMaxLen];
-    char     pass[kWifiPassMaxLen];
+    char ssid[kWifiSsidMaxLen];
+    char pass[kWifiPassMaxLen];
 };
 
 struct PackedWifiConfigV2 {
     uint32_t magic;
-    char     ssid[kWifiSsidMaxLen];
-    char     pass[kWifiPassMaxLen];
-    uint8_t  mode;
-    uint8_t  ip[4];
-    uint8_t  gateway[4];
-    uint8_t  netmask[4];
-    uint8_t  dns1[4];
-    uint8_t  dns2[4];
-    char     ntp1[kWifiNtpHostMaxLen];
-    char     ntp2[kWifiNtpHostMaxLen];
+    char ssid[kWifiSsidMaxLen];
+    char pass[kWifiPassMaxLen];
+    uint8_t mode;
+    uint8_t ip[4];
+    uint8_t gateway[4];
+    uint8_t netmask[4];
+    uint8_t dns1[4];
+    uint8_t dns2[4];
+    char ntp1[kWifiNtpHostMaxLen];
+    char ntp2[kWifiNtpHostMaxLen];
 };
 
-inline void wlanPackOctetsOrZero(const char* dotted, uint8_t out[4]) {
+inline void wlanPackOctetsOrZero(const char *dotted, uint8_t out[4]) {
     if (out == nullptr) {
         return;
     }
@@ -35,7 +35,7 @@ inline void wlanPackOctetsOrZero(const char* dotted, uint8_t out[4]) {
     }
 }
 
-inline void wlanPackCopyOctetsToStr(const uint8_t in[4], char* out, size_t outLen) {
+inline void wlanPackCopyOctetsToStr(const uint8_t in[4], char *out, size_t outLen) {
     if (out == nullptr || outLen == 0U) {
         return;
     }
@@ -47,7 +47,7 @@ inline void wlanPackCopyOctetsToStr(const uint8_t in[4], char* out, size_t outLe
 }
 
 /** Pack validated config into cfg_v2 blob (caller must validate first). */
-inline void wlanPackConfigV2(const WlanConfig& cfg, PackedWifiConfigV2* out) {
+inline void wlanPackConfigV2(const WlanConfig &cfg, PackedWifiConfigV2 *out) {
     if (out == nullptr) {
         return;
     }
@@ -72,7 +72,7 @@ inline void wlanPackConfigV2(const WlanConfig& cfg, PackedWifiConfigV2* out) {
  * Invalid static fields fall back to DHCP (same as firmware NVS path).
  * @return false when magic/SSID invalid.
  */
-inline bool wlanUnpackConfigV2(const PackedWifiConfigV2& pk, WlanConfig* cfg) {
+inline bool wlanUnpackConfigV2(const PackedWifiConfigV2 &pk, WlanConfig *cfg) {
     if (cfg == nullptr || pk.magic != kWifiCfgPackedMagic) {
         return false;
     }
@@ -82,14 +82,13 @@ inline bool wlanUnpackConfigV2(const PackedWifiConfigV2& pk, WlanConfig* cfg) {
     local.pass[sizeof(local.pass) - 1U] = '\0';
     local.ntp1[sizeof(local.ntp1) - 1U] = '\0';
     local.ntp2[sizeof(local.ntp2) - 1U] = '\0';
-    if (local.ssid[0] == '\0' || strnlen(local.ssid, sizeof(local.ssid)) >= sizeof(local.ssid)
-        || strnlen(local.pass, sizeof(local.pass)) >= sizeof(local.pass)) {
+    if (local.ssid[0] == '\0' || strnlen(local.ssid, sizeof(local.ssid)) >= sizeof(local.ssid) ||
+        strnlen(local.pass, sizeof(local.pass)) >= sizeof(local.pass)) {
         return false;
     }
     wlanConfigCopyStr(cfg->ssid, sizeof(cfg->ssid), local.ssid);
     wlanConfigCopyStr(cfg->pass, sizeof(cfg->pass), local.pass);
-    cfg->mode = (local.mode == static_cast<uint8_t>(WlanIpMode::Static)) ? WlanIpMode::Static
-                                                                         : WlanIpMode::Dhcp;
+    cfg->mode = (local.mode == static_cast<uint8_t>(WlanIpMode::Static)) ? WlanIpMode::Static : WlanIpMode::Dhcp;
     wlanPackCopyOctetsToStr(local.ip, cfg->ip, sizeof(cfg->ip));
     wlanPackCopyOctetsToStr(local.gateway, cfg->gateway, sizeof(cfg->gateway));
     wlanPackCopyOctetsToStr(local.netmask, cfg->netmask, sizeof(cfg->netmask));
@@ -97,11 +96,9 @@ inline bool wlanUnpackConfigV2(const PackedWifiConfigV2& pk, WlanConfig* cfg) {
     wlanPackCopyOctetsToStr(local.dns2, cfg->dns2, sizeof(cfg->dns2));
     wlanConfigCopyStr(cfg->ntp1, sizeof(cfg->ntp1), local.ntp1);
     wlanConfigCopyStr(cfg->ntp2, sizeof(cfg->ntp2), local.ntp2);
-    if ((std::strcmp(cfg->ntp1, "pool.ntp.org") == 0
-         && std::strcmp(cfg->ntp2, "time.cloudflare.com") == 0)
-        || (std::strcmp(cfg->ntp1, "time.cloudflare.com") == 0
-            && std::strcmp(cfg->ntp2, "pool.ntp.org") == 0)
-        || (std::strcmp(cfg->ntp1, kWifiDefaultNtp1) == 0 && cfg->ntp2[0] == '\0')) {
+    if ((std::strcmp(cfg->ntp1, "pool.ntp.org") == 0 && std::strcmp(cfg->ntp2, "time.cloudflare.com") == 0) ||
+        (std::strcmp(cfg->ntp1, "time.cloudflare.com") == 0 && std::strcmp(cfg->ntp2, "pool.ntp.org") == 0) ||
+        (std::strcmp(cfg->ntp1, kWifiDefaultNtp1) == 0 && cfg->ntp2[0] == '\0')) {
         cfg->ntp1[0] = cfg->ntp2[0] = '\0';
     }
     if (wlanConfigValidate(cfg) != nullptr && cfg->mode == WlanIpMode::Static) {

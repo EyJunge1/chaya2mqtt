@@ -9,7 +9,7 @@
 /** Warn when free stack high-water drops below this (words → bytes via sizeof). */
 inline constexpr UBaseType_t kStackHighWaterWarnBytes = 512U;
 
-inline void logTaskStackHighWaterPeriodic(const char* tag, uint32_t& counter, uint32_t everyNLoops) {
+inline void logTaskStackHighWaterPeriodic(const char *tag, uint32_t &counter, uint32_t everyNLoops) {
     ++counter;
     if (everyNLoops == 0U || (counter % everyNLoops) != 0U) {
         return;

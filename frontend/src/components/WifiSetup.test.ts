@@ -93,12 +93,10 @@ describe("WifiSetup", () => {
   });
 
   it("starts a sweep on mount when the snapshot is idle", async () => {
-    scanWifi
-      .mockResolvedValueOnce({ status: "idle" })
-      .mockResolvedValue({
-        status: "ready",
-        aps: [{ ssid: "FreshNet", rssi: -40, open: true }],
-      });
+    scanWifi.mockResolvedValueOnce({ status: "idle" }).mockResolvedValue({
+      status: "ready",
+      aps: [{ ssid: "FreshNet", rssi: -40, open: true }],
+    });
 
     render(WifiSetup, {
       props: {

@@ -2,8 +2,8 @@
 #include <unity.h>
 
 #include "ota/github_parse.h"
-#include "ota/ota_url_allow.h"
 #include "ota/ota_health.h"
+#include "ota/ota_url_allow.h"
 #include "ota/version_cmp.h"
 
 void test_ota_health_window() {
@@ -18,8 +18,7 @@ void test_ota_health_window() {
     TEST_ASSERT_TRUE(otaHealthWindowElapsed(true, true, true, 50UL, 50UL + kOtaHealthStableMs));
     // Unsigned wraparound: settledAt near max, now wrapped past window.
     const unsigned long settledNearWrap = ULONG_MAX - 1000UL;
-    TEST_ASSERT_TRUE(otaHealthWindowElapsed(true, true, true, settledNearWrap,
-                                            settledNearWrap + kOtaHealthStableMs));
+    TEST_ASSERT_TRUE(otaHealthWindowElapsed(true, true, true, settledNearWrap, settledNearWrap + kOtaHealthStableMs));
 }
 
 void test_ota_version_compare() {
@@ -46,13 +45,12 @@ void test_ota_version_compare() {
 }
 
 void test_ota_github_release_select() {
-    const char* json =
-        "["
-        "{\"tag_name\":\"v2026.8.2-rc.1\",\"draft\":false,\"prerelease\":true,"
-        "\"assets\":[{\"name\":\"firmware.bin\"},{\"name\":\"firmware.sha256\"}]},"
-        "{\"tag_name\":\"v2026.8.1\",\"draft\":false,\"prerelease\":false,"
-        "\"assets\":[{\"name\":\"firmware.bin\"},{\"name\":\"firmware.sha256\"}]}"
-        "]";
+    const char *json = "["
+                       "{\"tag_name\":\"v2026.8.2-rc.1\",\"draft\":false,\"prerelease\":true,"
+                       "\"assets\":[{\"name\":\"firmware.bin\"},{\"name\":\"firmware.sha256\"}]},"
+                       "{\"tag_name\":\"v2026.8.1\",\"draft\":false,\"prerelease\":false,"
+                       "\"assets\":[{\"name\":\"firmware.bin\"},{\"name\":\"firmware.sha256\"}]}"
+                       "]";
 
     char tag[64]{};
     bool isPre = false;
@@ -64,8 +62,7 @@ void test_ota_github_release_select() {
     TEST_ASSERT_EQUAL_STRING("v2026.8.1", tag);
     TEST_ASSERT_FALSE(isPre);
 
-    const char* onlyStable =
-        "[{\"tag_name\":\"v2026.8.1\",\"draft\":false,\"prerelease\":false}]";
+    const char *onlyStable = "[{\"tag_name\":\"v2026.8.1\",\"draft\":false,\"prerelease\":false}]";
     TEST_ASSERT_TRUE(otaSelectReleaseFromListJson(onlyStable, true, tag, sizeof(tag), &isPre));
     TEST_ASSERT_EQUAL_STRING("v2026.8.1", tag);
     TEST_ASSERT_FALSE(isPre);
@@ -73,90 +70,72 @@ void test_ota_github_release_select() {
     TEST_ASSERT_TRUE(otaJsonHasAssetName(json, "firmware.bin"));
     TEST_ASSERT_TRUE(otaJsonHasAssetName(json, "firmware.sha256"));
     TEST_ASSERT_FALSE(otaJsonHasAssetName(json, "missing.bin"));
-    TEST_ASSERT_FALSE(otaJsonHasAssetName(
-        "{\"name\":\"firmware.sha256\",\"assets\":[{\"name\":\"firmware.bin\"}]}",
-        "firmware.sha256"));
-    TEST_ASSERT_FALSE(otaJsonHasAssetName(
-        "{\"assets\":[{\"name\":\"firmware.bin\","
-        "\"uploader\":{\"name\":\"firmware.sha256\"}}]}",
-        "firmware.sha256"));
+    TEST_ASSERT_FALSE(
+        otaJsonHasAssetName("{\"name\":\"firmware.sha256\",\"assets\":[{\"name\":\"firmware.bin\"}]}", "firmware.sha256"));
+    TEST_ASSERT_FALSE(otaJsonHasAssetName("{\"assets\":[{\"name\":\"firmware.bin\","
+                                          "\"uploader\":{\"name\":\"firmware.sha256\"}}]}",
+                                          "firmware.sha256"));
 
-    const char* withDraft =
-        "["
-        "{\"tag_name\":\"v2026.9.1-rc.1\",\"draft\":true,\"prerelease\":true},"
-        "{\"tag_name\":\"v2026.9.1-rc.2\",\"draft\":false,\"prerelease\":true}"
-        "]";
+    const char *withDraft = "["
+                            "{\"tag_name\":\"v2026.9.1-rc.1\",\"draft\":true,\"prerelease\":true},"
+                            "{\"tag_name\":\"v2026.9.1-rc.2\",\"draft\":false,\"prerelease\":true}"
+                            "]";
     TEST_ASSERT_TRUE(otaSelectReleaseFromListJson(withDraft, true, tag, sizeof(tag), &isPre));
     TEST_ASSERT_EQUAL_STRING("v2026.9.1-rc.2", tag);
 
-    const char* unordered =
-        "["
-        "{\"body\":\"escaped tag_name v9999.1.1\","
-        "\"prerelease\":true,\"draft\":false,\"tag_name\":\"v2026.7.1-rc.1\"},"
-        "{\"draft\":false,\"tag_name\":\"v2026.9.1-rc.3\",\"prerelease\":true},"
-        "{\"prerelease\":true,\"tag_name\":\"v2026.9.1-rc.2\",\"draft\":false}"
-        "]";
+    const char *unordered = "["
+                            "{\"body\":\"escaped tag_name v9999.1.1\","
+                            "\"prerelease\":true,\"draft\":false,\"tag_name\":\"v2026.7.1-rc.1\"},"
+                            "{\"draft\":false,\"tag_name\":\"v2026.9.1-rc.3\",\"prerelease\":true},"
+                            "{\"prerelease\":true,\"tag_name\":\"v2026.9.1-rc.2\",\"draft\":false}"
+                            "]";
     TEST_ASSERT_TRUE(otaSelectReleaseFromListJson(unordered, true, tag, sizeof(tag), &isPre));
     TEST_ASSERT_EQUAL_STRING("v2026.9.1-rc.3", tag);
 
     bool value = false;
     TEST_ASSERT_FALSE(otaParseJsonBoolField("{\"draft\":trueish}", "draft", &value));
-    TEST_ASSERT_TRUE(
-        otaParseJsonBoolField("{\"nested\":{\"draft\":true},\"draft\":false}", "draft", &value));
+    TEST_ASSERT_TRUE(otaParseJsonBoolField("{\"nested\":{\"draft\":true},\"draft\":false}", "draft", &value));
     TEST_ASSERT_FALSE(value);
     char escaped[32]{};
-    TEST_ASSERT_TRUE(
-        otaParseJsonStringField("{\"tag_name\":\"v2026.8.1\\\"x\"}", "tag_name", escaped,
-                                sizeof(escaped)));
+    TEST_ASSERT_TRUE(otaParseJsonStringField("{\"tag_name\":\"v2026.8.1\\\"x\"}", "tag_name", escaped, sizeof(escaped)));
     TEST_ASSERT_EQUAL_STRING("v2026.8.1\"x", escaped);
 }
 
 void test_ota_download_url_allowlist() {
     TEST_ASSERT_TRUE(otaReleaseDownloadUrlAllowed(
-        "https://github.com/EyJunge1/chaya2mqtt/releases/download/v2026.8.1/firmware.bin",
-        OtaDownloadAsset::Firmware));
-    TEST_ASSERT_TRUE(otaReleaseDownloadUrlAllowed(
-        "https://github.com/EyJunge1/chaya2mqtt/releases/download/v2026.8.1-rc.1/"
-        "firmware.sha256",
-        OtaDownloadAsset::Sha256));
+        "https://github.com/EyJunge1/chaya2mqtt/releases/download/v2026.8.1/firmware.bin", OtaDownloadAsset::Firmware));
+    TEST_ASSERT_TRUE(otaReleaseDownloadUrlAllowed("https://github.com/EyJunge1/chaya2mqtt/releases/download/v2026.8.1-rc.1/"
+                                                  "firmware.sha256",
+                                                  OtaDownloadAsset::Sha256));
     TEST_ASSERT_FALSE(otaReleaseDownloadUrlAllowed(
-        "http://github.com/EyJunge1/chaya2mqtt/releases/download/v2026.8.1/firmware.bin",
-        OtaDownloadAsset::Firmware));
+        "http://github.com/EyJunge1/chaya2mqtt/releases/download/v2026.8.1/firmware.bin", OtaDownloadAsset::Firmware));
     TEST_ASSERT_FALSE(otaReleaseDownloadUrlAllowed(
-        "https://evil.example/EyJunge1/chaya2mqtt/releases/download/v2026.8.1/firmware.bin",
-        OtaDownloadAsset::Firmware));
+        "https://evil.example/EyJunge1/chaya2mqtt/releases/download/v2026.8.1/firmware.bin", OtaDownloadAsset::Firmware));
     TEST_ASSERT_FALSE(otaReleaseDownloadUrlAllowed(
-        "https://github.com/EyJunge1/chaya2mqtt/releases/download/v2026.08.1/firmware.bin",
-        OtaDownloadAsset::Firmware));
+        "https://github.com/EyJunge1/chaya2mqtt/releases/download/v2026.08.1/firmware.bin", OtaDownloadAsset::Firmware));
+    TEST_ASSERT_FALSE(otaReleaseDownloadUrlAllowed("https://github.com/EyJunge1/chaya2mqtt/releases/download/v2026.8.1/"
+                                                   "firmware.factory.bin",
+                                                   OtaDownloadAsset::Firmware));
     TEST_ASSERT_FALSE(otaReleaseDownloadUrlAllowed(
-        "https://github.com/EyJunge1/chaya2mqtt/releases/download/v2026.8.1/"
-        "firmware.factory.bin",
-        OtaDownloadAsset::Firmware));
+        "https://github.com/EyJunge1/chaya2mqtt/releases/download/v2026.8.1/../firmware.bin", OtaDownloadAsset::Firmware));
     TEST_ASSERT_FALSE(otaReleaseDownloadUrlAllowed(
-        "https://github.com/EyJunge1/chaya2mqtt/releases/download/v2026.8.1/../firmware.bin",
-        OtaDownloadAsset::Firmware));
+        "https://github.com/EyJunge1/chaya2mqtt/releases/download/v2026.8.1/firmware.bin?x=1", OtaDownloadAsset::Firmware));
     TEST_ASSERT_FALSE(otaReleaseDownloadUrlAllowed(
-        "https://github.com/EyJunge1/chaya2mqtt/releases/download/v2026.8.1/firmware.bin?x=1",
-        OtaDownloadAsset::Firmware));
-    TEST_ASSERT_FALSE(otaReleaseDownloadUrlAllowed(
-        "https://github.com/EyJunge1/chaya2mqtt/releases/download/v2026.8.1/firmware.bin#frag",
-        OtaDownloadAsset::Firmware));
+        "https://github.com/EyJunge1/chaya2mqtt/releases/download/v2026.8.1/firmware.bin#frag", OtaDownloadAsset::Firmware));
 
-    TEST_ASSERT_TRUE(otaReleaseDownloadRedirectUrlAllowed(
-        "https://github.com/EyJunge1/chaya2mqtt/releases/download/v2026.8.1/firmware.bin"));
-    TEST_ASSERT_TRUE(otaReleaseDownloadRedirectUrlAllowed(
-        "https://objects.githubusercontent.com/github-production-release-asset/1/abc"));
+    TEST_ASSERT_TRUE(
+        otaReleaseDownloadRedirectUrlAllowed("https://github.com/EyJunge1/chaya2mqtt/releases/download/v2026.8.1/firmware.bin"));
+    TEST_ASSERT_TRUE(
+        otaReleaseDownloadRedirectUrlAllowed("https://objects.githubusercontent.com/github-production-release-asset/1/abc"));
     TEST_ASSERT_TRUE(otaReleaseDownloadRedirectUrlAllowed(
         "https://release-assets.githubusercontent.com/github-production-release-asset/1/abc?sig=x"));
-    TEST_ASSERT_FALSE(otaReleaseDownloadRedirectUrlAllowed(
-        "http://objects.githubusercontent.com/github-production-release-asset/1/abc"));
-    TEST_ASSERT_FALSE(otaReleaseDownloadRedirectUrlAllowed(
-        "https://evil.example/objects.githubusercontent.com/x"));
-    TEST_ASSERT_FALSE(otaReleaseDownloadRedirectUrlAllowed(
-        "https://user:pass@objects.githubusercontent.com/x"));
+    TEST_ASSERT_FALSE(
+        otaReleaseDownloadRedirectUrlAllowed("http://objects.githubusercontent.com/github-production-release-asset/1/abc"));
+    TEST_ASSERT_FALSE(otaReleaseDownloadRedirectUrlAllowed("https://evil.example/objects.githubusercontent.com/x"));
+    TEST_ASSERT_FALSE(otaReleaseDownloadRedirectUrlAllowed("https://user:pass@objects.githubusercontent.com/x"));
 }
 
-int main(int, char**) {
+int main(int, char **) {
     UNITY_BEGIN();
     RUN_TEST(test_ota_version_compare);
     RUN_TEST(test_ota_github_release_select);

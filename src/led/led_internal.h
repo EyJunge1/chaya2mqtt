@@ -28,8 +28,8 @@ enum class LedTxPhase : uint8_t {
 };
 
 extern std::atomic<LedTxPhase> ledTxPhase;
-extern unsigned long           ledPhaseStartMs;
-extern unsigned long           ledPhaseDurationMs;
+extern unsigned long ledPhaseStartMs;
+extern unsigned long ledPhaseDurationMs;
 
 void armLedPhase(unsigned long durationMs);
 void ledOutput(int level);

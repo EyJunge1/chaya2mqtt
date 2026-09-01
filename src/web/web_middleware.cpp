@@ -16,7 +16,7 @@ constexpr unsigned long kMwCsrfRejectLogMinIntervalMs = 10000UL;
 
 std::atomic<unsigned long> s_lastCsrf403Ms{0};
 
-bool mwShouldLogThrottle(unsigned long nowMs, std::atomic<unsigned long>& lastLoggedMs) {
+bool mwShouldLogThrottle(unsigned long nowMs, std::atomic<unsigned long> &lastLoggedMs) {
     const unsigned long prev = lastLoggedMs.load(std::memory_order_relaxed);
     if (prev != 0U && nowMs - prev < kMwCsrfRejectLogMinIntervalMs) {
         return false;
@@ -25,7 +25,7 @@ bool mwShouldLogThrottle(unsigned long nowMs, std::atomic<unsigned long>& lastLo
     return true;
 }
 
-bool mwRejectIfHostOrOriginBad(AsyncWebServerRequest* req) {
+bool mwRejectIfHostOrOriginBad(AsyncWebServerRequest *req) {
     if (!webRequestHostAllowed(req) || !webRequestOriginAllowed(req)) {
         webSendEmpty(req, 403);
         return true;
@@ -35,7 +35,7 @@ bool mwRejectIfHostOrOriginBad(AsyncWebServerRequest* req) {
 } // namespace
 
 ArMiddlewareCallback mwRequireAllowedHost() {
-    return [](AsyncWebServerRequest* req, ArMiddlewareNext next) {
+    return [](AsyncWebServerRequest *req, ArMiddlewareNext next) {
         if (!webRequestHostAllowed(req)) {
             webSendEmpty(req, 403);
             return;
@@ -45,7 +45,7 @@ ArMiddlewareCallback mwRequireAllowedHost() {
 }
 
 ArMiddlewareCallback mwApiPostCsrf() {
-    return [](AsyncWebServerRequest* req, ArMiddlewareNext next) {
+    return [](AsyncWebServerRequest *req, ArMiddlewareNext next) {
         const unsigned long nowMs = millis();
         if (mwRejectIfHostOrOriginBad(req)) {
             return;
@@ -62,7 +62,7 @@ ArMiddlewareCallback mwApiPostCsrf() {
 }
 
 ArMiddlewareCallback mwApiApPostCsrf() {
-    return [](AsyncWebServerRequest* req, ArMiddlewareNext next) {
+    return [](AsyncWebServerRequest *req, ArMiddlewareNext next) {
         if (mwRejectIfHostOrOriginBad(req)) {
             return;
         }
@@ -79,7 +79,7 @@ ArMiddlewareCallback mwApiApPostCsrf() {
 }
 
 ArMiddlewareCallback mwApiStaMode() {
-    return [](AsyncWebServerRequest* req, ArMiddlewareNext next) {
+    return [](AsyncWebServerRequest *req, ArMiddlewareNext next) {
         if (configIsApMode()) {
             webSendJson(req, 400, "{\"ok\":false,\"error\":\"ap_mode\"}");
             return;
@@ -89,7 +89,7 @@ ArMiddlewareCallback mwApiStaMode() {
 }
 
 ArMiddlewareCallback mwApiApMode() {
-    return [](AsyncWebServerRequest* req, ArMiddlewareNext next) {
+    return [](AsyncWebServerRequest *req, ArMiddlewareNext next) {
         if (!webRequestHostAllowed(req)) {
             webSendEmpty(req, 403);
             return;

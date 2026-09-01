@@ -2,9 +2,9 @@
 
 #include <ESPAsyncWebServer.h>
 
-void adminRoutesRegisterApi(AsyncWebServer& ws);
+void adminRoutesRegisterApi(AsyncWebServer &ws);
 
 /** OS captive-portal probes (AP mode); register before SPA onNotFound. */
-void adminRoutesRegisterCaptive(AsyncWebServer& ws);
+void adminRoutesRegisterCaptive(AsyncWebServer &ws);
 
-void adminRoutesRegisterSpa(AsyncWebServer& ws);
+void adminRoutesRegisterSpa(AsyncWebServer &ws);

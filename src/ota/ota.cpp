@@ -1,17 +1,17 @@
 #include "ota.h"
 
-#include "github.h"
 #include "flash.h"
+#include "github.h"
 #include "ota_task.h"
 
+#include "async/sse_dirty.h"
 #include "battery/battery.h"
 #include "battery/battery_config.h"
-#include "async/sse_dirty.h"
 #include "config/nvs_keys.h"
 #include "config/nvs_utils.h"
+#include "config/version.h"
 #include "constants.h"
 #include "heart/counter.h"
-#include "config/version.h"
 #include "wifi/wlan.h"
 
 #include <Arduino.h>
@@ -27,9 +27,7 @@
 DEFINE_LOG_TAG("OTA");
 
 // Defer Arduino auto-mark in initArduino(); health gate marks later.
-extern "C" bool verifyRollbackLater() {
-    return true;
-}
+extern "C" bool verifyRollbackLater() { return true; }
 
 namespace {
 
@@ -41,39 +39,37 @@ std::atomic<bool> s_otaHealthGateDone{false};
 
 portMUX_TYPE s_otaMux = portMUX_INITIALIZER_UNLOCKED;
 
-OtaStatus      s_status{};
+OtaStatus s_status{};
 OtaReleaseInfo s_pendingRelease{};
-bool           s_havePendingRelease = false;
+bool s_havePendingRelease = false;
 
-uint32_t                s_cachedNvUpdateDay     = UINT32_MAX;
-bool                    s_nvUpdateDayCacheValid = false;
-std::atomic<bool>       s_channelLoaded{false};
+uint32_t s_cachedNvUpdateDay = UINT32_MAX;
+bool s_nvUpdateDayCacheValid = false;
+std::atomic<bool> s_channelLoaded{false};
 std::atomic<OtaChannel> s_channel{OtaChannel::Stable};
 
-const char* phaseName(OtaPhase p) {
+const char *phaseName(OtaPhase p) {
     switch (p) {
-        case OtaPhase::Idle:
-            return "idle";
-        case OtaPhase::Checking:
-            return "checking";
-        case OtaPhase::Available:
-            return "available";
-        case OtaPhase::Downloading:
-            return "downloading";
-        case OtaPhase::Verifying:
-            return "verifying";
-        case OtaPhase::Rebooting:
-            return "rebooting";
-        case OtaPhase::Error:
-            return "error";
-        default:
-            return "idle";
+    case OtaPhase::Idle:
+        return "idle";
+    case OtaPhase::Checking:
+        return "checking";
+    case OtaPhase::Available:
+        return "available";
+    case OtaPhase::Downloading:
+        return "downloading";
+    case OtaPhase::Verifying:
+        return "verifying";
+    case OtaPhase::Rebooting:
+        return "rebooting";
+    case OtaPhase::Error:
+        return "error";
+    default:
+        return "idle";
     }
 }
 
-const char* channelName(OtaChannel c) {
-    return c == OtaChannel::Beta ? "beta" : "stable";
-}
+const char *channelName(OtaChannel c) { return c == OtaChannel::Beta ? "beta" : "stable"; }
 
 void bumpLocked() {
     ++s_status.generation;
@@ -85,10 +81,10 @@ void setPhaseLocked(OtaPhase phase) {
     bumpLocked();
 }
 
-void setErrorLocked(const char* code) {
+void setErrorLocked(const char *code) {
     s_status.phase = OtaPhase::Error;
     strlcpy(s_status.error, code != nullptr ? code : "error", sizeof(s_status.error));
-    s_status.bytesDone  = 0;
+    s_status.bytesDone = 0;
     s_status.bytesTotal = 0;
     bumpLocked();
 }
@@ -105,8 +101,7 @@ void loadChannelIfNeeded() {
     }
     char buf[16]{};
     (void)app_nvs::readString(kNvsNsCfg, kNvsKeyCfgUpdChan, buf, sizeof(buf));
-    const OtaChannel loaded =
-        (strcmp(buf, "beta") == 0) ? OtaChannel::Beta : OtaChannel::Stable;
+    const OtaChannel loaded = (strcmp(buf, "beta") == 0) ? OtaChannel::Beta : OtaChannel::Stable;
     portENTER_CRITICAL(&s_otaMux);
     if (!s_channelLoaded.load(std::memory_order_relaxed)) {
         s_channel.store(loaded, std::memory_order_relaxed);
@@ -118,7 +113,7 @@ void loadChannelIfNeeded() {
 }
 
 bool otaPartitionPendingVerify() {
-    const esp_partition_t* running = esp_ota_get_running_partition();
+    const esp_partition_t *running = esp_ota_get_running_partition();
     if (running == nullptr) {
         return false;
     }
@@ -142,7 +137,7 @@ bool otaMarkFirmwareValidIfPendingVerify() {
     return true;
 }
 
-void nvLoadLastUpdateCalendarDay(uint32_t* outDayUtc) {
+void nvLoadLastUpdateCalendarDay(uint32_t *outDayUtc) {
     if (outDayUtc == nullptr) {
         return;
     }
@@ -154,21 +149,19 @@ void nvSaveLastUpdateCalendarDay(uint32_t dayUtc) {
         ESP_LOGE(TAG, "NVS cfg: failed to persist upd_day");
         return;
     }
-    s_cachedNvUpdateDay     = dayUtc;
+    s_cachedNvUpdateDay = dayUtc;
     s_nvUpdateDayCacheValid = true;
 }
 
 bool isBusyPhase(OtaPhase p) {
-    return p == OtaPhase::Checking || p == OtaPhase::Downloading || p == OtaPhase::Verifying
-           || p == OtaPhase::Rebooting;
+    return p == OtaPhase::Checking || p == OtaPhase::Downloading || p == OtaPhase::Verifying || p == OtaPhase::Rebooting;
 }
 
 void runGithubCheck(bool manual) {
     loadChannelIfNeeded();
     const OtaChannel channel = s_channel.load(std::memory_order_acquire);
     const unsigned long startedMs = millis();
-    ESP_LOGI(TAG, "%s update check started (channel=%s)",
-             manual ? "Manual" : "Automatic", channelName(channel));
+    ESP_LOGI(TAG, "%s update check started (channel=%s)", manual ? "Manual" : "Automatic", channelName(channel));
 
     portENTER_CRITICAL(&s_otaMux);
     if (isBusyPhase(s_status.phase) && s_status.phase != OtaPhase::Checking) {
@@ -176,13 +169,13 @@ void runGithubCheck(bool manual) {
         ESP_LOGW(TAG, "OTA check skipped — busy");
         return;
     }
-    s_havePendingRelease         = false;
-    s_pendingRelease             = OtaReleaseInfo{};
+    s_havePendingRelease = false;
+    s_pendingRelease = OtaReleaseInfo{};
     s_status.availableVersion[0] = '\0';
-    s_status.error[0]            = '\0';
-    s_status.bytesDone           = 0;
-    s_status.bytesTotal          = 0;
-    s_status.channel             = channel;
+    s_status.error[0] = '\0';
+    s_status.bytesDone = 0;
+    s_status.bytesTotal = 0;
+    s_status.channel = channel;
     ensureLocalVersionLocked();
     setPhaseLocked(OtaPhase::Checking);
     g_otaCheckInProgress.store(true, std::memory_order_release);
@@ -198,12 +191,12 @@ void runGithubCheck(bool manual) {
     if (gr == GithubCheckResult::ApiError) {
         setErrorLocked("api_error");
     } else if (gr == GithubCheckResult::ParsedUpgradeAvail) {
-        s_pendingRelease     = info;
+        s_pendingRelease = info;
         s_havePendingRelease = true;
         strlcpy(s_status.availableVersion, info.version, sizeof(s_status.availableVersion));
         setPhaseLocked(OtaPhase::Available);
     } else {
-        s_havePendingRelease         = false;
+        s_havePendingRelease = false;
         s_status.availableVersion[0] = '\0';
         setPhaseLocked(OtaPhase::Idle);
     }
@@ -211,9 +204,8 @@ void runGithubCheck(bool manual) {
 
     if (manual) {
         ESP_LOGI(TAG, "Manual update check done (%s, %lu ms)",
-                 gr == GithubCheckResult::ParsedUpgradeAvail
-                     ? "available"
-                     : (gr == GithubCheckResult::ApiError ? "error" : "up_to_date"),
+                 gr == GithubCheckResult::ParsedUpgradeAvail ? "available"
+                                                             : (gr == GithubCheckResult::ApiError ? "error" : "up_to_date"),
                  millis() - startedMs);
     } else if (gr == GithubCheckResult::ApiError) {
         ESP_LOGE(TAG, "Update check failed");
@@ -225,8 +217,7 @@ void runGithubCheck(bool manual) {
 void runInstall() {
     OtaReleaseInfo release{};
     portENTER_CRITICAL(&s_otaMux);
-    if (!s_havePendingRelease
-        || (s_status.phase != OtaPhase::Available && s_status.phase != OtaPhase::Error)) {
+    if (!s_havePendingRelease || (s_status.phase != OtaPhase::Available && s_status.phase != OtaPhase::Error)) {
         portEXIT_CRITICAL(&s_otaMux);
         ESP_LOGW(TAG, "OTA install ignored — no pending release");
         return;
@@ -240,8 +231,7 @@ void runInstall() {
         portENTER_CRITICAL(&s_otaMux);
         setErrorLocked("battery_low");
         if (s_havePendingRelease) {
-            strlcpy(s_status.availableVersion, s_pendingRelease.version,
-                    sizeof(s_status.availableVersion));
+            strlcpy(s_status.availableVersion, s_pendingRelease.version, sizeof(s_status.availableVersion));
         }
         portEXIT_CRITICAL(&s_otaMux);
         ESP_LOGW(TAG, "OTA install blocked — battery below %d%%", kBatteryOtaMinPct);
@@ -249,8 +239,8 @@ void runInstall() {
     }
 
     portENTER_CRITICAL(&s_otaMux);
-    s_status.error[0]   = '\0';
-    s_status.bytesDone  = 0;
+    s_status.error[0] = '\0';
+    s_status.bytesDone = 0;
     s_status.bytesTotal = 0;
     setPhaseLocked(OtaPhase::Downloading);
     g_otaFlashInProgress.store(true, std::memory_order_release);
@@ -266,8 +256,7 @@ void runInstall() {
         portENTER_CRITICAL(&s_otaMux);
         setErrorLocked("install_failed");
         if (s_havePendingRelease) {
-            strlcpy(s_status.availableVersion, s_pendingRelease.version,
-                    sizeof(s_status.availableVersion));
+            strlcpy(s_status.availableVersion, s_pendingRelease.version, sizeof(s_status.availableVersion));
         }
         portEXIT_CRITICAL(&s_otaMux);
         ESP_LOGE(TAG, "OTA aborted (no reboot)");
@@ -325,8 +314,8 @@ void maybeDailyCheck() {
 
 void otaNotifyFlashProgress(uint32_t done, uint32_t total) {
     portENTER_CRITICAL(&s_otaMux);
-    s_status.phase      = OtaPhase::Downloading;
-    s_status.bytesDone  = done;
+    s_status.phase = OtaPhase::Downloading;
+    s_status.bytesDone = done;
     s_status.bytesTotal = total;
     bumpLocked();
     portEXIT_CRITICAL(&s_otaMux);
@@ -354,19 +343,16 @@ void otaTryMarkValidAfterHealthCheck() {
     }
 }
 
-bool otaFlashInProgress() {
-    return g_otaFlashInProgress.load(std::memory_order_acquire);
-}
+bool otaFlashInProgress() { return g_otaFlashInProgress.load(std::memory_order_acquire); }
 
 bool otaBlocksDestructiveAction() {
-    return otaFlashInProgress() || g_otaCheckInProgress.load(std::memory_order_acquire)
-           || g_otaCheckRequested.load(std::memory_order_acquire)
-           || g_otaInstallRequested.load(std::memory_order_acquire);
+    return otaFlashInProgress() || g_otaCheckInProgress.load(std::memory_order_acquire) ||
+           g_otaCheckRequested.load(std::memory_order_acquire) || g_otaInstallRequested.load(std::memory_order_acquire);
 }
 
 bool otaSetChannel(OtaChannel channel) {
     loadChannelIfNeeded();
-    const char* name = channelName(channel);
+    const char *name = channelName(channel);
     if (!app_nvs::writeString(kNvsNsCfg, kNvsKeyCfgUpdChan, name)) {
         ESP_LOGE(TAG, "NVS cfg: failed to persist upd_chan");
         return false;
@@ -385,7 +371,7 @@ OtaChannel otaGetChannel() {
     return s_channel.load(std::memory_order_acquire);
 }
 
-void otaCopyStatus(OtaStatus* out) {
+void otaCopyStatus(OtaStatus *out) {
     if (out == nullptr) {
         return;
     }
@@ -396,20 +382,19 @@ void otaCopyStatus(OtaStatus* out) {
     portEXIT_CRITICAL(&s_otaMux);
 }
 
-size_t otaFormatStatusJson(char* buf, size_t bufLen) {
+size_t otaFormatStatusJson(char *buf, size_t bufLen) {
     if (buf == nullptr || bufLen < 32U) {
         return 0;
     }
     OtaStatus st{};
     otaCopyStatus(&st);
-    const int n = snprintf(
-        buf, bufLen,
-        "{\"phase\":\"%s\",\"channel\":\"%s\",\"localVersion\":\"%s\","
-        "\"availableVersion\":\"%s\",\"bytesDone\":%u,\"bytesTotal\":%u,"
-        "\"error\":\"%s\",\"generation\":%u}",
-        phaseName(st.phase), channelName(st.channel), st.localVersion, st.availableVersion,
-        static_cast<unsigned>(st.bytesDone), static_cast<unsigned>(st.bytesTotal), st.error,
-        static_cast<unsigned>(st.generation));
+    const int n = snprintf(buf, bufLen,
+                           "{\"phase\":\"%s\",\"channel\":\"%s\",\"localVersion\":\"%s\","
+                           "\"availableVersion\":\"%s\",\"bytesDone\":%u,\"bytesTotal\":%u,"
+                           "\"error\":\"%s\",\"generation\":%u}",
+                           phaseName(st.phase), channelName(st.channel), st.localVersion, st.availableVersion,
+                           static_cast<unsigned>(st.bytesDone), static_cast<unsigned>(st.bytesTotal), st.error,
+                           static_cast<unsigned>(st.generation));
     if (n < 0 || static_cast<size_t>(n) >= bufLen) {
         return 0;
     }
@@ -419,12 +404,12 @@ size_t otaFormatStatusJson(char* buf, size_t bufLen) {
 void otaQueueGithubCheck() {
     loadChannelIfNeeded();
     portENTER_CRITICAL(&s_otaMux);
-    s_havePendingRelease         = false;
-    s_pendingRelease             = OtaReleaseInfo{};
+    s_havePendingRelease = false;
+    s_pendingRelease = OtaReleaseInfo{};
     s_status.availableVersion[0] = '\0';
-    s_status.error[0]            = '\0';
-    s_status.bytesDone           = 0;
-    s_status.bytesTotal          = 0;
+    s_status.error[0] = '\0';
+    s_status.bytesDone = 0;
+    s_status.bytesTotal = 0;
     setPhaseLocked(OtaPhase::Checking);
     portEXIT_CRITICAL(&s_otaMux);
     g_otaCheckRequested.store(true, std::memory_order_release);
@@ -447,11 +432,10 @@ void otaQueueInstall() {
 void otaLoop() {
     if (g_otaCheckRequested.exchange(false, std::memory_order_acq_rel)) {
         const time_t utcNow = time(nullptr);
-        const bool   ntpOk  = ntpTimeLooksSynced(utcNow);
+        const bool ntpOk = ntpTimeLooksSynced(utcNow);
         if (!ntpOk) {
-            ESP_LOGW(TAG,
-                     "Manual update check: wall-clock not plausible (NTP?) — checking GitHub "
-                     "anyway");
+            ESP_LOGW(TAG, "Manual update check: wall-clock not plausible (NTP?) — checking GitHub "
+                          "anyway");
         }
         runGithubCheck(true);
         if (ntpOk && wlanStaConnectedOk() && !configIsApMode()) {
@@ -459,8 +443,7 @@ void otaLoop() {
             const bool ok = s_status.phase != OtaPhase::Error;
             portEXIT_CRITICAL(&s_otaMux);
             if (ok) {
-                const uint32_t todayUtcDay =
-                    calendarDaySinceEpochUtc(utcNow > 0 ? utcNow : 0);
+                const uint32_t todayUtcDay = calendarDaySinceEpochUtc(utcNow > 0 ? utcNow : 0);
                 nvSaveLastUpdateCalendarDay(todayUtcDay);
             }
         }

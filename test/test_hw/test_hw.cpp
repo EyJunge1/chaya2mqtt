@@ -1,7 +1,8 @@
 #include <unity.h>
 
-#include "audio/audio_pure.h"
 #include "async/queue_coalesce_pure.h"
+#include "audio/audio_pure.h"
+#include "battery/battery_pure.h"
 #include "button/button_debounce_pure.h"
 #include "button/button_soft_off_pure.h"
 #include "display/display_config.h"
@@ -9,7 +10,6 @@
 #include "display/display_refresh_pure.h"
 #include "display/draw_pure.h"
 #include "display/view_state.h"
-#include "battery/battery_pure.h"
 #include "led/led_pattern_pure.h"
 
 void test_battery_pct_curve() {
@@ -41,43 +41,28 @@ void test_audio_playback_gates() {
 }
 
 void test_display_battery_colors() {
-    TEST_ASSERT_EQUAL_INT(static_cast<int>(DisplayBatteryColor::Red),
-                          static_cast<int>(displayBatteryColor(0)));
-    TEST_ASSERT_EQUAL_INT(static_cast<int>(DisplayBatteryColor::Red),
-                          static_cast<int>(displayBatteryColor(14)));
-    TEST_ASSERT_EQUAL_INT(static_cast<int>(DisplayBatteryColor::Yellow),
-                          static_cast<int>(displayBatteryColor(15)));
-    TEST_ASSERT_EQUAL_INT(static_cast<int>(DisplayBatteryColor::Yellow),
-                          static_cast<int>(displayBatteryColor(39)));
-    TEST_ASSERT_EQUAL_INT(static_cast<int>(DisplayBatteryColor::Black),
-                          static_cast<int>(displayBatteryColor(40)));
-    TEST_ASSERT_EQUAL_INT(static_cast<int>(DisplayBatteryColor::Black),
-                          static_cast<int>(displayBatteryColor(100)));
+    TEST_ASSERT_EQUAL_INT(static_cast<int>(DisplayBatteryColor::Red), static_cast<int>(displayBatteryColor(0)));
+    TEST_ASSERT_EQUAL_INT(static_cast<int>(DisplayBatteryColor::Red), static_cast<int>(displayBatteryColor(14)));
+    TEST_ASSERT_EQUAL_INT(static_cast<int>(DisplayBatteryColor::Yellow), static_cast<int>(displayBatteryColor(15)));
+    TEST_ASSERT_EQUAL_INT(static_cast<int>(DisplayBatteryColor::Yellow), static_cast<int>(displayBatteryColor(39)));
+    TEST_ASSERT_EQUAL_INT(static_cast<int>(DisplayBatteryColor::Black), static_cast<int>(displayBatteryColor(40)));
+    TEST_ASSERT_EQUAL_INT(static_cast<int>(DisplayBatteryColor::Black), static_cast<int>(displayBatteryColor(100)));
 }
 
 void test_display_battery_icons() {
-    TEST_ASSERT_EQUAL_INT(static_cast<int>(DisplayBatteryIcon::Empty),
-                          static_cast<int>(displayBatteryIcon(0)));
-    TEST_ASSERT_EQUAL_INT(static_cast<int>(DisplayBatteryIcon::Empty),
-                          static_cast<int>(displayBatteryIcon(14)));
-    TEST_ASSERT_EQUAL_INT(static_cast<int>(DisplayBatteryIcon::Low),
-                          static_cast<int>(displayBatteryIcon(15)));
-    TEST_ASSERT_EQUAL_INT(static_cast<int>(DisplayBatteryIcon::Low),
-                          static_cast<int>(displayBatteryIcon(39)));
-    TEST_ASSERT_EQUAL_INT(static_cast<int>(DisplayBatteryIcon::Medium),
-                          static_cast<int>(displayBatteryIcon(40)));
-    TEST_ASSERT_EQUAL_INT(static_cast<int>(DisplayBatteryIcon::Medium),
-                          static_cast<int>(displayBatteryIcon(79)));
-    TEST_ASSERT_EQUAL_INT(static_cast<int>(DisplayBatteryIcon::Full),
-                          static_cast<int>(displayBatteryIcon(80)));
-    TEST_ASSERT_EQUAL_INT(static_cast<int>(DisplayBatteryIcon::Full),
-                          static_cast<int>(displayBatteryIcon(100)));
+    TEST_ASSERT_EQUAL_INT(static_cast<int>(DisplayBatteryIcon::Empty), static_cast<int>(displayBatteryIcon(0)));
+    TEST_ASSERT_EQUAL_INT(static_cast<int>(DisplayBatteryIcon::Empty), static_cast<int>(displayBatteryIcon(14)));
+    TEST_ASSERT_EQUAL_INT(static_cast<int>(DisplayBatteryIcon::Low), static_cast<int>(displayBatteryIcon(15)));
+    TEST_ASSERT_EQUAL_INT(static_cast<int>(DisplayBatteryIcon::Low), static_cast<int>(displayBatteryIcon(39)));
+    TEST_ASSERT_EQUAL_INT(static_cast<int>(DisplayBatteryIcon::Medium), static_cast<int>(displayBatteryIcon(40)));
+    TEST_ASSERT_EQUAL_INT(static_cast<int>(DisplayBatteryIcon::Medium), static_cast<int>(displayBatteryIcon(79)));
+    TEST_ASSERT_EQUAL_INT(static_cast<int>(DisplayBatteryIcon::Full), static_cast<int>(displayBatteryIcon(80)));
+    TEST_ASSERT_EQUAL_INT(static_cast<int>(DisplayBatteryIcon::Full), static_cast<int>(displayBatteryIcon(100)));
 }
 
 void test_display_view_refresh_decision() {
     TEST_ASSERT_TRUE(displayViewNeedsRefresh(DisplayView::Unknown, DisplayView::ProductTitle));
-    TEST_ASSERT_FALSE(
-        displayViewNeedsRefresh(DisplayView::ProductTitle, DisplayView::ProductTitle));
+    TEST_ASSERT_FALSE(displayViewNeedsRefresh(DisplayView::ProductTitle, DisplayView::ProductTitle));
     TEST_ASSERT_TRUE(displayViewNeedsRefresh(DisplayView::SetupQr, DisplayView::ProductTitle));
     TEST_ASSERT_TRUE(displayViewNeedsRefresh(DisplayView::ProductTitle, DisplayView::SetupQr));
     TEST_ASSERT_FALSE(displayViewNeedsRefresh(DisplayView::Heart, DisplayView::Heart));
@@ -114,37 +99,29 @@ void test_display_heart_redraw_leading_trailing() {
     constexpr unsigned long kMin = kHeartRedrawMinIntervalMs;
     TEST_ASSERT_EQUAL_UINT(20000UL, kMin);
 
-    TEST_ASSERT_EQUAL_INT(
-        static_cast<int>(DisplayHeartRedrawDecision::SkipUnchanged),
-        static_cast<int>(displayHeartRedrawDecide(3, 1, 3, 1, false, false, 1000, 0, kMin)));
+    TEST_ASSERT_EQUAL_INT(static_cast<int>(DisplayHeartRedrawDecision::SkipUnchanged),
+                          static_cast<int>(displayHeartRedrawDecide(3, 1, 3, 1, false, false, 1000, 0, kMin)));
 
-    TEST_ASSERT_EQUAL_INT(
-        static_cast<int>(DisplayHeartRedrawDecision::QueueNow),
-        static_cast<int>(displayHeartRedrawDecide(4, 1, 3, 1, false, false, 1000, 0, kMin)));
+    TEST_ASSERT_EQUAL_INT(static_cast<int>(DisplayHeartRedrawDecision::QueueNow),
+                          static_cast<int>(displayHeartRedrawDecide(4, 1, 3, 1, false, false, 1000, 0, kMin)));
 
-    TEST_ASSERT_EQUAL_INT(
-        static_cast<int>(DisplayHeartRedrawDecision::QueueNow),
-        static_cast<int>(displayHeartRedrawDecide(3, 1, 3, 1, true, false, 1000, 0, kMin)));
+    TEST_ASSERT_EQUAL_INT(static_cast<int>(DisplayHeartRedrawDecision::QueueNow),
+                          static_cast<int>(displayHeartRedrawDecide(3, 1, 3, 1, true, false, 1000, 0, kMin)));
 
-    TEST_ASSERT_EQUAL_INT(
-        static_cast<int>(DisplayHeartRedrawDecision::QueueNow),
-        static_cast<int>(displayHeartRedrawDecide(3, 1, 3, 1, false, true, 1000, 0, kMin)));
+    TEST_ASSERT_EQUAL_INT(static_cast<int>(DisplayHeartRedrawDecision::QueueNow),
+                          static_cast<int>(displayHeartRedrawDecide(3, 1, 3, 1, false, true, 1000, 0, kMin)));
 
-    TEST_ASSERT_EQUAL_INT(
-        static_cast<int>(DisplayHeartRedrawDecision::DeferPending),
-        static_cast<int>(displayHeartRedrawDecide(5, 1, 3, 1, false, false, 10000, 1000, kMin)));
+    TEST_ASSERT_EQUAL_INT(static_cast<int>(DisplayHeartRedrawDecision::DeferPending),
+                          static_cast<int>(displayHeartRedrawDecide(5, 1, 3, 1, false, false, 10000, 1000, kMin)));
 
-    TEST_ASSERT_EQUAL_INT(
-        static_cast<int>(DisplayHeartRedrawDecision::DeferPending),
-        static_cast<int>(displayHeartRedrawDecide(3, 1, 3, 1, true, false, 10000, 1000, kMin)));
+    TEST_ASSERT_EQUAL_INT(static_cast<int>(DisplayHeartRedrawDecision::DeferPending),
+                          static_cast<int>(displayHeartRedrawDecide(3, 1, 3, 1, true, false, 10000, 1000, kMin)));
 
-    TEST_ASSERT_EQUAL_INT(
-        static_cast<int>(DisplayHeartRedrawDecision::DeferPending),
-        static_cast<int>(displayHeartRedrawDecide(3, 1, 3, 1, false, true, 10000, 1000, kMin)));
+    TEST_ASSERT_EQUAL_INT(static_cast<int>(DisplayHeartRedrawDecision::DeferPending),
+                          static_cast<int>(displayHeartRedrawDecide(3, 1, 3, 1, false, true, 10000, 1000, kMin)));
 
-    TEST_ASSERT_EQUAL_INT(
-        static_cast<int>(DisplayHeartRedrawDecision::QueueNow),
-        static_cast<int>(displayHeartRedrawDecide(5, 1, 3, 1, false, false, 32000, 1000, kMin)));
+    TEST_ASSERT_EQUAL_INT(static_cast<int>(DisplayHeartRedrawDecision::QueueNow),
+                          static_cast<int>(displayHeartRedrawDecide(5, 1, 3, 1, false, false, 32000, 1000, kMin)));
 }
 
 void test_display_heart_redraw_wait_and_follow_up() {
@@ -167,76 +144,56 @@ void test_display_link_offline_grace() {
     TEST_ASSERT_EQUAL_UINT(300000UL, kDisplayOfflineGraceMs);
 
     DisplayLinkState st{};
-    TEST_ASSERT_EQUAL_INT(
-        static_cast<int>(DisplayHeartIcon::Filled),
-        static_cast<int>(displayHeartIconDecide(false, true, true, 1000, kDisplayOfflineGraceMs,
-                                                st)));
+    TEST_ASSERT_EQUAL_INT(static_cast<int>(DisplayHeartIcon::Filled),
+                          static_cast<int>(displayHeartIconDecide(false, true, true, 1000, kDisplayOfflineGraceMs, st)));
     TEST_ASSERT_EQUAL_UINT(0UL, st.outageSinceMs);
 
     // First unhealthy sample starts the timer but keeps the filled heart.
-    TEST_ASSERT_EQUAL_INT(
-        static_cast<int>(DisplayHeartIcon::Filled),
-        static_cast<int>(displayHeartIconDecide(false, false, true, 2000, kDisplayOfflineGraceMs,
-                                                st)));
+    TEST_ASSERT_EQUAL_INT(static_cast<int>(DisplayHeartIcon::Filled),
+                          static_cast<int>(displayHeartIconDecide(false, false, true, 2000, kDisplayOfflineGraceMs, st)));
     TEST_ASSERT_EQUAL_UINT(2000UL, st.outageSinceMs);
 
-    TEST_ASSERT_EQUAL_INT(
-        static_cast<int>(DisplayHeartIcon::Filled),
-        static_cast<int>(displayHeartIconDecide(false, true, false, 100000, kDisplayOfflineGraceMs,
-                                                st)));
+    TEST_ASSERT_EQUAL_INT(static_cast<int>(DisplayHeartIcon::Filled),
+                          static_cast<int>(displayHeartIconDecide(false, true, false, 100000, kDisplayOfflineGraceMs, st)));
 
     // Still within 5 minutes.
-    TEST_ASSERT_EQUAL_INT(
-        static_cast<int>(DisplayHeartIcon::Filled),
-        static_cast<int>(
-            displayHeartIconDecide(false, false, false, 2000 + kDisplayOfflineGraceMs - 1,
-                                   kDisplayOfflineGraceMs, st)));
+    TEST_ASSERT_EQUAL_INT(static_cast<int>(DisplayHeartIcon::Filled),
+                          static_cast<int>(displayHeartIconDecide(false, false, false, 2000 + kDisplayOfflineGraceMs - 1,
+                                                                  kDisplayOfflineGraceMs, st)));
 
     // At/after grace → crack.
     TEST_ASSERT_EQUAL_INT(
         static_cast<int>(DisplayHeartIcon::Crack),
-        static_cast<int>(
-            displayHeartIconDecide(false, false, false, 2000 + kDisplayOfflineGraceMs,
-                                   kDisplayOfflineGraceMs, st)));
+        static_cast<int>(displayHeartIconDecide(false, false, false, 2000 + kDisplayOfflineGraceMs, kDisplayOfflineGraceMs, st)));
 
     // Immediate recovery when Wi-Fi + MQTT are healthy again.
-    TEST_ASSERT_EQUAL_INT(
-        static_cast<int>(DisplayHeartIcon::Filled),
-        static_cast<int>(displayHeartIconDecide(false, true, true, 2000 + kDisplayOfflineGraceMs
-                                                                       + 5000,
-                                                kDisplayOfflineGraceMs, st)));
+    TEST_ASSERT_EQUAL_INT(static_cast<int>(DisplayHeartIcon::Filled),
+                          static_cast<int>(displayHeartIconDecide(false, true, true, 2000 + kDisplayOfflineGraceMs + 5000,
+                                                                  kDisplayOfflineGraceMs, st)));
     TEST_ASSERT_EQUAL_UINT(0UL, st.outageSinceMs);
 
     // AP mode never shows crack.
     DisplayLinkState apSt{};
-    TEST_ASSERT_EQUAL_INT(
-        static_cast<int>(DisplayHeartIcon::Filled),
-        static_cast<int>(
-            displayHeartIconDecide(true, false, false, 999999, kDisplayOfflineGraceMs, apSt)));
+    TEST_ASSERT_EQUAL_INT(static_cast<int>(DisplayHeartIcon::Filled),
+                          static_cast<int>(displayHeartIconDecide(true, false, false, 999999, kDisplayOfflineGraceMs, apSt)));
     TEST_ASSERT_EQUAL_UINT(0UL, apSt.outageSinceMs);
 }
 
 void test_display_link_millis_wrap() {
     DisplayLinkState st{};
     const unsigned long nearWrap = ULONG_MAX - 1000UL;
-    TEST_ASSERT_EQUAL_INT(
-        static_cast<int>(DisplayHeartIcon::Filled),
-        static_cast<int>(
-            displayHeartIconDecide(false, false, false, nearWrap, kDisplayOfflineGraceMs, st)));
+    TEST_ASSERT_EQUAL_INT(static_cast<int>(DisplayHeartIcon::Filled),
+                          static_cast<int>(displayHeartIconDecide(false, false, false, nearWrap, kDisplayOfflineGraceMs, st)));
     TEST_ASSERT_EQUAL_UINT(nearWrap, st.outageSinceMs);
 
     // Unsigned elapsed across wrap: (500 - nearWrap) == 1501.
-    TEST_ASSERT_EQUAL_INT(
-        static_cast<int>(DisplayHeartIcon::Filled),
-        static_cast<int>(
-            displayHeartIconDecide(false, false, false, 500UL, kDisplayOfflineGraceMs, st)));
+    TEST_ASSERT_EQUAL_INT(static_cast<int>(DisplayHeartIcon::Filled),
+                          static_cast<int>(displayHeartIconDecide(false, false, false, 500UL, kDisplayOfflineGraceMs, st)));
 
     // Force crack by setting an outage far enough in the past across the wrap.
     st.outageSinceMs = ULONG_MAX - (kDisplayOfflineGraceMs - 10UL);
-    TEST_ASSERT_EQUAL_INT(
-        static_cast<int>(DisplayHeartIcon::Crack),
-        static_cast<int>(
-            displayHeartIconDecide(false, false, false, 20UL, kDisplayOfflineGraceMs, st)));
+    TEST_ASSERT_EQUAL_INT(static_cast<int>(DisplayHeartIcon::Crack),
+                          static_cast<int>(displayHeartIconDecide(false, false, false, 20UL, kDisplayOfflineGraceMs, st)));
 }
 
 void test_led_pattern_three_blinks() {
@@ -283,8 +240,8 @@ void test_led_pattern_single_pulse_no_off() {
 }
 
 void test_led_pattern_normalize_zero_count() {
-    uint8_t  count = 0;
-    uint16_t onMs  = 0;
+    uint8_t count = 0;
+    uint16_t onMs = 0;
     uint16_t offMs = 50;
     ledPatternNormalize(count, onMs, offMs);
     TEST_ASSERT_EQUAL_UINT8(1, count);
@@ -294,8 +251,8 @@ void test_led_pattern_normalize_zero_count() {
 
 void test_debounce_commits_after_stable_ms() {
     DebouncedGpioState st{};
-    st.lastRawReading       = 1;
-    st.debouncedLevel       = 1;
+    st.lastRawReading = 1;
+    st.debouncedLevel = 1;
     st.lastDebounceChangeMs = 1000;
 
     debounceUpdate(st, 0, 1000, 20);
@@ -333,8 +290,8 @@ void test_soft_off_release_settle() {
 
 void test_debounce_resets_timer_on_bounce() {
     DebouncedGpioState st{};
-    st.lastRawReading       = 1;
-    st.debouncedLevel       = 1;
+    st.lastRawReading = 1;
+    st.debouncedLevel = 1;
     st.lastDebounceChangeMs = 0;
 
     debounceUpdate(st, 0, 100, 20);
@@ -346,7 +303,7 @@ void test_debounce_resets_timer_on_bounce() {
     TEST_ASSERT_EQUAL_INT(0, st.debouncedLevel);
 }
 
-int main(int, char**) {
+int main(int, char **) {
     UNITY_BEGIN();
     RUN_TEST(test_battery_pct_curve);
     RUN_TEST(test_audio_quiet_hours);

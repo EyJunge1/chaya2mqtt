@@ -4,12 +4,13 @@
 #include "ota_url_allow.h"
 #include "version_cmp.h"
 
-#include "tls/tls_bundle_setup.h"
 #include "config/version.h"
+#include "tls/tls_bundle_setup.h"
 #include "wifi/wlan.h"
 
 #include "tls/tls_bundle.h"
 
+#include <Arduino.h>
 #include <HTTPClient.h>
 #include <WiFi.h>
 #include <WiFiClientSecure.h>
@@ -17,7 +18,6 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
-#include <Arduino.h>
 #include <esp_heap_caps.h>
 #include <esp_log.h>
 
@@ -28,33 +28,28 @@ DEFINE_LOG_TAG("OTA");
 
 namespace {
 
-constexpr const char kGithubLatestReleaseApiUrl[] =
-    "https://api.github.com/repos/EyJunge1/chaya2mqtt/releases/latest";
+constexpr const char kGithubLatestReleaseApiUrl[] = "https://api.github.com/repos/EyJunge1/chaya2mqtt/releases/latest";
 
-constexpr const char kGithubReleasesListApiUrl[] =
-    "https://api.github.com/repos/EyJunge1/chaya2mqtt/releases?per_page=1&page=";
+constexpr const char kGithubReleasesListApiUrl[] = "https://api.github.com/repos/EyJunge1/chaya2mqtt/releases?per_page=1&page=";
 
-constexpr const char kGithubReleaseByTagApiBase[] =
-    "https://api.github.com/repos/EyJunge1/chaya2mqtt/releases/tags/";
+constexpr const char kGithubReleaseByTagApiBase[] = "https://api.github.com/repos/EyJunge1/chaya2mqtt/releases/tags/";
 
-constexpr const char kGithubDownloadBase[] =
-    "https://github.com/EyJunge1/chaya2mqtt/releases/download/";
+constexpr const char kGithubDownloadBase[] = "https://github.com/EyJunge1/chaya2mqtt/releases/download/";
 
 constexpr size_t kGithubJsonBuf = 16384;
 constexpr unsigned kGithubMaxReleasePages = 20U;
 
-char* s_githubJsonBuf = nullptr;
+char *s_githubJsonBuf = nullptr;
 
 bool ensureGithubJsonBuf() {
     if (s_githubJsonBuf != nullptr) {
         return true;
     }
 #if defined(BOARD_HAS_PSRAM)
-    s_githubJsonBuf = static_cast<char*>(
-        heap_caps_malloc(kGithubJsonBuf, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
+    s_githubJsonBuf = static_cast<char *>(heap_caps_malloc(kGithubJsonBuf, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
 #endif
     if (s_githubJsonBuf == nullptr) {
-        s_githubJsonBuf = static_cast<char*>(malloc(kGithubJsonBuf));
+        s_githubJsonBuf = static_cast<char *>(malloc(kGithubJsonBuf));
     }
     if (s_githubJsonBuf == nullptr) {
         ESP_LOGE(TAG, "GitHub JSON buffer alloc failed");
@@ -64,7 +59,7 @@ bool ensureGithubJsonBuf() {
     return true;
 }
 
-void stripLeadingV(const char* tag, char* out, size_t outLen) {
+void stripLeadingV(const char *tag, char *out, size_t outLen) {
     if (out == nullptr || outLen == 0U) {
         return;
     }
@@ -72,32 +67,28 @@ void stripLeadingV(const char* tag, char* out, size_t outLen) {
     if (tag == nullptr || tag[0] == '\0') {
         return;
     }
-    const char* p = tag;
+    const char *p = tag;
     if (p[0] == 'v' || p[0] == 'V') {
         ++p;
     }
     strlcpy(out, p, outLen);
 }
 
-bool fillReleaseUrls(const char* tag, OtaReleaseInfo* out) {
+bool fillReleaseUrls(const char *tag, OtaReleaseInfo *out) {
     if (tag == nullptr || tag[0] == '\0' || out == nullptr) {
         return false;
     }
     strlcpy(out->tag, tag, sizeof(out->tag));
     stripLeadingV(tag, out->version, sizeof(out->version));
-    const int nBin = snprintf(out->binUrl, sizeof(out->binUrl), "%s%s/firmware.bin",
-                              kGithubDownloadBase, tag);
-    const int nSha256 =
-        snprintf(out->sha256Url, sizeof(out->sha256Url), "%s%s/firmware.sha256",
-                 kGithubDownloadBase, tag);
-    return nBin > 0 && static_cast<size_t>(nBin) < sizeof(out->binUrl) && nSha256 > 0
-           && static_cast<size_t>(nSha256) < sizeof(out->sha256Url)
-           && otaReleaseDownloadUrlAllowed(out->binUrl, OtaDownloadAsset::Firmware)
-           && otaReleaseDownloadUrlAllowed(out->sha256Url, OtaDownloadAsset::Sha256);
+    const int nBin = snprintf(out->binUrl, sizeof(out->binUrl), "%s%s/firmware.bin", kGithubDownloadBase, tag);
+    const int nSha256 = snprintf(out->sha256Url, sizeof(out->sha256Url), "%s%s/firmware.sha256", kGithubDownloadBase, tag);
+    return nBin > 0 && static_cast<size_t>(nBin) < sizeof(out->binUrl) && nSha256 > 0 &&
+           static_cast<size_t>(nSha256) < sizeof(out->sha256Url) &&
+           otaReleaseDownloadUrlAllowed(out->binUrl, OtaDownloadAsset::Firmware) &&
+           otaReleaseDownloadUrlAllowed(out->sha256Url, OtaDownloadAsset::Sha256);
 }
 
-bool httpGetGithubJson(const char* url, size_t* outLen, bool allowTruncated = false,
-                       bool* outHasNext = nullptr) {
+bool httpGetGithubJson(const char *url, size_t *outLen, bool allowTruncated = false, bool *outHasNext = nullptr) {
     if (url == nullptr || outLen == nullptr) {
         return false;
     }
@@ -122,8 +113,7 @@ bool httpGetGithubJson(const char* url, size_t* outLen, bool allowTruncated = fa
     ESP_LOGI(TAG, "GitHub API request started");
 
     WiFiClientSecure tls;
-    tls.setCACertBundle(x509_crt_bundle_start,
-                        static_cast<size_t>(x509_crt_bundle_end - x509_crt_bundle_start));
+    tls.setCACertBundle(x509_crt_bundle_start, static_cast<size_t>(x509_crt_bundle_end - x509_crt_bundle_start));
     tls.setTimeout(30000);
 
     HTTPClient https;
@@ -135,7 +125,7 @@ bool httpGetGithubJson(const char* url, size_t* outLen, bool allowTruncated = fa
     https.setTimeout(30000);
     https.addHeader(F("User-Agent"), F("Chaya2MQTT-esp32"));
     https.addHeader(F("Accept"), F("application/vnd.github+json"));
-    const char* kCollectedHeaders[] = {"Link"};
+    const char *kCollectedHeaders[] = {"Link"};
     https.collectHeaders(kCollectedHeaders, 1);
 
     const int httpCode = https.GET();
@@ -155,14 +145,13 @@ bool httpGetGithubJson(const char* url, size_t* outLen, bool allowTruncated = fa
         return false;
     }
 
-    auto&               stream        = https.getStream();
-    size_t              len           = 0;
+    auto &stream = https.getStream();
+    size_t len = 0;
     const unsigned long streamStartMs = millis();
     constexpr unsigned long kGithubStreamDeadlineMs = 45000UL;
 
-    while (https.connected() && len + 1 < kGithubJsonBuf
-           && (contentLen <= 0 || len < static_cast<size_t>(contentLen))
-           && (millis() - streamStartMs) < kGithubStreamDeadlineMs) {
+    while (https.connected() && len + 1 < kGithubJsonBuf && (contentLen <= 0 || len < static_cast<size_t>(contentLen)) &&
+           (millis() - streamStartMs) < kGithubStreamDeadlineMs) {
         chayaTaskWatchdogReset();
         if (stream.available() <= 0) {
             if (!https.connected()) {
@@ -171,8 +160,7 @@ bool httpGetGithubJson(const char* url, size_t* outLen, bool allowTruncated = fa
             delay(10);
             continue;
         }
-        const int toRead =
-            std::min(static_cast<int>(kGithubJsonBuf - 1 - len), stream.available());
+        const int toRead = std::min(static_cast<int>(kGithubJsonBuf - 1 - len), stream.available());
         if (toRead <= 0) {
             break;
         }
@@ -184,26 +172,22 @@ bool httpGetGithubJson(const char* url, size_t* outLen, bool allowTruncated = fa
     }
     https.end();
     s_githubJsonBuf[len] = '\0';
-    *outLen              = len;
-    const bool incompleteKnownLength =
-        contentLen > 0 && len != static_cast<size_t>(contentLen);
+    *outLen = len;
+    const bool incompleteKnownLength = contentLen > 0 && len != static_cast<size_t>(contentLen);
     const bool filledBuffer = len + 1U >= kGithubJsonBuf;
     if (!allowTruncated && (incompleteKnownLength || filledBuffer)) {
-        ESP_LOGE(TAG, "GitHub API: incomplete response (%u/%d bytes)",
-                 static_cast<unsigned>(len), contentLen);
+        ESP_LOGE(TAG, "GitHub API: incomplete response (%u/%d bytes)", static_cast<unsigned>(len), contentLen);
         return false;
     }
-    ESP_LOGI(TAG, "GitHub API response received (%u bytes, %lu ms)",
-             static_cast<unsigned>(len), millis() - requestStartedMs);
+    ESP_LOGI(TAG, "GitHub API response received (%u bytes, %lu ms)", static_cast<unsigned>(len), millis() - requestStartedMs);
     return len > 0U;
 }
 
-bool releaseJsonHasRequiredAssets(const char* json) {
-    return otaJsonHasAssetName(json, "firmware.bin")
-           && otaJsonHasAssetName(json, "firmware.sha256");
+bool releaseJsonHasRequiredAssets(const char *json) {
+    return otaJsonHasAssetName(json, "firmware.bin") && otaJsonHasAssetName(json, "firmware.sha256");
 }
 
-bool validateReleaseAssetsByTag(const char* expectedTag) {
+bool validateReleaseAssetsByTag(const char *expectedTag) {
     if (expectedTag == nullptr || expectedTag[0] == '\0') {
         return false;
     }
@@ -218,9 +202,8 @@ bool validateReleaseAssetsByTag(const char* expectedTag) {
     }
     char actualTag[64]{};
     bool draft = false;
-    if (!otaParseJsonStringField(s_githubJsonBuf, "tag_name", actualTag, sizeof(actualTag))
-        || strcmp(actualTag, expectedTag) != 0
-        || !otaParseJsonBoolField(s_githubJsonBuf, "draft", &draft) || draft) {
+    if (!otaParseJsonStringField(s_githubJsonBuf, "tag_name", actualTag, sizeof(actualTag)) ||
+        strcmp(actualTag, expectedTag) != 0 || !otaParseJsonBoolField(s_githubJsonBuf, "draft", &draft) || draft) {
         ESP_LOGE(TAG, "GitHub release metadata invalid for tag %s", expectedTag);
         return false;
     }
@@ -231,8 +214,7 @@ bool validateReleaseAssetsByTag(const char* expectedTag) {
     return true;
 }
 
-bool evaluateTag(const char* tag, bool isPrerelease, OtaChannel channel, OtaReleaseInfo* out,
-                 GithubCheckResult* result) {
+bool evaluateTag(const char *tag, bool isPrerelease, OtaChannel channel, OtaReleaseInfo *out, GithubCheckResult *result) {
     if (tag == nullptr || out == nullptr || result == nullptr) {
         return false;
     }
@@ -245,11 +227,10 @@ bool evaluateTag(const char* tag, bool isPrerelease, OtaChannel channel, OtaRele
         *result = GithubCheckResult::ApiError;
         return false;
     }
-    out->channel       = channel;
-    out->isPrerelease  = isPrerelease;
+    out->channel = channel;
+    out->isPrerelease = isPrerelease;
 
-    ESP_LOGI(TAG, "GitHub channel=%s tag=%s local=%s",
-             channel == OtaChannel::Beta ? "beta" : "stable", tag, APP_VERSION);
+    ESP_LOGI(TAG, "GitHub channel=%s tag=%s local=%s", channel == OtaChannel::Beta ? "beta" : "stable", tag, APP_VERSION);
 
     if (!otaVersionIsNewer(tag, APP_VERSION)) {
         *result = GithubCheckResult::ParsedNoUpgrade;
@@ -261,7 +242,7 @@ bool evaluateTag(const char* tag, bool isPrerelease, OtaChannel channel, OtaRele
 
 } // namespace
 
-GithubCheckResult otaGithubEvaluateChannel(OtaChannel channel, OtaReleaseInfo* out) {
+GithubCheckResult otaGithubEvaluateChannel(OtaChannel channel, OtaReleaseInfo *out) {
     if (out == nullptr) {
         return GithubCheckResult::ApiError;
     }
@@ -280,8 +261,8 @@ GithubCheckResult otaGithubEvaluateChannel(OtaChannel channel, OtaReleaseInfo* o
         }
         bool draft = false;
         bool prerelease = false;
-        if (!otaParseJsonBoolField(s_githubJsonBuf, "draft", &draft)
-            || !otaParseJsonBoolField(s_githubJsonBuf, "prerelease", &prerelease)) {
+        if (!otaParseJsonBoolField(s_githubJsonBuf, "draft", &draft) ||
+            !otaParseJsonBoolField(s_githubJsonBuf, "prerelease", &prerelease)) {
             ESP_LOGE(TAG, "GitHub latest lacks release flags");
             return GithubCheckResult::ApiError;
         }
@@ -307,27 +288,24 @@ GithubCheckResult otaGithubEvaluateChannel(OtaChannel channel, OtaReleaseInfo* o
     for (unsigned page = 1U; page <= kGithubMaxReleasePages && hasNext; ++page) {
         char url[192]{};
         const int n = snprintf(url, sizeof(url), "%s%u", kGithubReleasesListApiUrl, page);
-        if (n <= 0 || static_cast<size_t>(n) >= sizeof(url)
-            || !httpGetGithubJson(url, &len, true, &hasNext)) {
+        if (n <= 0 || static_cast<size_t>(n) >= sizeof(url) || !httpGetGithubJson(url, &len, true, &hasNext)) {
             return GithubCheckResult::ApiError;
         }
         char pageTag[64]{};
         bool pageIsPre = false;
-        if (!otaSelectReleaseFromListJson(s_githubJsonBuf, true, pageTag, sizeof(pageTag),
-                                          &pageIsPre)) {
+        if (!otaSelectReleaseFromListJson(s_githubJsonBuf, true, pageTag, sizeof(pageTag), &pageIsPre)) {
             continue;
         }
-        char* best = pageIsPre ? bestPrerelease : bestStable;
+        char *best = pageIsPre ? bestPrerelease : bestStable;
         if (best[0] == '\0' || otaVersionIsNewer(pageTag + 1, best + 1)) {
             strlcpy(best, pageTag, 64U);
         }
     }
     if (hasNext) {
-        ESP_LOGW(TAG, "GitHub beta scan stopped at safety limit (%u releases)",
-                 kGithubMaxReleasePages);
+        ESP_LOGW(TAG, "GitHub beta scan stopped at safety limit (%u releases)", kGithubMaxReleasePages);
     }
     const bool isPre = bestPrerelease[0] != '\0';
-    const char* tag  = isPre ? bestPrerelease : bestStable;
+    const char *tag = isPre ? bestPrerelease : bestStable;
     if (tag[0] == '\0') {
         ESP_LOGE(TAG, "GitHub: no suitable beta/stable release in list");
         return GithubCheckResult::ApiError;

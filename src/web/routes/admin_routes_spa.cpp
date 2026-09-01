@@ -15,7 +15,7 @@
 
 namespace {
 
-void addSpaResponseHeaders(AsyncWebServerResponse* resp, const SpaAssetEntry& asset) {
+void addSpaResponseHeaders(AsyncWebServerResponse *resp, const SpaAssetEntry &asset) {
     if (spaAssetUsesGzip(asset.path)) {
         resp->addHeader(F("Content-Encoding"), F("gzip"));
     }
@@ -27,13 +27,12 @@ void addSpaResponseHeaders(AsyncWebServerResponse* resp, const SpaAssetEntry& as
     }
 }
 
-void sendSpaAsset(AsyncWebServerRequest* req, const SpaAssetEntry& asset) {
-    const uint8_t* data = gWebUiBlobStart + asset.offset;
-    const size_t   len  = asset.length;
+void sendSpaAsset(AsyncWebServerRequest *req, const SpaAssetEntry &asset) {
+    const uint8_t *data = gWebUiBlobStart + asset.offset;
+    const size_t len = asset.length;
 
-    AsyncWebServerResponse* resp = req->beginResponse(
-        asset.contentType, len,
-        [data, len](uint8_t* buf, size_t maxLen, size_t index) -> size_t {
+    AsyncWebServerResponse *resp =
+        req->beginResponse(asset.contentType, len, [data, len](uint8_t *buf, size_t maxLen, size_t index) -> size_t {
             if (index >= len) {
                 return 0;
             }
@@ -45,18 +44,17 @@ void sendSpaAsset(AsyncWebServerRequest* req, const SpaAssetEntry& asset) {
     req->send(resp);
 }
 
-bool sendSpaIndex(AsyncWebServerRequest* req) {
+bool sendSpaIndex(AsyncWebServerRequest *req) {
     // Compiler .rodata string — not a slice of the .incbin blob (quirks-mode / empty body).
-    AsyncWebServerResponse* resp =
-        req->beginResponse(200, "text/html; charset=utf-8", kWebUiIndexHtml);
+    AsyncWebServerResponse *resp = req->beginResponse(200, "text/html; charset=utf-8", kWebUiIndexHtml);
     webAddSecurityHeaders(resp, /*noStore=*/false);
     resp->addHeader(F("Cache-Control"), F("no-cache"));
     req->send(resp);
     return true;
 }
 
-bool trySendExactAsset(AsyncWebServerRequest* req, const char* uri) {
-    const SpaAssetEntry* asset = spaFindAsset(WEB_UI_ASSETS, WEB_UI_ASSETS_COUNT, uri);
+bool trySendExactAsset(AsyncWebServerRequest *req, const char *uri) {
+    const SpaAssetEntry *asset = spaFindAsset(WEB_UI_ASSETS, WEB_UI_ASSETS_COUNT, uri);
     if (!asset) {
         return false;
     }
@@ -66,8 +64,8 @@ bool trySendExactAsset(AsyncWebServerRequest* req, const char* uri) {
 
 } // namespace
 
-void adminRoutesRegisterSpa(AsyncWebServer& ws) {
-    auto sendIndexIfHostOk = [](AsyncWebServerRequest* rq) {
+void adminRoutesRegisterSpa(AsyncWebServer &ws) {
+    auto sendIndexIfHostOk = [](AsyncWebServerRequest *rq) {
         if (!webRequestHostAllowed(rq)) {
             webSendEmpty(rq, 403);
             return;
@@ -77,7 +75,7 @@ void adminRoutesRegisterSpa(AsyncWebServer& ws) {
     ws.on("/", HTTP_GET, sendIndexIfHostOk);
     ws.on("/index.html", HTTP_GET, sendIndexIfHostOk);
 
-    ws.on("/favicon.ico", HTTP_GET, [](AsyncWebServerRequest* rq) {
+    ws.on("/favicon.ico", HTTP_GET, [](AsyncWebServerRequest *rq) {
         if (!webRequestHostAllowed(rq)) {
             webSendEmpty(rq, 403);
             return;
@@ -85,14 +83,14 @@ void adminRoutesRegisterSpa(AsyncWebServer& ws) {
         webSendEmpty(rq, 204);
     });
 
-    ws.onNotFound([](AsyncWebServerRequest* rq) {
+    ws.onNotFound([](AsyncWebServerRequest *rq) {
         if (!webRequestHostAllowed(rq)) {
             webSendEmpty(rq, 403);
             return;
         }
 
         // PERF-09: avoid copying the URL String; AsyncWebServer keeps the buffer alive.
-        const char* uri = rq->url().c_str();
+        const char *uri = rq->url().c_str();
         if (spaIsApiOrEventsPath(uri)) {
             webSendEmpty(rq, 404);
             return;
@@ -118,8 +116,8 @@ void adminRoutesRegisterSpa(AsyncWebServer& ws) {
                 webRedirect(rq, kSetupApCaptiveRedirect);
                 return;
             }
-            if (configIsApMode() && strcmp(uri, "/wifi-testing") != 0 && strcmp(uri, "/") != 0
-                && strncmp(uri, "/assets/", 8) != 0) {
+            if (configIsApMode() && strcmp(uri, "/wifi-testing") != 0 && strcmp(uri, "/") != 0 &&
+                strncmp(uri, "/assets/", 8) != 0) {
                 // Unknown captive / OS probes: land on AP setup SPA (root shows WifiSetup).
                 webRedirect(rq, F("/"));
                 return;
