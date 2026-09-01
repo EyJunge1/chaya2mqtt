@@ -27,14 +27,27 @@
     compact?: boolean;
   } = $props();
 
+  let groupEl: HTMLDivElement | undefined;
+
+  function radioAt(index: number): HTMLButtonElement | undefined {
+    return groupEl?.querySelectorAll<HTMLButtonElement>(':scope > [role="radio"]')[index];
+  }
+
+  /** APG radiogroup: navigation keys check the target and call element.focus(). */
+  function selectIndex(index: number) {
+    const option = options[index];
+    if (!option) return;
+    onChange(option.value);
+    radioAt(index)?.focus();
+  }
+
   function move(delta: number) {
     if (options.length === 0) return;
     const idx = Math.max(
       0,
       options.findIndex((o) => o.value === value),
     );
-    const next = (idx + delta + options.length) % options.length;
-    onChange(options[next]!.value);
+    selectIndex((idx + delta + options.length) % options.length);
   }
 
   function onKeydown(e: KeyboardEvent) {
@@ -51,11 +64,11 @@
         break;
       case "Home":
         e.preventDefault();
-        if (options[0]) onChange(options[0].value);
+        selectIndex(0);
         break;
       case "End":
         e.preventDefault();
-        if (options[options.length - 1]) onChange(options[options.length - 1]!.value);
+        selectIndex(options.length - 1);
         break;
       default:
         break;
@@ -64,6 +77,7 @@
 </script>
 
 <div
+  bind:this={groupEl}
   role="radiogroup"
   aria-label={label}
   tabindex="-1"
