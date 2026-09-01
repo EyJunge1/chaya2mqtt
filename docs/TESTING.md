@@ -18,7 +18,7 @@ Local test pyramid for chaya2mqtt based on this **principle**: real firmware log
      ┌─────────────────────────┴─────────────────────────┐
      │ Frontend Vitest + Coverage                        │
      │ Native Unity + device simulator + ASan/UBSan      │
-     │ cppcheck + Python embedding tests                 │
+     │ cppcheck + clang-tidy (*_pure.h) + embed tests    │
      └───────────────────────────────────────────────────┘
 ```
 
@@ -49,6 +49,7 @@ Generated artifacts (`frontend/coverage/`, `frontend/test-results/`, `playwright
 - Python 3 (embedding tests, optional `paho-mqtt` for the hardware smoke test)
 - Install the Playwright browser once: `cd frontend && npx playwright install chromium`
 - For ASan: host Clang/GCC with AddressSanitizer/UBSan (macOS Xcode CLT is sufficient)
+- clang-tidy: required in CI (`scripts/check_pure_clang_tidy.sh`). Locally optional; without it `make check-firmware-tests` skips TEST-05. Homebrew: `llvm` on `PATH`.
 
 ## Quick commands
 
@@ -72,7 +73,7 @@ Generated artifacts (`frontend/coverage/`, `frontend/test-results/`, `playwright
 
 ### `make check` (complete)
 
-Frontend linting and formatting, coverage thresholds, frontend build, SPA embedding + Python embedding tests, flasher/release artifact tests, native Unity, ASan/UBSan, cppcheck, Playwright E2E, the ESP32-S3 release build, and `prepare_release_artifacts.py` validation.
+Frontend linting and formatting, coverage thresholds, frontend build, SPA embedding + Python embedding tests, flasher/release artifact tests, native Unity, ASan/UBSan, cppcheck, clang-tidy on `*_pure.h`, Playwright E2E, the ESP32-S3 release build, and `prepare_release_artifacts.py` validation.
 
 For pull requests, the `Quality gate` workflow selects the affected frontend, flasher, and firmware
 jobs from the changed paths and runs them in parallel. Documentation-only changes finish without
