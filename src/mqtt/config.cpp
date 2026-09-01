@@ -70,9 +70,7 @@ void mqttCfgSanitizeAfterNvsLoad(MqttConfig &cfg) {
 }
 
 bool mqttCfgPutStringOrEmpty(Preferences &prefs, const char *key, const char *value) {
-    const char *v = (value != nullptr) ? value : "";
-    const size_t w = prefs.putString(key, v);
-    return w > 0U || v[0] == '\0';
+    return app_nvs::putStringOk(prefs, key, value);
 }
 
 void mqttCfgRefreshFlagsLocked() {

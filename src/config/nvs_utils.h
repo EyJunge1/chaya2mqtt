@@ -153,6 +153,16 @@ inline size_t readString(const char *ns, const char *key, char *out, size_t outL
     return n;
 }
 
+/** putString returns strlen; 0 is expected for "" (arduino-esp32 #12869). Verify empty via isKey. */
+inline bool putStringOk(Preferences &prefs, const char *key, const char *value) {
+    const char *v = value != nullptr ? value : "";
+    const size_t w = prefs.putString(key, v);
+    if (w > 0U) {
+        return true;
+    }
+    return v[0] == '\0' && prefs.isKey(key);
+}
+
 inline bool writeString(const char *ns, const char *key, const char *value) {
     detail::lock();
     Preferences prefs;
@@ -160,12 +170,10 @@ inline bool writeString(const char *ns, const char *key, const char *value) {
         detail::unlock();
         return false;
     }
-    const char *v = value != nullptr ? value : "";
-    const size_t w = prefs.putString(key, v);
+    const bool ok = putStringOk(prefs, key, value);
     prefs.end();
     detail::unlock();
-    // putString("") returns 0 (strlen) — treat empty string as success (QUAL-04).
-    return w > 0U || v[0] == '\0';
+    return ok;
 }
 
 } // namespace app_nvs
