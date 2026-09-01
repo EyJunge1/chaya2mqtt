@@ -7,6 +7,7 @@
 </script>
 
 <script lang="ts" generics="T extends string">
+  import { tick } from "svelte";
   import { cn } from "../ui/cn.ts";
   import { HOVER_ROW } from "../ui/styles.ts";
 
@@ -33,12 +34,13 @@
     return groupEl?.querySelectorAll<HTMLButtonElement>(':scope > [role="radio"]')[index];
   }
 
-  /** APG radiogroup: navigation keys check the target and call element.focus(). */
-  function selectIndex(index: number) {
+  /** APG radiogroup: after the Svelte flush, move DOM focus onto the checked radio. */
+  async function selectIndex(index: number) {
     const option = options[index];
     if (!option) return;
     onChange(option.value);
-    radioAt(index)?.focus();
+    await tick();
+    radioAt(index)?.focus({ focusVisible: true });
   }
 
   function move(delta: number) {
@@ -47,7 +49,7 @@
       0,
       options.findIndex((o) => o.value === value),
     );
-    selectIndex((idx + delta + options.length) % options.length);
+    void selectIndex((idx + delta + options.length) % options.length);
   }
 
   function onKeydown(e: KeyboardEvent) {
@@ -64,11 +66,11 @@
         break;
       case "Home":
         e.preventDefault();
-        selectIndex(0);
+        void selectIndex(0);
         break;
       case "End":
         e.preventDefault();
-        selectIndex(options.length - 1);
+        void selectIndex(options.length - 1);
         break;
       default:
         break;
@@ -76,11 +78,12 @@
   }
 </script>
 
+<!-- Focus stays on the checked radio (APG roving tabindex), not the group. -->
+<!-- svelte-ignore a11y_interactive_supports_focus -->
 <div
   bind:this={groupEl}
   role="radiogroup"
   aria-label={label}
-  tabindex="-1"
   class={cn(
     "grid grid-cols-2 gap-1 rounded-xl border border-border bg-bg p-1",
     compact && "shrink-0 rounded-lg",

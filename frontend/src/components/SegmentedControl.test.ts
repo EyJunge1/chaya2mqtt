@@ -1,7 +1,8 @@
-import { cleanup, render, screen } from "@testing-library/svelte";
+import { cleanup, render, screen, waitFor } from "@testing-library/svelte";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import SegmentedControl from "./SegmentedControl.svelte";
+import SegmentedControlHarness from "./SegmentedControl.test.svelte";
 
 const options = [
   { value: "dhcp", label: "DHCP" },
@@ -34,13 +35,8 @@ describe("SegmentedControl", () => {
   it("moves DOM focus with the selection on arrow keys", async () => {
     const user = userEvent.setup();
     const onChange = vi.fn();
-    render(SegmentedControl, {
-      props: {
-        value: "dhcp",
-        onChange,
-        options: [...options],
-        label: "IP",
-      },
+    render(SegmentedControlHarness, {
+      props: { onChange },
     });
 
     const dhcp = screen.getByRole("radio", { name: "DHCP" });
@@ -50,7 +46,13 @@ describe("SegmentedControl", () => {
 
     await user.keyboard("{ArrowRight}");
     expect(onChange).toHaveBeenCalledWith("static");
-    expect(statisch).toHaveFocus();
+    await waitFor(() => {
+      expect(statisch).toHaveFocus();
+      expect(statisch).toHaveAttribute("tabindex", "0");
+      expect(statisch).toHaveAttribute("aria-checked", "true");
+      expect(dhcp).toHaveAttribute("tabindex", "-1");
+      expect(dhcp).toHaveAttribute("aria-checked", "false");
+    });
 
     onChange.mockClear();
     await user.keyboard(" ");
@@ -61,23 +63,30 @@ describe("SegmentedControl", () => {
   it("moves focus to first and last radio on Home and End", async () => {
     const user = userEvent.setup();
     const onChange = vi.fn();
-    render(SegmentedControl, {
-      props: {
-        value: "dhcp",
-        onChange,
-        options: [...options],
-        label: "IP",
-      },
+    render(SegmentedControlHarness, {
+      props: { onChange },
     });
 
     screen.getByRole("radio", { name: "DHCP" }).focus();
     await user.keyboard("{End}");
     expect(onChange).toHaveBeenCalledWith("static");
-    expect(screen.getByRole("radio", { name: "Statisch" })).toHaveFocus();
+    await waitFor(() => {
+      const statisch = screen.getByRole("radio", { name: "Statisch" });
+      expect(statisch).toHaveFocus();
+      expect(statisch).toHaveAttribute("tabindex", "0");
+      expect(statisch).toHaveAttribute("aria-checked", "true");
+      expect(screen.getByRole("radio", { name: "DHCP" })).toHaveAttribute("tabindex", "-1");
+    });
 
     onChange.mockClear();
     await user.keyboard("{Home}");
     expect(onChange).toHaveBeenCalledWith("dhcp");
-    expect(screen.getByRole("radio", { name: "DHCP" })).toHaveFocus();
+    await waitFor(() => {
+      const dhcp = screen.getByRole("radio", { name: "DHCP" });
+      expect(dhcp).toHaveFocus();
+      expect(dhcp).toHaveAttribute("tabindex", "0");
+      expect(dhcp).toHaveAttribute("aria-checked", "true");
+      expect(screen.getByRole("radio", { name: "Statisch" })).toHaveAttribute("tabindex", "-1");
+    });
   });
 });
