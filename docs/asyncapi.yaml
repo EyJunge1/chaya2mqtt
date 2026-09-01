@@ -1,30 +1,28 @@
-asyncapi: 3.0.0
+asyncapi: 3.1.0
 info:
   title: Chaya2MQTT Server-Sent Events
   version: 1.0.0
-  description: |
-    Live updates from the device via SSE at `/events`.
-    Maximum 6 concurrent clients. Status events are dirty-diffed about every 500 ms.
-    There is no login; access is limited by Host/Origin allowlists on the LAN.
+  description: Live status events for the device web admin.
+  contact:
+    name: Chaya2MQTT
+    url: https://eyjunge1.github.io/chaya2mqtt/
+  license:
+    name: GNU GPL v3.0 only
+    url: https://github.com/EyJunge1/chaya2mqtt/blob/main/LICENSE
 servers:
   device:
     host: chaya2mqtt-{deviceId}.local
     pathname: /events
     protocol: http
-    description: STA mode mDNS host (EventSource uses http://host/events)
+    description: STA mDNS hostname
     variables:
       deviceId:
-        default: abc123
-        description: Six-character lowercase device ID from NVS (random; MAC-seeded once on OTA migration)
-    security:
-      - $ref: "#/components/securitySchemes/lanHostAllowlist"
+        default: deviceId
   setup:
     host: 4.3.2.1
     pathname: /events
     protocol: http
-    description: Setup-AP address (EventSource uses http://4.3.2.1/events)
-    security:
-      - $ref: "#/components/securitySchemes/lanHostAllowlist"
+    description: AP setup mode
 channels:
   events:
     address: /events
@@ -71,14 +69,6 @@ operations:
     messages:
       - $ref: "#/channels/events/messages/device"
 components:
-  securitySchemes:
-    lanHostAllowlist:
-      type: httpApiKey
-      in: header
-      name: Host
-      description: |
-        No login. The firmware accepts only Host (and Origin, when sent) values
-        from the LAN allowlist, same as the REST admin API.
   messages:
     ChayaEvent:
       name: chaya
@@ -100,8 +90,7 @@ components:
         type: object
         required: [connected]
         properties:
-          connected:
-            type: boolean
+          connected: { type: boolean }
     OtaEvent:
       name: ota
       title: OTA status
@@ -127,19 +116,19 @@ components:
       properties:
         rx:
           type: integer
-          description: Uncapped received-heart display delta (absolute counter minus saved baseline)
+          description: Received hearts since last reset
         tx:
           type: integer
-          description: Uncapped sent-heart display delta (absolute counter minus saved baseline)
+          description: Sent hearts since last reset
         connected:
           type: boolean
-          description: Whether the MQTT client is currently connected
+          description: MQTT client connected
         configured:
           type: boolean
-          description: Whether an MQTT broker is configured
+          description: MQTT broker configured
         paired:
           type: boolean
-          description: Whether a partner device ID is set (required for heart send / heart display)
+          description: Partner ID set
     WifiStatus:
       oneOf:
         - type: object

@@ -15,23 +15,6 @@ import type {
 } from "./types";
 import { parseOtaStatus, parseWifiScanSnapshot } from "./validate";
 
-let csrfToken = "";
-let csrfRefreshPromise: Promise<string> | null = null;
-
-const csrfRetryablePosts = new Set([
-  "/api/wifi/scan",
-  "/api/wifi/connect",
-  "/api/wifi/connect-retry",
-  "/api/wifi/connect-abort",
-  "/api/mqtt",
-  "/api/settings",
-  "/api/update/check",
-]);
-
-export function setCsrfToken(token: string): void {
-  csrfToken = token;
-}
-
 async function parseJson<T>(res: Response): Promise<T> {
   const text = await res.text();
   if (!text) {
@@ -60,31 +43,16 @@ async function apiGet<T>(path: string): Promise<T> {
 async function apiPost(
   path: string,
   fields: Record<string, string | number | boolean | undefined> = {},
-  csrfRetried = false,
 ): Promise<ApiResult> {
   const res = await fetch(path, {
     method: "POST",
     credentials: "same-origin",
     headers: {
       "Content-Type": "application/json",
-      "X-CSRF-Token": csrfToken,
     },
     body: jsonBody(fields),
   });
   const data = await parseJson<ApiResult>(res);
-  if (
-    res.status === 403 &&
-    data &&
-    typeof data === "object" &&
-    "ok" in data &&
-    data.ok === false &&
-    data.error === "csrf" &&
-    !csrfRetried &&
-    csrfRetryablePosts.has(path)
-  ) {
-    await refreshCsrf();
-    return apiPost(path, fields, true);
-  }
   if (!res.ok && data && typeof data === "object" && "ok" in data && data.ok === false) {
     return data;
   }
@@ -94,26 +62,9 @@ async function apiPost(
   return data;
 }
 
-export async function refreshCsrf(): Promise<string> {
-  if (csrfRefreshPromise === null) {
-    csrfRefreshPromise = apiGet<{ token: string; expiresInSeconds: number }>("/api/csrf")
-      .then((data) => {
-        csrfToken = data.token;
-        return csrfToken;
-      })
-      .finally(() => {
-        csrfRefreshPromise = null;
-      });
-  }
-  return csrfRefreshPromise;
-}
-
 export const api = {
   getBootstrap: async (): Promise<BootstrapPayload> => {
     const raw = await apiGet<BootstrapPayload>("/api/bootstrap");
-    if (raw.csrf?.token) {
-      setCsrfToken(raw.csrf.token);
-    }
     return {
       ...raw,
       update: raw.update ? parseOtaStatus(raw.update) : null,
@@ -174,14 +125,8 @@ export const api = {
     rx_hz?: number;
     rx_ms?: number;
   }) => apiPost("/api/settings", fields),
-  reboot: async () => {
-    await refreshCsrf();
-    return apiPost("/api/reboot");
-  },
-  factoryReset: async () => {
-    await refreshCsrf();
-    return apiPost("/api/factory-reset");
-  },
+  reboot: () => apiPost("/api/reboot"),
+  factoryReset: () => apiPost("/api/factory-reset"),
   getUpdateStatus: async () => parseOtaStatus(await apiGet<unknown>("/api/update/status")),
   checkUpdate: (channel?: OtaChannel) => apiPost("/api/update/check", channel ? { channel } : {}),
   installUpdate: () => apiPost("/api/update/install"),

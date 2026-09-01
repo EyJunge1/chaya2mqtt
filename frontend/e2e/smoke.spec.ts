@@ -192,25 +192,10 @@ test("settings nvsOk false shows save-failed toast", async ({ page, request }) =
 
 test("wifi commit returns absolute next URL", async ({ request }) => {
   await resetMock(request, "ap-test-ok");
-  const csrf = await request.get("/api/csrf");
-  const csrfJson = (await csrf.json()) as { token: string };
   const commit = await request.post("/api/wifi/connect-commit", {
-    headers: { "X-CSRF-Token": csrfJson.token },
     data: {},
   });
   const commitBody = (await commit.json()) as { ok: boolean; next?: string };
   expect(commitBody.ok).toBeTruthy();
   expect(commitBody.next).toMatch(/^http:\/\/\d+\.\d+\.\d+\.\d+\//);
-});
-
-test("csrf rejection on wifi commit without token", async ({ request }) => {
-  await resetMock(request, "ap-test-ok");
-  const res = await request.post("/api/wifi/connect-commit", {
-    headers: { "X-CSRF-Token": "deadbeef" },
-    data: {},
-  });
-  expect(res.status()).toBe(403);
-  const body = (await res.json()) as { ok: boolean; error?: string };
-  expect(body.ok).toBeFalsy();
-  expect(body.error).toBe("csrf");
 });

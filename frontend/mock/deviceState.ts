@@ -1,5 +1,3 @@
-import { randomBytes } from "node:crypto";
-
 export type MockMode = "ap" | "sta";
 
 export const MOCK_SCENARIOS = [
@@ -97,7 +95,6 @@ export interface MockState {
   version: string;
   hostname: string;
   deviceId: string;
-  csrf: string;
   rx: number;
   tx: number;
   mqttConnected: boolean;
@@ -182,10 +179,6 @@ export interface MockState {
 }
 
 const listeners = new Set<(event: string, data: unknown) => void>();
-
-function newToken(): string {
-  return randomBytes(16).toString("hex");
-}
 
 export function emptyFaults(): MockFaults {
   return Object.fromEntries(MOCK_FAULT_KEYS.map((key) => [key, false])) as MockFaults;
@@ -335,7 +328,6 @@ export function createInitialState(scenario: MockScenario = "sta-connected"): Mo
     version: "dev-sim",
     hostname: `chaya2mqtt-${deviceId}`,
     deviceId,
-    csrf: newToken(),
     rx: 3,
     tx: 7,
     mqttConnected: true,
@@ -749,7 +741,6 @@ export function applyScenario(state: MockState, scenario: MockScenario): void {
       setOtaIdle(state);
       break;
   }
-  state.csrf = newToken();
 }
 
 let state = createInitialState("sta-connected");

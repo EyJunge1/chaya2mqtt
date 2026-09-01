@@ -1,6 +1,5 @@
 /** Shared API surface used by client, mock and documentation checks. */
 export const API_GET_PATHS = [
-  "/api/csrf",
   "/api/bootstrap",
   "/api/device",
   "/api/chaya",

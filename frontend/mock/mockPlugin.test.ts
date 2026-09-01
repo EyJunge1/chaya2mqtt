@@ -52,19 +52,8 @@ async function callApi(
   return { handled, status: status(), body: json() };
 }
 
-function csrfJson(extra: Record<string, unknown> = {}) {
-  return {
-    body: JSON.stringify(extra),
-    headers: {
-      "x-csrf-token": getState().csrf,
-      "content-type": "application/json",
-    },
-  };
-}
-
-function callCsrf(method: string, url: string, extra: Record<string, unknown> = {}) {
-  const { body, headers } = csrfJson(extra);
-  return callApi(method, url, body, headers);
+function callJson(method: string, url: string, extra: Record<string, unknown> = {}) {
+  return callApi(method, url, JSON.stringify(extra), { "content-type": "application/json" });
 }
 
 function callMock(path: string, body: Record<string, unknown> = {}) {
@@ -117,14 +106,14 @@ describe("mock API parity", () => {
     expect(status.status).toBe(400);
     expect(status.body).toEqual({ ok: false, error: "not_ap" });
 
-    const commit = await callCsrf("POST", "/api/wifi/connect-commit");
+    const commit = await callJson("POST", "/api/wifi/connect-commit");
     expect(commit.status).toBe(400);
     expect(commit.body).toEqual({ ok: false, error: "not_ap" });
   });
 
   it("returns unavailable when sending a heart without MQTT", async () => {
     await callMock("/api/_mock/scenario", { scenario: "sta-mqtt-offline" });
-    const res = await callCsrf("POST", "/api/chaya/send");
+    const res = await callJson("POST", "/api/chaya/send");
     expect(res.status).toBe(503);
     expect(res.body).toEqual({ ok: false, error: "unavailable" });
   });
@@ -134,14 +123,14 @@ describe("mock API parity", () => {
     const chaya = await callApi("GET", "/api/chaya");
     expect(chaya.status).toBe(200);
     expect(chaya.body).toMatchObject({ paired: false, connected: true });
-    const res = await callCsrf("POST", "/api/chaya/send");
+    const res = await callJson("POST", "/api/chaya/send");
     expect(res.status).toBe(503);
     expect(res.body).toEqual({ ok: false, error: "unavailable" });
   });
 
   it("returns busy when sending a heart in heart-busy scenario", async () => {
     await callMock("/api/_mock/scenario", { scenario: "heart-busy" });
-    const res = await callCsrf("POST", "/api/chaya/send");
+    const res = await callJson("POST", "/api/chaya/send");
     expect(res.status).toBe(503);
     expect(res.body).toEqual({ ok: false, error: "busy" });
   });
@@ -157,11 +146,11 @@ describe("mock API parity", () => {
 
   it("rejects destructive resets while update is busy", async () => {
     await callMock("/api/_mock/scenario", { scenario: "update-busy" });
-    const factory = await callCsrf("POST", "/api/factory-reset");
+    const factory = await callJson("POST", "/api/factory-reset");
     expect(factory.status).toBe(503);
     expect(factory.body).toEqual({ ok: false, error: "busy" });
 
-    const check = await callCsrf("POST", "/api/update/check", { channel: "stable" });
+    const check = await callJson("POST", "/api/update/check", { channel: "stable" });
     expect(check.status).toBe(503);
     expect(check.body).toEqual({ ok: false, error: "busy" });
   });
@@ -175,7 +164,7 @@ describe("mock API parity", () => {
 
   it("retries a failed AP wifi connection test", async () => {
     await callMock("/api/_mock/scenario", { scenario: "ap-test-failed" });
-    const retry = await callCsrf("POST", "/api/wifi/connect-retry");
+    const retry = await callJson("POST", "/api/wifi/connect-retry");
     expect(retry.status).toBe(200);
     expect(retry.body).toEqual({ ok: true, message: "retrying" });
 
@@ -202,7 +191,7 @@ describe("mock API parity", () => {
 
   it("rejects wifi connect-retry when not failed", async () => {
     await callMock("/api/_mock/scenario", { scenario: "ap-test-ok" });
-    const retry = await callCsrf("POST", "/api/wifi/connect-retry");
+    const retry = await callJson("POST", "/api/wifi/connect-retry");
     expect(retry.status).toBe(400);
     expect(retry.body).toEqual({ ok: false, error: "not_fail" });
   });
@@ -234,7 +223,7 @@ describe("mock API parity", () => {
   it("keeps an incoming mqtt broker secret in mock state", async () => {
     await callMock("/api/_mock/scenario", { scenario: "mqtt-no-auth" });
     expect(getState().mqtt.password).toBe("");
-    const res = await callCsrf("POST", "/api/mqtt", {
+    const res = await callJson("POST", "/api/mqtt", {
       mqtt_server: "mqtt.example.com",
       mqtt_pass: "example-mock-credential",
     });
@@ -248,7 +237,7 @@ describe("mock API parity", () => {
   it("injects mqtt-save faults without mutating config", async () => {
     await callMock("/api/_mock/fault", { fault: "mqtt-save", enabled: true });
     const before = getState().mqtt.server;
-    const res = await callCsrf("POST", "/api/mqtt", {
+    const res = await callJson("POST", "/api/mqtt", {
       mqtt_server: "evil.example.com",
       mqtt_port: 1883,
       mqtt_user: "x",
@@ -263,7 +252,7 @@ describe("mock API parity", () => {
     const idle = await callApi("GET", "/api/wifi/scan");
     expect(idle.status).toBe(200);
     expect(idle.body).toEqual({ status: "idle" });
-    const kicked = await callCsrf("POST", "/api/wifi/scan");
+    const kicked = await callJson("POST", "/api/wifi/scan");
     expect(kicked.status).toBe(202);
     expect(kicked.body).toEqual({ ok: true });
     getState().scanReadyAt = 1;

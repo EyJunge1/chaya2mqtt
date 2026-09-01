@@ -1,8 +1,6 @@
 #include <unity.h>
 
 #include "constants.h"
-#include "web/csrf_pure.h"
-#include "web/hex_codec.h"
 #include "web/host_validate.h"
 #include "web/spa_asset_lookup.h"
 #include "web/sse_dirty_pure.h"
@@ -25,50 +23,6 @@ void test_settings_range_helpers() {
     TEST_ASSERT_FALSE(audioVolumeInRange(101));
     TEST_ASSERT_TRUE(quietHourInRange(23));
     TEST_ASSERT_FALSE(quietHourInRange(24));
-}
-
-void test_hex_codec_roundtrip() {
-    const uint8_t raw[16] = {0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0xff};
-    char hex[33]{};
-    hexEncode16(raw, hex);
-    TEST_ASSERT_EQUAL_STRING("000102030405060708090a0b0c0d0eff", hex);
-
-    uint8_t out[16]{};
-    TEST_ASSERT_TRUE(hexDecode32Strict(hex, out));
-    TEST_ASSERT_EQUAL_UINT8_ARRAY(raw, out, 16);
-    TEST_ASSERT_TRUE(secretsEqual16(raw, out));
-
-    TEST_ASSERT_FALSE(hexDecode32Strict("00", out));
-    TEST_ASSERT_FALSE(hexDecode32Strict(nullptr, out));
-}
-
-void test_csrf_submitted_matches_expected() {
-    const uint8_t raw[16] = {0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0xff};
-    char hex[33]{};
-    hexEncode16(raw, hex);
-    TEST_ASSERT_TRUE(csrfSubmittedMatchesExpected(hex, raw));
-    TEST_ASSERT_FALSE(csrfSubmittedMatchesExpected("00", raw));
-    TEST_ASSERT_FALSE(csrfSubmittedMatchesExpected(nullptr, raw));
-    TEST_ASSERT_FALSE(csrfSubmittedMatchesExpected(hex, nullptr));
-    hex[0] = 'f';
-    TEST_ASSERT_FALSE(csrfSubmittedMatchesExpected(hex, raw));
-}
-
-void test_csrf_rotation_timing() {
-    TEST_ASSERT_FALSE(csrfTokenNeedsRotation(1000U, 1000U));
-    TEST_ASSERT_FALSE(csrfTokenNeedsRotation(1000U + kCsrfTokenTtlMs - 1U, 1000U));
-    TEST_ASSERT_TRUE(csrfTokenNeedsRotation(1000U + kCsrfTokenTtlMs, 1000U));
-    TEST_ASSERT_TRUE(csrfPreviousTokenAllowed(5000U, 5000U));
-    TEST_ASSERT_TRUE(csrfPreviousTokenAllowed(5000U + kCsrfTokenGraceMs - 1U, 5000U));
-    TEST_ASSERT_FALSE(csrfPreviousTokenAllowed(5000U + kCsrfTokenGraceMs, 5000U));
-    TEST_ASSERT_TRUE(csrfTokenNeedsRotation(100U, 200U));
-}
-
-void test_csrf_accept_or_policy() {
-    TEST_ASSERT_TRUE(csrfAcceptSubmitted(true, false, false));
-    TEST_ASSERT_TRUE(csrfAcceptSubmitted(false, true, true));
-    TEST_ASSERT_FALSE(csrfAcceptSubmitted(false, true, false));
-    TEST_ASSERT_FALSE(csrfAcceptSubmitted(false, false, true));
 }
 
 void test_host_validate() {
@@ -155,10 +109,6 @@ int main(int, char **) {
     UNITY_BEGIN();
     RUN_TEST(test_ui_pref_syntax);
     RUN_TEST(test_settings_range_helpers);
-    RUN_TEST(test_hex_codec_roundtrip);
-    RUN_TEST(test_csrf_submitted_matches_expected);
-    RUN_TEST(test_csrf_rotation_timing);
-    RUN_TEST(test_csrf_accept_or_policy);
     RUN_TEST(test_host_validate);
     RUN_TEST(test_spa_asset_lookup);
     RUN_TEST(test_sse_tick_select_bits);

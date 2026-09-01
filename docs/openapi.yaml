@@ -2,28 +2,23 @@ openapi: 3.2.0
 info:
   title: Chaya2MQTT Web Admin API
   version: 1.0.0
-  description: |
-    HTTP JSON API served by the device firmware (ESPAsyncWebServer on port 80).
-    Mutations use `application/json` and require the `X-CSRF-Token` header.
-    There is no login; access is limited by Host/Origin allowlists on the LAN.
-    Routes restricted to STA or setup-AP mode return HTTP 400 with `ap_mode` or
-    `not_ap`. Temporarily blocked operations return HTTP 503 with `busy` or `shutdown`.
+  description: HTTP JSON API for the device web admin.
+  contact:
+    name: Chaya2MQTT
+    url: https://eyjunge1.github.io/chaya2mqtt/
   license:
-    name: GNU General Public License v3.0 only
-    identifier: GPL-3.0-only
+    name: GNU GPL v3.0 only
+    url: https://github.com/EyJunge1/chaya2mqtt/blob/main/LICENSE
 servers:
   - url: http://chaya2mqtt-{deviceId}.local
-    description: STA mode via the device-specific mDNS hostname
+    description: STA mDNS hostname
     variables:
       deviceId:
-        default: a1b2c3
-        description: Six-character device ID from NVS (random; MAC-seeded once on OTA migration)
+        default: deviceId
   - url: http://4.3.2.1
     description: AP setup mode
 security: []
 tags:
-  - name: csrf
-    description: CSRF token for state-changing requests
   - name: device
     description: Device identity and firmware mode
   - name: chaya
@@ -39,33 +34,10 @@ tags:
   - name: reset
     description: Factory reset
 paths:
-  /api/csrf:
-    get:
-      tags: [csrf]
-      summary: Fetch CSRF token
-      operationId: getCsrf
-      responses:
-        "200":
-          description: Token payload
-          content:
-            application/json:
-              schema:
-                type: object
-                required: [token, expiresInSeconds]
-                properties:
-                  token:
-                    type: string
-                    pattern: "^[0-9a-f]{32}$"
-                  expiresInSeconds:
-                    type: integer
-                    minimum: 0
-                    maximum: 86400
-        "403":
-          $ref: "#/components/responses/Forbidden"
   /api/bootstrap:
     get:
       tags: [device]
-      summary: Cold-boot snapshot (csrf + device + status)
+      summary: Cold-boot snapshot
       operationId: getBootstrap
       responses:
         "200":
@@ -74,30 +46,20 @@ paths:
             application/json:
               schema:
                 type: object
-                required: [csrf, device, wifi]
+                required: [device, wifi]
                 properties:
-                  csrf:
-                    type: object
-                    required: [token, expiresInSeconds]
-                    properties:
-                      token: { type: string }
-                      expiresInSeconds: { type: integer, minimum: 0 }
                   device:
                     type: object
                   wifi:
                     type: object
                   chaya:
-                    nullable: true
-                    type: object
+                    type: [object, "null"]
                   mqtt:
-                    nullable: true
-                    type: object
+                    type: [object, "null"]
                   update:
-                    nullable: true
-                    type: object
+                    type: [object, "null"]
                   settings:
-                    nullable: true
-                    type: object
+                    type: [object, "null"]
         "403":
           $ref: "#/components/responses/Forbidden"
   /api/device:
@@ -133,10 +95,8 @@ paths:
   /api/chaya/send:
     post:
       tags: [chaya]
-      summary: Queue heart send (requires broker and partner)
+      summary: Queue heart send
       operationId: sendChaya
-      parameters:
-        - $ref: "#/components/parameters/CsrfToken"
       requestBody:
         required: true
         content:
@@ -189,10 +149,7 @@ paths:
       tags: [wifi]
       summary: Read cached access-point scan
       operationId: getWifiScan
-      description: >
-        Read-only snapshot. Does not start a sweep; POST /api/wifi/scan kicks.
-        `status` is idle (never started), pending (kick or sweep in flight),
-        ready (aps present), or failed (last sweep failed).
+      description: Cached snapshot. POST starts a scan. `status` is idle, pending, ready, or failed.
       responses:
         "200":
           description: Scan snapshot
@@ -206,8 +163,6 @@ paths:
       tags: [wifi]
       summary: Start access-point scan
       operationId: startWifiScan
-      parameters:
-        - $ref: "#/components/parameters/CsrfToken"
       requestBody:
         required: true
         content:
@@ -216,7 +171,7 @@ paths:
               $ref: "#/components/schemas/EmptyJson"
       responses:
         "202":
-          description: Scan kicked; poll GET for results
+          description: Scan started; poll GET for results
           content:
             application/json:
               schema:
@@ -228,26 +183,24 @@ paths:
       tags: [wifi]
       summary: Start AP test or save STA credentials
       operationId: connectWifi
-      parameters:
-        - $ref: "#/components/parameters/CsrfToken"
       requestBody:
         required: true
         content:
           application/json:
             schema:
               type: object
-                  required: [ssid, mode]
-                  properties:
-                    ssid: { type: string, minLength: 1, maxLength: 32 }
-                    password: { type: string, maxLength: 63 }
-                    mode: { type: string, enum: [dhcp, static] }
-                    ip: { type: string, maxLength: 15 }
-                    gateway: { type: string, maxLength: 15 }
-                    netmask: { type: string, maxLength: 15 }
-                    dns1: { type: string, maxLength: 15 }
-                    dns2: { type: string, maxLength: 15 }
-                    ntp1: { type: string, maxLength: 63 }
-                    ntp2: { type: string, maxLength: 63 }
+              required: [ssid, mode]
+              properties:
+                ssid: { type: string, minLength: 1, maxLength: 32 }
+                password: { type: string, maxLength: 63 }
+                mode: { type: string, enum: [dhcp, static] }
+                ip: { type: string, maxLength: 15 }
+                gateway: { type: string, maxLength: 15 }
+                netmask: { type: string, maxLength: 15 }
+                dns1: { type: string, maxLength: 15 }
+                dns2: { type: string, maxLength: 15 }
+                ntp1: { type: string, maxLength: 63 }
+                ntp2: { type: string, maxLength: 63 }
       responses:
         "200":
           description: Accepted
@@ -260,7 +213,7 @@ paths:
         "403":
           $ref: "#/components/responses/Forbidden"
         "500":
-          description: Failed to persist Wi‑Fi credentials
+          description: Failed to save credentials
           content:
             application/json:
               schema:
@@ -269,7 +222,7 @@ paths:
                 ok: false
                 error: save
         "503":
-          description: Connection test could not start
+          description: Test could not start
           content:
             application/json:
               schema:
@@ -305,8 +258,6 @@ paths:
       tags: [wifi]
       summary: Commit successful AP test and reboot
       operationId: commitWifiConnect
-      parameters:
-        - $ref: "#/components/parameters/CsrfToken"
       requestBody:
         required: true
         content:
@@ -329,8 +280,6 @@ paths:
       tags: [wifi]
       summary: Abort AP connection test
       operationId: abortWifiConnect
-      parameters:
-        - $ref: "#/components/parameters/CsrfToken"
       requestBody:
         required: true
         content:
@@ -351,10 +300,8 @@ paths:
   /api/wifi/connect-retry:
     post:
       tags: [wifi]
-      summary: Retry failed AP connection test with the same credentials
+      summary: Retry AP connection test
       operationId: retryWifiConnect
-      parameters:
-        - $ref: "#/components/parameters/CsrfToken"
       requestBody:
         required: true
         content:
@@ -396,7 +343,7 @@ paths:
   /api/mqtt:
     get:
       tags: [mqtt]
-      summary: MQTT config view (password never returned)
+      summary: MQTT config (no password)
       operationId: getMqttConfig
       responses:
         "200":
@@ -413,46 +360,39 @@ paths:
           $ref: "#/components/responses/ApiError"
     post:
       tags: [mqtt]
-      summary: Save MQTT broker and partner ID (topics are derived)
+      summary: Save MQTT config
       operationId: saveMqttConfig
-      parameters:
-        - $ref: "#/components/parameters/CsrfToken"
+      description: Omitted fields keep their current value. Topics are derived.
       requestBody:
         required: true
         content:
           application/json:
             schema:
               type: object
-                  properties:
-                    mqtt_server:
-                      type: string
-                      maxLength: 127
-                      description: Broker hostname or IP; omitted fields keep their current value
-                    mqtt_port:
-                      type: integer
-                      description: MQTT port (typically 1883 plain / 8883 TLS); omitted fields keep their current value
-                    mqtt_tls:
-                      type: boolean
-                      description: >
-                        true = mqtts (TLS), false = mqtt (plain TCP). Omitted fields keep their current value.
-                        Default for new/missing NVS is TLS (true).
-                    mqtt_user:
-                      type: string
-                      maxLength: 63
-                      description: MQTT username (optional; empty for anonymous)
-                    mqtt_pass:
-                      type: string
-                      maxLength: 63
-                      description: >
-                        MQTT password (optional). Omit or leave empty to keep the stored password.
-                    partner_id:
-                      type: string
-                      maxLength: 6
-                      description: >
-                        Optional pairing: 6 lowercase hex digits for the partner device,
-                        or empty to unpair.
-                        Topics are derived automatically.
-                      pattern: "^([0-9a-f]{6})?$"
+              properties:
+                mqtt_server:
+                  type: string
+                  maxLength: 127
+                  description: Broker hostname or IP
+                mqtt_port:
+                  type: integer
+                  description: Port (1883 plain / 8883 TLS)
+                mqtt_tls:
+                  type: boolean
+                  description: true = TLS. Default for new NVS is true.
+                mqtt_user:
+                  type: string
+                  maxLength: 63
+                  description: Username; empty for anonymous
+                mqtt_pass:
+                  type: string
+                  maxLength: 63
+                  description: Omit or empty to keep the stored password
+                partner_id:
+                  type: string
+                  maxLength: 6
+                  description: Partner ID (6 hex digits) or empty to unpair
+                  pattern: "^([0-9a-f]{6})?$"
       responses:
         "200":
           description: Saved
@@ -486,41 +426,27 @@ paths:
       tags: [settings]
       summary: Save settings
       operationId: saveSettings
-      parameters:
-        - $ref: "#/components/parameters/CsrfToken"
       requestBody:
         required: true
         content:
           application/json:
             schema:
               type: object
-                  properties:
-                    reset_days: { type: integer, minimum: 0, maximum: 30 }
-                    lang: { type: string, enum: [de, en] }
-                    theme: { type: string, enum: [system, dark, light] }
-                    led_enabled:
-                      {
-                        type: boolean,
-                        description: Header user LED activity (false = off),
-                      }
-                    audio_tx_enabled:
-                      {
-                        type: boolean,
-                        description: Enable click when a heart is sent (default off),
-                      }
-                    audio_rx_enabled:
-                      {
-                        type: boolean,
-                        description: Enable click when a heart is received (default off),
-                      }
-                    audio_tx_volume: { type: integer, minimum: 0, maximum: 100, description: TX click volume }
-                    audio_rx_volume: { type: integer, minimum: 0, maximum: 100, description: RX click volume }
-                    quiet_hour_start: { type: integer, minimum: 0, maximum: 23 }
-                    quiet_hour_end: { type: integer, minimum: 0, maximum: 23 }
-                    tx_hz: { type: integer, minimum: 40, maximum: 2000, description: Send click frequency Hz }
-                    tx_ms: { type: integer, minimum: 20, maximum: 500, description: Send click duration ms }
-                    rx_hz: { type: integer, minimum: 40, maximum: 2000, description: Receive click frequency Hz }
-                    rx_ms: { type: integer, minimum: 20, maximum: 500, description: Receive click duration ms }
+              properties:
+                reset_days: { type: integer, minimum: 0, maximum: 30 }
+                lang: { type: string, enum: [de, en] }
+                theme: { type: string, enum: [system, dark, light] }
+                led_enabled: { type: boolean, description: User LED (false = off) }
+                audio_tx_enabled: { type: boolean, description: Click on send }
+                audio_rx_enabled: { type: boolean, description: Click on receive }
+                audio_tx_volume: { type: integer, minimum: 0, maximum: 100, description: TX volume }
+                audio_rx_volume: { type: integer, minimum: 0, maximum: 100, description: RX volume }
+                quiet_hour_start: { type: integer, minimum: 0, maximum: 23 }
+                quiet_hour_end: { type: integer, minimum: 0, maximum: 23 }
+                tx_hz: { type: integer, minimum: 40, maximum: 2000, description: Send click Hz }
+                tx_ms: { type: integer, minimum: 20, maximum: 500, description: Send click ms }
+                rx_hz: { type: integer, minimum: 40, maximum: 2000, description: Receive click Hz }
+                rx_ms: { type: integer, minimum: 20, maximum: 500, description: Receive click ms }
       responses:
         "200":
           description: Saved
@@ -539,8 +465,6 @@ paths:
       tags: [settings]
       summary: Reboot device
       operationId: rebootDevice
-      parameters:
-        - $ref: "#/components/parameters/CsrfToken"
       requestBody:
         required: true
         content:
@@ -565,8 +489,6 @@ paths:
       tags: [reset]
       summary: Factory reset
       operationId: factoryReset
-      parameters:
-        - $ref: "#/components/parameters/CsrfToken"
       requestBody:
         required: true
         content:
@@ -607,18 +529,16 @@ paths:
       tags: [update]
       summary: Check GitHub for updates
       operationId: checkUpdate
-      parameters:
-        - $ref: "#/components/parameters/CsrfToken"
       requestBody:
         required: true
         content:
           application/json:
             schema:
               type: object
-                  properties:
-                    channel:
-                      type: string
-                      enum: [stable, beta]
+              properties:
+                channel:
+                  type: string
+                  enum: [stable, beta]
       responses:
         "200":
           description: Check queued
@@ -637,8 +557,6 @@ paths:
       tags: [update]
       summary: Install pending update
       operationId: installUpdate
-      parameters:
-        - $ref: "#/components/parameters/CsrfToken"
       requestBody:
         required: true
         content:
@@ -661,14 +579,6 @@ paths:
         "503":
           $ref: "#/components/responses/ApiError"
 components:
-  parameters:
-    CsrfToken:
-      name: X-CSRF-Token
-      in: header
-      required: true
-      schema:
-        type: string
-        pattern: "^[0-9a-f]{32}$"
   schemas:
     EmptyJson:
       type: object
@@ -686,7 +596,7 @@ components:
           type: boolean
         next:
           type: string
-          description: UI path or absolute device URL to open after the operation
+          description: UI path after the operation
     ApiErr:
       type: object
       required: [ok, error]
@@ -702,43 +612,43 @@ components:
       properties:
         hostname:
           type: string
-          description: "`chaya2mqtt` in AP mode; `chaya2mqtt-<deviceId>` in STA mode"
+          description: "`chaya2mqtt` (AP) or `chaya2mqtt-<deviceId>` (STA)"
         version: { type: string }
         mode: { type: string, enum: [ap, sta] }
         deviceId: { type: string }
         batteryMv:
           type: integer
-          description: LiPo pack millivolts (GPIO4 ADC × 2)
+          description: Pack millivolts
         batteryPct:
           type: integer
           minimum: 0
           maximum: 100
-          description: Coarse LiPo estimate
+          description: Coarse percent
         apSsid:
           type: string
-          description: SoftAP SSID (AP/setup mode only)
+          description: SoftAP SSID (AP mode)
         apIp:
           type: string
-          description: SoftAP IPv4 (AP/setup mode only)
+          description: SoftAP IPv4 (AP mode)
     ChayaStatus:
       type: object
       required: [rx, tx, connected, configured, paired]
       properties:
         rx:
           type: integer
-          description: Uncapped received-heart display delta (absolute counter minus saved baseline)
+          description: Received hearts since last reset
         tx:
           type: integer
-          description: Uncapped sent-heart display delta (absolute counter minus saved baseline)
+          description: Sent hearts since last reset
         connected:
           type: boolean
-          description: Whether the MQTT client is currently connected
+          description: MQTT client connected
         configured:
           type: boolean
-          description: Whether an MQTT broker is configured
+          description: MQTT broker configured
         paired:
           type: boolean
-          description: Whether a partner device ID is set (required for heart send / heart display)
+          description: Partner ID set
     WifiStatus:
       oneOf:
         - type: object
@@ -793,31 +703,25 @@ components:
       properties:
         deviceId:
           type: string
-          description: Own 6-char lowercase hex device ID (NVS `cfg/device_id`)
+          description: Own 6-char hex device ID
         server: { type: string }
         port: { type: integer }
         tls:
           type: boolean
-          description: true = mqtts (TLS on typically 8883), false = mqtt (plain TCP on typically 1883)
+          description: true = TLS (mqtts)
         username: { type: string }
         hasPassword: { type: boolean }
         topicPub:
           type: string
-          description: Derived publish topic chaya2mqtt/<deviceId>
+          description: "`chaya2mqtt/<deviceId>`"
         topicSub:
           type: string
-          description: Derived subscribe topic chaya2mqtt/<partnerId>, or empty when unpaired
+          description: "`chaya2mqtt/<partnerId>`, empty if unpaired"
         partnerId: { type: string }
         nvsOk:
-          {
-            type: boolean,
-            description: false when last deferred MQTT NVS persist failed (QUAL-01),
-          }
+          { type: boolean, description: false if last NVS persist failed }
         applyPending:
-          {
-            type: boolean,
-            description: true while a changing MQTT POST is queued or the network task is still applying (QUAL-04),
-          }
+          { type: boolean, description: true while apply is in flight }
     SettingsInfo:
       type: object
       required:
@@ -843,28 +747,28 @@ components:
         theme: { type: string, enum: [system, dark, light] }
         ledEnabled:
           type: boolean
-          description: Header user LED activity (false = dark except factory reset)
+          description: User LED (false = off)
         audioTxEnabled:
           type: boolean
-          description: Click when a heart is sent (default false)
+          description: Click on send
         audioRxEnabled:
           type: boolean
-          description: Click when a heart is received (default false)
+          description: Click on receive
         audioTxVolume:
           type: integer
           minimum: 0
           maximum: 100
-          description: TX click volume (default 70)
+          description: TX volume
         audioRxVolume:
           type: integer
           minimum: 0
           maximum: 100
-          description: RX click volume (default 70)
+          description: RX volume
         quietHourStart:
           type: integer
           minimum: 0
           maximum: 23
-          description: Quiet hours start (local, after NTP). Equal to quietHourEnd = off (default both 0)
+          description: Quiet hours start; equal to end = off
         quietHourEnd:
           type: integer
           minimum: 0
@@ -873,28 +777,28 @@ components:
           type: integer
           minimum: 40
           maximum: 2000
-          description: Send click sine frequency (Hz)
+          description: Send click Hz
         txMs:
           type: integer
           minimum: 20
           maximum: 500
-          description: Send click duration (ms)
+          description: Send click ms
         rxHz:
           type: integer
           minimum: 40
           maximum: 2000
-          description: Receive click sine frequency (Hz)
+          description: Receive click Hz
         rxMs:
           type: integer
           minimum: 20
           maximum: 500
-          description: Receive click duration (ms)
+          description: Receive click ms
         nvsOk:
           type: boolean
-          description: false when last deferred settings NVS persist failed (QUAL-01)
+          description: false if last NVS persist failed
         applyPending:
           type: boolean
-          description: true while settings apply is queued or retrying (QUAL-04)
+          description: true while apply is in flight
     OtaStatus:
       type: object
       required:
@@ -914,7 +818,7 @@ components:
         generation: { type: integer }
   responses:
     Forbidden:
-      description: Host/Origin or CSRF rejected
+      description: Host rejected
       content:
         application/json:
           schema:

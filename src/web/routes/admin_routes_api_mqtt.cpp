@@ -192,6 +192,6 @@ void adminRoutesRegisterApiMqtt(AsyncWebServer &ws) {
     {
         AsyncCallbackJsonWebHandler &h = adminAddJsonPost(ws, "/api/mqtt", handleApiMqttPost);
         h.addMiddleware(mwApiStaMode());
-        h.addMiddleware(mwApiPostCsrf());
+        h.addMiddleware(mwRequireAllowedHost());
     }
 }

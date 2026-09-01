@@ -4,8 +4,6 @@
 
 ArMiddlewareCallback mwRequireAllowedHost();
 
-/** JSON APIs: 403 on bad host/origin/CSRF instead of redirects. */
-ArMiddlewareCallback mwApiPostCsrf();
-ArMiddlewareCallback mwApiApPostCsrf();
+ArMiddlewareCallback mwApiApPost();
 ArMiddlewareCallback mwApiStaMode();
 ArMiddlewareCallback mwApiApMode();

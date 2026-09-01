@@ -159,6 +159,6 @@ void adminRoutesRegisterApiSettings(AsyncWebServer &ws) {
     {
         AsyncCallbackJsonWebHandler &h = adminAddJsonPost(ws, "/api/settings", handleApiSettingsPost);
         h.addMiddleware(mwApiStaMode());
-        h.addMiddleware(mwApiPostCsrf());
+        h.addMiddleware(mwRequireAllowedHost());
     }
 }

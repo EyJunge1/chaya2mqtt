@@ -268,11 +268,11 @@ void adminRoutesRegisterApiWifi(AsyncWebServer &ws) {
     }
     {
         AsyncCallbackJsonWebHandler &h = adminAddJsonPost(ws, "/api/wifi/scan", handleApiWifiScanPost);
-        h.addMiddleware(mwApiPostCsrf());
+        h.addMiddleware(mwRequireAllowedHost());
     }
     {
         AsyncCallbackJsonWebHandler &h = adminAddJsonPost(ws, "/api/wifi/connect", handleApiWifiConnectPost);
-        h.addMiddleware(mwApiPostCsrf());
+        h.addMiddleware(mwRequireAllowedHost());
     }
     {
         AsyncCallbackWebHandler &h =
@@ -281,14 +281,14 @@ void adminRoutesRegisterApiWifi(AsyncWebServer &ws) {
     }
     {
         AsyncCallbackJsonWebHandler &h = adminAddJsonPost(ws, "/api/wifi/connect-commit", handleApiWifiConnectCommitPost);
-        h.addMiddleware(mwApiApPostCsrf());
+        h.addMiddleware(mwApiApPost());
     }
     {
         AsyncCallbackJsonWebHandler &h = adminAddJsonPost(ws, "/api/wifi/connect-abort", handleApiWifiConnectAbortPost);
-        h.addMiddleware(mwApiApPostCsrf());
+        h.addMiddleware(mwApiApPost());
     }
     {
         AsyncCallbackJsonWebHandler &h = adminAddJsonPost(ws, "/api/wifi/connect-retry", handleApiWifiConnectRetryPost);
-        h.addMiddleware(mwApiApPostCsrf());
+        h.addMiddleware(mwApiApPost());
     }
 }

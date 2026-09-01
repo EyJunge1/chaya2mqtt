@@ -54,7 +54,7 @@ void adminRoutesRegisterApiSystem(AsyncWebServer &ws) {
     {
         AsyncCallbackJsonWebHandler &h = adminAddJsonPost(ws, "/api/reboot", handleApiRebootPost);
         h.addMiddleware(mwApiStaMode());
-        h.addMiddleware(mwApiPostCsrf());
+        h.addMiddleware(mwRequireAllowedHost());
     }
     {
         AsyncCallbackJsonWebHandler &h =
@@ -65,6 +65,6 @@ void adminRoutesRegisterApiSystem(AsyncWebServer &ws) {
                 handleApiResetPost(rq, NetCmd::FactoryResetRequested, "factory_reset");
             });
         h.addMiddleware(mwApiStaMode());
-        h.addMiddleware(mwApiPostCsrf());
+        h.addMiddleware(mwRequireAllowedHost());
     }
 }

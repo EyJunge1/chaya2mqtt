@@ -29,7 +29,7 @@ src/
   heart/                   RX/TX counters, baselines, NVS chaya
   config/                  App prefs, NVS utils/keys, version (not MQTT broker)
 
-  web/                     Admin site: server, CSRF, middleware, SPA, assets
+  web/                     Admin site: server, Host allowlist, middleware, SPA, assets
     routes/                HTTP routes (JSON /api/*, captive, SPA)
     events.*               SSE /events
 
@@ -413,8 +413,7 @@ Presets: Boot (startup), WifiUp (STA ready / reconnect), MqttUp (broker connecte
 | `json_payloads.h` | Shared `fill*` helpers for GET `/api/*` and SSE event data |
 | `deferred_reboot.h` / `deferred_reboot.cpp` | Reboot after saving WiFi |
 | `web_utils.h` / `web_utils.cpp` | Redirects, security headers, `webSendJsonDoc` / `webSerializeJson` |
-| `web_middleware.h` / `web_middleware.cpp` | Host/CSRF middleware for API routes |
-| `csrf.h` / `csrf.cpp` | Generate and validate CSRF tokens |
+| `web_middleware.h` / `web_middleware.cpp` | Host allowlist middleware for API routes |
 | `events.h` / `events.cpp` | SSE `/events` |
 | `routes/admin_routes_api.cpp` | Register entry + shared `sendOk`/`sendErr` |
 | `routes/admin_routes_api_*.cpp` | Thematic JSON API `/api/*` (device, chaya, wifi, mqtt, settings, system, ota) |

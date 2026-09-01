@@ -11,7 +11,6 @@
 #include "mqtt/mqtt.h"
 #include "ota/ota.h"
 #include "ota/ota_json.h"
-#include "web/csrf.h"
 #include "web/web_middleware.h"
 #include "web/web_utils.h"
 #include "wifi/wlan.h"
@@ -72,16 +71,6 @@ void fillWifiStatusJson(JsonObject obj) {
     fillWifiStatusJson(obj, connected, ssidBuf, ipStr, gateway, netmask, dns1, dns2, rssi);
 }
 
-void handleApiCsrfGet(AsyncWebServerRequest *req) {
-    char token[33];
-    uint32_t expiresInSeconds = 0;
-    webCsrfGetTokenHex(token, sizeof(token), &expiresInSeconds);
-    JsonDocument doc;
-    doc["token"] = token;
-    doc["expiresInSeconds"] = expiresInSeconds;
-    webSendJsonDoc(req, 200, doc);
-}
-
 void handleApiDeviceGet(AsyncWebServerRequest *req) {
     JsonDocument doc;
     fillDeviceJson(doc.to<JsonObject>());
@@ -90,13 +79,6 @@ void handleApiDeviceGet(AsyncWebServerRequest *req) {
 
 void handleApiBootstrapGet(AsyncWebServerRequest *req) {
     JsonDocument doc;
-
-    char token[33];
-    uint32_t expiresInSeconds = 0;
-    webCsrfGetTokenHex(token, sizeof(token), &expiresInSeconds);
-    JsonObject csrf = doc["csrf"].to<JsonObject>();
-    csrf["token"] = token;
-    csrf["expiresInSeconds"] = expiresInSeconds;
 
     fillDeviceJson(doc["device"].to<JsonObject>());
     fillWifiStatusJson(doc["wifi"].to<JsonObject>());
@@ -117,10 +99,6 @@ void handleApiBootstrapGet(AsyncWebServerRequest *req) {
 }
 
 void adminRoutesRegisterApiDevice(AsyncWebServer &ws) {
-    {
-        AsyncCallbackWebHandler &h = ws.on("/api/csrf", HTTP_GET, [](AsyncWebServerRequest *rq) { handleApiCsrfGet(rq); });
-        h.addMiddleware(mwRequireAllowedHost());
-    }
     {
         AsyncCallbackWebHandler &h = ws.on("/api/device", HTTP_GET, [](AsyncWebServerRequest *rq) { handleApiDeviceGet(rq); });
         h.addMiddleware(mwRequireAllowedHost());

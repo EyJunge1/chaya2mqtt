@@ -11,7 +11,6 @@
 #include "async/task_handles.h"
 #include "async/web_server_hooks.h"
 #include "config/app_config.h"
-#include "csrf.h"
 #include "events.h"
 #include "heart/counter.h"
 #include "led/led.h"
@@ -45,7 +44,6 @@ void webAdminRegisterRoutes() {
     }
     g_webAdminRoutesRegistered = true;
 
-    webCsrfInit();
     AsyncWebServer &ws = webAdminWebServer();
 
     adminRoutesRegisterApi(ws);

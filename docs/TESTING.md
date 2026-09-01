@@ -30,7 +30,7 @@ Local test pyramid for chaya2mqtt based on this **principle**: real firmware log
 | MQTT QoS-1 ACK / Backoff / Reconnect | `mqtt_publish_ack.h`, `backoff.h`, `mqtt_reconnect.cpp` | `test_mqtt`, `test_device_sim` | — |
 | Counter Payload / Display-Delta | `counter_payload.h`, `heart/counter_pure.h` | `test_mqtt`, `test_time`, device-sim | Dashboard SSE |
 | WiFi / NVS-Pack | `wifi/wlan_pack.h`, `wlan_config.*` | `test_wifi`, device-sim NVS | `WifiSetup`, E2E AP |
-| Web CSRF TTL/Grace / Host / Hex / SPA | `csrf_pure.h`, `hex_codec.h`, `host_validate.h`, `spa_asset_lookup.h` | `test_web` | single-flight refresh/retry, contract |
+| Web Host / SPA | `host_validate.h`, `spa_asset_lookup.h` | `test_web` | contract |
 | OTA Version / GitHub JSON / URL allowlist | `version_cmp.h`, `github_parse.h`, `ota_url_allow.h` | `test_ota` | `UpdatePage`, E2E |
 | OTA health window (30 s) | `ota/ota_health.h` | `test_ota` (`test_ota_health_window`) | — |
 | WiFi Soft→Force reconnect threshold | `wifi/wlan_config.h` (`kWifiSoftReconnectAttemptsBeforeForce`) | `test_wifi` (constant assert only) | Soft-reconnect recovery loop: HIL/manual |

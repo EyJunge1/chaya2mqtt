@@ -2,7 +2,6 @@
 
 #include "config/app_config.h"
 #include "constants.h"
-#include "csrf.h"
 #include "host_validate.h"
 #include "identity/device_identity.h"
 #include "wifi/wlan.h"
@@ -75,30 +74,6 @@ bool webRequestHostAllowed(AsyncWebServerRequest *req) {
     return webHostAllowedForRequest(req->host().c_str());
 }
 
-bool webRequestOriginAllowed(AsyncWebServerRequest *req) {
-    if (req == nullptr) {
-        return false;
-    }
-    if (!req->hasHeader("Origin")) {
-        return true;
-    }
-    const char *origin = req->header("Origin").c_str();
-    const char *schemeEnd = std::strstr(origin, "://");
-    if (schemeEnd == nullptr) {
-        return false;
-    }
-    const char *hostStart = schemeEnd + 3;
-    const char *pathStart = std::strchr(hostStart, '/');
-    const size_t hostLen = (pathStart != nullptr) ? static_cast<size_t>(pathStart - hostStart) : std::strlen(hostStart);
-    char originHost[128];
-    if (hostLen >= sizeof(originHost)) {
-        return false;
-    }
-    std::memcpy(originHost, hostStart, hostLen);
-    originHost[hostLen] = '\0';
-    return webHostAllowedForRequest(originHost);
-}
-
 void webSendJsonDoc(AsyncWebServerRequest *req, int code, JsonDocument &doc) {
     if (doc.overflowed()) {
         webSendEmpty(req, 500);
@@ -159,38 +134,4 @@ void webSendEmpty(AsyncWebServerRequest *req, int code) {
     AsyncWebServerResponse *r = req->beginResponse(code);
     webAddSecurityHeaders(r);
     req->send(r);
-}
-
-void appendCurrentWebCsrfTokenEscaped(Print &out) {
-    char b[33];
-    webCsrfGetTokenHex(b, sizeof(b));
-    appendHtmlEscaped(out, b);
-}
-
-void appendHtmlEscaped(Print &out, const char *s) {
-    if (s == nullptr) {
-        return;
-    }
-    for (; *s != '\0'; ++s) {
-        switch (*s) {
-        case '&':
-            out.print(F("&amp;"));
-            break;
-        case '"':
-            out.print(F("&quot;"));
-            break;
-        case '\'':
-            out.print(F("&#39;"));
-            break;
-        case '<':
-            out.print(F("&lt;"));
-            break;
-        case '>':
-            out.print(F("&gt;"));
-            break;
-        default:
-            out.print(*s);
-            break;
-        }
-    }
 }

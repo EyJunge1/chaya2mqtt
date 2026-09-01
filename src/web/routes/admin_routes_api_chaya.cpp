@@ -56,6 +56,6 @@ void adminRoutesRegisterApiChaya(AsyncWebServer &ws) {
     {
         AsyncCallbackJsonWebHandler &h = adminAddJsonPost(ws, "/api/chaya/send", handleApiChayaSendPost);
         h.addMiddleware(mwApiStaMode());
-        h.addMiddleware(mwApiPostCsrf());
+        h.addMiddleware(mwRequireAllowedHost());
     }
 }

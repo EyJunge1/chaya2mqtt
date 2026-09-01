@@ -27,9 +27,6 @@ constexpr const char kSetupApIp[] = "4.3.2.1";
 /** Absolute captive-portal landing URL (Android/Windows prefer absolute). */
 constexpr const char kSetupApCaptiveRedirect[] = "http://4.3.2.1/";
 
-/** Setup-AP origin; the station origin is derived from the device ID. */
-constexpr const char kDeviceHttpOrigin[] = "http://chaya2mqtt.local/";
-
 inline bool ntpTimeLooksSynced(time_t utcNow) { return utcNow > static_cast<time_t>(kNtpMinValidUtcEpoch); }
 
 /**

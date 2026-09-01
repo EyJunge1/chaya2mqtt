@@ -19,10 +19,9 @@ bool adminJsonRequireObject(AsyncWebServerRequest *req, JsonVariant &json);
 
 AsyncCallbackJsonWebHandler &adminAddJsonPost(AsyncWebServer &ws, const char *uri, ArJsonRequestHandlerFunction fn);
 
-void handleApiCsrfGet(AsyncWebServerRequest *req);
 void handleApiDeviceGet(AsyncWebServerRequest *req);
 
-/** Aggregated boot snapshot: csrf + device (+ STA extras). */
+/** Aggregated boot snapshot: device + wifi (+ STA extras). */
 void handleApiBootstrapGet(AsyncWebServerRequest *req);
 
 void handleApiChayaGet(AsyncWebServerRequest *req);

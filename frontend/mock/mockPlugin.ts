@@ -44,21 +44,6 @@ function sendJson(res: ServerResponse, code: number, body: unknown): void {
   res.end(payload);
 }
 
-function headerValue(req: IncomingMessage, name: string): string | undefined {
-  const headers = (req.headers ?? {}) as Record<string, string | string[] | undefined>;
-  const raw = headers[name] ?? headers[name.toLowerCase()];
-  if (Array.isArray(raw)) return raw[0];
-  return raw;
-}
-
-function requireCsrf(req: IncomingMessage, res: ServerResponse): boolean {
-  if (headerValue(req, "x-csrf-token") !== getState().csrf) {
-    sendJson(res, 403, { ok: false, error: "csrf" });
-    return false;
-  }
-  return true;
-}
-
 async function readJsonObject(
   req: IncomingMessage,
   res: ServerResponse,
@@ -163,16 +148,10 @@ export async function handleApi(req: IncomingMessage, res: ServerResponse): Prom
     return true;
   }
 
-  if (path === "/api/csrf" && method === "GET") {
-    sendJson(res, 200, { token: state.csrf, expiresInSeconds: 86400 });
-    return true;
-  }
-
   if (path === "/api/bootstrap" && method === "GET") {
     if (failIfFault("device", res)) return true;
     const sta = state.mode === "sta";
     sendJson(res, 200, {
-      csrf: { token: state.csrf, expiresInSeconds: 86400 },
       device: devicePayload(),
       wifi: wifiPayload(),
       chaya: sta ? chayaPayload() : null,
@@ -217,7 +196,6 @@ export async function handleApi(req: IncomingMessage, res: ServerResponse): Prom
 
   if (path === "/api/chaya/send" && method === "POST") {
     if (!requireStaMode(res)) return true;
-    if (!requireCsrf(req, res)) return true;
     const body = await readJsonObject(req, res);
     if (!body) return true;
     if (failIfFault("heart", res)) return true;
@@ -248,7 +226,6 @@ export async function handleApi(req: IncomingMessage, res: ServerResponse): Prom
   }
 
   if (path === "/api/wifi/scan" && method === "POST") {
-    if (!requireCsrf(req, res)) return true;
     const body = await readJsonObject(req, res);
     if (!body) return true;
     if (failIfFault("wifi-scan", res)) return true;
@@ -287,7 +264,6 @@ export async function handleApi(req: IncomingMessage, res: ServerResponse): Prom
   }
 
   if (path === "/api/wifi/connect" && method === "POST") {
-    if (!requireCsrf(req, res)) return true;
     const body = await readJsonObject(req, res);
     if (!body) return true;
     if (failIfFault("wifi-connect", res)) return true;
@@ -369,7 +345,6 @@ export async function handleApi(req: IncomingMessage, res: ServerResponse): Prom
 
   if (path === "/api/wifi/connect-commit" && method === "POST") {
     if (!requireApMode(res)) return true;
-    if (!requireCsrf(req, res)) return true;
     const body = await readJsonObject(req, res);
     if (!body) return true;
     if (failIfFault("wifi-commit", res)) return true;
@@ -403,7 +378,6 @@ export async function handleApi(req: IncomingMessage, res: ServerResponse): Prom
 
   if (path === "/api/wifi/connect-abort" && method === "POST") {
     if (!requireApMode(res)) return true;
-    if (!requireCsrf(req, res)) return true;
     const body = await readJsonObject(req, res);
     if (!body) return true;
     if (failIfFault("wifi-abort", res)) return true;
@@ -428,7 +402,6 @@ export async function handleApi(req: IncomingMessage, res: ServerResponse): Prom
 
   if (path === "/api/wifi/connect-retry" && method === "POST") {
     if (!requireApMode(res)) return true;
-    if (!requireCsrf(req, res)) return true;
     const body = await readJsonObject(req, res);
     if (!body) return true;
     if (failIfFault("wifi-retry", res)) return true;
@@ -478,7 +451,6 @@ export async function handleApi(req: IncomingMessage, res: ServerResponse): Prom
 
   if (path === "/api/mqtt" && method === "POST") {
     if (!requireStaMode(res)) return true;
-    if (!requireCsrf(req, res)) return true;
     const body = await readJsonObject(req, res);
     if (!body) return true;
     if (failIfFault("mqtt-save", res)) return true;
@@ -542,7 +514,6 @@ export async function handleApi(req: IncomingMessage, res: ServerResponse): Prom
 
   if (path === "/api/settings" && method === "POST") {
     if (!requireStaMode(res)) return true;
-    if (!requireCsrf(req, res)) return true;
     const body = await readJsonObject(req, res);
     if (!body) return true;
     if (failIfFault("settings-save", res)) return true;
@@ -609,7 +580,6 @@ export async function handleApi(req: IncomingMessage, res: ServerResponse): Prom
 
   if (path === "/api/reboot" && method === "POST") {
     if (!requireStaMode(res)) return true;
-    if (!requireCsrf(req, res)) return true;
     const body = await readJsonObject(req, res);
     if (!body) return true;
     if (failIfFault("reboot", res)) return true;
@@ -619,7 +589,6 @@ export async function handleApi(req: IncomingMessage, res: ServerResponse): Prom
 
   if (path === "/api/factory-reset" && method === "POST") {
     if (!requireStaMode(res)) return true;
-    if (!requireCsrf(req, res)) return true;
     const body = await readJsonObject(req, res);
     if (!body) return true;
     if (failIfFault("factory-reset", res)) return true;
@@ -641,7 +610,6 @@ export async function handleApi(req: IncomingMessage, res: ServerResponse): Prom
 
   if (path === "/api/update/check" && method === "POST") {
     if (!requireStaMode(res)) return true;
-    if (!requireCsrf(req, res)) return true;
     const body = await readJsonObject(req, res);
     if (!body) return true;
     if (failIfFault("update-check", res)) return true;
@@ -689,7 +657,6 @@ export async function handleApi(req: IncomingMessage, res: ServerResponse): Prom
 
   if (path === "/api/update/install" && method === "POST") {
     if (!requireStaMode(res)) return true;
-    if (!requireCsrf(req, res)) return true;
     const body = await readJsonObject(req, res);
     if (!body) return true;
     if (failIfFault("update-install", res)) return true;

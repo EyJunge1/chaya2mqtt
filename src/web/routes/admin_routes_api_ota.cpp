@@ -96,11 +96,11 @@ void adminRoutesRegisterApiOta(AsyncWebServer &ws) {
     {
         AsyncCallbackJsonWebHandler &h = adminAddJsonPost(ws, "/api/update/check", handleApiUpdateCheckPost);
         h.addMiddleware(mwApiStaMode());
-        h.addMiddleware(mwApiPostCsrf());
+        h.addMiddleware(mwRequireAllowedHost());
     }
     {
         AsyncCallbackJsonWebHandler &h = adminAddJsonPost(ws, "/api/update/install", handleApiUpdateInstallPost);
         h.addMiddleware(mwApiStaMode());
-        h.addMiddleware(mwApiPostCsrf());
+        h.addMiddleware(mwRequireAllowedHost());
     }
 }

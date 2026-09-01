@@ -19,7 +19,7 @@ The web interface is a **Svelte 5 SPA** (Vite, Tailwind CSS, Lucide) stored in t
 > SoftAP uses a **24-character alphanumeric WPA-PSK** (WIFI QR only — no manual typing
 > fallback). That resists casual offline brute-force during setup.
 >
-> In **AP (captive) mode**, Host/Origin allowlisting is limited to the setup IP (`4.3.2.1`) and
+> In **AP (captive) mode**, the Host allowlist is limited to the setup IP (`4.3.2.1`) and
 > hostname `chaya2mqtt` / `.local`. Captive probe routes remain separate. After joining SoftAP,
 > treat the radio link as the trust boundary. In STA mode the device hostname/IP allowlist is enforced.
 
@@ -73,32 +73,31 @@ Static assets include a Vite content hash and are located under `/assets/*` (Cac
 
 ## JSON API
 
-Mutations expect `application/json` and the `X-CSRF-Token` header. Empty mutations send `{}`.
+Mutations expect `application/json`. Empty mutations send `{}`.
 
 | Route | Method | Protection | Description |
 |-------|--------|------------|-------------|
-| `/api/csrf` | GET | Host | `{token, expiresInSeconds}` |
-| `/api/bootstrap` | GET | Host | csrf + device + wifi; STA also fills chaya/mqtt/update/settings (AP: those keys are `null`) |
+| `/api/bootstrap` | GET | Host | device + wifi; STA also fills chaya/mqtt/update/settings (AP: those keys are `null`) |
 | `/api/device` | GET | Host | Mode, version, device ID, `batteryMv` / `batteryPct`; also `apSsid` / `apIp` in AP mode |
 | `/api/chaya` | GET | Host + STA | Display deltas `{rx,tx}` plus MQTT `{connected,configured,paired}` |
-| `/api/chaya/send` | POST | CSRF + STA | Send heart (queued; requires broker + partner) |
+| `/api/chaya/send` | POST | Host + STA | Send heart (queued; requires broker + partner) |
 | `/api/wifi/status` | GET | Host | Link status including current IP/gateway/netmask/DNS |
 | `/api/wifi/config` | GET | Host | Stored WiFi configuration (without password) |
 | `/api/wifi/scan` | GET | Host | Snapshot `{status: idle\|pending\|ready\|failed}`; `aps` only when `ready` (does not start a scan) |
-| `/api/wifi/scan` | POST | CSRF | Invalidate cache and kick a sweep (**202** `{"ok":true}`) |
-| `/api/wifi/connect` | POST | CSRF | Credentials + IP mode/DNS/NTP; AP test or STA save + reboot |
+| `/api/wifi/scan` | POST | Host | Invalidate cache and kick a sweep (**202** `{"ok":true}`) |
+| `/api/wifi/connect` | POST | Host | Credentials + IP mode/DNS/NTP; AP test or STA save + reboot |
 | `/api/wifi/connect-status` | GET | AP | Test state |
-| `/api/wifi/connect-commit` | POST | AP + CSRF | Save + reboot |
-| `/api/wifi/connect-abort` | POST | AP + CSRF | Abort test |
-| `/api/wifi/connect-retry` | POST | AP + CSRF | Retry failed test with same credentials |
-| `/api/mqtt` | GET/POST | Host/CSRF + STA | Broker + partner ID (topics derived; password never included in GET). GET includes `nvsOk` and `applyPending` while a save is still being applied. |
+| `/api/wifi/connect-commit` | POST | AP + Host | Save + reboot |
+| `/api/wifi/connect-abort` | POST | AP + Host | Abort test |
+| `/api/wifi/connect-retry` | POST | AP + Host | Retry failed test with same credentials |
+| `/api/mqtt` | GET/POST | Host + STA | Broker + partner ID (topics derived; password never included in GET). GET includes `nvsOk` and `applyPending` while a save is still being applied. |
 | `/api/mqtt/status` | GET | Host + STA | `{connected}` |
-| `/api/settings` | GET/POST | Host/CSRF + STA | Reset days, UI preferences, TX/RX sound enable, per-kind volume/Hz/ms, quiet hours |
-| `/api/reboot` | POST | CSRF + STA | Reboot (deferred) |
-| `/api/factory-reset` | POST | CSRF + STA | Delete all NVS data and restart in AP setup mode |
+| `/api/settings` | GET/POST | Host + STA | Reset days, UI preferences, TX/RX sound enable, per-kind volume/Hz/ms, quiet hours |
+| `/api/reboot` | POST | Host + STA | Reboot (deferred) |
+| `/api/factory-reset` | POST | Host + STA | Delete all NVS data and restart in AP setup mode |
 | `/api/update/status` | GET | Host + STA | OTA status (phase, channel, versions, progress) |
-| `/api/update/check` | POST | CSRF + STA | GitHub OTA check (optional JSON `channel`: `stable` or `beta`) |
-| `/api/update/install` | POST | CSRF + STA | Start confirmed installation |
+| `/api/update/check` | POST | Host + STA | GitHub OTA check (optional JSON `channel`: `stable` or `beta`) |
+| `/api/update/install` | POST | Host + STA | Start confirmed installation |
 
 `rx` and `tx` are the current display deltas (absolute counter minus its saved
 baseline), not the absolute MQTT counters. The web API returns the uncapped deltas;
@@ -123,22 +122,17 @@ Machine-readable contracts:
 |-------|--------|
 | `/events` | `chaya`, `wifi`, `mqtt`, `ota`, `device` |
 
-Maximum **6** SSE clients. App-task poll remains ~500 ms, but SSE gather runs only on producer dirty bits or an **8 s keepalive** (PERF-03).
+Maximum **6** SSE clients. App-task poll remains ~500 ms, but SSE gather runs only on producer dirty bits or an **8 s keepalive** (PERF-03). The SPA uses same-origin `EventSource("/events")`.
 
-**SSE CORS (AP mode):** `/events` does **not** set `Access-Control-Allow-Origin`. The SPA connects with same-origin `EventSource("/events")` and CSP `connect-src 'self'`. Missing ACAO is intentional defense-in-depth against cross-origin EventSource (e.g. page on `.local` talking to `4.3.2.1`). Do not add wildcard ACAO.
-
-## CSRF / security
+## Security
 
 - No web login; the admin UI is accessible to participants on the local network (see warning under
   **Access** — LAN participants can fully control the device)
 - Admin is HTTP-only: credentials travel in cleartext on the LAN
 - SoftAP uses a 24-character alphanumeric WPA-PSK (WIFI QR only — no manual typing fallback)
-- `/api/csrf` returns `token` plus `expiresInSeconds`; tokens rotate lazily every 24 hours and the
-  previous token remains valid for a 5-minute grace period
-- Every POST includes `X-CSRF-Token`. The frontend performs a single-flight refresh and one retry
-  only for idempotent settings/check/scan operations; heart send, WiFi commit, reboot, factory reset,
-  and OTA install are never repeated automatically
-- Host/origin allowlist in STA and AP: in captive mode only `4.3.2.1` and `chaya2mqtt` / `.local`
+- Mutations are same-origin JSON POSTs. The Host allowlist (same as GET) rejects DNS-rebinding
+  Host headers. There is no CORS and no Origin check.
+- Host allowlist in STA and AP: in captive mode only `4.3.2.1` and `chaya2mqtt` / `.local`
   are accepted (see Access warning / SEC-10). Dedicated captive probe routes stay separate.
 - CSP without our inline scripts/styles (`script-src 'self'` plus exact captive-browser helper hashes; `style-src 'self'`)
 

@@ -114,7 +114,7 @@ Fokus Security: Auth/Session für Admin-API, CSRF (Token-Bindung, SameSite/Origi
 
 Jeder SEC-Race-Finding: Trigger (welche zwei Pfade), Shared State, fehlende Synchronisation, **ausnutzbares Fenster** beschreiben.
 
-Pfade: `src/web/` (csrf, host_validate, rate_limit, middleware, routes, OTA-APIs), `src/ota/`, `src/tls/`, `src/mqtt/`, `src/wifi/`, `src/config/`, `frontend/src/api/`, `scripts/`, `flasher/`, `.github/`.
+Pfade: `src/web/` (host_validate, rate_limit, middleware, routes, OTA-APIs), `src/ota/`, `src/tls/`, `src/mqtt/`, `src/wifi/`, `src/config/`, `frontend/src/api/`, `scripts/`, `flasher/`, `.github/`.
 
 ### Agent 3 — Firmware Quality & Architecture
 

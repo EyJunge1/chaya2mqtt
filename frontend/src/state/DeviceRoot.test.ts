@@ -22,7 +22,6 @@ vi.mock("../api/sse.ts", () => ({
 }));
 
 const staBootstrap = () => ({
-  csrf: { token: "a".repeat(32), expiresInSeconds: 86400 },
   device: {
     mode: "sta" as const,
     deviceId: "a1b2c3",

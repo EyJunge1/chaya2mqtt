@@ -28,11 +28,4 @@ size_t webSerializeJson(const JsonDocument &doc, char *buf, size_t bufLen);
 
 void webSendEmpty(AsyncWebServerRequest *req, int code);
 
-void appendHtmlEscaped(Print &out, const char *s);
-
-void appendCurrentWebCsrfTokenEscaped(Print &out);
-
 bool webRequestHostAllowed(AsyncWebServerRequest *req);
-
-/** When Origin is present, host must match the same allowlist as Host. Missing Origin is allowed. */
-bool webRequestOriginAllowed(AsyncWebServerRequest *req);

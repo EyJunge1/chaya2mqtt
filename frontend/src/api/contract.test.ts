@@ -113,18 +113,20 @@ describe("api contract", () => {
     }
   });
 
-  it("documents CSRF in OpenAPI and SSE in AsyncAPI", () => {
+  it("documents Host allowlist and SSE in contracts", () => {
     const openapi = read("docs/openapi.yaml");
     const asyncapi = read("docs/asyncapi.yaml");
-    expect(openapi).toContain("/api/csrf");
-    expect(openapi).toContain("X-CSRF-Token");
+    expect(openapi).not.toContain("/api/csrf");
+    expect(openapi).not.toContain("X-CSRF-Token");
+    expect(openapi).toContain("Host rejected");
     expect(asyncapi).toContain("/events");
     expect(asyncapi).toContain("chaya2mqtt-{deviceId}.local");
   });
 
-  it("keeps mutating client posts expecting X-CSRF-Token", () => {
+  it("posts JSON without a CSRF header", () => {
     const client = read("frontend/src/api/client.ts");
-    expect(client).toContain("X-CSRF-Token");
-    expect(client).toContain("/api/csrf");
+    expect(client).not.toContain("X-CSRF-Token");
+    expect(client).not.toContain("/api/csrf");
+    expect(client).toContain("application/json");
   });
 });

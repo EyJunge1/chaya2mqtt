@@ -41,7 +41,7 @@ constexpr uint32_t kSseKeepaliveMs = 8000U;
 
 // ESP32Async 3.12: authorizeConnect is superseded by AsyncAuthorizationMiddleware.
 AsyncAuthorizationMiddleware s_sseAuth([](AsyncWebServerRequest *req) {
-    if (!webRequestHostAllowed(req) || !webRequestOriginAllowed(req)) {
+    if (!webRequestHostAllowed(req)) {
         return false;
     }
     return s_events.count() < kMaxSseClients;

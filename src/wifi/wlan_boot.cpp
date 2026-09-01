@@ -112,14 +112,14 @@ void setupWifiFinishStaConnected() {
     WiFi.setSleep(true);
     (void)esp_wifi_set_ps(WIFI_PS_MIN_MODEM);
     (void)esp_wifi_set_max_tx_power(kWifiStaMaxTxPowerQuarterDbm);
-    const esp_err_t inact = esp_wifi_set_inactive_time(WIFI_IF_STA, kWifiStaInactiveTimeSeconds);
+    const bool inactOk = WiFi.STA.setInactiveTime(kWifiStaInactiveTimeSeconds);
     wlanWifiApiUnlock();
 
     wlanApplyNtpFromConfig(s_activeWlanConfig);
     // Start/restart mDNS from wlanLoop(), after re-validating that STA is still connected.
     s_mdnsRestartNeeded.store(true, std::memory_order_release);
-    if (inact != ESP_OK) {
-        ESP_LOGW(TAG, "esp_wifi_set_inactive_time: %s", esp_err_to_name(inact));
+    if (!inactOk) {
+        ESP_LOGW(TAG, "WiFi.STA.setInactiveTime(%u) failed", static_cast<unsigned>(kWifiStaInactiveTimeSeconds));
     }
     {
         char ipStr[16];

@@ -53,6 +53,7 @@ inline bool formatSetupApPassFromRandom(const uint8_t *rnd, size_t rndLen, char 
 /** Initial STA wait before handing an offline configured device to recovery. */
 constexpr unsigned long kWifiStaBootConnectTimeoutMs = 10000UL;
 constexpr uint8_t kWifiStaMaxTxPowerQuarterDbm = 52U;
+/** STA beacon timeout in seconds (IDF default 6; Arduino min 3). */
 constexpr uint16_t kWifiStaInactiveTimeSeconds = 30U;
 
 /** EPD low-interference TX caps (ESP-IDF quarter-dBm units: value/4 = dBm). */
