@@ -42,30 +42,35 @@ operations:
     action: receive
     channel:
       $ref: "#/channels/events"
+    security: []
     messages:
       - $ref: "#/channels/events/messages/chaya"
   receiveWifi:
     action: receive
     channel:
       $ref: "#/channels/events"
+    security: []
     messages:
       - $ref: "#/channels/events/messages/wifi"
   receiveMqtt:
     action: receive
     channel:
       $ref: "#/channels/events"
+    security: []
     messages:
       - $ref: "#/channels/events/messages/mqtt"
   receiveOta:
     action: receive
     channel:
       $ref: "#/channels/events"
+    security: []
     messages:
       - $ref: "#/channels/events/messages/ota"
   receiveDevice:
     action: receive
     channel:
       $ref: "#/channels/events"
+    security: []
     messages:
       - $ref: "#/channels/events/messages/device"
 components:
