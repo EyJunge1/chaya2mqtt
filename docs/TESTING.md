@@ -86,7 +86,7 @@ The Pages deploy workflow publishes the browser flasher to
 
 - **Unit/integration:** Vitest + Testing Library (`frontend/src/**/*.test.ts`, `frontend/mock/**/*.test.ts`)
 - **Coverage:** `npm run test:coverage`—thresholds in `frontend/vite.config.ts` (70% lines/functions/statements, 60% branches)
-- **Contract:** `frontend/src/api/contract.test.ts` keeps the mock, firmware routes, OpenAPI/AsyncAPI, and MQTT fields synchronized
+- **Contract:** `frontend/src/api/contract.test.ts` treats `docs/openapi.yaml` and `docs/asyncapi.yaml` as the source of truth and checks the client, mock, firmware routes, and MQTT fields against them
 - **E2E:** `frontend/e2e/` with scenario reset through `/api/_mock/scenario`
 
 ## Native C++ / device simulator
@@ -140,7 +140,7 @@ attached device and `make check` stays hardware-free.
 
 - Bug fix → regression test (native or Vitest/E2E)
 - New business logic → host-testable pure header/helper + Unity case
-- REST/SSE change → update `contract.test.ts` + OpenAPI/AsyncAPI + mock
+- REST/SSE change → update OpenAPI/AsyncAPI + mock (and firmware); `contract.test.ts` reads the YAML
 - Hardware adapter → at least a successful `esp32s3-release` build
 - Before committing: `make check`
 

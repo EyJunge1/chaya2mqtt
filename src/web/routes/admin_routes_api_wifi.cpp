@@ -7,7 +7,6 @@
 #include "constants.h"
 #include "util/log_tag.h"
 #include "web/deferred_reboot.h"
-#include "web/web_middleware.h"
 #include "web/web_utils.h"
 #include "wifi/test.h"
 #include "wifi/wlan.h"
@@ -27,12 +26,6 @@ void fillWifiRuntimeFields(JsonObject obj, const char *ip, const char *gateway, 
     obj["dns1"] = dns1 != nullptr ? dns1 : "";
     obj["dns2"] = dns2 != nullptr ? dns2 : "";
     obj["rssi"] = rssi;
-}
-
-void handleApiWifiStatusGet(AsyncWebServerRequest *req) {
-    JsonDocument doc;
-    fillWifiStatusJson(doc.to<JsonObject>());
-    webSendJsonDoc(req, 200, doc);
 }
 
 void fillWifiConfigJson(JsonObject obj, const WlanConfig &cfg) {
@@ -251,44 +244,12 @@ void handleApiWifiConnectRetryPost(AsyncWebServerRequest *req, JsonVariant &json
 }
 
 void adminRoutesRegisterApiWifi(AsyncWebServer &ws) {
-    {
-        AsyncCallbackWebHandler &h =
-            ws.on("/api/wifi/status", HTTP_GET, [](AsyncWebServerRequest *rq) { handleApiWifiStatusGet(rq); });
-        h.addMiddleware(mwRequireAllowedHost());
-    }
-    {
-        AsyncCallbackWebHandler &h =
-            ws.on("/api/wifi/config", HTTP_GET, [](AsyncWebServerRequest *rq) { handleApiWifiConfigGet(rq); });
-        h.addMiddleware(mwRequireAllowedHost());
-    }
-    {
-        AsyncCallbackWebHandler &h =
-            ws.on("/api/wifi/scan", HTTP_GET, [](AsyncWebServerRequest *rq) { handleApiWifiScanGet(rq); });
-        h.addMiddleware(mwRequireAllowedHost());
-    }
-    {
-        AsyncCallbackJsonWebHandler &h = adminAddJsonPost(ws, "/api/wifi/scan", handleApiWifiScanPost);
-        h.addMiddleware(mwRequireAllowedHost());
-    }
-    {
-        AsyncCallbackJsonWebHandler &h = adminAddJsonPost(ws, "/api/wifi/connect", handleApiWifiConnectPost);
-        h.addMiddleware(mwRequireAllowedHost());
-    }
-    {
-        AsyncCallbackWebHandler &h =
-            ws.on("/api/wifi/connect-status", HTTP_GET, [](AsyncWebServerRequest *rq) { handleApiWifiConnectStatusGet(rq); });
-        h.addMiddleware(mwApiApMode());
-    }
-    {
-        AsyncCallbackJsonWebHandler &h = adminAddJsonPost(ws, "/api/wifi/connect-commit", handleApiWifiConnectCommitPost);
-        h.addMiddleware(mwApiApPost());
-    }
-    {
-        AsyncCallbackJsonWebHandler &h = adminAddJsonPost(ws, "/api/wifi/connect-abort", handleApiWifiConnectAbortPost);
-        h.addMiddleware(mwApiApPost());
-    }
-    {
-        AsyncCallbackJsonWebHandler &h = adminAddJsonPost(ws, "/api/wifi/connect-retry", handleApiWifiConnectRetryPost);
-        h.addMiddleware(mwApiApPost());
-    }
+    adminOnGet(ws, "/api/wifi/config", handleApiWifiConfigGet);
+    adminOnGet(ws, "/api/wifi/scan", handleApiWifiScanGet);
+    adminAddJsonPost(ws, "/api/wifi/scan", handleApiWifiScanPost);
+    adminAddJsonPost(ws, "/api/wifi/connect", handleApiWifiConnectPost);
+    adminOnGet(ws, "/api/wifi/connect-status", handleApiWifiConnectStatusGet, ApiGuard::Ap);
+    adminAddJsonPost(ws, "/api/wifi/connect-commit", handleApiWifiConnectCommitPost, ApiGuard::Ap);
+    adminAddJsonPost(ws, "/api/wifi/connect-abort", handleApiWifiConnectAbortPost, ApiGuard::Ap);
+    adminAddJsonPost(ws, "/api/wifi/connect-retry", handleApiWifiConnectRetryPost, ApiGuard::Ap);
 }

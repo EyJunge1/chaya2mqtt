@@ -5,7 +5,6 @@
 #include "constants.h"
 #include "web/assets/web_ui_manifest.h"
 #include "web/spa_asset_lookup.h"
-#include "web/web_middleware.h"
 #include "web/web_utils.h"
 #include "wifi/wlan.h"
 
@@ -65,30 +64,12 @@ bool trySendExactAsset(AsyncWebServerRequest *req, const char *uri) {
 } // namespace
 
 void adminRoutesRegisterSpa(AsyncWebServer &ws) {
-    auto sendIndexIfHostOk = [](AsyncWebServerRequest *rq) {
-        if (!webRequestHostAllowed(rq)) {
-            webSendEmpty(rq, 403);
-            return;
-        }
-        sendSpaIndex(rq);
-    };
-    ws.on("/", HTTP_GET, sendIndexIfHostOk);
-    ws.on("/index.html", HTTP_GET, sendIndexIfHostOk);
+    ws.on("/", HTTP_GET, [](AsyncWebServerRequest *rq) { sendSpaIndex(rq); });
+    ws.on("/index.html", HTTP_GET, [](AsyncWebServerRequest *rq) { sendSpaIndex(rq); });
 
-    ws.on("/favicon.ico", HTTP_GET, [](AsyncWebServerRequest *rq) {
-        if (!webRequestHostAllowed(rq)) {
-            webSendEmpty(rq, 403);
-            return;
-        }
-        webSendEmpty(rq, 204);
-    });
+    ws.on("/favicon.ico", HTTP_GET, [](AsyncWebServerRequest *rq) { webSendEmpty(rq, 204); });
 
     ws.onNotFound([](AsyncWebServerRequest *rq) {
-        if (!webRequestHostAllowed(rq)) {
-            webSendEmpty(rq, 403);
-            return;
-        }
-
         // PERF-09: avoid copying the URL String; AsyncWebServer keeps the buffer alive.
         const char *uri = rq->url().c_str();
         if (spaIsApiOrEventsPath(uri)) {

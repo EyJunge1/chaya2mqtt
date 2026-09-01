@@ -21,6 +21,12 @@ void sendNotFound(AsyncWebServerRequest *req) { webSendEmpty(req, 404); }
 
 void adminRoutesRegisterCaptive(AsyncWebServer &ws) {
     // Only meaningful in SoftAP; harmless no-ops in STA (clients rarely hit these).
+    // OS probes use foreign Host headers — skip the server Host allowlist.
+    auto addProbe = [&](const char *uri, ArRequestHandlerFunction fn) {
+        AsyncCallbackWebHandler &h = ws.on(uri, HTTP_GET, std::move(fn));
+        h.skipServerMiddlewares();
+    };
+
     auto onlyApRedirect = [](AsyncWebServerRequest *rq) {
         if (!configIsApMode()) {
             webSendEmpty(rq, 404);
@@ -29,15 +35,15 @@ void adminRoutesRegisterCaptive(AsyncWebServer &ws) {
         redirectToSetup(rq);
     };
 
-    ws.on("/generate_204", HTTP_GET, onlyApRedirect);        // Android
-    ws.on("/gen_204", HTTP_GET, onlyApRedirect);             // Android variant
-    ws.on("/hotspot-detect.html", HTTP_GET, onlyApRedirect); // Apple
-    ws.on("/library/test/success.html", HTTP_GET, onlyApRedirect);
-    ws.on("/canonical.html", HTTP_GET, onlyApRedirect);  // Firefox
-    ws.on("/ncsi.txt", HTTP_GET, onlyApRedirect);        // Windows
-    ws.on("/connecttest.txt", HTTP_GET, onlyApRedirect); // Windows 11
-    ws.on("/redirect", HTTP_GET, onlyApRedirect);        // Microsoft
-    ws.on("/success.txt", HTTP_GET, [](AsyncWebServerRequest *rq) {
+    addProbe("/generate_204", onlyApRedirect);        // Android
+    addProbe("/gen_204", onlyApRedirect);             // Android variant
+    addProbe("/hotspot-detect.html", onlyApRedirect); // Apple
+    addProbe("/library/test/success.html", onlyApRedirect);
+    addProbe("/canonical.html", onlyApRedirect);  // Firefox
+    addProbe("/ncsi.txt", onlyApRedirect);        // Windows
+    addProbe("/connecttest.txt", onlyApRedirect); // Windows 11
+    addProbe("/redirect", onlyApRedirect);        // Microsoft
+    addProbe("/success.txt", [](AsyncWebServerRequest *rq) {
         if (!configIsApMode()) {
             webSendEmpty(rq, 404);
             return;
@@ -45,7 +51,7 @@ void adminRoutesRegisterCaptive(AsyncWebServer &ws) {
         sendOkEmpty(rq);
     });
     // Repeated WPAD lookups can starve the ESP; answer 404 instead of SPA fallback.
-    ws.on("/wpad.dat", HTTP_GET, [](AsyncWebServerRequest *rq) {
+    addProbe("/wpad.dat", [](AsyncWebServerRequest *rq) {
         if (!configIsApMode()) {
             webSendEmpty(rq, 404);
             return;

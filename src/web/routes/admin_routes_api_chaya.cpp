@@ -5,8 +5,6 @@
 #include "heart/counter.h"
 #include "mqtt/config.h"
 #include "mqtt/mqtt.h"
-#include "web/web_middleware.h"
-#include "web/web_utils.h"
 
 #include <ESPAsyncWebServer.h>
 
@@ -21,12 +19,6 @@ void fillChayaJson(JsonObject obj, int rx, int tx, bool connected, bool configur
 void fillChayaJson(JsonObject obj) {
     fillChayaJson(obj, heartDisplayRxDelta(), heartDisplayTxDelta(), mqttIsConnected(), mqttCfgIsBrokerConfigured(),
                   mqttCfgIsPaired());
-}
-
-void handleApiChayaGet(AsyncWebServerRequest *req) {
-    JsonDocument doc;
-    fillChayaJson(doc.to<JsonObject>());
-    webSendJsonDoc(req, 200, doc);
 }
 
 void handleApiChayaSendPost(AsyncWebServerRequest *req, JsonVariant &json) {
@@ -48,14 +40,5 @@ void handleApiChayaSendPost(AsyncWebServerRequest *req, JsonVariant &json) {
 }
 
 void adminRoutesRegisterApiChaya(AsyncWebServer &ws) {
-    {
-        AsyncCallbackWebHandler &h = ws.on("/api/chaya", HTTP_GET, [](AsyncWebServerRequest *rq) { handleApiChayaGet(rq); });
-        h.addMiddleware(mwRequireAllowedHost());
-        h.addMiddleware(mwApiStaMode());
-    }
-    {
-        AsyncCallbackJsonWebHandler &h = adminAddJsonPost(ws, "/api/chaya/send", handleApiChayaSendPost);
-        h.addMiddleware(mwApiStaMode());
-        h.addMiddleware(mwRequireAllowedHost());
-    }
+    adminAddJsonPost(ws, "/api/chaya/send", handleApiChayaSendPost, ApiGuard::Sta);
 }

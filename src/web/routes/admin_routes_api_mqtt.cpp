@@ -10,7 +10,6 @@
 #include "mqtt/config.h"
 #include "mqtt/mqtt.h"
 #include "util/log_tag.h"
-#include "web/web_middleware.h"
 #include "web/web_utils.h"
 
 #include <ESPAsyncWebServer.h>
@@ -20,12 +19,6 @@
 DEFINE_LOG_TAG("WEBAPI");
 
 void fillMqttStatusJson(JsonObject obj, bool connected) { obj["connected"] = connected; }
-
-void handleApiMqttStatusGet(AsyncWebServerRequest *req) {
-    JsonDocument doc;
-    fillMqttStatusJson(doc.to<JsonObject>(), mqttIsConnected());
-    webSendJsonDoc(req, 200, doc);
-}
 
 void fillMqttConfigJson(JsonObject obj, const MqttConfig &cfg) {
     char deviceId[kDeviceIdBufLen]{};
@@ -178,20 +171,6 @@ void handleApiMqttPost(AsyncWebServerRequest *req, JsonVariant &json) {
 }
 
 void adminRoutesRegisterApiMqtt(AsyncWebServer &ws) {
-    {
-        AsyncCallbackWebHandler &h =
-            ws.on("/api/mqtt/status", HTTP_GET, [](AsyncWebServerRequest *rq) { handleApiMqttStatusGet(rq); });
-        h.addMiddleware(mwRequireAllowedHost());
-        h.addMiddleware(mwApiStaMode());
-    }
-    {
-        AsyncCallbackWebHandler &h = ws.on("/api/mqtt", HTTP_GET, [](AsyncWebServerRequest *rq) { handleApiMqttGet(rq); });
-        h.addMiddleware(mwRequireAllowedHost());
-        h.addMiddleware(mwApiStaMode());
-    }
-    {
-        AsyncCallbackJsonWebHandler &h = adminAddJsonPost(ws, "/api/mqtt", handleApiMqttPost);
-        h.addMiddleware(mwApiStaMode());
-        h.addMiddleware(mwRequireAllowedHost());
-    }
+    adminOnGet(ws, "/api/mqtt", handleApiMqttGet, ApiGuard::Sta);
+    adminAddJsonPost(ws, "/api/mqtt", handleApiMqttPost, ApiGuard::Sta);
 }

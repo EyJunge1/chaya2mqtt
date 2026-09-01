@@ -1,17 +1,13 @@
 import type {
   ApiResult,
   BootstrapPayload,
-  ChayaStatus,
-  DeviceInfo,
   MqttConfigView,
-  MqttStatus,
   OtaChannel,
   SettingsInfo,
   WifiConfig,
   WifiConnectFields,
   WifiConnectStatus,
   WifiScanSnapshot,
-  WifiStatus,
 } from "./types";
 import { parseOtaStatus, parseWifiScanSnapshot } from "./validate";
 
@@ -33,7 +29,7 @@ function jsonBody(fields: Record<string, string | number | boolean | undefined>)
 }
 
 async function apiGet<T>(path: string): Promise<T> {
-  const res = await fetch(path, { credentials: "same-origin" });
+  const res = await fetch(path);
   if (!res.ok) {
     throw new Error(`${path} failed (${res.status})`);
   }
@@ -46,7 +42,6 @@ async function apiPost(
 ): Promise<ApiResult> {
   const res = await fetch(path, {
     method: "POST",
-    credentials: "same-origin",
     headers: {
       "Content-Type": "application/json",
     },
@@ -70,14 +65,11 @@ export const api = {
       update: raw.update ? parseOtaStatus(raw.update) : null,
     };
   },
-  getDevice: () => apiGet<DeviceInfo>("/api/device"),
-  getChaya: () => apiGet<ChayaStatus>("/api/chaya"),
   sendChaya: () => apiPost("/api/chaya/send"),
-  getWifiStatus: () => apiGet<WifiStatus>("/api/wifi/status"),
   getWifiConfig: () => apiGet<WifiConfig>("/api/wifi/config"),
   startWifiScan: () => apiPost("/api/wifi/scan"),
   scanWifi: async (): Promise<WifiScanSnapshot> => {
-    const res = await fetch("/api/wifi/scan", { credentials: "same-origin" });
+    const res = await fetch("/api/wifi/scan");
     if (!res.ok) throw new Error(`wifi scan failed (${res.status})`);
     return parseWifiScanSnapshot(await parseJson<unknown>(res));
   },
@@ -98,7 +90,6 @@ export const api = {
   commitWifiConnect: () => apiPost("/api/wifi/connect-commit"),
   abortWifiConnect: () => apiPost("/api/wifi/connect-abort"),
   retryWifiConnect: () => apiPost("/api/wifi/connect-retry"),
-  getMqttStatus: () => apiGet<MqttStatus>("/api/mqtt/status"),
   getMqttConfig: () => apiGet<MqttConfigView>("/api/mqtt"),
   saveMqtt: (fields: {
     mqtt_server: string;

@@ -15,20 +15,6 @@ ArMiddlewareCallback mwRequireAllowedHost() {
     };
 }
 
-ArMiddlewareCallback mwApiApPost() {
-    return [](AsyncWebServerRequest *req, ArMiddlewareNext next) {
-        if (!webRequestHostAllowed(req)) {
-            webSendEmpty(req, 403);
-            return;
-        }
-        if (!configIsApMode()) {
-            webSendJsonError(req, 400, "not_ap");
-            return;
-        }
-        next();
-    };
-}
-
 ArMiddlewareCallback mwApiStaMode() {
     return [](AsyncWebServerRequest *req, ArMiddlewareNext next) {
         if (configIsApMode()) {
@@ -41,10 +27,6 @@ ArMiddlewareCallback mwApiStaMode() {
 
 ArMiddlewareCallback mwApiApMode() {
     return [](AsyncWebServerRequest *req, ArMiddlewareNext next) {
-        if (!webRequestHostAllowed(req)) {
-            webSendEmpty(req, 403);
-            return;
-        }
         if (!configIsApMode()) {
             webSendJsonError(req, 400, "not_ap");
             return;

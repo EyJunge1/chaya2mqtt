@@ -55,7 +55,7 @@ void test_spa_asset_lookup() {
 
     TEST_ASSERT_TRUE(spaIsAssetPath("/assets/app-abc.js"));
     TEST_ASSERT_FALSE(spaIsAssetPath("/update"));
-    TEST_ASSERT_TRUE(spaIsApiOrEventsPath("/api/device"));
+    TEST_ASSERT_TRUE(spaIsApiOrEventsPath("/api/bootstrap"));
     TEST_ASSERT_TRUE(spaIsApiOrEventsPath("/events"));
     TEST_ASSERT_FALSE(spaIsApiOrEventsPath("/wifi"));
 

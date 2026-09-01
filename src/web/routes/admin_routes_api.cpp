@@ -4,6 +4,7 @@
 #include "admin_routes_api_internal.h"
 
 #include "util/log_tag.h"
+#include "web/web_middleware.h"
 #include "web/web_utils.h"
 
 #include <AsyncJson.h>
@@ -31,10 +32,35 @@ bool adminJsonRequireObject(AsyncWebServerRequest *req, JsonVariant &json) {
     return false;
 }
 
-AsyncCallbackJsonWebHandler &adminAddJsonPost(AsyncWebServer &ws, const char *uri, ArJsonRequestHandlerFunction fn) {
+namespace {
+
+void applyApiGuard(AsyncWebHandler &h, ApiGuard guard) {
+    switch (guard) {
+    case ApiGuard::Sta:
+        h.addMiddleware(mwApiStaMode());
+        break;
+    case ApiGuard::Ap:
+        h.addMiddleware(mwApiApMode());
+        break;
+    case ApiGuard::None:
+        break;
+    }
+}
+
+} // namespace
+
+AsyncCallbackWebHandler &adminOnGet(AsyncWebServer &ws, const char *uri, ArRequestHandlerFunction fn, ApiGuard guard) {
+    AsyncCallbackWebHandler &h = ws.on(uri, HTTP_GET, std::move(fn));
+    applyApiGuard(h, guard);
+    return h;
+}
+
+AsyncCallbackJsonWebHandler &adminAddJsonPost(AsyncWebServer &ws, const char *uri, ArJsonRequestHandlerFunction fn,
+                                              ApiGuard guard) {
     auto *h = new AsyncCallbackJsonWebHandler(uri, std::move(fn));
     h->setMethod(HTTP_POST);
     h->setMaxContentLength(2048);
+    applyApiGuard(*h, guard);
     ws.addHandler(h);
     return *h;
 }

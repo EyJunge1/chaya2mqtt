@@ -9,8 +9,6 @@
 #include "battery/battery_pure.h"
 #include "ota/ota.h"
 #include "util/log_tag.h"
-#include "web/web_middleware.h"
-
 #include <ESPAsyncWebServer.h>
 #include <esp_log.h>
 
@@ -51,20 +49,14 @@ void handleApiResetPost(AsyncWebServerRequest *req, NetCmd cmd, const char *mess
 }
 
 void adminRoutesRegisterApiSystem(AsyncWebServer &ws) {
-    {
-        AsyncCallbackJsonWebHandler &h = adminAddJsonPost(ws, "/api/reboot", handleApiRebootPost);
-        h.addMiddleware(mwApiStaMode());
-        h.addMiddleware(mwRequireAllowedHost());
-    }
-    {
-        AsyncCallbackJsonWebHandler &h =
-            adminAddJsonPost(ws, "/api/factory-reset", [](AsyncWebServerRequest *rq, JsonVariant &json) {
-                if (!adminJsonRequireObject(rq, json)) {
-                    return;
-                }
-                handleApiResetPost(rq, NetCmd::FactoryResetRequested, "factory_reset");
-            });
-        h.addMiddleware(mwApiStaMode());
-        h.addMiddleware(mwRequireAllowedHost());
-    }
+    adminAddJsonPost(ws, "/api/reboot", handleApiRebootPost, ApiGuard::Sta);
+    adminAddJsonPost(
+        ws, "/api/factory-reset",
+        [](AsyncWebServerRequest *rq, JsonVariant &json) {
+            if (!adminJsonRequireObject(rq, json)) {
+                return;
+            }
+            handleApiResetPost(rq, NetCmd::FactoryResetRequested, "factory_reset");
+        },
+        ApiGuard::Sta);
 }

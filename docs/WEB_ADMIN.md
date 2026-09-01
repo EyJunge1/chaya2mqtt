@@ -75,29 +75,17 @@ Static assets include a Vite content hash and are located under `/assets/*` (Cac
 
 Mutations expect `application/json`. Empty mutations send `{}`.
 
-| Route | Method | Protection | Description |
-|-------|--------|------------|-------------|
-| `/api/bootstrap` | GET | Host | device + wifi; STA also fills chaya/mqtt/update/settings (AP: those keys are `null`) |
-| `/api/device` | GET | Host | Mode, version, device ID, `batteryMv` / `batteryPct`; also `apSsid` / `apIp` in AP mode |
-| `/api/chaya` | GET | Host + STA | Display deltas `{rx,tx}` plus MQTT `{connected,configured,paired}` |
-| `/api/chaya/send` | POST | Host + STA | Send heart (queued; requires broker + partner) |
-| `/api/wifi/status` | GET | Host | Link status including current IP/gateway/netmask/DNS |
-| `/api/wifi/config` | GET | Host | Stored WiFi configuration (without password) |
-| `/api/wifi/scan` | GET | Host | Snapshot `{status: idle\|pending\|ready\|failed}`; `aps` only when `ready` (does not start a scan) |
-| `/api/wifi/scan` | POST | Host | Invalidate cache and kick a sweep (**202** `{"ok":true}`) |
-| `/api/wifi/connect` | POST | Host | Credentials + IP mode/DNS/NTP; AP test or STA save + reboot |
-| `/api/wifi/connect-status` | GET | AP | Test state |
-| `/api/wifi/connect-commit` | POST | AP + Host | Save + reboot |
-| `/api/wifi/connect-abort` | POST | AP + Host | Abort test |
-| `/api/wifi/connect-retry` | POST | AP + Host | Retry failed test with same credentials |
-| `/api/mqtt` | GET/POST | Host + STA | Broker + partner ID (topics derived; password never included in GET). GET includes `nvsOk` and `applyPending` while a save is still being applied. |
-| `/api/mqtt/status` | GET | Host + STA | `{connected}` |
-| `/api/settings` | GET/POST | Host + STA | Reset days, UI preferences, TX/RX sound enable, per-kind volume/Hz/ms, quiet hours |
-| `/api/reboot` | POST | Host + STA | Reboot (deferred) |
-| `/api/factory-reset` | POST | Host + STA | Delete all NVS data and restart in AP setup mode |
-| `/api/update/status` | GET | Host + STA | OTA status (phase, channel, versions, progress) |
-| `/api/update/check` | POST | Host + STA | GitHub OTA check (optional JSON `channel`: `stable` or `beta`) |
-| `/api/update/install` | POST | Host + STA | Start confirmed installation |
+The REST surface lives in [openapi.yaml](openapi.yaml) (OpenAPI 3.2). Each operation
+sets `x-protection`:
+
+| Value | Meaning |
+|-------|---------|
+| `Host` | Host allowlist (once on the server for all non-captive routes) |
+| `Host + STA` | Host allowlist; STA only (`400 {"ok":false,"error":"ap_mode"}` in setup-AP) |
+| `AP + Host` | Host allowlist; AP setup only (`400 {"ok":false,"error":"not_ap"}` in STA) |
+
+Operations that cannot safely proceed during another update, shutdown,
+or configuration snapshot may return `503` with `busy` or `shutdown`.
 
 `rx` and `tx` are the current display deltas (absolute counter minus its saved
 baseline), not the absolute MQTT counters. The web API returns the uncapped deltas;
@@ -106,21 +94,9 @@ reports the live MQTT connection, while `configured` reports whether a broker ha
 been configured. `paired` is true when a partner device ID is set; heart send (web and
 device button) and the E-Ink heart view require both broker and partner.
 
-STA-only routes return `400 {"ok":false,"error":"ap_mode"}` in setup-AP mode.
-The AP-only connect-status route returns `400 {"ok":false,"error":"not_ap"}` in
-STA mode. Operations that cannot safely proceed during another update, shutdown,
-or configuration snapshot may return `503` with `busy` or `shutdown`.
-
-Machine-readable contracts:
-
-- REST: [openapi.yaml](openapi.yaml) (OpenAPI 3.2)
-- SSE: [asyncapi.yaml](asyncapi.yaml) (AsyncAPI 3)
-
 ## Server-Sent Events
 
-| Route | Events |
-|-------|--------|
-| `/events` | `chaya`, `wifi`, `mqtt`, `ota`, `device` |
+Live events are defined in [asyncapi.yaml](asyncapi.yaml) (AsyncAPI 3) on `GET /events`.
 
 Maximum **6** SSE clients. App-task poll remains ~500 ms, but SSE gather runs only on producer dirty bits or an **8 s keepalive** (PERF-03). The SPA uses same-origin `EventSource("/events")`.
 
@@ -133,7 +109,8 @@ Maximum **6** SSE clients. App-task poll remains ~500 ms, but SSE gather runs 
 - Mutations are same-origin JSON POSTs. The Host allowlist (same as GET) rejects DNS-rebinding
   Host headers. There is no CORS and no Origin check.
 - Host allowlist in STA and AP: in captive mode only `4.3.2.1` and `chaya2mqtt` / `.local`
-  are accepted (see Access warning / SEC-10). Dedicated captive probe routes stay separate.
+  are accepted (see Access warning / SEC-10). The check is attached once on the HTTP server.
+  Dedicated captive probe routes skip that middleware (OS probes send a foreign Host).
 - CSP without our inline scripts/styles (`script-src 'self'` plus exact captive-browser helper hashes; `style-src 'self'`)
 
 ## Build integration

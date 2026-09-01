@@ -147,7 +147,7 @@ The 1.54G has **8 MB** flash. `partitions_chaya_8mb.csv` is a dual-OTA map (~3
 | [ARCHITECTURE.md](ARCHITECTURE.md) | FreeRTOS tasks, queues, data flows |
 | [MODULES.md](MODULES.md) | Code reference for all modules |
 | [MQTT.md](MQTT.md) | Protocol, topics, TLS, pairing |
-| [WEB_ADMIN.md](WEB_ADMIN.md) | HTTP routes, Host allowlist, SSE |
+| [WEB_ADMIN.md](WEB_ADMIN.md) | SPA, Host allowlist; REST/SSE live in OpenAPI/AsyncAPI |
 | [openapi.yaml](openapi.yaml) | REST API (OpenAPI 3.2) |
 | [asyncapi.yaml](asyncapi.yaml) | SSE events (AsyncAPI 3) |
 | [HARDWARE.md](HARDWARE.md) | The only board: 1.54G SKU 34586, pins, battery |

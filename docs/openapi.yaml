@@ -2,7 +2,11 @@ openapi: 3.2.0
 info:
   title: Chaya2MQTT Web Admin API
   version: 1.0.0
-  description: HTTP JSON API for the device web admin.
+  description: |
+    HTTP JSON API for the device web admin.
+    Every operation may return 403 when the Host header is not on the device allowlist
+    (`Host rejected`). Per-operation access is in `x-protection`
+    (`Host`, `Host + STA`, `AP + Host`).
   contact:
     name: Chaya2MQTT
     url: https://eyjunge1.github.io/chaya2mqtt/
@@ -39,6 +43,11 @@ paths:
       tags: [device]
       summary: Cold-boot snapshot
       operationId: getBootstrap
+      x-protection: Host
+      description: >
+        Always includes device and wifi. In STA mode also fills chaya, mqtt, update,
+        and settings; in AP those keys are null. Live updates after boot are SSE
+        (device, wifi, chaya, mqtt).
       responses:
         "200":
           description: Aggregated boot payload
@@ -49,47 +58,21 @@ paths:
                 required: [device, wifi]
                 properties:
                   device:
-                    type: object
+                    $ref: "#/components/schemas/DeviceInfo"
                   wifi:
-                    type: object
+                    $ref: "#/components/schemas/WifiStatus"
                   chaya:
-                    type: [object, "null"]
+                    oneOf:
+                      - $ref: "#/components/schemas/ChayaStatus"
+                      - type: "null"
                   mqtt:
-                    type: [object, "null"]
+                    oneOf:
+                      - $ref: "#/components/schemas/MqttStatus"
+                      - type: "null"
                   update:
                     type: [object, "null"]
                   settings:
                     type: [object, "null"]
-        "403":
-          $ref: "#/components/responses/Forbidden"
-  /api/device:
-    get:
-      tags: [device]
-      summary: Device identity and mode
-      operationId: getDevice
-      responses:
-        "200":
-          description: Device info
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/DeviceInfo"
-        "403":
-          $ref: "#/components/responses/Forbidden"
-  /api/chaya:
-    get:
-      tags: [chaya]
-      summary: Heart counters (STA)
-      operationId: getChaya
-      responses:
-        "200":
-          description: Counter snapshot
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ChayaStatus"
-        "400":
-          $ref: "#/components/responses/ApiError"
         "403":
           $ref: "#/components/responses/Forbidden"
   /api/chaya/send:
@@ -97,6 +80,7 @@ paths:
       tags: [chaya]
       summary: Queue heart send
       operationId: sendChaya
+      x-protection: Host + STA
       requestBody:
         required: true
         content:
@@ -116,25 +100,12 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "503":
           $ref: "#/components/responses/ApiError"
-  /api/wifi/status:
-    get:
-      tags: [wifi]
-      summary: Current Wi-Fi link status
-      operationId: getWifiStatus
-      responses:
-        "200":
-          description: Connected or disconnected status
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/WifiStatus"
-        "403":
-          $ref: "#/components/responses/Forbidden"
   /api/wifi/config:
     get:
       tags: [wifi]
       summary: Stored Wi-Fi config (no password)
       operationId: getWifiConfig
+      x-protection: Host
       responses:
         "200":
           description: Config
@@ -149,6 +120,7 @@ paths:
       tags: [wifi]
       summary: Read cached access-point scan
       operationId: getWifiScan
+      x-protection: Host
       description: Cached snapshot. POST starts a scan. `status` is idle, pending, ready, or failed.
       responses:
         "200":
@@ -163,6 +135,7 @@ paths:
       tags: [wifi]
       summary: Start access-point scan
       operationId: startWifiScan
+      x-protection: Host
       requestBody:
         required: true
         content:
@@ -183,6 +156,7 @@ paths:
       tags: [wifi]
       summary: Start AP test or save STA credentials
       operationId: connectWifi
+      x-protection: Host
       requestBody:
         required: true
         content:
@@ -235,6 +209,7 @@ paths:
       tags: [wifi]
       summary: AP connection test status
       operationId: getWifiConnectStatus
+      x-protection: AP + Host
       responses:
         "200":
           description: Test state
@@ -258,6 +233,7 @@ paths:
       tags: [wifi]
       summary: Commit successful AP test and reboot
       operationId: commitWifiConnect
+      x-protection: AP + Host
       requestBody:
         required: true
         content:
@@ -280,6 +256,7 @@ paths:
       tags: [wifi]
       summary: Abort AP connection test
       operationId: abortWifiConnect
+      x-protection: AP + Host
       requestBody:
         required: true
         content:
@@ -302,6 +279,7 @@ paths:
       tags: [wifi]
       summary: Retry AP connection test
       operationId: retryWifiConnect
+      x-protection: AP + Host
       requestBody:
         required: true
         content:
@@ -321,30 +299,15 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "503":
           $ref: "#/components/responses/ApiError"
-  /api/mqtt/status:
-    get:
-      tags: [mqtt]
-      summary: MQTT connection status (STA)
-      operationId: getMqttStatus
-      responses:
-        "200":
-          description: Status
-          content:
-            application/json:
-              schema:
-                type: object
-                required: [connected]
-                properties:
-                  connected: { type: boolean }
-        "400":
-          $ref: "#/components/responses/ApiError"
-        "403":
-          $ref: "#/components/responses/Forbidden"
   /api/mqtt:
     get:
       tags: [mqtt]
       summary: MQTT config (no password)
       operationId: getMqttConfig
+      x-protection: Host + STA
+      description: >
+        Broker and partner ID. Topics are derived. Password is never included.
+        Includes nvsOk and applyPending while a save is still being applied.
       responses:
         "200":
           description: Config
@@ -362,6 +325,7 @@ paths:
       tags: [mqtt]
       summary: Save MQTT config
       operationId: saveMqttConfig
+      x-protection: Host + STA
       description: Omitted fields keep their current value. Topics are derived.
       requestBody:
         required: true
@@ -411,6 +375,7 @@ paths:
       tags: [settings]
       summary: Device settings
       operationId: getSettings
+      x-protection: Host + STA
       responses:
         "200":
           description: Settings
@@ -426,6 +391,7 @@ paths:
       tags: [settings]
       summary: Save settings
       operationId: saveSettings
+      x-protection: Host + STA
       requestBody:
         required: true
         content:
@@ -465,6 +431,7 @@ paths:
       tags: [settings]
       summary: Reboot device
       operationId: rebootDevice
+      x-protection: Host + STA
       requestBody:
         required: true
         content:
@@ -489,6 +456,8 @@ paths:
       tags: [reset]
       summary: Factory reset
       operationId: factoryReset
+      x-protection: Host + STA
+      description: Delete all NVS data and restart in AP setup mode.
       requestBody:
         required: true
         content:
@@ -513,6 +482,7 @@ paths:
       tags: [update]
       summary: OTA status
       operationId: getUpdateStatus
+      x-protection: Host + STA
       responses:
         "200":
           description: Status
@@ -529,6 +499,7 @@ paths:
       tags: [update]
       summary: Check GitHub for updates
       operationId: checkUpdate
+      x-protection: Host + STA
       requestBody:
         required: true
         content:
@@ -557,6 +528,7 @@ paths:
       tags: [update]
       summary: Install pending update
       operationId: installUpdate
+      x-protection: Host + STA
       requestBody:
         required: true
         content:
@@ -649,6 +621,11 @@ components:
         paired:
           type: boolean
           description: Partner ID set
+    MqttStatus:
+      type: object
+      required: [connected]
+      properties:
+        connected: { type: boolean }
     WifiStatus:
       oneOf:
         - type: object

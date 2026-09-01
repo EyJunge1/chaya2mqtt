@@ -84,17 +84,21 @@ describe("mock API parity", () => {
 
   it("blocks STA-only routes in AP mode", async () => {
     await callMock("/api/_mock/scenario", { scenario: "ap-setup" });
-    const device = await callApi("GET", "/api/device");
-    expect(device.status).toBe(200);
-    expect(device.body).toMatchObject({
-      mode: "ap",
-      apSsid: "Chaya2MQTT",
-      apIp: "4.3.2.1",
+    const boot = await callApi("GET", "/api/bootstrap");
+    expect(boot.status).toBe(200);
+    expect(boot.body).toMatchObject({
+      device: {
+        mode: "ap",
+        apSsid: "Chaya2MQTT",
+        apIp: "4.3.2.1",
+      },
+      chaya: null,
+      mqtt: null,
     });
 
-    const chaya = await callApi("GET", "/api/chaya");
-    expect(chaya.status).toBe(400);
-    expect(chaya.body).toEqual({ ok: false, error: "ap_mode" });
+    const send = await callJson("POST", "/api/chaya/send");
+    expect(send.status).toBe(400);
+    expect(send.body).toEqual({ ok: false, error: "ap_mode" });
 
     const mqtt = await callApi("GET", "/api/mqtt");
     expect(mqtt.status).toBe(400);
@@ -120,9 +124,9 @@ describe("mock API parity", () => {
 
   it("returns unavailable when sending a heart while unpaired", async () => {
     await callMock("/api/_mock/scenario", { scenario: "sta-mqtt-unpaired" });
-    const chaya = await callApi("GET", "/api/chaya");
-    expect(chaya.status).toBe(200);
-    expect(chaya.body).toMatchObject({ paired: false, connected: true });
+    const boot = await callApi("GET", "/api/bootstrap");
+    expect(boot.status).toBe(200);
+    expect(boot.body).toMatchObject({ chaya: { paired: false, connected: true } });
     const res = await callJson("POST", "/api/chaya/send");
     expect(res.status).toBe(503);
     expect(res.body).toEqual({ ok: false, error: "unavailable" });
@@ -206,7 +210,7 @@ describe("mock API parity", () => {
 
   it("fails device API when device fault is active", async () => {
     await callMock("/api/_mock/fault", { fault: "device", enabled: true });
-    const res = await callApi("GET", "/api/device");
+    const res = await callApi("GET", "/api/bootstrap");
     expect(res.status).toBe(503);
     expect(res.body).toMatchObject({ ok: false, error: "mock_fault", fault: "device" });
   });

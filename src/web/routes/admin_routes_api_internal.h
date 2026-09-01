@@ -3,7 +3,6 @@
 #include "async/event_types.h"
 #include "mqtt/config.h"
 #include "web/json_payloads.h"
-#include "web/web_middleware.h"
 #include "wifi/wlan_config.h"
 
 #include <Arduino.h>
@@ -17,17 +16,19 @@ void sendOkQueued(AsyncWebServerRequest *req, int code, bool queued);
 void sendErr(AsyncWebServerRequest *req, int code, const char *error);
 bool adminJsonRequireObject(AsyncWebServerRequest *req, JsonVariant &json);
 
-AsyncCallbackJsonWebHandler &adminAddJsonPost(AsyncWebServer &ws, const char *uri, ArJsonRequestHandlerFunction fn);
+/** Extra gate on top of the server Host allowlist. */
+enum class ApiGuard : uint8_t { None, Sta, Ap };
 
-void handleApiDeviceGet(AsyncWebServerRequest *req);
+AsyncCallbackWebHandler &adminOnGet(AsyncWebServer &ws, const char *uri, ArRequestHandlerFunction fn,
+                                    ApiGuard guard = ApiGuard::None);
+AsyncCallbackJsonWebHandler &adminAddJsonPost(AsyncWebServer &ws, const char *uri, ArJsonRequestHandlerFunction fn,
+                                              ApiGuard guard = ApiGuard::None);
 
 /** Aggregated boot snapshot: device + wifi (+ STA extras). */
 void handleApiBootstrapGet(AsyncWebServerRequest *req);
 
-void handleApiChayaGet(AsyncWebServerRequest *req);
 void handleApiChayaSendPost(AsyncWebServerRequest *req, JsonVariant &json);
 
-void handleApiWifiStatusGet(AsyncWebServerRequest *req);
 void handleApiWifiConfigGet(AsyncWebServerRequest *req);
 void handleApiWifiScanGet(AsyncWebServerRequest *req);
 void handleApiWifiScanPost(AsyncWebServerRequest *req, JsonVariant &json);
@@ -37,7 +38,6 @@ void handleApiWifiConnectCommitPost(AsyncWebServerRequest *req, JsonVariant &jso
 void handleApiWifiConnectAbortPost(AsyncWebServerRequest *req, JsonVariant &json);
 void handleApiWifiConnectRetryPost(AsyncWebServerRequest *req, JsonVariant &json);
 
-void handleApiMqttStatusGet(AsyncWebServerRequest *req);
 void handleApiMqttGet(AsyncWebServerRequest *req);
 void normalizePartnerIdInput(char *id, size_t idLen);
 void handleApiMqttPost(AsyncWebServerRequest *req, JsonVariant &json);

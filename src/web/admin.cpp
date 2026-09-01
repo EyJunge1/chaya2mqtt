@@ -5,6 +5,7 @@
 #include "admin_globals.h"
 #include "routes/admin_routes.h"
 #include "web/deferred_reboot.h"
+#include "web/web_middleware.h"
 
 #include "async/app_task.h"
 #include "async/event_types.h"
@@ -45,6 +46,7 @@ void webAdminRegisterRoutes() {
     g_webAdminRoutesRegistered = true;
 
     AsyncWebServer &ws = webAdminWebServer();
+    ws.addMiddleware(mwRequireAllowedHost());
 
     adminRoutesRegisterApi(ws);
     adminRoutesRegisterCaptive(ws);

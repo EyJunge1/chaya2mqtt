@@ -11,7 +11,6 @@
 #include "mqtt/mqtt.h"
 #include "ota/ota.h"
 #include "ota/ota_json.h"
-#include "web/web_middleware.h"
 #include "web/web_utils.h"
 #include "wifi/wlan.h"
 #include "wifi/wlan_config.h"
@@ -71,12 +70,6 @@ void fillWifiStatusJson(JsonObject obj) {
     fillWifiStatusJson(obj, connected, ssidBuf, ipStr, gateway, netmask, dns1, dns2, rssi);
 }
 
-void handleApiDeviceGet(AsyncWebServerRequest *req) {
-    JsonDocument doc;
-    fillDeviceJson(doc.to<JsonObject>());
-    webSendJsonDoc(req, 200, doc);
-}
-
 void handleApiBootstrapGet(AsyncWebServerRequest *req) {
     JsonDocument doc;
 
@@ -98,14 +91,4 @@ void handleApiBootstrapGet(AsyncWebServerRequest *req) {
     webSendJsonDoc(req, 200, doc);
 }
 
-void adminRoutesRegisterApiDevice(AsyncWebServer &ws) {
-    {
-        AsyncCallbackWebHandler &h = ws.on("/api/device", HTTP_GET, [](AsyncWebServerRequest *rq) { handleApiDeviceGet(rq); });
-        h.addMiddleware(mwRequireAllowedHost());
-    }
-    {
-        AsyncCallbackWebHandler &h =
-            ws.on("/api/bootstrap", HTTP_GET, [](AsyncWebServerRequest *rq) { handleApiBootstrapGet(rq); });
-        h.addMiddleware(mwRequireAllowedHost());
-    }
-}
+void adminRoutesRegisterApiDevice(AsyncWebServer &ws) { adminOnGet(ws, "/api/bootstrap", handleApiBootstrapGet); }

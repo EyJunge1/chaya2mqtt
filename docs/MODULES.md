@@ -410,10 +410,10 @@ Presets: Boot (startup), WifiUp (STA ready / reconnect), MqttUp (broker connecte
 |------|---------|
 | `admin.h` / `admin.cpp` | Server singleton, route registration, `webAdminLoop()` |
 | `admin_globals.h` / `admin_globals.cpp` | Shared atomics/flags; `adminApplyOptional*` JSON helpers |
-| `json_payloads.h` | Shared `fill*` helpers for GET `/api/*` and SSE event data |
+| `json_payloads.h` | Shared `fill*` helpers for GET `/api/bootstrap` and SSE event data |
 | `deferred_reboot.h` / `deferred_reboot.cpp` | Reboot after saving WiFi |
 | `web_utils.h` / `web_utils.cpp` | Redirects, security headers, `webSendJsonDoc` / `webSerializeJson` |
-| `web_middleware.h` / `web_middleware.cpp` | Host allowlist middleware for API routes |
+| `web_middleware.h` / `web_middleware.cpp` | Host allowlist once on the server; AP/STA gates per API route |
 | `events.h` / `events.cpp` | SSE `/events` |
 | `routes/admin_routes_api.cpp` | Register entry + shared `sendOk`/`sendErr` |
 | `routes/admin_routes_api_*.cpp` | Thematic JSON API `/api/*` (device, chaya, wifi, mqtt, settings, system, ota) |

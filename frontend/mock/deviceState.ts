@@ -60,8 +60,6 @@ export type MockScenario = (typeof MOCK_SCENARIOS)[number];
 
 export const MOCK_FAULT_KEYS = [
   "device",
-  "chaya",
-  "wifi-status",
   "wifi-config",
   "wifi-scan",
   "wifi-connect",
@@ -70,7 +68,6 @@ export const MOCK_FAULT_KEYS = [
   "wifi-abort",
   "wifi-retry",
   "mqtt",
-  "mqtt-status",
   "mqtt-save",
   "settings",
   "settings-save",

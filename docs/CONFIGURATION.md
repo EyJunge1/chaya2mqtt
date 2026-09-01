@@ -100,10 +100,9 @@ Legacy keys `topic_pub` / `topic_sub` are removed when saving. Topics now exist 
 - `upd_day`: automatically after an OTA check
 - `upd_chan`: when selecting a channel during the update check
 
-Note: Older firmware versions could set `cfg/authEn` and `cfg/disp_dark`; these keys are ignored.
+Leftover keys from older firmware (`authEn`, `disp_dark`, `snd_custom`) are unused.
 Legacy `cfg/snd_mute` is migrated once to `snd_tx_en` / `snd_rx_en` (`unmuted` → both on) when the new keys are absent.
 Legacy `cfg/snd_vol` is migrated once to `snd_tx_vol` / `snd_rx_vol` when the new keys are absent.
-Legacy `cfg/snd_custom` is ignored; TX/RX Hz/ms always apply.
 
 ### Reset period (`rstPeriod`)
 

@@ -181,19 +181,6 @@ export async function handleApi(req: IncomingMessage, res: ServerResponse): Prom
     return true;
   }
 
-  if (path === "/api/device" && method === "GET") {
-    if (failIfFault("device", res)) return true;
-    sendJson(res, 200, devicePayload());
-    return true;
-  }
-
-  if (path === "/api/chaya" && method === "GET") {
-    if (!requireStaMode(res)) return true;
-    if (failIfFault("chaya", res)) return true;
-    sendJson(res, 200, chayaPayload());
-    return true;
-  }
-
   if (path === "/api/chaya/send" && method === "POST") {
     if (!requireStaMode(res)) return true;
     const body = await readJsonObject(req, res);
@@ -210,12 +197,6 @@ export async function handleApi(req: IncomingMessage, res: ServerResponse): Prom
     state.tx += 1;
     broadcastAll();
     sendJson(res, 202, { ok: true, queued: true });
-    return true;
-  }
-
-  if (path === "/api/wifi/status" && method === "GET") {
-    if (failIfFault("wifi-status", res)) return true;
-    sendJson(res, 200, wifiPayload());
     return true;
   }
 
@@ -420,13 +401,6 @@ export async function handleApi(req: IncomingMessage, res: ServerResponse): Prom
       freeze: false,
     };
     sendJson(res, 200, { ok: true, message: "retrying" });
-    return true;
-  }
-
-  if (path === "/api/mqtt/status" && method === "GET") {
-    if (!requireStaMode(res)) return true;
-    if (failIfFault("mqtt-status", res)) return true;
-    sendJson(res, 200, mqttPayload());
     return true;
   }
 

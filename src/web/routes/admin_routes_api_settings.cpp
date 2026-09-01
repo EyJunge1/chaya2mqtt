@@ -7,7 +7,6 @@
 #include "battery/battery_pure.h"
 #include "config/app_config.h"
 #include "constants.h"
-#include "web/web_middleware.h"
 #include "web/web_utils.h"
 
 #include <ESPAsyncWebServer.h>
@@ -150,15 +149,6 @@ void handleApiSettingsPost(AsyncWebServerRequest *req, JsonVariant &json) {
 }
 
 void adminRoutesRegisterApiSettings(AsyncWebServer &ws) {
-    {
-        AsyncCallbackWebHandler &h =
-            ws.on("/api/settings", HTTP_GET, [](AsyncWebServerRequest *rq) { handleApiSettingsGet(rq); });
-        h.addMiddleware(mwRequireAllowedHost());
-        h.addMiddleware(mwApiStaMode());
-    }
-    {
-        AsyncCallbackJsonWebHandler &h = adminAddJsonPost(ws, "/api/settings", handleApiSettingsPost);
-        h.addMiddleware(mwApiStaMode());
-        h.addMiddleware(mwRequireAllowedHost());
-    }
+    adminOnGet(ws, "/api/settings", handleApiSettingsGet, ApiGuard::Sta);
+    adminAddJsonPost(ws, "/api/settings", handleApiSettingsPost, ApiGuard::Sta);
 }

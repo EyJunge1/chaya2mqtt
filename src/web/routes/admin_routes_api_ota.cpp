@@ -8,7 +8,6 @@
 #include "ota/ota.h"
 #include "ota/ota_json.h"
 #include "util/log_tag.h"
-#include "web/web_middleware.h"
 #include "web/web_utils.h"
 
 #include <ESPAsyncWebServer.h>
@@ -87,20 +86,7 @@ void handleApiUpdateInstallPost(AsyncWebServerRequest *req, JsonVariant &json) {
 }
 
 void adminRoutesRegisterApiOta(AsyncWebServer &ws) {
-    {
-        AsyncCallbackWebHandler &h =
-            ws.on("/api/update/status", HTTP_GET, [](AsyncWebServerRequest *rq) { handleApiUpdateStatusGet(rq); });
-        h.addMiddleware(mwRequireAllowedHost());
-        h.addMiddleware(mwApiStaMode());
-    }
-    {
-        AsyncCallbackJsonWebHandler &h = adminAddJsonPost(ws, "/api/update/check", handleApiUpdateCheckPost);
-        h.addMiddleware(mwApiStaMode());
-        h.addMiddleware(mwRequireAllowedHost());
-    }
-    {
-        AsyncCallbackJsonWebHandler &h = adminAddJsonPost(ws, "/api/update/install", handleApiUpdateInstallPost);
-        h.addMiddleware(mwApiStaMode());
-        h.addMiddleware(mwRequireAllowedHost());
-    }
+    adminOnGet(ws, "/api/update/status", handleApiUpdateStatusGet, ApiGuard::Sta);
+    adminAddJsonPost(ws, "/api/update/check", handleApiUpdateCheckPost, ApiGuard::Sta);
+    adminAddJsonPost(ws, "/api/update/install", handleApiUpdateInstallPost, ApiGuard::Sta);
 }

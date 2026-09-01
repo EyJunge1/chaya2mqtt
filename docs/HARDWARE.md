@@ -35,7 +35,7 @@ What the PCB actually has. **Chaya** is the firmware use today.
 | **Battery latch** | GPIO17 (`BAT_Control`) | Must drive HIGH early or power dies when PWR is released |
 | **Charge IC** | ETA6098 (USB-C → cell) | No firmware |
 | **Charge LED** | Onboard status LED (typically red while charging) | Hardware only (ETA6098 STAT); not firmware-controllable |
-| **Battery ADC** | GPIO4, divider; VBAT = VADC × 2 | Polled ~30 s; `GET /api/device` + SSE `device` + E-Ink icon |
+| **Battery ADC** | GPIO4, divider; VBAT = VADC × 2 | Polled ~30 s; `/api/bootstrap` + SSE `device` + E-Ink icon |
 | **3.3 V rail** | MP1605 DC-DC | Hardware only |
 | **User LED** | GPIO3 on header, **green**, active-low | TX sequence, status blink patterns, soft-off armed ack, pulse during E-Ink refresh / RX ack; off via `cfg/led_en` |
 | **TF / microSD** | Slot, **1-bit** SDIO (CLK/CMD/DAT0), **FAT32** | Permanently off (GPIO 39/40/41 held LOW; no SDIO/FAT) |
