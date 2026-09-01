@@ -54,7 +54,7 @@ ArMiddlewareCallback mwApiPostCsrf() {
             if (mwShouldLogThrottle(nowMs, s_lastCsrf403Ms)) {
                 ESP_LOGW(TAG, "JSON POST denied: CSRF mismatch (403)");
             }
-            webSendJson(req, 403, "{\"ok\":false,\"error\":\"csrf\"}");
+            webSendJsonError(req, 403, "csrf");
             return;
         }
         next();
@@ -67,11 +67,11 @@ ArMiddlewareCallback mwApiApPostCsrf() {
             return;
         }
         if (!configIsApMode()) {
-            webSendJson(req, 400, "{\"ok\":false,\"error\":\"not_ap\"}");
+            webSendJsonError(req, 400, "not_ap");
             return;
         }
         if (!webCsrfValidatePost(req)) {
-            webSendJson(req, 403, "{\"ok\":false,\"error\":\"csrf\"}");
+            webSendJsonError(req, 403, "csrf");
             return;
         }
         next();
@@ -81,7 +81,7 @@ ArMiddlewareCallback mwApiApPostCsrf() {
 ArMiddlewareCallback mwApiStaMode() {
     return [](AsyncWebServerRequest *req, ArMiddlewareNext next) {
         if (configIsApMode()) {
-            webSendJson(req, 400, "{\"ok\":false,\"error\":\"ap_mode\"}");
+            webSendJsonError(req, 400, "ap_mode");
             return;
         }
         next();
@@ -95,7 +95,7 @@ ArMiddlewareCallback mwApiApMode() {
             return;
         }
         if (!configIsApMode()) {
-            webSendJson(req, 400, "{\"ok\":false,\"error\":\"not_ap\"}");
+            webSendJsonError(req, 400, "not_ap");
             return;
         }
         next();

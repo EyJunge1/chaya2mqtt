@@ -61,7 +61,7 @@ describe("MqttPage", () => {
       expect(saveMqtt).toHaveBeenCalledWith({
         mqtt_server: "mqtt.example.com",
         mqtt_port: 8883,
-        mqtt_tls: 1,
+        mqtt_tls: true,
         mqtt_user: "chaya",
         mqtt_pass: undefined,
         partner_id: "abcdef",
@@ -87,7 +87,7 @@ describe("MqttPage", () => {
       expect(saveMqtt).toHaveBeenCalledWith({
         mqtt_server: "mqtt.example.com",
         mqtt_port: 8883,
-        mqtt_tls: 1,
+        mqtt_tls: true,
         mqtt_user: "",
         mqtt_pass: undefined,
         partner_id: "f5e6d7",
@@ -112,7 +112,7 @@ describe("MqttPage", () => {
       expect(saveMqtt).toHaveBeenCalledWith({
         mqtt_server: "mqtt.example.com",
         mqtt_port: 8883,
-        mqtt_tls: 1,
+        mqtt_tls: true,
         mqtt_user: "chaya",
         mqtt_pass: undefined,
         partner_id: "",
@@ -141,7 +141,7 @@ describe("MqttPage", () => {
       expect(saveMqtt).toHaveBeenCalledWith(
         expect.objectContaining({
           mqtt_port: 1883,
-          mqtt_tls: 0,
+          mqtt_tls: false,
         }),
       );
     });

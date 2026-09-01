@@ -74,13 +74,9 @@ void webCsrfGetTokenHex(char *outHex33, size_t outLen, uint32_t *outExpiresInSec
 }
 
 bool webCsrfValidatePost(AsyncWebServerRequest *req) {
-    // Body only — query-string tokens are rejected (SEC-07).
-    if (!req->hasParam("csrf_token", true)) {
+    // Header only — query-string and body tokens are rejected (SEC-07).
+    if (req == nullptr || !req->hasHeader(kCsrfHeaderName)) {
         return false;
     }
-    const AsyncWebParameter *p = req->getParam("csrf_token", true);
-    if (p == nullptr) {
-        return false;
-    }
-    return csrfTokenMatches(p->value().c_str());
+    return csrfTokenMatches(req->header(kCsrfHeaderName).c_str());
 }

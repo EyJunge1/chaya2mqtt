@@ -26,8 +26,8 @@ describe("MockToolbar", () => {
           );
         }
         if (url.includes("/api/_mock/scenario")) {
-          const body = new URLSearchParams(String(init?.body ?? ""));
-          const scenario = body.get("scenario") ?? "sta-connected";
+          const parsed = JSON.parse(String(init?.body ?? "{}")) as { scenario?: string };
+          const scenario = parsed.scenario ?? "sta-connected";
           return new Response(JSON.stringify({ ok: true, scenario }), {
             status: 200,
           });

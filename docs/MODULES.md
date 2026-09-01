@@ -409,10 +409,10 @@ Presets: Boot (startup), WifiUp (STA ready / reconnect), MqttUp (broker connecte
 | File | Purpose |
 |------|---------|
 | `admin.h` / `admin.cpp` | Server singleton, route registration, `webAdminLoop()` |
-| `admin_globals.h` / `admin_globals.cpp` | Shared atomics/flags; `adminApplyOptional*` form helpers |
-| `admin_json.h` | JSON helper for small responses |
+| `admin_globals.h` / `admin_globals.cpp` | Shared atomics/flags; `adminApplyOptional*` JSON helpers |
+| `json_payloads.h` | Shared `fill*` helpers for GET `/api/*` and SSE event data |
 | `deferred_reboot.h` / `deferred_reboot.cpp` | Reboot after saving WiFi |
-| `web_utils.h` / `web_utils.cpp` | Redirects, security headers |
+| `web_utils.h` / `web_utils.cpp` | Redirects, security headers, `webSendJsonDoc` / `webSerializeJson` |
 | `web_middleware.h` / `web_middleware.cpp` | Host/CSRF middleware for API routes |
 | `csrf.h` / `csrf.cpp` | Generate and validate CSRF tokens |
 | `events.h` / `events.cpp` | SSE `/events` |
@@ -432,11 +432,12 @@ Details: [WEB_ADMIN.md](WEB_ADMIN.md)
 | File | Purpose |
 |------|---------|
 | `ota.h` / `ota.cpp` | Automatic check logic, download queue |
+| `ota_json.h` | `otaFillStatusJson` for GET `/api/update/status` and SSE `ota` |
 | `ota_task.cpp` | OTA task (12288 stack, priority 4) |
 | `github.h` / `github.cpp` | GitHub Releases API, CalVer comparison |
 | `flash.h` / `flash.cpp` | TLS + SHA-256 sidecar, Arduino `HTTPUpdate` |
 | `version_cmp.h` | CalVer/beta (`-rc.N`) comparison (header-only) |
-| `github_parse.h` | GitHub release JSON helper (header-only) |
+| `github_parse.h` | GitHub release JSON helper (ArduinoJson, header-only) |
 
 | Function | Description |
 |----------|-------------|

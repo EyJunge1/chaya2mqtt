@@ -19,18 +19,7 @@ void test_ui_pref_syntax() {
     TEST_ASSERT_FALSE(uiThemeSyntaxOk(nullptr));
 }
 
-void test_form_bool_syntax() {
-    TEST_ASSERT_TRUE(formBoolSyntaxOk("0"));
-    TEST_ASSERT_TRUE(formBoolSyntaxOk("1"));
-    TEST_ASSERT_TRUE(formBoolSyntaxOk("true"));
-    TEST_ASSERT_TRUE(formBoolSyntaxOk("false"));
-    TEST_ASSERT_FALSE(formBoolSyntaxOk("yes"));
-    TEST_ASSERT_FALSE(formBoolSyntaxOk(""));
-    TEST_ASSERT_FALSE(formBoolSyntaxOk(nullptr));
-    TEST_ASSERT_TRUE(formBoolFromForm("1"));
-    TEST_ASSERT_TRUE(formBoolFromForm("true"));
-    TEST_ASSERT_FALSE(formBoolFromForm("0"));
-    TEST_ASSERT_FALSE(formBoolFromForm("false"));
+void test_settings_range_helpers() {
     TEST_ASSERT_TRUE(audioVolumeInRange(0));
     TEST_ASSERT_TRUE(audioVolumeInRange(100));
     TEST_ASSERT_FALSE(audioVolumeInRange(101));
@@ -165,7 +154,7 @@ void test_sse_tick_select_bits() {
 int main(int, char **) {
     UNITY_BEGIN();
     RUN_TEST(test_ui_pref_syntax);
-    RUN_TEST(test_form_bool_syntax);
+    RUN_TEST(test_settings_range_helpers);
     RUN_TEST(test_hex_codec_roundtrip);
     RUN_TEST(test_csrf_submitted_matches_expected);
     RUN_TEST(test_csrf_rotation_timing);

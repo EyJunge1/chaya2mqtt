@@ -1,69 +1,32 @@
 #include <Arduino.h>
 
 #include "../admin_globals.h"
-#include "../admin_json.h"
 #include "admin_routes_api_internal.h"
 
-#include "async/event_types.h"
-#include "async/task_handles.h"
 #include "battery/battery.h"
 #include "battery/battery_pure.h"
-#include "config/app_config.h"
-#include "config/version.h"
-#include "constants.h"
-#include "heart/counter.h"
-#include "identity/device_identity.h"
-#include "mqtt/config.h"
-#include "mqtt/mqtt.h"
 #include "ota/ota.h"
+#include "ota/ota_json.h"
 #include "util/log_tag.h"
-#include "web/csrf.h"
-#include "web/deferred_reboot.h"
 #include "web/web_middleware.h"
 #include "web/web_utils.h"
 
 #include <ESPAsyncWebServer.h>
-#include <cerrno>
-#include <climits>
-#include <cstdlib>
 #include <cstring>
 #include <esp_log.h>
 
 DEFINE_LOG_TAG("WEBAPI");
 
 void handleApiUpdateStatusGet(AsyncWebServerRequest *req) {
-    adminSendJsonWithBuffer<384>(req, [](char *b, size_t n) { return otaFormatStatusJson(b, n) > 0U; });
+    JsonDocument doc;
+    otaFillStatusJson(doc.to<JsonObject>());
+    webSendJsonDoc(req, 200, doc);
 }
 
-bool parseOtaChannelParam(AsyncWebServerRequest *req, OtaChannel *out, bool *present) {
-    if (out == nullptr || present == nullptr) {
-        return false;
+void handleApiUpdateCheckPost(AsyncWebServerRequest *req, JsonVariant &json) {
+    if (!adminJsonRequireObject(req, json)) {
+        return;
     }
-    *present = false;
-    if (!req->hasParam("channel", true)) {
-        return true;
-    }
-    const AsyncWebParameter *p = req->getParam("channel", true);
-    if (p == nullptr) {
-        sendErr(req, 400, "channel");
-        return false;
-    }
-    const String v = p->value();
-    if (v == "stable") {
-        *out = OtaChannel::Stable;
-        *present = true;
-        return true;
-    }
-    if (v == "beta") {
-        *out = OtaChannel::Beta;
-        *present = true;
-        return true;
-    }
-    sendErr(req, 400, "channel");
-    return false;
-}
-
-void handleApiUpdateCheckPost(AsyncWebServerRequest *req) {
     if (batteryCriticalLow(batteryPercent())) {
         sendErr(req, 503, "battery_low");
         return;
@@ -72,24 +35,38 @@ void handleApiUpdateCheckPost(AsyncWebServerRequest *req) {
         sendErr(req, 503, "busy");
         return;
     }
-    OtaChannel channel = otaGetChannel();
-    bool present = false;
-    if (!parseOtaChannelParam(req, &channel, &present)) {
+    if (!adminJsonHasField(json, "channel")) {
+        otaQueueGithubCheck();
+        ESP_LOGI(TAG, "API OTA check queued");
+        sendOk(req, 200, "checking");
         return;
     }
-    if (present) {
-        if (!otaQueueGithubCheck(channel)) {
-            sendErr(req, 500, "save");
-            return;
-        }
+    char channelBuf[12]{};
+    if (adminOptionalJsonString(json, "channel", channelBuf, sizeof(channelBuf)) != AdminJsonParam::Ok) {
+        sendErr(req, 400, "channel");
+        return;
+    }
+    OtaChannel channel = OtaChannel::Stable;
+    if (strcmp(channelBuf, "stable") == 0) {
+        channel = OtaChannel::Stable;
+    } else if (strcmp(channelBuf, "beta") == 0) {
+        channel = OtaChannel::Beta;
     } else {
-        otaQueueGithubCheck();
+        sendErr(req, 400, "channel");
+        return;
+    }
+    if (!otaQueueGithubCheck(channel)) {
+        sendErr(req, 500, "save");
+        return;
     }
     ESP_LOGI(TAG, "API OTA check queued");
-    sendOk(req, 200, "\"message\":\"checking\"");
+    sendOk(req, 200, "checking");
 }
 
-void handleApiUpdateInstallPost(AsyncWebServerRequest *req) {
+void handleApiUpdateInstallPost(AsyncWebServerRequest *req, JsonVariant &json) {
+    if (!adminJsonRequireObject(req, json)) {
+        return;
+    }
     if (batteryCriticalLow(batteryPercent())) {
         sendErr(req, 503, "battery_low");
         return;
@@ -106,7 +83,7 @@ void handleApiUpdateInstallPost(AsyncWebServerRequest *req) {
     }
     ESP_LOGI(TAG, "API OTA install queued version=%s", st.availableVersion);
     otaQueueInstall();
-    sendOk(req, 200, "\"message\":\"installing\"");
+    sendOk(req, 200, "installing");
 }
 
 void adminRoutesRegisterApiOta(AsyncWebServer &ws) {
@@ -117,14 +94,12 @@ void adminRoutesRegisterApiOta(AsyncWebServer &ws) {
         h.addMiddleware(mwApiStaMode());
     }
     {
-        AsyncCallbackWebHandler &h =
-            ws.on("/api/update/check", HTTP_POST, [](AsyncWebServerRequest *rq) { handleApiUpdateCheckPost(rq); });
+        AsyncCallbackJsonWebHandler &h = adminAddJsonPost(ws, "/api/update/check", handleApiUpdateCheckPost);
         h.addMiddleware(mwApiStaMode());
         h.addMiddleware(mwApiPostCsrf());
     }
     {
-        AsyncCallbackWebHandler &h =
-            ws.on("/api/update/install", HTTP_POST, [](AsyncWebServerRequest *rq) { handleApiUpdateInstallPost(rq); });
+        AsyncCallbackJsonWebHandler &h = adminAddJsonPost(ws, "/api/update/install", handleApiUpdateInstallPost);
         h.addMiddleware(mwApiStaMode());
         h.addMiddleware(mwApiPostCsrf());
     }

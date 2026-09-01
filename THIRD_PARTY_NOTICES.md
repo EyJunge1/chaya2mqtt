@@ -10,6 +10,7 @@ Runtime components include:
 - [AsyncTCP](https://github.com/ESP32Async/AsyncTCP) — GNU LGPL v3 or later
 - [Adafruit GFX Library](https://github.com/adafruit/Adafruit-GFX-Library) — BSD
 - [Adafruit BusIO](https://github.com/adafruit/Adafruit_BusIO) — MIT
+- [ArduinoJson](https://github.com/bblanchon/ArduinoJson) 7.4.3 — MIT
 - [Arduino core for ESP32](https://github.com/espressif/arduino-esp32) and
   [ESP-IDF](https://github.com/espressif/esp-idf) — see their component license files
 - [Svelte](https://github.com/sveltejs/svelte) — MIT

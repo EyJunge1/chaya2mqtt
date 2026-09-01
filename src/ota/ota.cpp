@@ -1,4 +1,5 @@
 #include "ota.h"
+#include "ota_json.h"
 
 #include "flash.h"
 #include "github.h"
@@ -312,6 +313,10 @@ void maybeDailyCheck() {
 
 } // namespace
 
+const char *otaPhaseName(OtaPhase phase) { return phaseName(phase); }
+
+const char *otaChannelName(OtaChannel channel) { return channelName(channel); }
+
 void otaNotifyFlashProgress(uint32_t done, uint32_t total) {
     portENTER_CRITICAL(&s_otaMux);
     s_status.phase = OtaPhase::Downloading;
@@ -352,7 +357,7 @@ bool otaBlocksDestructiveAction() {
 
 bool otaSetChannel(OtaChannel channel) {
     loadChannelIfNeeded();
-    const char *name = channelName(channel);
+    const char *name = otaChannelName(channel);
     if (!app_nvs::writeString(kNvsNsCfg, kNvsKeyCfgUpdChan, name)) {
         ESP_LOGE(TAG, "NVS cfg: failed to persist upd_chan");
         return false;
@@ -382,23 +387,21 @@ void otaCopyStatus(OtaStatus *out) {
     portEXIT_CRITICAL(&s_otaMux);
 }
 
-size_t otaFormatStatusJson(char *buf, size_t bufLen) {
-    if (buf == nullptr || bufLen < 32U) {
-        return 0;
-    }
+void otaFillStatusJson(JsonObject obj, const OtaStatus &st) {
+    obj["phase"] = otaPhaseName(st.phase);
+    obj["channel"] = otaChannelName(st.channel);
+    obj["localVersion"] = st.localVersion;
+    obj["availableVersion"] = st.availableVersion;
+    obj["bytesDone"] = st.bytesDone;
+    obj["bytesTotal"] = st.bytesTotal;
+    obj["error"] = st.error;
+    obj["generation"] = st.generation;
+}
+
+void otaFillStatusJson(JsonObject obj) {
     OtaStatus st{};
     otaCopyStatus(&st);
-    const int n = snprintf(buf, bufLen,
-                           "{\"phase\":\"%s\",\"channel\":\"%s\",\"localVersion\":\"%s\","
-                           "\"availableVersion\":\"%s\",\"bytesDone\":%u,\"bytesTotal\":%u,"
-                           "\"error\":\"%s\",\"generation\":%u}",
-                           phaseName(st.phase), channelName(st.channel), st.localVersion, st.availableVersion,
-                           static_cast<unsigned>(st.bytesDone), static_cast<unsigned>(st.bytesTotal), st.error,
-                           static_cast<unsigned>(st.generation));
-    if (n < 0 || static_cast<size_t>(n) >= bufLen) {
-        return 0;
-    }
-    return static_cast<size_t>(n);
+    otaFillStatusJson(obj, st);
 }
 
 void otaQueueGithubCheck() {

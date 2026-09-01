@@ -116,7 +116,7 @@
       const res = await api.saveMqtt({
         mqtt_server: cfg.server,
         mqtt_port: cfg.port,
-        mqtt_tls: cfg.tls ? 1 : 0,
+        mqtt_tls: cfg.tls,
         mqtt_user: cfg.username,
         mqtt_pass: password || undefined,
         partner_id: nextPartner.trim().toLowerCase(),

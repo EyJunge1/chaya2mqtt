@@ -3,14 +3,17 @@
 #include "async/sse_dirty.h"
 #include "battery/battery.h"
 #include "heart/counter.h"
+#include "json_payloads.h"
 #include "mqtt/config.h"
 #include "mqtt/mqtt.h"
 #include "ota/ota.h"
+#include "ota/ota_json.h"
 #include "sse_dirty_pure.h"
 #include "web_utils.h"
 #include "wifi/wlan.h"
 
 #include <Arduino.h>
+#include <ArduinoJson.h>
 #include <ESPAsyncWebServer.h>
 #include <esp_log.h>
 
@@ -78,44 +81,29 @@ static void onEsConnect(AsyncEventSourceClient *) {
 }
 
 static size_t buildChayaPayload(int rx, int tx, bool connected, bool configured, bool paired, char *buf, size_t bufLen) {
-    return static_cast<size_t>(snprintf(buf, bufLen, "{\"rx\":%d,\"tx\":%d,\"connected\":%s,\"configured\":%s,\"paired\":%s}", rx,
-                                        tx, connected ? "true" : "false", configured ? "true" : "false",
-                                        paired ? "true" : "false"));
+    JsonDocument doc;
+    fillChayaJson(doc.to<JsonObject>(), rx, tx, connected, configured, paired);
+    return webSerializeJson(doc, buf, bufLen);
 }
 
 static size_t buildWifiStatusPayload(bool connected, const char *ssid, const char *ipStr, const char *gateway,
                                      const char *netmask, const char *dns1, const char *dns2, int rssi, char *buf,
                                      size_t bufLen) {
-    if (!connected) {
-        return static_cast<size_t>(snprintf(buf, bufLen, "{\"connected\":false}"));
-    }
-    size_t pos = 0;
-    const int head = snprintf(buf, bufLen, "{\"connected\":true,\"ssid\":");
-    if (head < 0 || static_cast<size_t>(head) >= bufLen) {
-        return 0;
-    }
-    pos = static_cast<size_t>(head);
-    if (!appendJsonStringQuotedEscaped(ssid != nullptr ? ssid : "", buf, bufLen, &pos)) {
-        return 0;
-    }
-    const size_t remain = (bufLen > pos) ? (bufLen - pos) : 0;
-    const int tail = snprintf(buf + pos, remain,
-                              ",\"ip\":\"%s\",\"gateway\":\"%s\",\"netmask\":\"%s\",\"dns1\":\"%s\",\"dns2\":\"%s\","
-                              "\"rssi\":%d}",
-                              ipStr != nullptr ? ipStr : "", gateway != nullptr ? gateway : "", netmask != nullptr ? netmask : "",
-                              dns1 != nullptr ? dns1 : "", dns2 != nullptr ? dns2 : "", rssi);
-    if (tail < 0 || static_cast<size_t>(tail) >= remain) {
-        return 0;
-    }
-    return pos + static_cast<size_t>(tail);
+    JsonDocument doc;
+    fillWifiStatusJson(doc.to<JsonObject>(), connected, ssid, ipStr, gateway, netmask, dns1, dns2, rssi);
+    return webSerializeJson(doc, buf, bufLen);
 }
 
 static size_t buildMqttStatusPayload(bool connected, char *buf, size_t bufLen) {
-    return static_cast<size_t>(snprintf(buf, bufLen, "{\"connected\":%s}", connected ? "true" : "false"));
+    JsonDocument doc;
+    fillMqttStatusJson(doc.to<JsonObject>(), connected);
+    return webSerializeJson(doc, buf, bufLen);
 }
 
 static size_t buildDeviceBatteryPayload(int mv, int pct, char *buf, size_t bufLen) {
-    return static_cast<size_t>(snprintf(buf, bufLen, "{\"batteryMv\":%d,\"batteryPct\":%d}", mv, pct));
+    JsonDocument doc;
+    fillDeviceBatteryJson(doc.to<JsonObject>(), mv, pct);
+    return webSerializeJson(doc, buf, bufLen);
 }
 
 } // namespace
@@ -315,7 +303,9 @@ void webEventsTick() {
     }
 
     if (otaDirty) {
-        const size_t plen = otaFormatStatusJson(buf, sizeof(buf));
+        JsonDocument doc;
+        otaFillStatusJson(doc.to<JsonObject>(), otaSt);
+        const size_t plen = webSerializeJson(doc, buf, sizeof(buf));
         if (plen > 0U && plen < sizeof(buf)) {
             s_events.send(buf, "ota");
         }

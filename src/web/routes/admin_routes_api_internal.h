@@ -1,14 +1,23 @@
 #pragma once
 
 #include "async/event_types.h"
+#include "mqtt/config.h"
+#include "web/json_payloads.h"
+#include "web/web_middleware.h"
+#include "wifi/wlan_config.h"
 
 #include <Arduino.h>
+#include <ArduinoJson.h>
+#include <AsyncJson.h>
 #include <ESPAsyncWebServer.h>
 #include <cstddef>
 
-void sendOk(AsyncWebServerRequest *req, int code = 200, const char *extraJson = nullptr);
+void sendOk(AsyncWebServerRequest *req, int code = 200, const char *message = nullptr, const char *next = nullptr);
+void sendOkQueued(AsyncWebServerRequest *req, int code, bool queued);
 void sendErr(AsyncWebServerRequest *req, int code, const char *error);
-bool parseFormIntStrict(const String &text, int *out);
+bool adminJsonRequireObject(AsyncWebServerRequest *req, JsonVariant &json);
+
+AsyncCallbackJsonWebHandler &adminAddJsonPost(AsyncWebServer &ws, const char *uri, ArJsonRequestHandlerFunction fn);
 
 void handleApiCsrfGet(AsyncWebServerRequest *req);
 void handleApiDeviceGet(AsyncWebServerRequest *req);
@@ -17,33 +26,32 @@ void handleApiDeviceGet(AsyncWebServerRequest *req);
 void handleApiBootstrapGet(AsyncWebServerRequest *req);
 
 void handleApiChayaGet(AsyncWebServerRequest *req);
-void handleApiChayaSendPost(AsyncWebServerRequest *req);
+void handleApiChayaSendPost(AsyncWebServerRequest *req, JsonVariant &json);
 
-bool appendWifiRuntimeFields(char *body, size_t bodyLen, size_t *pos, const char *ip, const char *gateway, const char *netmask,
-                             const char *dns1, const char *dns2, int rssi);
 void handleApiWifiStatusGet(AsyncWebServerRequest *req);
 void handleApiWifiConfigGet(AsyncWebServerRequest *req);
 void handleApiWifiScanGet(AsyncWebServerRequest *req);
-void handleApiWifiScanPost(AsyncWebServerRequest *req);
-void handleApiWifiConnectPost(AsyncWebServerRequest *req);
+void handleApiWifiScanPost(AsyncWebServerRequest *req, JsonVariant &json);
+void handleApiWifiConnectPost(AsyncWebServerRequest *req, JsonVariant &json);
 void handleApiWifiConnectStatusGet(AsyncWebServerRequest *req);
-void handleApiWifiConnectCommitPost(AsyncWebServerRequest *req);
-void handleApiWifiConnectAbortPost(AsyncWebServerRequest *req);
+void handleApiWifiConnectCommitPost(AsyncWebServerRequest *req, JsonVariant &json);
+void handleApiWifiConnectAbortPost(AsyncWebServerRequest *req, JsonVariant &json);
+void handleApiWifiConnectRetryPost(AsyncWebServerRequest *req, JsonVariant &json);
 
 void handleApiMqttStatusGet(AsyncWebServerRequest *req);
 void handleApiMqttGet(AsyncWebServerRequest *req);
 void normalizePartnerIdInput(char *id, size_t idLen);
-void handleApiMqttPost(AsyncWebServerRequest *req);
+void handleApiMqttPost(AsyncWebServerRequest *req, JsonVariant &json);
 
 void handleApiSettingsGet(AsyncWebServerRequest *req);
-void handleApiSettingsPost(AsyncWebServerRequest *req);
+void handleApiSettingsPost(AsyncWebServerRequest *req, JsonVariant &json);
 
-void handleApiRebootPost(AsyncWebServerRequest *req);
+void handleApiRebootPost(AsyncWebServerRequest *req, JsonVariant &json);
 void handleApiResetPost(AsyncWebServerRequest *req, NetCmd cmd, const char *message);
 
 void handleApiUpdateStatusGet(AsyncWebServerRequest *req);
-void handleApiUpdateCheckPost(AsyncWebServerRequest *req);
-void handleApiUpdateInstallPost(AsyncWebServerRequest *req);
+void handleApiUpdateCheckPost(AsyncWebServerRequest *req, JsonVariant &json);
+void handleApiUpdateInstallPost(AsyncWebServerRequest *req, JsonVariant &json);
 
 void adminRoutesRegisterApiDevice(AsyncWebServer &ws);
 void adminRoutesRegisterApiChaya(AsyncWebServer &ws);

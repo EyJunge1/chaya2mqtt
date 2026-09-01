@@ -115,17 +115,6 @@ inline bool uiThemeSyntaxOk(const char *theme) {
     return theme != nullptr && (strcmp(theme, "system") == 0 || strcmp(theme, "dark") == 0 || strcmp(theme, "light") == 0);
 }
 
-/** Boolean form value: "0"/"1" or "true"/"false". */
-inline bool formBoolSyntaxOk(const char *value) {
-    return value != nullptr &&
-           (strcmp(value, "0") == 0 || strcmp(value, "1") == 0 || strcmp(value, "true") == 0 || strcmp(value, "false") == 0);
-}
-
-/** Parse a validated boolean form value (call only after formBoolSyntaxOk). */
-inline bool formBoolFromForm(const char *value) {
-    return value != nullptr && (strcmp(value, "1") == 0 || strcmp(value, "true") == 0);
-}
-
 inline bool audioVolumeInRange(int v) { return v >= 0 && v <= static_cast<int>(kAudioVolumeMax); }
 
 inline bool quietHourInRange(int v) { return v >= 0 && v <= static_cast<int>(kAudioHourMax); }

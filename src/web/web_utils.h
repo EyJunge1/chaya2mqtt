@@ -1,12 +1,12 @@
 #pragma once
 
 #include <Arduino.h>
+#include <ArduinoJson.h>
 
 #include <cstddef>
 
 class AsyncWebServerRequest;
 class AsyncWebServerResponse;
-class AsyncResponseStream;
 
 /** Security headers. When noStore is false, omits Cache-Control (caller sets caching). */
 void webAddSecurityHeaders(AsyncWebServerResponse *resp, bool noStore = true);
@@ -15,9 +15,16 @@ void webRedirect(AsyncWebServerRequest *req, const __FlashStringHelper *location
 
 void webRedirect(AsyncWebServerRequest *req, const char *location);
 
-AsyncResponseStream *beginResponseStreamOr500(AsyncWebServerRequest *req, const char *mime);
+void webSendJsonDoc(AsyncWebServerRequest *req, int code, JsonDocument &doc);
 
-void webSendJson(AsyncWebServerRequest *req, int code, const char *jsonBody);
+void webSendJsonError(AsyncWebServerRequest *req, int code, const char *error);
+
+void webSendJsonOk(AsyncWebServerRequest *req, int code, const char *message = nullptr, const char *next = nullptr);
+
+void webSendJsonOkQueued(AsyncWebServerRequest *req, int code, bool queued);
+
+/** Serialize doc into buf. Returns bytes written (excl. NUL) or 0 on overflow. */
+size_t webSerializeJson(const JsonDocument &doc, char *buf, size_t bufLen);
 
 void webSendEmpty(AsyncWebServerRequest *req, int code);
 
@@ -25,11 +32,7 @@ void appendHtmlEscaped(Print &out, const char *s);
 
 void appendCurrentWebCsrfTokenEscaped(Print &out);
 
-void appendJsonEscapedCStr(Print &out, const char *str);
-
 bool webRequestHostAllowed(AsyncWebServerRequest *req);
 
 /** When Origin is present, host must match the same allowlist as Host. Missing Origin is allowed. */
 bool webRequestOriginAllowed(AsyncWebServerRequest *req);
-
-bool appendJsonStringQuotedEscaped(const char *str, char *buf, size_t bufLen, size_t *inOutPos);

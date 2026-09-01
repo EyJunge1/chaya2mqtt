@@ -51,7 +51,7 @@ The Vite development server starts a **virtual Chaya2MQTT** under `frontend/mock
 
 ### Fault injection (API)
 
-`POST /api/_mock/fault` (`fault=<key>&enabled=1`, `clear=1`) can still toggle individual fault keys for automated tests. Prefer the scenario presets above in the simulator toolbar.
+`POST /api/_mock/fault` (`{"fault":"<key>","enabled":true}` or `{"clear":true}`) can still toggle individual fault keys for automated tests. Prefer the scenario presets above in the simulator toolbar.
 
 Additional development endpoints: `POST /api/_mock/scenario`, `POST /api/_mock/reset`, `GET /api/_mock/state`.
 
@@ -73,11 +73,12 @@ Static assets include a Vite content hash and are located under `/assets/*` (Cac
 
 ## JSON API
 
-Mutations expect `application/x-www-form-urlencoded`, including `csrf_token`.
+Mutations expect `application/json` and the `X-CSRF-Token` header. Empty mutations send `{}`.
 
 | Route | Method | Protection | Description |
 |-------|--------|------------|-------------|
-| `/api/csrf` | GET | Host | `{token}` |
+| `/api/csrf` | GET | Host | `{token, expiresInSeconds}` |
+| `/api/bootstrap` | GET | Host | csrf + device + wifi; STA also fills chaya/mqtt/update/settings (AP: those keys are `null`) |
 | `/api/device` | GET | Host | Mode, version, device ID, `batteryMv` / `batteryPct`; also `apSsid` / `apIp` in AP mode |
 | `/api/chaya` | GET | Host + STA | Display deltas `{rx,tx}` plus MQTT `{connected,configured,paired}` |
 | `/api/chaya/send` | POST | CSRF + STA | Send heart (queued; requires broker + partner) |
@@ -96,7 +97,7 @@ Mutations expect `application/x-www-form-urlencoded`, including `csrf_token`.
 | `/api/reboot` | POST | CSRF + STA | Reboot (deferred) |
 | `/api/factory-reset` | POST | CSRF + STA | Delete all NVS data and restart in AP setup mode |
 | `/api/update/status` | GET | Host + STA | OTA status (phase, channel, versions, progress) |
-| `/api/update/check` | POST | CSRF + STA | GitHub OTA check (`channel=stable\|beta` optional) |
+| `/api/update/check` | POST | CSRF + STA | GitHub OTA check (optional JSON `channel`: `stable` or `beta`) |
 | `/api/update/install` | POST | CSRF + STA | Start confirmed installation |
 
 `rx` and `tx` are the current display deltas (absolute counter minus its saved
@@ -134,7 +135,7 @@ Maximum **6** SSE clients. App-task poll remains ~500 ms, but SSE gather runs 
 - SoftAP uses a 24-character alphanumeric WPA-PSK (WIFI QR only — no manual typing fallback)
 - `/api/csrf` returns `token` plus `expiresInSeconds`; tokens rotate lazily every 24 hours and the
   previous token remains valid for a 5-minute grace period
-- Every POST includes `csrf_token`. The frontend performs a single-flight refresh and one retry
+- Every POST includes `X-CSRF-Token`. The frontend performs a single-flight refresh and one retry
   only for idempotent settings/check/scan operations; heart send, WiFi commit, reboot, factory reset,
   and OTA install are never repeated automatically
 - Host/origin allowlist in STA and AP: in captive mode only `4.3.2.1` and `chaya2mqtt` / `.local`

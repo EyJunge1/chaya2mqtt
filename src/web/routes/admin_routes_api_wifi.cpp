@@ -1,22 +1,11 @@
 #include <Arduino.h>
 
 #include "../admin_globals.h"
-#include "../admin_json.h"
 #include "admin_routes_api_internal.h"
 
-#include "async/event_types.h"
-#include "async/task_handles.h"
-#include "battery/battery.h"
 #include "config/app_config.h"
-#include "config/version.h"
 #include "constants.h"
-#include "heart/counter.h"
-#include "identity/device_identity.h"
-#include "mqtt/config.h"
-#include "mqtt/mqtt.h"
-#include "ota/ota.h"
 #include "util/log_tag.h"
-#include "web/csrf.h"
 #include "web/deferred_reboot.h"
 #include "web/web_middleware.h"
 #include "web/web_utils.h"
@@ -25,107 +14,37 @@
 #include "wifi/wlan_config.h"
 
 #include <ESPAsyncWebServer.h>
-#include <cerrno>
-#include <climits>
-#include <cstdio>
-#include <cstdlib>
 #include <cstring>
 #include <esp_log.h>
 
 DEFINE_LOG_TAG("WEBAPI");
 
-bool appendWifiRuntimeFields(char *body, size_t bodyLen, size_t *pos, const char *ip, const char *gateway, const char *netmask,
-                             const char *dns1, const char *dns2, int rssi) {
-    if (body == nullptr || pos == nullptr || *pos >= bodyLen) {
-        return false;
-    }
-    const int n = snprintf(body + *pos, bodyLen - *pos,
-                           ",\"ip\":\"%s\",\"gateway\":\"%s\",\"netmask\":\"%s\",\"dns1\":\"%s\",\"dns2\":\"%s\","
-                           "\"rssi\":%d",
-                           ip != nullptr ? ip : "", gateway != nullptr ? gateway : "", netmask != nullptr ? netmask : "",
-                           dns1 != nullptr ? dns1 : "", dns2 != nullptr ? dns2 : "", rssi);
-    if (n < 0 || *pos + static_cast<size_t>(n) >= bodyLen) {
-        return false;
-    }
-    *pos += static_cast<size_t>(n);
-    return true;
+void fillWifiRuntimeFields(JsonObject obj, const char *ip, const char *gateway, const char *netmask, const char *dns1,
+                           const char *dns2, int rssi) {
+    obj["ip"] = ip != nullptr ? ip : "";
+    obj["gateway"] = gateway != nullptr ? gateway : "";
+    obj["netmask"] = netmask != nullptr ? netmask : "";
+    obj["dns1"] = dns1 != nullptr ? dns1 : "";
+    obj["dns2"] = dns2 != nullptr ? dns2 : "";
+    obj["rssi"] = rssi;
 }
 
 void handleApiWifiStatusGet(AsyncWebServerRequest *req) {
-    bool connected = false;
-    char ssidBuf[kWifiSsidMaxLen]{};
-    char ipStr[kIpv4StrMaxLen]{};
-    char gateway[kIpv4StrMaxLen]{};
-    char netmask[kIpv4StrMaxLen]{};
-    char dns1[kIpv4StrMaxLen]{};
-    char dns2[kIpv4StrMaxLen]{};
-    int rssi = 0;
-    wlanFillStaNetSnapshot(&connected, ssidBuf, sizeof(ssidBuf), ipStr, sizeof(ipStr), gateway, sizeof(gateway), netmask,
-                           sizeof(netmask), dns1, sizeof(dns1), dns2, sizeof(dns2), &rssi);
-    if (!connected) {
-        webSendJson(req, 200, "{\"connected\":false}");
-        return;
-    }
-    char body[640]{};
-    size_t pos = 0;
-    const int h = snprintf(body, sizeof(body), "{\"connected\":true,\"ssid\":");
-    if (h < 0 || static_cast<size_t>(h) >= sizeof(body)) {
-        sendErr(req, 500, "json");
-        return;
-    }
-    pos = static_cast<size_t>(h);
-    if (!appendJsonStringQuotedEscaped(ssidBuf, body, sizeof(body), &pos)) {
-        sendErr(req, 500, "json");
-        return;
-    }
-    if (!appendWifiRuntimeFields(body, sizeof(body), &pos, ipStr, gateway, netmask, dns1, dns2, rssi)) {
-        sendErr(req, 500, "json");
-        return;
-    }
-    if (pos + 2U > sizeof(body)) {
-        sendErr(req, 500, "json");
-        return;
-    }
-    body[pos++] = '}';
-    body[pos] = '\0';
-    webSendJson(req, 200, body);
+    JsonDocument doc;
+    fillWifiStatusJson(doc.to<JsonObject>());
+    webSendJsonDoc(req, 200, doc);
 }
 
-bool fillWifiConfigJson(char *body, size_t bodyLen, const WlanConfig &cfg) {
-    size_t pos = 0;
-    int n = snprintf(body, bodyLen, "{\"ssid\":");
-    if (n < 0 || static_cast<size_t>(n) >= bodyLen) {
-        return false;
-    }
-    pos = static_cast<size_t>(n);
-    if (!appendJsonStringQuotedEscaped(cfg.ssid, body, bodyLen, &pos)) {
-        return false;
-    }
-    n = snprintf(body + pos, bodyLen - pos,
-                 ",\"mode\":\"%s\",\"ip\":\"%s\",\"gateway\":\"%s\",\"netmask\":\"%s\","
-                 "\"dns1\":\"%s\",\"dns2\":\"%s\",\"ntp1\":",
-                 cfg.mode == WlanIpMode::Static ? "static" : "dhcp", cfg.ip, cfg.gateway, cfg.netmask, cfg.dns1, cfg.dns2);
-    if (n < 0 || pos + static_cast<size_t>(n) >= bodyLen) {
-        return false;
-    }
-    pos += static_cast<size_t>(n);
-    if (!appendJsonStringQuotedEscaped(cfg.ntp1, body, bodyLen, &pos)) {
-        return false;
-    }
-    n = snprintf(body + pos, bodyLen - pos, ",\"ntp2\":");
-    if (n < 0 || pos + static_cast<size_t>(n) >= bodyLen) {
-        return false;
-    }
-    pos += static_cast<size_t>(n);
-    if (!appendJsonStringQuotedEscaped(cfg.ntp2, body, bodyLen, &pos)) {
-        return false;
-    }
-    if (pos + 2U > bodyLen) {
-        return false;
-    }
-    body[pos++] = '}';
-    body[pos] = '\0';
-    return true;
+void fillWifiConfigJson(JsonObject obj, const WlanConfig &cfg) {
+    obj["ssid"] = cfg.ssid;
+    obj["mode"] = cfg.mode == WlanIpMode::Static ? "static" : "dhcp";
+    obj["ip"] = cfg.ip;
+    obj["gateway"] = cfg.gateway;
+    obj["netmask"] = cfg.netmask;
+    obj["dns1"] = cfg.dns1;
+    obj["dns2"] = cfg.dns2;
+    obj["ntp1"] = cfg.ntp1;
+    obj["ntp2"] = cfg.ntp2;
 }
 
 void handleApiWifiConfigGet(AsyncWebServerRequest *req) {
@@ -133,46 +52,50 @@ void handleApiWifiConfigGet(AsyncWebServerRequest *req) {
     if (!wlanLoadConfigFromNvs(&cfg)) {
         wlanConfigClear(&cfg);
     }
-    char body[768]{};
-    if (!fillWifiConfigJson(body, sizeof(body), cfg)) {
-        sendErr(req, 500, "json");
-        return;
-    }
-    webSendJson(req, 200, body);
+    JsonDocument doc;
+    fillWifiConfigJson(doc.to<JsonObject>(), cfg);
+    webSendJsonDoc(req, 200, doc);
 }
 
-bool parseWifiConfigFromRequest(AsyncWebServerRequest *req, WlanConfig *cfg, const char **err) {
-    if (req == nullptr || cfg == nullptr || err == nullptr) {
+bool parseWifiConfigFromJson(JsonVariantConst json, WlanConfig *cfg, const char **err) {
+    if (cfg == nullptr || err == nullptr) {
         return false;
     }
     *err = "ssid";
     wlanConfigClear(cfg);
 
-    if (!adminParseBodyParam(req, "ssid", cfg->ssid, sizeof(cfg->ssid)) || cfg->ssid[0] == '\0' ||
+    if (adminOptionalJsonString(json, "ssid", cfg->ssid, sizeof(cfg->ssid)) != AdminJsonParam::Ok || cfg->ssid[0] == '\0' ||
         !wifiSsidSyntaxOk(cfg->ssid, sizeof(cfg->ssid))) {
         *err = "ssid";
         return false;
     }
+
     auto parseOptional = [&](const char *name, char *out, size_t outLen) {
-        if (!req->hasParam(name, true)) {
+        switch (adminOptionalJsonString(json, name, out, outLen)) {
+        case AdminJsonParam::Absent:
             return true;
-        }
-        if (!adminParseBodyParam(req, name, out, outLen)) {
+        case AdminJsonParam::Ok:
+            return true;
+        case AdminJsonParam::Invalid:
             *err = name;
             return false;
         }
-        return true;
+        *err = name;
+        return false;
     };
     if (!parseOptional("password", cfg->pass, sizeof(cfg->pass))) {
         return false;
     }
 
     char modeBuf[12]{};
-    if (req->hasParam("mode", true)) {
-        if (!adminParseBodyParam(req, "mode", modeBuf, sizeof(modeBuf))) {
-            *err = "mode";
-            return false;
-        }
+    switch (adminOptionalJsonString(json, "mode", modeBuf, sizeof(modeBuf))) {
+    case AdminJsonParam::Invalid:
+        *err = "mode";
+        return false;
+    case AdminJsonParam::Absent:
+        cfg->mode = WlanIpMode::Dhcp;
+        break;
+    case AdminJsonParam::Ok:
         if (strcmp(modeBuf, "static") == 0) {
             cfg->mode = WlanIpMode::Static;
         } else if (strcmp(modeBuf, "dhcp") == 0) {
@@ -181,8 +104,7 @@ bool parseWifiConfigFromRequest(AsyncWebServerRequest *req, WlanConfig *cfg, con
             *err = "mode";
             return false;
         }
-    } else {
-        cfg->mode = WlanIpMode::Dhcp;
+        break;
     }
 
     if (!parseOptional("ip", cfg->ip, sizeof(cfg->ip)) || !parseOptional("gateway", cfg->gateway, sizeof(cfg->gateway)) ||
@@ -210,48 +132,43 @@ void handleApiWifiScanGet(AsyncWebServerRequest *req) {
     const WlanWifiScanStatus st = wlanWifiScanStatus();
     if (st != WlanWifiScanStatus::Ready) {
         const char *status = st == WlanWifiScanStatus::Pending ? "pending" : st == WlanWifiScanStatus::Failed ? "failed" : "idle";
-        char body[40]{};
-        const int n = snprintf(body, sizeof(body), "{\"status\":\"%s\"}", status);
-        if (n < 0 || static_cast<size_t>(n) >= sizeof(body)) {
-            webSendJson(req, 200, "{\"status\":\"idle\"}");
-            return;
-        }
-        webSendJson(req, 200, body);
+        JsonDocument doc;
+        doc["status"] = status;
+        webSendJsonDoc(req, 200, doc);
         return;
     }
-    AsyncResponseStream *resp = beginResponseStreamOr500(req, "application/json");
-    if (resp == nullptr) {
-        return;
-    }
-    resp->print(F("{\"status\":\"ready\",\"aps\":["));
+    JsonDocument doc;
+    doc["status"] = "ready";
+    JsonArray aps = doc["aps"].to<JsonArray>();
     const size_t n = wlanWifiScanCachedCount();
     for (size_t i = 0; i < n; ++i) {
         WlanScanRow row{};
         if (!wlanWifiScanCopyRowAt(i, &row)) {
             break;
         }
-        if (i > 0U) {
-            resp->print(',');
-        }
-        resp->print(F("{\"ssid\":"));
-        appendJsonEscapedCStr(*resp, row.ssid);
-        resp->print(F(",\"rssi\":"));
-        resp->print(row.rssi);
-        resp->print(row.open ? F(",\"open\":true}") : F(",\"open\":false}"));
+        JsonObject ap = aps.add<JsonObject>();
+        ap["ssid"] = row.ssid;
+        ap["rssi"] = row.rssi;
+        ap["open"] = row.open;
     }
-    resp->print(F("]}"));
-    req->send(resp);
+    webSendJsonDoc(req, 200, doc);
 }
 
-void handleApiWifiScanPost(AsyncWebServerRequest *req) {
+void handleApiWifiScanPost(AsyncWebServerRequest *req, JsonVariant &json) {
+    if (!adminJsonRequireObject(req, json)) {
+        return;
+    }
     wlanRequestWifiScanRefresh();
     sendOk(req, 202);
 }
 
-void handleApiWifiConnectPost(AsyncWebServerRequest *req) {
+void handleApiWifiConnectPost(AsyncWebServerRequest *req, JsonVariant &json) {
+    if (!adminJsonRequireObject(req, json)) {
+        return;
+    }
     WlanConfig cfg{};
     const char *err = nullptr;
-    if (!parseWifiConfigFromRequest(req, &cfg, &err)) {
+    if (!parseWifiConfigFromJson(json, &cfg, &err)) {
         sendErr(req, 400, err != nullptr ? err : "ssid");
         return;
     }
@@ -261,7 +178,7 @@ void handleApiWifiConnectPost(AsyncWebServerRequest *req) {
             return;
         }
         ESP_LOGI(TAG, "WiFi connect test started ssid=%s", cfg.ssid);
-        sendOk(req, 200, "\"next\":\"/wifi-testing\"");
+        sendOk(req, 200, nullptr, "/wifi-testing");
         return;
     }
     if (!wlanSaveConfigToNvs(cfg)) {
@@ -270,7 +187,7 @@ void handleApiWifiConnectPost(AsyncWebServerRequest *req) {
     }
     ESP_LOGI(TAG, "WiFi config saved (STA) ssid=%s — rebooting", cfg.ssid);
     deferredRebootAfterWifiSave();
-    sendOk(req, 200, "\"message\":\"saved_rebooting\"");
+    sendOk(req, 200, "saved_rebooting");
 }
 
 void handleApiWifiConnectStatusGet(AsyncWebServerRequest *req) {
@@ -281,28 +198,16 @@ void handleApiWifiConnectStatusGet(AsyncWebServerRequest *req) {
                                                                       : "fail";
     char ssid[kWifiSsidMaxLen]{};
     (void)wlanWifiConnectionTestSsidSnapshot(ssid, sizeof(ssid));
-    char body[256]{};
-    size_t pos = 0;
-    const int h = snprintf(body, sizeof(body), "{\"state\":\"%s\",\"ssid\":", stStr);
-    if (h < 0 || static_cast<size_t>(h) >= sizeof(body)) {
-        sendErr(req, 500, "json");
-        return;
-    }
-    pos = static_cast<size_t>(h);
-    if (!appendJsonStringQuotedEscaped(ssid, body, sizeof(body), &pos)) {
-        sendErr(req, 500, "json");
-        return;
-    }
-    if (pos + 2U > sizeof(body)) {
-        sendErr(req, 500, "json");
-        return;
-    }
-    body[pos++] = '}';
-    body[pos] = '\0';
-    webSendJson(req, 200, body);
+    JsonDocument doc;
+    doc["state"] = stStr;
+    doc["ssid"] = ssid;
+    webSendJsonDoc(req, 200, doc);
 }
 
-void handleApiWifiConnectCommitPost(AsyncWebServerRequest *req) {
+void handleApiWifiConnectCommitPost(AsyncWebServerRequest *req, JsonVariant &json) {
+    if (!adminJsonRequireObject(req, json)) {
+        return;
+    }
     char staIp[16]{};
     if (!wlanReadStaLocalIpForCommit(staIp, sizeof(staIp))) {
         sendErr(req, 400, "not_connected");
@@ -312,21 +217,27 @@ void handleApiWifiConnectCommitPost(AsyncWebServerRequest *req) {
         sendErr(req, 400, "not_ok");
         return;
     }
-    char extra[96]{};
-    const int n = snprintf(extra, sizeof(extra), "\"message\":\"committed\",\"next\":\"http://%s/\"", staIp);
-    if (n < 0 || static_cast<size_t>(n) >= sizeof(extra)) {
-        sendOk(req, 200, "\"message\":\"committed\"");
+    char next[32]{};
+    const int n = snprintf(next, sizeof(next), "http://%s/", staIp);
+    if (n < 0 || static_cast<size_t>(n) >= sizeof(next)) {
+        sendOk(req, 200, "committed");
         return;
     }
-    sendOk(req, 200, extra);
+    sendOk(req, 200, "committed", next);
 }
 
-void handleApiWifiConnectAbortPost(AsyncWebServerRequest *req) {
+void handleApiWifiConnectAbortPost(AsyncWebServerRequest *req, JsonVariant &json) {
+    if (!adminJsonRequireObject(req, json)) {
+        return;
+    }
     wlanAbortWifiConnectionTest();
-    sendOk(req, 200, "\"next\":\"/wifi\"");
+    sendOk(req, 200, nullptr, "/wifi");
 }
 
-void handleApiWifiConnectRetryPost(AsyncWebServerRequest *req) {
+void handleApiWifiConnectRetryPost(AsyncWebServerRequest *req, JsonVariant &json) {
+    if (!adminJsonRequireObject(req, json)) {
+        return;
+    }
     if (wlanGetWifiConnectionTestState() != WlanWifiConnectionTestState::Fail) {
         sendErr(req, 400, "not_fail");
         return;
@@ -336,7 +247,7 @@ void handleApiWifiConnectRetryPost(AsyncWebServerRequest *req) {
         return;
     }
     ESP_LOGI(TAG, "WiFi connect test retry started");
-    sendOk(req, 200, "\"message\":\"retrying\"");
+    sendOk(req, 200, "retrying");
 }
 
 void adminRoutesRegisterApiWifi(AsyncWebServer &ws) {
@@ -356,13 +267,11 @@ void adminRoutesRegisterApiWifi(AsyncWebServer &ws) {
         h.addMiddleware(mwRequireAllowedHost());
     }
     {
-        AsyncCallbackWebHandler &h =
-            ws.on("/api/wifi/scan", HTTP_POST, [](AsyncWebServerRequest *rq) { handleApiWifiScanPost(rq); });
+        AsyncCallbackJsonWebHandler &h = adminAddJsonPost(ws, "/api/wifi/scan", handleApiWifiScanPost);
         h.addMiddleware(mwApiPostCsrf());
     }
     {
-        AsyncCallbackWebHandler &h =
-            ws.on("/api/wifi/connect", HTTP_POST, [](AsyncWebServerRequest *rq) { handleApiWifiConnectPost(rq); });
+        AsyncCallbackJsonWebHandler &h = adminAddJsonPost(ws, "/api/wifi/connect", handleApiWifiConnectPost);
         h.addMiddleware(mwApiPostCsrf());
     }
     {
@@ -371,18 +280,15 @@ void adminRoutesRegisterApiWifi(AsyncWebServer &ws) {
         h.addMiddleware(mwApiApMode());
     }
     {
-        AsyncCallbackWebHandler &h =
-            ws.on("/api/wifi/connect-commit", HTTP_POST, [](AsyncWebServerRequest *rq) { handleApiWifiConnectCommitPost(rq); });
+        AsyncCallbackJsonWebHandler &h = adminAddJsonPost(ws, "/api/wifi/connect-commit", handleApiWifiConnectCommitPost);
         h.addMiddleware(mwApiApPostCsrf());
     }
     {
-        AsyncCallbackWebHandler &h =
-            ws.on("/api/wifi/connect-abort", HTTP_POST, [](AsyncWebServerRequest *rq) { handleApiWifiConnectAbortPost(rq); });
+        AsyncCallbackJsonWebHandler &h = adminAddJsonPost(ws, "/api/wifi/connect-abort", handleApiWifiConnectAbortPost);
         h.addMiddleware(mwApiApPostCsrf());
     }
     {
-        AsyncCallbackWebHandler &h =
-            ws.on("/api/wifi/connect-retry", HTTP_POST, [](AsyncWebServerRequest *rq) { handleApiWifiConnectRetryPost(rq); });
+        AsyncCallbackJsonWebHandler &h = adminAddJsonPost(ws, "/api/wifi/connect-retry", handleApiWifiConnectRetryPost);
         h.addMiddleware(mwApiApPostCsrf());
     }
 }

@@ -58,9 +58,9 @@ describe("SettingsPage", () => {
     await waitFor(() =>
       expect(saveSettings).toHaveBeenCalledWith({
         reset_days: 14,
-        led_enabled: 1,
-        audio_tx_enabled: 0,
-        audio_rx_enabled: 0,
+        led_enabled: true,
+        audio_tx_enabled: false,
+        audio_rx_enabled: false,
         audio_tx_volume: 70,
         audio_rx_volume: 70,
         quiet_hour_start: 0,
@@ -140,7 +140,7 @@ describe("SettingsPage", () => {
     await waitFor(() =>
       expect(saveSettings).toHaveBeenCalledWith(
         expect.objectContaining({
-          led_enabled: 0,
+          led_enabled: false,
         }),
       ),
     );

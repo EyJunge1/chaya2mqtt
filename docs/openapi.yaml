@@ -4,7 +4,7 @@ info:
   version: 1.0.0
   description: |
     HTTP JSON API served by the device firmware (ESPAsyncWebServer on port 80).
-    Mutations use `application/x-www-form-urlencoded` and require `csrf_token`.
+    Mutations use `application/json` and require the `X-CSRF-Token` header.
     There is no login; access is limited by Host/Origin allowlists on the LAN.
     Routes restricted to STA or setup-AP mode return HTTP 400 with `ap_mode` or
     `not_ap`. Temporarily blocked operations return HTTP 503 with `busy` or `shutdown`.
@@ -135,12 +135,14 @@ paths:
       tags: [chaya]
       summary: Queue heart send (requires broker and partner)
       operationId: sendChaya
+      parameters:
+        - $ref: "#/components/parameters/CsrfToken"
       requestBody:
         required: true
         content:
-          application/x-www-form-urlencoded:
+          application/json:
             schema:
-              $ref: "#/components/schemas/CsrfForm"
+              $ref: "#/components/schemas/EmptyJson"
       responses:
         "202":
           description: Queued
@@ -204,12 +206,14 @@ paths:
       tags: [wifi]
       summary: Start access-point scan
       operationId: startWifiScan
+      parameters:
+        - $ref: "#/components/parameters/CsrfToken"
       requestBody:
         required: true
         content:
-          application/x-www-form-urlencoded:
+          application/json:
             schema:
-              $ref: "#/components/schemas/CsrfForm"
+              $ref: "#/components/schemas/EmptyJson"
       responses:
         "202":
           description: Scan kicked; poll GET for results
@@ -224,14 +228,14 @@ paths:
       tags: [wifi]
       summary: Start AP test or save STA credentials
       operationId: connectWifi
+      parameters:
+        - $ref: "#/components/parameters/CsrfToken"
       requestBody:
         required: true
         content:
-          application/x-www-form-urlencoded:
+          application/json:
             schema:
-              allOf:
-                - $ref: "#/components/schemas/CsrfForm"
-                - type: object
+              type: object
                   required: [ssid, mode]
                   properties:
                     ssid: { type: string, minLength: 1, maxLength: 32 }
@@ -301,12 +305,14 @@ paths:
       tags: [wifi]
       summary: Commit successful AP test and reboot
       operationId: commitWifiConnect
+      parameters:
+        - $ref: "#/components/parameters/CsrfToken"
       requestBody:
         required: true
         content:
-          application/x-www-form-urlencoded:
+          application/json:
             schema:
-              $ref: "#/components/schemas/CsrfForm"
+              $ref: "#/components/schemas/EmptyJson"
       responses:
         "200":
           description: Saved
@@ -323,12 +329,14 @@ paths:
       tags: [wifi]
       summary: Abort AP connection test
       operationId: abortWifiConnect
+      parameters:
+        - $ref: "#/components/parameters/CsrfToken"
       requestBody:
         required: true
         content:
-          application/x-www-form-urlencoded:
+          application/json:
             schema:
-              $ref: "#/components/schemas/CsrfForm"
+              $ref: "#/components/schemas/EmptyJson"
       responses:
         "200":
           description: Aborted
@@ -345,12 +353,14 @@ paths:
       tags: [wifi]
       summary: Retry failed AP connection test with the same credentials
       operationId: retryWifiConnect
+      parameters:
+        - $ref: "#/components/parameters/CsrfToken"
       requestBody:
         required: true
         content:
-          application/x-www-form-urlencoded:
+          application/json:
             schema:
-              $ref: "#/components/schemas/CsrfForm"
+              $ref: "#/components/schemas/EmptyJson"
       responses:
         "200":
           description: Retry started
@@ -405,14 +415,14 @@ paths:
       tags: [mqtt]
       summary: Save MQTT broker and partner ID (topics are derived)
       operationId: saveMqttConfig
+      parameters:
+        - $ref: "#/components/parameters/CsrfToken"
       requestBody:
         required: true
         content:
-          application/x-www-form-urlencoded:
+          application/json:
             schema:
-              allOf:
-                - $ref: "#/components/schemas/CsrfForm"
-                - type: object
+              type: object
                   properties:
                     mqtt_server:
                       type: string
@@ -422,11 +432,10 @@ paths:
                       type: integer
                       description: MQTT port (typically 1883 plain / 8883 TLS); omitted fields keep their current value
                     mqtt_tls:
-                      type: integer
-                      enum: [0, 1]
+                      type: boolean
                       description: >
-                        1 = mqtts (TLS), 0 = mqtt (plain TCP). Omitted fields keep their current value.
-                        Default for new/missing NVS is TLS (1).
+                        true = mqtts (TLS), false = mqtt (plain TCP). Omitted fields keep their current value.
+                        Default for new/missing NVS is TLS (true).
                     mqtt_user:
                       type: string
                       maxLength: 63
@@ -477,34 +486,31 @@ paths:
       tags: [settings]
       summary: Save settings
       operationId: saveSettings
+      parameters:
+        - $ref: "#/components/parameters/CsrfToken"
       requestBody:
         required: true
         content:
-          application/x-www-form-urlencoded:
+          application/json:
             schema:
-              allOf:
-                - $ref: "#/components/schemas/CsrfForm"
-                - type: object
+              type: object
                   properties:
                     reset_days: { type: integer, minimum: 0, maximum: 30 }
                     lang: { type: string, enum: [de, en] }
                     theme: { type: string, enum: [system, dark, light] }
                     led_enabled:
                       {
-                        type: integer,
-                        enum: [0, 1],
-                        description: Header user LED activity (0 = off),
+                        type: boolean,
+                        description: Header user LED activity (false = off),
                       }
                     audio_tx_enabled:
                       {
-                        type: integer,
-                        enum: [0, 1],
+                        type: boolean,
                         description: Enable click when a heart is sent (default off),
                       }
                     audio_rx_enabled:
                       {
-                        type: integer,
-                        enum: [0, 1],
+                        type: boolean,
                         description: Enable click when a heart is received (default off),
                       }
                     audio_tx_volume: { type: integer, minimum: 0, maximum: 100, description: TX click volume }
@@ -533,12 +539,14 @@ paths:
       tags: [settings]
       summary: Reboot device
       operationId: rebootDevice
+      parameters:
+        - $ref: "#/components/parameters/CsrfToken"
       requestBody:
         required: true
         content:
-          application/x-www-form-urlencoded:
+          application/json:
             schema:
-              $ref: "#/components/schemas/CsrfForm"
+              $ref: "#/components/schemas/EmptyJson"
       responses:
         "200":
           description: Reboot scheduled
@@ -557,12 +565,14 @@ paths:
       tags: [reset]
       summary: Factory reset
       operationId: factoryReset
+      parameters:
+        - $ref: "#/components/parameters/CsrfToken"
       requestBody:
         required: true
         content:
-          application/x-www-form-urlencoded:
+          application/json:
             schema:
-              $ref: "#/components/schemas/CsrfForm"
+              $ref: "#/components/schemas/EmptyJson"
       responses:
         "202":
           description: Queued
@@ -597,14 +607,14 @@ paths:
       tags: [update]
       summary: Check GitHub for updates
       operationId: checkUpdate
+      parameters:
+        - $ref: "#/components/parameters/CsrfToken"
       requestBody:
         required: true
         content:
-          application/x-www-form-urlencoded:
+          application/json:
             schema:
-              allOf:
-                - $ref: "#/components/schemas/CsrfForm"
-                - type: object
+              type: object
                   properties:
                     channel:
                       type: string
@@ -627,12 +637,14 @@ paths:
       tags: [update]
       summary: Install pending update
       operationId: installUpdate
+      parameters:
+        - $ref: "#/components/parameters/CsrfToken"
       requestBody:
         required: true
         content:
-          application/x-www-form-urlencoded:
+          application/json:
             schema:
-              $ref: "#/components/schemas/CsrfForm"
+              $ref: "#/components/schemas/EmptyJson"
       responses:
         "200":
           description: Install started
@@ -649,13 +661,18 @@ paths:
         "503":
           $ref: "#/components/responses/ApiError"
 components:
+  parameters:
+    CsrfToken:
+      name: X-CSRF-Token
+      in: header
+      required: true
+      schema:
+        type: string
+        pattern: "^[0-9a-f]{32}$"
   schemas:
-    CsrfForm:
+    EmptyJson:
       type: object
-      required: [csrf_token]
-      properties:
-        csrf_token:
-          type: string
+      additionalProperties: false
     ApiOk:
       type: object
       required: [ok]

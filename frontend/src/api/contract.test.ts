@@ -88,7 +88,7 @@ describe("api contract", () => {
     const firmware = readFirmwareApiRoutes();
     const mock = read("frontend/mock/mockPlugin.ts");
     const openapi = read("docs/openapi.yaml");
-    expect(firmware).toContain('\\"next\\"');
+    expect(firmware).toContain("/wifi-testing");
     expect(mock).toContain("next:");
     expect(openapi).toContain("        next:");
   });
@@ -117,14 +117,14 @@ describe("api contract", () => {
     const openapi = read("docs/openapi.yaml");
     const asyncapi = read("docs/asyncapi.yaml");
     expect(openapi).toContain("/api/csrf");
-    expect(openapi).toContain("csrf_token");
+    expect(openapi).toContain("X-CSRF-Token");
     expect(asyncapi).toContain("/events");
     expect(asyncapi).toContain("chaya2mqtt-{deviceId}.local");
   });
 
-  it("keeps mutating client posts expecting csrf_token", () => {
+  it("keeps mutating client posts expecting X-CSRF-Token", () => {
     const client = read("frontend/src/api/client.ts");
-    expect(client).toContain("csrf_token");
+    expect(client).toContain("X-CSRF-Token");
     expect(client).toContain("/api/csrf");
   });
 });

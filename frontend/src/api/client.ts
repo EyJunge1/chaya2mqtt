@@ -40,18 +40,13 @@ async function parseJson<T>(res: Response): Promise<T> {
   return JSON.parse(text) as T;
 }
 
-function formBody(fields: Record<string, string | number | boolean | undefined>): string {
-  const body = new URLSearchParams();
-  body.set("csrf_token", csrfToken);
+function jsonBody(fields: Record<string, string | number | boolean | undefined>): string {
+  const body: Record<string, string | number | boolean> = {};
   for (const [key, value] of Object.entries(fields)) {
     if (value === undefined) continue;
-    if (typeof value === "boolean") {
-      body.set(key, value ? "1" : "0");
-      continue;
-    }
-    body.set(key, String(value));
+    body[key] = value;
   }
-  return body.toString();
+  return JSON.stringify(body);
 }
 
 async function apiGet<T>(path: string): Promise<T> {
@@ -70,8 +65,11 @@ async function apiPost(
   const res = await fetch(path, {
     method: "POST",
     credentials: "same-origin",
-    headers: { "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8" },
-    body: formBody(fields),
+    headers: {
+      "Content-Type": "application/json",
+      "X-CSRF-Token": csrfToken,
+    },
+    body: jsonBody(fields),
   });
   const data = await parseJson<ApiResult>(res);
   if (
@@ -154,7 +152,7 @@ export const api = {
   saveMqtt: (fields: {
     mqtt_server: string;
     mqtt_port: number;
-    mqtt_tls: boolean | number;
+    mqtt_tls: boolean;
     mqtt_user?: string;
     mqtt_pass?: string;
     partner_id?: string;
@@ -164,9 +162,9 @@ export const api = {
     reset_days?: number;
     lang?: string;
     theme?: string;
-    led_enabled?: boolean | number;
-    audio_tx_enabled?: boolean | number;
-    audio_rx_enabled?: boolean | number;
+    led_enabled?: boolean;
+    audio_tx_enabled?: boolean;
+    audio_rx_enabled?: boolean;
     audio_tx_volume?: number;
     audio_rx_volume?: number;
     quiet_hour_start?: number;

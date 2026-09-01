@@ -183,10 +183,6 @@ bool httpGetGithubJson(const char *url, size_t *outLen, bool allowTruncated = fa
     return len > 0U;
 }
 
-bool releaseJsonHasRequiredAssets(const char *json) {
-    return otaJsonHasAssetName(json, "firmware.bin") && otaJsonHasAssetName(json, "firmware.sha256");
-}
-
 bool validateReleaseAssetsByTag(const char *expectedTag) {
     if (expectedTag == nullptr || expectedTag[0] == '\0') {
         return false;
@@ -200,14 +196,20 @@ bool validateReleaseAssetsByTag(const char *expectedTag) {
     if (!httpGetGithubJson(url, &len)) {
         return false;
     }
-    char actualTag[64]{};
-    bool draft = false;
-    if (!otaParseJsonStringField(s_githubJsonBuf, "tag_name", actualTag, sizeof(actualTag)) ||
-        strcmp(actualTag, expectedTag) != 0 || !otaParseJsonBoolField(s_githubJsonBuf, "draft", &draft) || draft) {
+    JsonDocument doc;
+    if (!otaDeserializeJson(s_githubJsonBuf, doc)) {
         ESP_LOGE(TAG, "GitHub release metadata invalid for tag %s", expectedTag);
         return false;
     }
-    if (!releaseJsonHasRequiredAssets(s_githubJsonBuf)) {
+    const JsonVariantConst root = doc.as<JsonVariantConst>();
+    char actualTag[64]{};
+    bool draft = false;
+    if (!otaCopyJsonString(doc["tag_name"], actualTag, sizeof(actualTag)) || strcmp(actualTag, expectedTag) != 0 ||
+        !otaParseJsonBoolField(root, "draft", &draft) || draft) {
+        ESP_LOGE(TAG, "GitHub release metadata invalid for tag %s", expectedTag);
+        return false;
+    }
+    if (!otaReleaseHasRequiredAssets(root)) {
         ESP_LOGE(TAG, "GitHub release %s lacks firmware.bin or firmware.sha256", expectedTag);
         return false;
     }
@@ -254,15 +256,20 @@ GithubCheckResult otaGithubEvaluateChannel(OtaChannel channel, OtaReleaseInfo *o
         if (!httpGetGithubJson(kGithubLatestReleaseApiUrl, &len)) {
             return GithubCheckResult::ApiError;
         }
+        JsonDocument doc;
+        if (!otaDeserializeJson(s_githubJsonBuf, doc)) {
+            ESP_LOGE(TAG, "GitHub: failed to parse latest release JSON");
+            return GithubCheckResult::ApiError;
+        }
+        const JsonVariantConst root = doc.as<JsonVariantConst>();
         char tag[64]{};
-        if (!otaParseJsonStringField(s_githubJsonBuf, "tag_name", tag, sizeof(tag))) {
+        if (!otaCopyJsonString(doc["tag_name"], tag, sizeof(tag))) {
             ESP_LOGE(TAG, "GitHub: failed to parse tag_name");
             return GithubCheckResult::ApiError;
         }
         bool draft = false;
         bool prerelease = false;
-        if (!otaParseJsonBoolField(s_githubJsonBuf, "draft", &draft) ||
-            !otaParseJsonBoolField(s_githubJsonBuf, "prerelease", &prerelease)) {
+        if (!otaParseJsonBoolField(root, "draft", &draft) || !otaParseJsonBoolField(root, "prerelease", &prerelease)) {
             ESP_LOGE(TAG, "GitHub latest lacks release flags");
             return GithubCheckResult::ApiError;
         }
@@ -270,7 +277,7 @@ GithubCheckResult otaGithubEvaluateChannel(OtaChannel channel, OtaReleaseInfo *o
             ESP_LOGW(TAG, "GitHub latest is draft/prerelease — skipping");
             return GithubCheckResult::ParsedNoUpgrade;
         }
-        if (!releaseJsonHasRequiredAssets(s_githubJsonBuf)) {
+        if (!otaReleaseHasRequiredAssets(root)) {
             ESP_LOGE(TAG, "GitHub latest lacks firmware.bin or firmware.sha256");
             return GithubCheckResult::ApiError;
         }
@@ -291,9 +298,13 @@ GithubCheckResult otaGithubEvaluateChannel(OtaChannel channel, OtaReleaseInfo *o
         if (n <= 0 || static_cast<size_t>(n) >= sizeof(url) || !httpGetGithubJson(url, &len, true, &hasNext)) {
             return GithubCheckResult::ApiError;
         }
+        JsonDocument pageDoc;
+        if (!otaDeserializeJson(s_githubJsonBuf, pageDoc)) {
+            continue;
+        }
         char pageTag[64]{};
         bool pageIsPre = false;
-        if (!otaSelectReleaseFromListJson(s_githubJsonBuf, true, pageTag, sizeof(pageTag), &pageIsPre)) {
+        if (!otaSelectReleaseFromListJson(pageDoc.as<JsonVariantConst>(), true, pageTag, sizeof(pageTag), &pageIsPre)) {
             continue;
         }
         char *best = pageIsPre ? bestPrerelease : bestStable;

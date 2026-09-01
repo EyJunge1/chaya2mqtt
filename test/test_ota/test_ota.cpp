@@ -99,6 +99,29 @@ void test_ota_github_release_select() {
     char escaped[32]{};
     TEST_ASSERT_TRUE(otaParseJsonStringField("{\"tag_name\":\"v2026.8.1\\\"x\"}", "tag_name", escaped, sizeof(escaped)));
     TEST_ASSERT_EQUAL_STRING("v2026.8.1\"x", escaped);
+
+    JsonDocument once;
+    TEST_ASSERT_TRUE(otaDeserializeJson("{\"tag_name\":\"v2026.8.1\",\"draft\":false,\"prerelease\":false,"
+                                        "\"assets\":[{\"name\":\"firmware.bin\"},{\"name\":\"firmware.sha256\"}]}",
+                                        once));
+    const JsonVariantConst root = once.as<JsonVariantConst>();
+    char onceTag[64]{};
+    bool onceDraft = true;
+    bool oncePre = true;
+    TEST_ASSERT_TRUE(otaCopyJsonString(once["tag_name"], onceTag, sizeof(onceTag)));
+    TEST_ASSERT_EQUAL_STRING("v2026.8.1", onceTag);
+    TEST_ASSERT_TRUE(otaParseJsonBoolField(root, "draft", &onceDraft));
+    TEST_ASSERT_FALSE(onceDraft);
+    TEST_ASSERT_TRUE(otaParseJsonBoolField(root, "prerelease", &oncePre));
+    TEST_ASSERT_FALSE(oncePre);
+    TEST_ASSERT_TRUE(otaReleaseHasRequiredAssets(root));
+    TEST_ASSERT_TRUE(otaJsonHasAssetName(root, "firmware.bin"));
+
+    JsonDocument listOnce;
+    TEST_ASSERT_TRUE(otaDeserializeJson(json, listOnce));
+    TEST_ASSERT_TRUE(otaSelectReleaseFromListJson(listOnce.as<JsonVariantConst>(), true, tag, sizeof(tag), &isPre));
+    TEST_ASSERT_EQUAL_STRING("v2026.8.2-rc.1", tag);
+    TEST_ASSERT_TRUE(isPre);
 }
 
 void test_ota_download_url_allowlist() {

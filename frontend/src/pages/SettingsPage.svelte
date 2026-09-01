@@ -88,9 +88,9 @@
     try {
       const res = await api.saveSettings({
         reset_days: settings.resetDays,
-        led_enabled: settings.ledEnabled ? 1 : 0,
-        audio_tx_enabled: settings.audioTxEnabled ? 1 : 0,
-        audio_rx_enabled: settings.audioRxEnabled ? 1 : 0,
+        led_enabled: settings.ledEnabled,
+        audio_tx_enabled: settings.audioTxEnabled,
+        audio_rx_enabled: settings.audioRxEnabled,
         audio_tx_volume: settings.audioTxVolume,
         audio_rx_volume: settings.audioRxVolume,
         quiet_hour_start: settings.quietHourStart,

@@ -17,7 +17,7 @@ inline bool csrfPreviousTokenAllowed(uint32_t nowMs, uint32_t rotatedAtMs) {
 }
 
 /**
- * Host-testable CSRF match: submitted form value must be exactly 32 hex chars
+ * Host-testable CSRF match: submitted X-CSRF-Token must be exactly 32 hex chars
  * decoding to the expected 16-byte secret (constant-time compare).
  */
 inline bool csrfSubmittedMatchesExpected(const char *submitted, const uint8_t expectedRaw[16]) {

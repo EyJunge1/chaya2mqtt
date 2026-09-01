@@ -1,14 +1,13 @@
 #pragma once
 
 #include <Arduino.h>
+#include <ArduinoJson.h>
 
 #include "async/system_lifecycle.h"
 
 #include <atomic>
 #include <cstddef>
 #include <cstdint>
-
-class AsyncWebServerRequest;
 
 extern std::atomic<bool> g_webAdminRebootRequested;
 extern std::atomic<bool> g_webAdminWifiReconnectRequested;
@@ -32,24 +31,24 @@ extern uint16_t g_webAdminPendingRxHz;
 extern uint16_t g_webAdminPendingRxMs;
 extern portMUX_TYPE g_webAdminSettingsPendingMux;
 
-bool adminParseBodyParam(AsyncWebServerRequest *req, const char *name, char *out, size_t outLen);
+/** Optional JSON fields: absent vs. present-and-ok vs. present-but-invalid. */
+enum class AdminJsonParam : uint8_t { Absent, Ok, Invalid };
 
-/** Optional POST body fields: absent vs. present-and-ok vs. present-but-invalid. */
-enum class AdminFormParam : uint8_t { Absent, Ok, Invalid };
+bool adminJsonHasField(JsonVariantConst obj, const char *name);
 
-AdminFormParam adminOptionalFormInt(AsyncWebServerRequest *req, const char *name, int *out);
-AdminFormParam adminOptionalFormBool(AsyncWebServerRequest *req, const char *name, bool *out);
-/** Absent if missing; Ok if copied; Invalid if present but too long for outLen. */
-AdminFormParam adminOptionalFormString(AsyncWebServerRequest *req, const char *name, char *out, size_t outLen);
+AdminJsonParam adminOptionalJsonInt(JsonVariantConst obj, const char *name, int *out);
+AdminJsonParam adminOptionalJsonBool(JsonVariantConst obj, const char *name, bool *out);
+/** Absent if missing; Ok if copied; Invalid if present but not a fitting string. */
+AdminJsonParam adminOptionalJsonString(JsonVariantConst obj, const char *name, char *out, size_t outLen);
 
 /**
- * Apply optional form fields (Absent leaves *out unchanged).
+ * Apply optional JSON fields (Absent leaves *out unchanged).
  * Returns false when the field is present but invalid or fails predicate — caller sendErr(name).
  */
-bool adminApplyOptionalInt(AsyncWebServerRequest *req, const char *name, bool (*inRange)(int), int *out);
-bool adminApplyOptionalU8(AsyncWebServerRequest *req, const char *name, bool (*inRange)(int), uint8_t *out);
-bool adminApplyOptionalU16(AsyncWebServerRequest *req, const char *name, bool (*inRange)(int), uint16_t *out);
-bool adminApplyOptionalBool(AsyncWebServerRequest *req, const char *name, bool *out);
+bool adminApplyOptionalInt(JsonVariantConst obj, const char *name, bool (*inRange)(int), int *out);
+bool adminApplyOptionalU8(JsonVariantConst obj, const char *name, bool (*inRange)(int), uint8_t *out);
+bool adminApplyOptionalU16(JsonVariantConst obj, const char *name, bool (*inRange)(int), uint16_t *out);
+bool adminApplyOptionalBool(JsonVariantConst obj, const char *name, bool *out);
 /** syntaxOk may be nullptr (any fitting string accepted). */
-bool adminApplyOptionalString(AsyncWebServerRequest *req, const char *name, char *out, size_t outLen,
+bool adminApplyOptionalString(JsonVariantConst obj, const char *name, char *out, size_t outLen,
                               bool (*syntaxOk)(const char *) = nullptr);

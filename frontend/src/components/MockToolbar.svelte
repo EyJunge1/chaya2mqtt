@@ -279,8 +279,11 @@
   async function setScenario(scenario: { id: ScenarioId; path: string }) {
     busy = true;
     try {
-      const body = new URLSearchParams({ scenario: scenario.id });
-      const response = await fetch("/api/_mock/scenario", { method: "POST", body });
+      const response = await fetch("/api/_mock/scenario", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ scenario: scenario.id }),
+      });
       if (!response.ok) throw new Error(`scenario failed (${response.status})`);
       activeScenario = scenario.id;
       router.navigate(scenario.path);

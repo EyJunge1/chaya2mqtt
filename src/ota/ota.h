@@ -49,8 +49,8 @@ OtaChannel otaGetChannel();
 /** Thread-safe status snapshot for API / SSE. */
 void otaCopyStatus(OtaStatus *out);
 
-/** Format status as JSON object (no outer wrapper). Returns bytes written (excl. NUL) or 0. */
-size_t otaFormatStatusJson(char *buf, size_t bufLen);
+const char *otaPhaseName(OtaPhase phase);
+const char *otaChannelName(OtaChannel channel);
 
 /** Mark pending-verify OTA image valid after boot health checks (call once from app task). */
 void otaTryMarkValidAfterHealthCheck();

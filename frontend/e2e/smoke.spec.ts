@@ -195,7 +195,8 @@ test("wifi commit returns absolute next URL", async ({ request }) => {
   const csrf = await request.get("/api/csrf");
   const csrfJson = (await csrf.json()) as { token: string };
   const commit = await request.post("/api/wifi/connect-commit", {
-    form: { csrf_token: csrfJson.token },
+    headers: { "X-CSRF-Token": csrfJson.token },
+    data: {},
   });
   const commitBody = (await commit.json()) as { ok: boolean; next?: string };
   expect(commitBody.ok).toBeTruthy();
@@ -205,7 +206,8 @@ test("wifi commit returns absolute next URL", async ({ request }) => {
 test("csrf rejection on wifi commit without token", async ({ request }) => {
   await resetMock(request, "ap-test-ok");
   const res = await request.post("/api/wifi/connect-commit", {
-    form: { csrf_token: "deadbeef" },
+    headers: { "X-CSRF-Token": "deadbeef" },
+    data: {},
   });
   expect(res.status()).toBe(403);
   const body = (await res.json()) as { ok: boolean; error?: string };
