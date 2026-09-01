@@ -1,6 +1,7 @@
 import { cleanup, screen, waitFor } from "@testing-library/svelte";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { ChayaStatus } from "../api/types.ts";
 import { renderApp } from "../test/renderApp.ts";
 import { device } from "./device.svelte.ts";
 import DeviceRootHarness from "./DeviceRoot.test.svelte";
@@ -90,10 +91,7 @@ describe("DeviceRoot", () => {
 
   it("marks live state from SSE handlers", async () => {
     connectEvents.mockImplementation(
-      (handlers: {
-        chaya?: (d: { rx: number; tx: number; connected: boolean; configured: boolean }) => void;
-        error?: () => void;
-      }) => {
+      (handlers: { chaya?: (d: ChayaStatus) => void; error?: () => void }) => {
         queueMicrotask(() =>
           handlers.chaya?.({ rx: 9, tx: 1, connected: true, configured: true, paired: true }),
         );

@@ -201,6 +201,28 @@
   <LoadingBlock label={i18n.t("mqtt.loading")} />
 {:else}
   <div class="space-y-4">
+    {#snippet deviceIdValue()}
+      <span class="inline-flex items-center gap-1.5 tracking-widest">
+        {dash(cfg?.deviceId)}
+        {#if hasDeviceId}
+          <button
+            type="button"
+            aria-label={i18n.t("mqtt.copy-device-id")}
+            class={cn(
+              "inline-flex size-7 shrink-0 items-center justify-center rounded-full text-muted transition focus-ring",
+              HOVER_SURFACE,
+            )}
+            onclick={() => void copyDeviceId()}
+          >
+            {#if copied}
+              <Check size={14} strokeWidth={2.25} class="pointer-events-none" aria-hidden="true" />
+            {:else}
+              <Copy size={14} strokeWidth={2.25} class="pointer-events-none" aria-hidden="true" />
+            {/if}
+          </button>
+        {/if}
+      </span>
+    {/snippet}
     <Panel>
       {#snippet title()}
         <StatusBadge
@@ -211,33 +233,6 @@
           detailOk={i18n.t("status.mqtt-ok")}
           detailBad={i18n.t(brokerConfigured ? "status.mqtt-bad" : "status.mqtt-unconfigured")}
         />
-      {/snippet}
-      {#snippet deviceIdValue()}
-        <span class="inline-flex items-center gap-1.5 tracking-widest">
-          {dash(cfg.deviceId)}
-          {#if hasDeviceId}
-            <button
-              type="button"
-              aria-label={i18n.t("mqtt.copy-device-id")}
-              class={cn(
-                "inline-flex size-7 shrink-0 items-center justify-center rounded-full text-muted transition focus-ring",
-                HOVER_SURFACE,
-              )}
-              onclick={() => void copyDeviceId()}
-            >
-              {#if copied}
-                <Check
-                  size={14}
-                  strokeWidth={2.25}
-                  class="pointer-events-none"
-                  aria-hidden="true"
-                />
-              {:else}
-                <Copy size={14} strokeWidth={2.25} class="pointer-events-none" aria-hidden="true" />
-              {/if}
-            </button>
-          {/if}
-        </span>
       {/snippet}
       <KeyValueGrid
         items={[

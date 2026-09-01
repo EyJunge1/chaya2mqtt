@@ -13,7 +13,7 @@
   let status = $state<WifiConnectStatus>({ state: "testing", ssid: "" });
   let busy = $state(false);
   let prevState = $state<WifiConnectStatus["state"] | null>(null);
-  let redirectTimerId: ReturnType<typeof setTimeout> | undefined;
+  let redirectTimerId: number | undefined;
 
   const IPV4_HOST = /^(?:(?:25[0-5]|2[0-4]\d|[01]?\d{1,2})\.){3}(?:25[0-5]|2[0-4]\d|[01]?\d{1,2})$/;
 

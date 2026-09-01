@@ -56,7 +56,7 @@ Generated artifacts (`frontend/coverage/`, `frontend/test-results/`, `playwright
 | Target / command | Purpose |
 |------------------|---------|
 | `make check` | Complete hardware-free gate before commits |
-| `make check-frontend` | Frontend lint, coverage, build, and Playwright E2E |
+| `make check-frontend` | Frontend lint, svelte-check, coverage, build, and Playwright E2E |
 | `make check-flasher` | Web-flasher lint, type-check, build, and Python tests |
 | `make check-firmware` | Native/ASan tests, cppcheck, and release build |
 | `cd frontend && npm test` | Vitest |

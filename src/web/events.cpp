@@ -36,6 +36,14 @@ AsyncEventSource s_events("/events");
 constexpr size_t kMaxSseClients = 6U;
 constexpr uint32_t kSseKeepaliveMs = 8000U;
 
+// ESP32Async 3.12: authorizeConnect is superseded by AsyncAuthorizationMiddleware.
+AsyncAuthorizationMiddleware s_sseAuth([](AsyncWebServerRequest *req) {
+    if (!webRequestHostAllowed(req) || !webRequestOriginAllowed(req)) {
+        return false;
+    }
+    return s_events.count() < kMaxSseClients;
+});
+
 std::atomic<bool> s_loggedFirstSseClient{false};
 
 bool s_haveLastChaya = false;
@@ -113,15 +121,7 @@ static size_t buildDeviceBatteryPayload(int mv, int pct, char *buf, size_t bufLe
 } // namespace
 
 void webEventsRegister(AsyncWebServer &ws) {
-    s_events.authorizeConnect([](AsyncWebServerRequest *req) {
-        if (!webRequestHostAllowed(req) || !webRequestOriginAllowed(req)) {
-            return false;
-        }
-        if (s_events.count() >= kMaxSseClients) {
-            return false;
-        }
-        return true;
-    });
+    s_events.addMiddleware(&s_sseAuth);
     s_events.onConnect(onEsConnect);
     ws.addHandler(&s_events);
 }
