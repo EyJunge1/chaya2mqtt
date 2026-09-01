@@ -39,12 +39,10 @@ inline void otaFillGithubReleaseFilter(JsonDocument &filter, bool list) {
     rel["assets"][0]["name"] = true;
 }
 
-template <typename TInput>
-inline bool otaDeserializeGithubReleaseJson(TInput &&input, JsonDocument &doc, bool list) {
+template <typename TInput> inline bool otaDeserializeGithubReleaseJson(TInput &&input, JsonDocument &doc, bool list) {
     JsonDocument filter;
     otaFillGithubReleaseFilter(filter, list);
-    return deserializeJson(doc, input, DeserializationOption::Filter(filter)) == DeserializationError::Ok &&
-           !doc.overflowed();
+    return deserializeJson(doc, input, DeserializationOption::Filter(filter)) == DeserializationError::Ok && !doc.overflowed();
 }
 
 inline bool otaDeserializeGithubReleaseJson(const char *json, JsonDocument &doc) {

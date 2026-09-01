@@ -149,8 +149,7 @@ bool adminApplyOptionalBool(JsonVariantConst obj, const char *name, bool *out) {
     return false;
 }
 
-bool adminApplyOptionalString(JsonVariantConst obj, const char *name, char *out, size_t outLen,
-                              bool (*syntaxOk)(const char *)) {
+bool adminApplyOptionalString(JsonVariantConst obj, const char *name, char *out, size_t outLen, bool (*syntaxOk)(const char *)) {
     if (out == nullptr || outLen == 0U) {
         return false;
     }

@@ -38,9 +38,7 @@ class GithubApiStream final : public Stream {
     GithubApiStream(NetworkClient &inner, unsigned long deadlineMs)
         : inner_(inner), deadlineMs_(deadlineMs), startMs_(millis()) {}
 
-    int available() override {
-        return timedOut() ? 0 : inner_.available();
-    }
+    int available() override { return timedOut() ? 0 : inner_.available(); }
 
     int read() override {
         char c = 0;
@@ -83,17 +81,11 @@ class GithubApiStream final : public Stream {
         return got;
     }
 
-    void flush() override {
-        inner_.flush();
-    }
+    void flush() override { inner_.flush(); }
 
-    size_t write(uint8_t) override {
-        return 0;
-    }
+    size_t write(uint8_t) override { return 0; }
 
-    bool timedOut() const {
-        return (millis() - startMs_) >= deadlineMs_;
-    }
+    bool timedOut() const { return (millis() - startMs_) >= deadlineMs_; }
 
   private:
     NetworkClient &inner_;
@@ -171,9 +163,7 @@ bool httpGetGithubJson(const char *url, JsonDocument &doc, bool list, bool *outH
 
     struct HttpEnd {
         HTTPClient &http;
-        ~HttpEnd() {
-            http.end();
-        }
+        ~HttpEnd() { http.end(); }
     } closer{https};
 
     const int httpCode = https.GET();

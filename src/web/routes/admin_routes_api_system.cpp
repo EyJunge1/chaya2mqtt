@@ -57,8 +57,8 @@ void adminRoutesRegisterApiSystem(AsyncWebServer &ws) {
         h.addMiddleware(mwApiPostCsrf());
     }
     {
-        AsyncCallbackJsonWebHandler &h = adminAddJsonPost(
-            ws, "/api/factory-reset", [](AsyncWebServerRequest *rq, JsonVariant &json) {
+        AsyncCallbackJsonWebHandler &h =
+            adminAddJsonPost(ws, "/api/factory-reset", [](AsyncWebServerRequest *rq, JsonVariant &json) {
                 if (!adminJsonRequireObject(rq, json)) {
                     return;
                 }

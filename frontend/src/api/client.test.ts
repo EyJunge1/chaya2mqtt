@@ -203,7 +203,10 @@ describe("api client", () => {
         body: expect.stringContaining('"ssid":"Home"'),
       }),
     );
-    const body = JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body ?? "{}")) as Record<string, unknown>;
+    const body = JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body ?? "{}")) as Record<
+      string,
+      unknown
+    >;
     expect(body).toMatchObject({
       ssid: "Home",
       password: "secret",
@@ -345,7 +348,10 @@ describe("api client", () => {
       ok: true,
       message: "saved",
     });
-    const body = JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body ?? "{}")) as Record<string, unknown>;
+    const body = JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body ?? "{}")) as Record<
+      string,
+      unknown
+    >;
     expect(body.mqtt_tls).toBe(false);
   });
 
@@ -408,6 +414,8 @@ describe("api client", () => {
       ok: true,
       message: "saved",
     });
-    expect(String(fetchMock.mock.calls[1]?.[1]?.body ?? "")).toBe(JSON.stringify({ led_enabled: false }));
+    expect(String(fetchMock.mock.calls[1]?.[1]?.body ?? "")).toBe(
+      JSON.stringify({ led_enabled: false }),
+    );
   });
 });

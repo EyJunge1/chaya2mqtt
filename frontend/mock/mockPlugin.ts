@@ -484,7 +484,9 @@ export async function handleApi(req: IncomingMessage, res: ServerResponse): Prom
     if (typeof body.mqtt_user === "string") state.mqtt.username = body.mqtt_user;
     if (typeof body.mqtt_pass === "string" && body.mqtt_pass) state.mqtt.password = body.mqtt_pass;
     if (Object.prototype.hasOwnProperty.call(body, "partner_id")) {
-      const partner = (typeof body.partner_id === "string" ? body.partner_id : "").trim().toLowerCase();
+      const partner = (typeof body.partner_id === "string" ? body.partner_id : "")
+        .trim()
+        .toLowerCase();
       if (partner === "") {
         state.mqtt.partnerId = "";
         state.mqtt.topicSub = "";
@@ -566,7 +568,12 @@ export async function handleApi(req: IncomingMessage, res: ServerResponse): Prom
       sendJson(res, 400, { ok: false, error: "audio_rx_enabled" });
       return true;
     }
-    const applyInt = (key: string, min: number, max: number, assign: (v: number) => void): boolean => {
+    const applyInt = (
+      key: string,
+      min: number,
+      max: number,
+      assign: (v: number) => void,
+    ): boolean => {
       if (!(key in body)) return true;
       const v = body[key];
       if (typeof v !== "number" || !Number.isFinite(v) || v < min || v > max) {
