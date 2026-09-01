@@ -29,9 +29,11 @@ flowchart LR
 | Channel | Source | Selection |
 |---------|--------|-----------|
 | `stable` | `/repos/.../releases/latest` | Latest non-draft release |
-| `beta` | Paginated `/repos/.../releases?per_page=1&page=N` | Highest CalVer prerelease, otherwise stable; maximum 20 release pages |
+| `beta` | `/repos/.../releases?per_page=20` | Highest CalVer prerelease, otherwise stable; newest 20 releases |
 
 The channel selection is stored in NVS (`cfg/upd_chan`). Automatic downgrades are not performed.
+
+GitHub JSON is streamed with an ArduinoJson filter (`tag_name`, `draft`, `prerelease`, `assets[].name`) so long release notes never need a full-document buffer.
 
 ## GitHub release source
 

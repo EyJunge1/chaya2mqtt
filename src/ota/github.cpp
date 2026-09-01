@@ -12,13 +12,9 @@
 
 #include <Arduino.h>
 #include <HTTPClient.h>
-#include <WiFi.h>
 #include <WiFiClientSecure.h>
-#include <algorithm>
 #include <cstdio>
-#include <cstdlib>
 #include <cstring>
-#include <esp_heap_caps.h>
 #include <esp_log.h>
 
 #include "diag/task_watchdog.h"
@@ -30,34 +26,80 @@ namespace {
 
 constexpr const char kGithubLatestReleaseApiUrl[] = "https://api.github.com/repos/EyJunge1/chaya2mqtt/releases/latest";
 
-constexpr const char kGithubReleasesListApiUrl[] = "https://api.github.com/repos/EyJunge1/chaya2mqtt/releases?per_page=1&page=";
-
-constexpr const char kGithubReleaseByTagApiBase[] = "https://api.github.com/repos/EyJunge1/chaya2mqtt/releases/tags/";
+constexpr const char kGithubReleasesListApiUrlFmt[] = "https://api.github.com/repos/EyJunge1/chaya2mqtt/releases?per_page=%u";
 
 constexpr const char kGithubDownloadBase[] = "https://github.com/EyJunge1/chaya2mqtt/releases/download/";
 
-constexpr size_t kGithubJsonBuf = 16384;
-constexpr unsigned kGithubMaxReleasePages = 20U;
+constexpr unsigned kGithubReleasesPerPage = 20U;
+constexpr unsigned long kGithubStreamDeadlineMs = 45000UL;
 
-char *s_githubJsonBuf = nullptr;
+class GithubApiStream final : public Stream {
+  public:
+    GithubApiStream(NetworkClient &inner, unsigned long deadlineMs)
+        : inner_(inner), deadlineMs_(deadlineMs), startMs_(millis()) {}
 
-bool ensureGithubJsonBuf() {
-    if (s_githubJsonBuf != nullptr) {
-        return true;
+    int available() override {
+        return timedOut() ? 0 : inner_.available();
     }
-#if defined(BOARD_HAS_PSRAM)
-    s_githubJsonBuf = static_cast<char *>(heap_caps_malloc(kGithubJsonBuf, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
-#endif
-    if (s_githubJsonBuf == nullptr) {
-        s_githubJsonBuf = static_cast<char *>(malloc(kGithubJsonBuf));
+
+    int read() override {
+        char c = 0;
+        if (readBytes(&c, 1) != 1U) {
+            return -1;
+        }
+        return static_cast<int>(static_cast<unsigned char>(c));
     }
-    if (s_githubJsonBuf == nullptr) {
-        ESP_LOGE(TAG, "GitHub JSON buffer alloc failed");
-        return false;
+
+    int peek() override {
+        if (timedOut()) {
+            return -1;
+        }
+        return inner_.peek();
     }
-    s_githubJsonBuf[0] = '\0';
-    return true;
-}
+
+    size_t readBytes(char *buffer, size_t length) override {
+        if (buffer == nullptr || length == 0U) {
+            return 0;
+        }
+        size_t got = 0;
+        while (got < length) {
+            chayaTaskWatchdogReset();
+            if (timedOut()) {
+                break;
+            }
+            const int n = inner_.read(reinterpret_cast<uint8_t *>(buffer + got), length - got);
+            if (n < 0) {
+                break;
+            }
+            if (n > 0) {
+                got += static_cast<size_t>(n);
+                continue;
+            }
+            if (!inner_.connected()) {
+                break;
+            }
+            delay(2);
+        }
+        return got;
+    }
+
+    void flush() override {
+        inner_.flush();
+    }
+
+    size_t write(uint8_t) override {
+        return 0;
+    }
+
+    bool timedOut() const {
+        return (millis() - startMs_) >= deadlineMs_;
+    }
+
+  private:
+    NetworkClient &inner_;
+    unsigned long deadlineMs_;
+    unsigned long startMs_;
+};
 
 void stripLeadingV(const char *tag, char *out, size_t outLen) {
     if (out == nullptr || outLen == 0U) {
@@ -88,18 +130,13 @@ bool fillReleaseUrls(const char *tag, OtaReleaseInfo *out) {
            otaReleaseDownloadUrlAllowed(out->sha256Url, OtaDownloadAsset::Sha256);
 }
 
-bool httpGetGithubJson(const char *url, size_t *outLen, bool allowTruncated = false, bool *outHasNext = nullptr) {
-    if (url == nullptr || outLen == nullptr) {
+bool httpGetGithubJson(const char *url, JsonDocument &doc, bool list, bool *outHasNext = nullptr) {
+    if (url == nullptr) {
         return false;
     }
-    *outLen = 0;
     if (outHasNext != nullptr) {
         *outHasNext = false;
     }
-    if (!ensureGithubJsonBuf()) {
-        return false;
-    }
-    s_githubJsonBuf[0] = '\0';
 
     if (!wlanStaConnectedOk()) {
         ESP_LOGW(TAG, "GitHub update: STA Wi-Fi not connected");
@@ -117,6 +154,8 @@ bool httpGetGithubJson(const char *url, size_t *outLen, bool allowTruncated = fa
     tls.setTimeout(30000);
 
     HTTPClient https;
+    // HTTP/1.0 disables chunked transfer so ArduinoJson can read getStream() directly.
+    https.useHTTP10(true);
     if (!https.begin(tls, url)) {
         ESP_LOGE(TAG, "GitHub API: HTTPS begin failed");
         return false;
@@ -126,108 +165,51 @@ bool httpGetGithubJson(const char *url, size_t *outLen, bool allowTruncated = fa
     https.addHeader(F("User-Agent"), F("Chaya2MQTT-esp32"));
     https.addHeader(F("Accept"), F("application/vnd.github+json"));
     const char *kCollectedHeaders[] = {"Link"};
-    https.collectHeaders(kCollectedHeaders, 1);
+    if (outHasNext != nullptr) {
+        https.collectHeaders(kCollectedHeaders, 1);
+    }
+
+    struct HttpEnd {
+        HTTPClient &http;
+        ~HttpEnd() {
+            http.end();
+        }
+    } closer{https};
 
     const int httpCode = https.GET();
     chayaTaskWatchdogReset();
     if (httpCode != HTTP_CODE_OK) {
         ESP_LOGE(TAG, "GitHub API: HTTP error %d", httpCode);
-        https.end();
         return false;
     }
     if (outHasNext != nullptr) {
         *outHasNext = https.header("Link").indexOf(F("rel=\"next\"")) >= 0;
     }
-    const int contentLen = https.getSize();
-    if (!allowTruncated && contentLen >= static_cast<int>(kGithubJsonBuf)) {
-        ESP_LOGE(TAG, "GitHub API: response too large (%d bytes)", contentLen);
-        https.end();
-        return false;
-    }
 
-    auto &stream = https.getStream();
-    size_t len = 0;
-    const unsigned long streamStartMs = millis();
-    constexpr unsigned long kGithubStreamDeadlineMs = 45000UL;
-
-    while (https.connected() && len + 1 < kGithubJsonBuf && (contentLen <= 0 || len < static_cast<size_t>(contentLen)) &&
-           (millis() - streamStartMs) < kGithubStreamDeadlineMs) {
-        chayaTaskWatchdogReset();
-        if (stream.available() <= 0) {
-            if (!https.connected()) {
-                break;
-            }
-            delay(10);
-            continue;
-        }
-        const int toRead = std::min(static_cast<int>(kGithubJsonBuf - 1 - len), stream.available());
-        if (toRead <= 0) {
-            break;
-        }
-        const int n = stream.readBytes(s_githubJsonBuf + len, toRead);
-        if (n <= 0) {
-            break;
-        }
-        len += static_cast<size_t>(n);
-    }
-    https.end();
-    s_githubJsonBuf[len] = '\0';
-    *outLen = len;
-    const bool incompleteKnownLength = contentLen > 0 && len != static_cast<size_t>(contentLen);
-    const bool filledBuffer = len + 1U >= kGithubJsonBuf;
-    if (!allowTruncated && (incompleteKnownLength || filledBuffer)) {
-        ESP_LOGE(TAG, "GitHub API: incomplete response (%u/%d bytes)", static_cast<unsigned>(len), contentLen);
+    NetworkClient *client = https.getStreamPtr();
+    if (client == nullptr) {
+        ESP_LOGE(TAG, "GitHub API: no response stream");
         return false;
     }
-    ESP_LOGI(TAG, "GitHub API response received (%u bytes, %lu ms)", static_cast<unsigned>(len), millis() - requestStartedMs);
-    return len > 0U;
-}
-
-bool validateReleaseAssetsByTag(const char *expectedTag) {
-    if (expectedTag == nullptr || expectedTag[0] == '\0') {
+    GithubApiStream stream(*client, kGithubStreamDeadlineMs);
+    if (!otaDeserializeGithubReleaseJson(stream, doc, list)) {
+        ESP_LOGE(TAG, "GitHub API: %s", stream.timedOut() ? "parse timeout" : "failed to parse JSON");
         return false;
     }
-    char url[256]{};
-    const int n = snprintf(url, sizeof(url), "%s%s", kGithubReleaseByTagApiBase, expectedTag);
-    if (n <= 0 || static_cast<size_t>(n) >= sizeof(url)) {
-        return false;
-    }
-    size_t len = 0;
-    if (!httpGetGithubJson(url, &len)) {
-        return false;
-    }
-    JsonDocument doc;
-    if (!otaDeserializeJson(s_githubJsonBuf, doc)) {
-        ESP_LOGE(TAG, "GitHub release metadata invalid for tag %s", expectedTag);
-        return false;
-    }
-    const JsonVariantConst root = doc.as<JsonVariantConst>();
-    char actualTag[64]{};
-    bool draft = false;
-    if (!otaCopyJsonString(doc["tag_name"], actualTag, sizeof(actualTag)) || strcmp(actualTag, expectedTag) != 0 ||
-        !otaParseJsonBoolField(root, "draft", &draft) || draft) {
-        ESP_LOGE(TAG, "GitHub release metadata invalid for tag %s", expectedTag);
-        return false;
-    }
-    if (!otaReleaseHasRequiredAssets(root)) {
-        ESP_LOGE(TAG, "GitHub release %s lacks firmware.bin or firmware.sha256", expectedTag);
-        return false;
-    }
+    ESP_LOGI(TAG, "GitHub API response parsed (%d bytes, %lu ms)", https.getSize(), millis() - requestStartedMs);
     return true;
 }
 
-bool evaluateTag(const char *tag, bool isPrerelease, OtaChannel channel, OtaReleaseInfo *out, GithubCheckResult *result) {
-    if (tag == nullptr || out == nullptr || result == nullptr) {
-        return false;
+GithubCheckResult evaluateTag(const char *tag, bool isPrerelease, OtaChannel channel, OtaReleaseInfo *out) {
+    if (tag == nullptr || out == nullptr) {
+        return GithubCheckResult::ApiError;
     }
     if (!otaReleaseTagIsAllowed(tag) || otaVersionIsRc(tag) != isPrerelease) {
         ESP_LOGE(TAG, "GitHub release tag or prerelease flag invalid: %s", tag);
-        *result = GithubCheckResult::ApiError;
-        return false;
+        return GithubCheckResult::ApiError;
     }
     if (!fillReleaseUrls(tag, out)) {
-        *result = GithubCheckResult::ApiError;
-        return false;
+        return GithubCheckResult::ApiError;
     }
     out->channel = channel;
     out->isPrerelease = isPrerelease;
@@ -235,11 +217,9 @@ bool evaluateTag(const char *tag, bool isPrerelease, OtaChannel channel, OtaRele
     ESP_LOGI(TAG, "GitHub channel=%s tag=%s local=%s", channel == OtaChannel::Beta ? "beta" : "stable", tag, APP_VERSION);
 
     if (!otaVersionIsNewer(tag, APP_VERSION)) {
-        *result = GithubCheckResult::ParsedNoUpgrade;
-        return true;
+        return GithubCheckResult::ParsedNoUpgrade;
     }
-    *result = GithubCheckResult::ParsedUpgradeAvail;
-    return true;
+    return GithubCheckResult::ParsedUpgradeAvail;
 }
 
 } // namespace
@@ -251,14 +231,9 @@ GithubCheckResult otaGithubEvaluateChannel(OtaChannel channel, OtaReleaseInfo *o
     *out = OtaReleaseInfo{};
     out->channel = channel;
 
-    size_t len = 0;
     if (channel == OtaChannel::Stable) {
-        if (!httpGetGithubJson(kGithubLatestReleaseApiUrl, &len)) {
-            return GithubCheckResult::ApiError;
-        }
         JsonDocument doc;
-        if (!otaDeserializeJson(s_githubJsonBuf, doc)) {
-            ESP_LOGE(TAG, "GitHub: failed to parse latest release JSON");
+        if (!httpGetGithubJson(kGithubLatestReleaseApiUrl, doc, false)) {
             return GithubCheckResult::ApiError;
         }
         const JsonVariantConst root = doc.as<JsonVariantConst>();
@@ -281,52 +256,27 @@ GithubCheckResult otaGithubEvaluateChannel(OtaChannel channel, OtaReleaseInfo *o
             ESP_LOGE(TAG, "GitHub latest lacks firmware.bin or firmware.sha256");
             return GithubCheckResult::ApiError;
         }
-        GithubCheckResult result = GithubCheckResult::ApiError;
-        if (!evaluateTag(tag, false, channel, out, &result)) {
-            return GithubCheckResult::ApiError;
-        }
-        return result;
+        return evaluateTag(tag, false, channel, out);
     }
 
-    // Beta: scan bounded one-release pages so large release notes cannot hide metadata.
-    char bestPrerelease[64]{};
-    char bestStable[64]{};
-    bool hasNext = true;
-    for (unsigned page = 1U; page <= kGithubMaxReleasePages && hasNext; ++page) {
-        char url[192]{};
-        const int n = snprintf(url, sizeof(url), "%s%u", kGithubReleasesListApiUrl, page);
-        if (n <= 0 || static_cast<size_t>(n) >= sizeof(url) || !httpGetGithubJson(url, &len, true, &hasNext)) {
-            return GithubCheckResult::ApiError;
-        }
-        JsonDocument pageDoc;
-        if (!otaDeserializeJson(s_githubJsonBuf, pageDoc)) {
-            continue;
-        }
-        char pageTag[64]{};
-        bool pageIsPre = false;
-        if (!otaSelectReleaseFromListJson(pageDoc.as<JsonVariantConst>(), true, pageTag, sizeof(pageTag), &pageIsPre)) {
-            continue;
-        }
-        char *best = pageIsPre ? bestPrerelease : bestStable;
-        if (best[0] == '\0' || otaVersionIsNewer(pageTag + 1, best + 1)) {
-            strlcpy(best, pageTag, 64U);
-        }
+    char listUrl[192]{};
+    const int n = snprintf(listUrl, sizeof(listUrl), kGithubReleasesListApiUrlFmt, kGithubReleasesPerPage);
+    if (n <= 0 || static_cast<size_t>(n) >= sizeof(listUrl)) {
+        return GithubCheckResult::ApiError;
+    }
+    JsonDocument doc;
+    bool hasNext = false;
+    if (!httpGetGithubJson(listUrl, doc, true, &hasNext)) {
+        return GithubCheckResult::ApiError;
     }
     if (hasNext) {
-        ESP_LOGW(TAG, "GitHub beta scan stopped at safety limit (%u releases)", kGithubMaxReleasePages);
+        ESP_LOGW(TAG, "GitHub beta scan limited to %u releases", kGithubReleasesPerPage);
     }
-    const bool isPre = bestPrerelease[0] != '\0';
-    const char *tag = isPre ? bestPrerelease : bestStable;
-    if (tag[0] == '\0') {
+    char tag[64]{};
+    bool isPre = false;
+    if (!otaSelectReleaseFromListJson(doc.as<JsonVariantConst>(), true, tag, sizeof(tag), &isPre, true)) {
         ESP_LOGE(TAG, "GitHub: no suitable beta/stable release in list");
         return GithubCheckResult::ApiError;
     }
-    if (!validateReleaseAssetsByTag(tag)) {
-        return GithubCheckResult::ApiError;
-    }
-    GithubCheckResult result = GithubCheckResult::ApiError;
-    if (!evaluateTag(tag, isPre, channel, out, &result)) {
-        return GithubCheckResult::ApiError;
-    }
-    return result;
+    return evaluateTag(tag, isPre, channel, out);
 }

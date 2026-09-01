@@ -1,4 +1,5 @@
 #include <climits>
+#include <string>
 #include <unity.h>
 
 #include "ota/github_parse.h"
@@ -122,6 +123,71 @@ void test_ota_github_release_select() {
     TEST_ASSERT_TRUE(otaSelectReleaseFromListJson(listOnce.as<JsonVariantConst>(), true, tag, sizeof(tag), &isPre));
     TEST_ASSERT_EQUAL_STRING("v2026.8.2-rc.1", tag);
     TEST_ASSERT_TRUE(isPre);
+
+    const char *newestWithoutAssets = "["
+                                      "{\"tag_name\":\"v2026.9.1-rc.1\",\"draft\":false,\"prerelease\":true},"
+                                      "{\"tag_name\":\"v2026.8.2-rc.1\",\"draft\":false,\"prerelease\":true,"
+                                      "\"assets\":[{\"name\":\"firmware.bin\"},{\"name\":\"firmware.sha256\"}]}"
+                                      "]";
+    TEST_ASSERT_TRUE(otaSelectReleaseFromListJson(newestWithoutAssets, true, tag, sizeof(tag), &isPre, false));
+    TEST_ASSERT_EQUAL_STRING("v2026.9.1-rc.1", tag);
+    TEST_ASSERT_TRUE(otaSelectReleaseFromListJson(newestWithoutAssets, true, tag, sizeof(tag), &isPre, true));
+    TEST_ASSERT_EQUAL_STRING("v2026.8.2-rc.1", tag);
+    TEST_ASSERT_TRUE(isPre);
+
+    const char *splitAssets = "["
+                              "{\"tag_name\":\"v2026.8.2\",\"draft\":false,\"prerelease\":false,"
+                              "\"assets\":[{\"name\":\"firmware.bin\"}]},"
+                              "{\"tag_name\":\"v2026.8.1\",\"draft\":false,\"prerelease\":false,"
+                              "\"assets\":[{\"name\":\"firmware.sha256\"}]}"
+                              "]";
+    JsonDocument splitDoc;
+    TEST_ASSERT_TRUE(otaDeserializeJson(splitAssets, splitDoc));
+    TEST_ASSERT_FALSE(otaReleaseHasRequiredAssets(splitDoc.as<JsonVariantConst>()));
+    TEST_ASSERT_FALSE(otaSelectReleaseFromListJson(splitAssets, false, tag, sizeof(tag), &isPre, true));
+}
+
+void test_ota_github_release_filter() {
+    TEST_ASSERT_FALSE(otaGithubJsonRootIsArray(nullptr));
+    TEST_ASSERT_FALSE(otaGithubJsonRootIsArray(""));
+    TEST_ASSERT_FALSE(otaGithubJsonRootIsArray("  {\"tag_name\":\"v2026.8.1\"}"));
+    TEST_ASSERT_TRUE(otaGithubJsonRootIsArray("\n\t[{\"tag_name\":\"v2026.8.1\"}]"));
+
+    std::string json = "{\"tag_name\":\"v2026.8.1\",\"draft\":false,\"prerelease\":false,"
+                       "\"author\":{\"login\":\"bot\",\"name\":\"nope\"},"
+                       "\"assets\":[{\"name\":\"firmware.bin\",\"uploader\":{\"name\":\"firmware.sha256\"}},"
+                       "{\"name\":\"firmware.sha256\"}],\"body\":\"";
+    json.append(20000, 'A');
+    json += "\"}";
+
+    JsonDocument doc;
+    TEST_ASSERT_TRUE(otaDeserializeGithubReleaseJson(json.c_str(), doc, false));
+    TEST_ASSERT_FALSE(doc.overflowed());
+    TEST_ASSERT_TRUE(doc["body"].isNull());
+    TEST_ASSERT_TRUE(doc["author"].isNull());
+    TEST_ASSERT_TRUE(doc["assets"][0]["uploader"].isNull());
+    char tag[64]{};
+    TEST_ASSERT_TRUE(otaCopyJsonString(doc["tag_name"], tag, sizeof(tag)));
+    TEST_ASSERT_EQUAL_STRING("v2026.8.1", tag);
+    bool draft = true;
+    bool pre = true;
+    TEST_ASSERT_TRUE(otaParseJsonBoolField(doc.as<JsonVariantConst>(), "draft", &draft));
+    TEST_ASSERT_FALSE(draft);
+    TEST_ASSERT_TRUE(otaParseJsonBoolField(doc.as<JsonVariantConst>(), "prerelease", &pre));
+    TEST_ASSERT_FALSE(pre);
+    TEST_ASSERT_TRUE(otaReleaseHasRequiredAssets(doc.as<JsonVariantConst>()));
+    TEST_ASSERT_FALSE(otaJsonHasAssetName(doc.as<JsonVariantConst>(), "firmware.factory.bin"));
+
+    std::string list = "[{\"tag_name\":\"v2026.8.2-rc.1\",\"draft\":false,\"prerelease\":true,"
+                       "\"body\":\"";
+    list.append(20000, 'B');
+    list += "\",\"assets\":[{\"name\":\"firmware.bin\"},{\"name\":\"firmware.sha256\"}]},"
+            "{\"tag_name\":\"v2026.8.1\",\"draft\":false,\"prerelease\":false,"
+            "\"assets\":[{\"name\":\"firmware.bin\"}]}]";
+    TEST_ASSERT_TRUE(otaSelectReleaseFromListJson(list.c_str(), true, tag, sizeof(tag), &pre, true));
+    TEST_ASSERT_EQUAL_STRING("v2026.8.2-rc.1", tag);
+    TEST_ASSERT_TRUE(pre);
+    TEST_ASSERT_FALSE(otaSelectReleaseFromListJson(list.c_str(), false, tag, sizeof(tag), &pre, true));
 }
 
 void test_ota_download_url_allowlist() {
@@ -162,6 +228,7 @@ int main(int, char **) {
     UNITY_BEGIN();
     RUN_TEST(test_ota_version_compare);
     RUN_TEST(test_ota_github_release_select);
+    RUN_TEST(test_ota_github_release_filter);
     RUN_TEST(test_ota_download_url_allowlist);
     RUN_TEST(test_ota_health_window);
     return UNITY_END();

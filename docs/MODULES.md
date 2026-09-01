@@ -437,7 +437,7 @@ Details: [WEB_ADMIN.md](WEB_ADMIN.md)
 | `github.h` / `github.cpp` | GitHub Releases API, CalVer comparison |
 | `flash.h` / `flash.cpp` | TLS + SHA-256 sidecar, Arduino `HTTPUpdate` |
 | `version_cmp.h` | CalVer/beta (`-rc.N`) comparison (header-only) |
-| `github_parse.h` | GitHub release JSON helper (ArduinoJson, header-only) |
+| `github_parse.h` | GitHub release JSON helper (ArduinoJson filter, header-only) |
 
 | Function | Description |
 |----------|-------------|
