@@ -231,6 +231,20 @@ describe("mock API parity", () => {
     expect(getState().mqtt.server).toBe(before);
   });
 
+  it("keeps an incoming mqtt broker secret in mock state", async () => {
+    await callMock("/api/_mock/scenario", { scenario: "mqtt-no-auth" });
+    expect(getState().mqtt.password).toBe("");
+    const res = await callCsrf("POST", "/api/mqtt", {
+      mqtt_server: "mqtt.example.com",
+      mqtt_pass: "example-mock-credential",
+    });
+    expect(res.status).toBe(200);
+    expect(getState().mqtt.password).toBe("example-mock-credential");
+    const view = await callApi("GET", "/api/mqtt");
+    expect(view.status).toBe(200);
+    expect(view.body.hasPassword).toBe(true);
+  });
+
   it("injects mqtt-save faults without mutating config", async () => {
     await callMock("/api/_mock/fault", { fault: "mqtt-save", enabled: true });
     const before = getState().mqtt.server;
