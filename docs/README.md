@@ -102,7 +102,7 @@ chaya2mqtt/
 ├── partitions_chaya_8mb.csv  # Dual-OTA table (8 MB flash; ~3.75 MB per slot)
 ├── Makefile                  # PlatformIO wrapper
 ├── docs/                     # This documentation
-├── flasher/                  # Svelte/Vite/Tailwind ESP Web Tools app (GitHub Pages)
+├── flasher/                  # Svelte/Vite/Tailwind web flasher (esptool-js, GitHub Pages)
 ├── frontend/                 # Svelte 5 SPA (Vite, Tailwind, Lucide) + mock device
 └── src/
     ├── main.cpp              # Bootstrap, task startup

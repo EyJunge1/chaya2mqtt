@@ -1,7 +1,6 @@
 version: 2
 
-# PlatformIO (platformio.ini / lib_deps) and ESP-IDF Component Manager
-# (idf_component.yml) are not yet supported by Dependabot.
+# PlatformIO (platformio.ini / lib_deps) is not yet supported by Dependabot.
 # See: https://github.com/dependabot/dependabot-core/issues/13206
 # PlatformIO library updates: renovate.json. Pinned platform/framework commits are reviewed
 # manually because the OTA SHA-256 API depends on specific upstream changes.

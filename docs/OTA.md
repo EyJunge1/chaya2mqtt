@@ -121,7 +121,7 @@ Web UI: `/update`—channel selection, version display, progress, and a confirma
 `otaFlashVerifiedInstall(binUrl, sha256Url)` in `ota/flash.cpp`:
 
 1. **Configure sidecar:** pass `firmware.sha256` to `setSHA256sumUrl()`
-2. **HTTPUpdate:** download the sidecar and firmware via HTTPS + TLS (CA bundle), redirects enabled, `rebootOnUpdate(false)`
+2. **HTTPUpdate:** download the sidecar and firmware via HTTPS + TLS (CA bundle). GitHub redirects are resolved and allowlisted first; `HTTPUpdate` then disables further follow-redirects. `rebootOnUpdate(false)`
 3. **Flash:** Arduino `HTTPUpdate`/`Update` writes to the next OTA partition
 4. **Progress:** callbacks update the OTA status for SSE/UI
 5. **Reboot:** controlled by chaya2mqtt after flushing

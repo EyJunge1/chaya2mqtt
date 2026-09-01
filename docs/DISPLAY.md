@@ -93,7 +93,7 @@ When a displayed delta reaches ≥ **999** (`kDisplayCounterMax` in `display/dis
 
 ## Lucide icons
 
-Bitmaps are pre-rasterized from Lucide (`scripts/generate_display_icons.mjs` → `src/display/icons_lucide.h`, ISC license) and drawn with Adafruit GFX `drawBitmap()`.
+Bitmaps are pre-rasterized from Lucide (`scripts/generate_display_icons.mjs` → `src/display/icons_lucide.h`, ISC license) and drawn with Adafruit GFX `drawBitmap()`. The generator pins Lucide **0.468.0** (`LUCIDE_REF`) so E-Ink glyphs stay reproducible. The web UI and flasher use npm `@lucide/svelte` **1.34.0** (Svelte 5 package, different version scheme). Regenerating the header against a newer Lucide tag can change stroke/fill; do that only when the on-panel icons should match a UI update.
 
 | Element | Glyph | Color | Position (200×200) |
 |---------|-------|-------|--------------------|

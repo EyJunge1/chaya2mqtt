@@ -137,8 +137,8 @@ Maximum **6** SSE clients. App-task poll remains ~500 ms, but SSE gather runs 
 - Every POST includes `csrf_token`. The frontend performs a single-flight refresh and one retry
   only for idempotent settings/check/scan operations; heart send, WiFi commit, reboot, factory reset,
   and OTA install are never repeated automatically
-- Host/origin allowlist in STA mode; in AP/captive mode Host/Origin checks are skipped so captive
-  browsers can complete setup (see Access warning / SEC-10)
+- Host/origin allowlist in STA and AP: in captive mode only `4.3.2.1` and `chaya2mqtt` / `.local`
+  are accepted (see Access warning / SEC-10). Dedicated captive probe routes stay separate.
 - CSP without our inline scripts/styles (`script-src 'self'` plus exact captive-browser helper hashes; `style-src 'self'`)
 
 ## Build integration
