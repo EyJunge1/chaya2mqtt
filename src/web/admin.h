@@ -5,9 +5,6 @@ class AsyncWebServer;
 /** AsyncWebServer instance (port 80). */
 AsyncWebServer& webAdminWebServer();
 
-/** Wire wifi lifecycle to this module without wifi including web headers (QUAL-01). */
-void webAdminInstallServerHooks();
-
 /** Register all HTTP routes once (before webAdminWebServer().begin()). */
 void webAdminRegisterRoutes();
 

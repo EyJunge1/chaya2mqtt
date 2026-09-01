@@ -119,6 +119,42 @@ describe("WifiSetup", () => {
     expect(startWifiScan).toHaveBeenCalled();
   });
 
+  it("kicks a new sweep when refresh is clicked even if a cache is ready", async () => {
+    scanWifi
+      .mockResolvedValueOnce({
+        status: "ready",
+        aps: [{ ssid: "OldNet", rssi: -60, open: true }],
+      })
+      .mockResolvedValue({
+        status: "ready",
+        aps: [{ ssid: "NewNet", rssi: -40, open: true }],
+      });
+
+    render(WifiSetup, {
+      props: {
+        device: {
+          hostname: "chaya2mqtt",
+          version: "dev",
+          mode: "ap",
+          deviceId: "a1b2c3",
+          batteryMv: 3900,
+          batteryPct: 55,
+        },
+        wifi: { connected: false },
+        onToast: vi.fn(),
+      },
+    });
+
+    await waitFor(() => expect(screen.getByText("OldNet")).toBeTruthy());
+    expect(startWifiScan).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: "wifi.scan" }));
+
+    await waitFor(() => expect(screen.getByText("NewNet")).toBeTruthy());
+    expect(startWifiScan).toHaveBeenCalledTimes(1);
+    expect(screen.queryByText("OldNet")).toBeNull();
+  });
+
   it("toasts when a started scan fails", async () => {
     const onToast = vi.fn();
     scanWifi.mockResolvedValueOnce({ status: "idle" }).mockResolvedValue({ status: "failed" });

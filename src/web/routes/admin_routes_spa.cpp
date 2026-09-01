@@ -11,69 +11,14 @@
 
 #include <ESPAsyncWebServer.h>
 #include <algorithm>
-#include <cstdio>
 #include <cstring>
 
 namespace {
 
-/**
- * Safari needs ACAO when Vite emits crossorigin, even for same-origin loads.
- * Reflect an allowed Origin, or http://<Host> — never wildcard (SEC-09).
- */
-void addSpaCorsHeader(AsyncWebServerRequest* req, AsyncWebServerResponse* resp) {
-    if (req == nullptr || resp == nullptr) {
-        return;
-    }
-    // SEC-04: in SoftAP never mirror an arbitrary browser Origin.
-    if (configIsApMode()) {
-        if (req->hasHeader("Origin")) {
-            const String& origin = req->header("Origin");
-            if (origin == "http://4.3.2.1" || origin == "http://chaya2mqtt"
-                || origin == "http://chaya2mqtt.local") {
-                resp->addHeader(F("Access-Control-Allow-Origin"), origin);
-            }
-            return;
-        }
-        if (!webRequestHostAllowed(req)) {
-            return;
-        }
-        const String& host = req->host();
-        if (host.length() == 0U || host.length() > 120U) {
-            return;
-        }
-        char origin[140]{};
-        const int n = snprintf(origin, sizeof(origin), "http://%s", host.c_str());
-        if (n > 0 && static_cast<size_t>(n) < sizeof(origin)) {
-            resp->addHeader(F("Access-Control-Allow-Origin"), origin);
-        }
-        return;
-    }
-    if (req->hasHeader("Origin")) {
-        if (webRequestOriginAllowed(req)) {
-            resp->addHeader(F("Access-Control-Allow-Origin"), req->header("Origin"));
-        }
-        return;
-    }
-    if (!webRequestHostAllowed(req)) {
-        return;
-    }
-    const String& host = req->host();
-    if (host.length() == 0U || host.length() > 120U) {
-        return;
-    }
-    char origin[140]{};
-    const int n = snprintf(origin, sizeof(origin), "http://%s", host.c_str());
-    if (n > 0 && static_cast<size_t>(n) < sizeof(origin)) {
-        resp->addHeader(F("Access-Control-Allow-Origin"), origin);
-    }
-}
-
-void addSpaResponseHeaders(AsyncWebServerRequest* req, AsyncWebServerResponse* resp,
-                           const SpaAssetEntry& asset) {
+void addSpaResponseHeaders(AsyncWebServerResponse* resp, const SpaAssetEntry& asset) {
     if (spaAssetUsesGzip(asset.path)) {
         resp->addHeader(F("Content-Encoding"), F("gzip"));
     }
-    addSpaCorsHeader(req, resp);
     webAddSecurityHeaders(resp, /*noStore=*/false);
     if (asset.cache == SpaCacheClass::Immutable) {
         resp->addHeader(F("Cache-Control"), F("public, max-age=31536000, immutable"));
@@ -96,7 +41,7 @@ void sendSpaAsset(AsyncWebServerRequest* req, const SpaAssetEntry& asset) {
             std::memcpy(buf, data + index, n);
             return n;
         });
-    addSpaResponseHeaders(req, resp, asset);
+    addSpaResponseHeaders(resp, asset);
     req->send(resp);
 }
 
@@ -104,7 +49,6 @@ bool sendSpaIndex(AsyncWebServerRequest* req) {
     // Compiler .rodata string — not a slice of the .incbin blob (quirks-mode / empty body).
     AsyncWebServerResponse* resp =
         req->beginResponse(200, "text/html; charset=utf-8", kWebUiIndexHtml);
-    addSpaCorsHeader(req, resp);
     webAddSecurityHeaders(resp, /*noStore=*/false);
     resp->addHeader(F("Cache-Control"), F("no-cache"));
     req->send(resp);

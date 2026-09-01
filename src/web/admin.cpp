@@ -29,21 +29,6 @@ DEFINE_LOG_TAG("ADMIN");
 
 // Routes, deferred flags, SSE tick.
 
-namespace {
-void webServerBeginImpl() {
-    webAdminWebServer().begin();
-}
-void webServerEndImpl() {
-    webAdminWebServer().end();
-}
-} // namespace
-
-/** Register wifi↔web lifecycle hooks (QUAL-01). Call once before setupWiFi(). */
-void webAdminInstallServerHooks() {
-    webServerHooksRegister(webAdminRegisterRoutes, webServerBeginImpl, webServerEndImpl,
-                           deferredRebootAfterWifiSave);
-}
-
 AsyncWebServer& webAdminWebServer() {
     static AsyncWebServer server(80);
     return server;
@@ -67,6 +52,22 @@ void webAdminRegisterRoutes() {
     adminRoutesRegisterCaptive(ws);
     webEventsRegister(ws);
     adminRoutesRegisterSpa(ws); // SPA + onNotFound last
+}
+
+void webServerRegisterRoutes() {
+    webAdminRegisterRoutes();
+}
+
+void webServerBegin() {
+    webAdminWebServer().begin();
+}
+
+void webServerEnd() {
+    webAdminWebServer().end();
+}
+
+void webRequestRebootAfterWifiSave() {
+    deferredRebootAfterWifiSave();
 }
 
 void webAdminScheduleWifiConfiguredReboot() {

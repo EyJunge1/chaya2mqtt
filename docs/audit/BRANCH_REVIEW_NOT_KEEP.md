@@ -2,53 +2,39 @@
 
 Unabhängige Prüfung von `audit-remediation` vs. `main` durch vier Reviews (Sicherheit, Stabilität/OTA/WiFi, Architektur/Perf, Frontend/Docs). Das Canvas bleibt unverändert. Hier nur Punkte, die **übertrieben, falsch oder unfertig** sind — der Rest der Branch ist überwiegend behaltenswert.
 
-Stand: tip `a5e36c6`.
+Stand: geprüft nach den Fixes unter „Erledigt“.
 
 ---
 
-## Sofort fixen (echte Bugs / Inkonsistenz)
+## Erledigt
 
 ### Tote UPSTREAM-Links
 
-Dieser Branch hat `docs/UPSTREAM_ARDUINO_ESP32.md` und `docs/UPSTREAM_LIBS.md` zuerst angelegt und dann gelöscht. Die Verweise stehen noch:
-
-- `docs/README.md` (Index-Tabelle)
-- `docs/DISPLAY.md` (Panel-Timing)
-
-**Tun:** Links und Parenthese streichen (Dateien nicht wiederherstellen, wenn der Inhalt bewusst weg soll).
+Verweise in `docs/README.md` und `docs/DISPLAY.md` entfernt. Dateien bleiben gelöscht.
 
 ### SoftAP-Doku: PIN vs. 24-Zeichen QR-only
 
-Firmware: 24 Zeichen alphanumerisch, Join nur per WIFI-QR.
+README/WEB_ADMIN/ARCHITECTURE/TESTING sprechen QR-only / alphanumerische PSK. NVS-Key `ap_pin` in `CONFIGURATION.md` ist nur der historische Schlüsselname.
 
-Widerspruch in denselben Docs:
+### OpenAPI-Version
 
-- `docs/WEB_ADMIN.md` oben: 24 Zeichen, QR only
-- `docs/WEB_ADMIN.md` weiter unten: „SoftAP PIN is 8 decimal digits“
-- `docs/README.md` Schritt 3: „displayed PIN“ / „individual PINs“
-- Reste in `docs/TESTING.md`, `docs/ARCHITECTURE.md`, `docs/CONFIGURATION.md`, Kommentar in `wlan.h`
+README und WEB_ADMIN sagen wieder OpenAPI 3.2, passend zu `docs/openapi.yaml` (`3.2.0`).
 
-**Tun:** überall PIN-Sprache entfernen, QR-only durchziehen.
+### MQTT-Save: Apply-Wait
 
-### OpenAPI-Version verdreht
+GET `/api/mqtt` liefert `applyPending`. POST setzt das Flag; Network-Task räumt es nach Apply/NVS. `MqttPage` pollt wie Settings, TLS-Toast hängt am abgeschickten Formular.
 
-`docs/openapi.yaml` ist `openapi: 3.2.0`. Dieser Branch ändert README/WEB_ADMIN von „3.2“ auf **„3.1“**. Regression, kein Inhalt.
+### WiFi-Scan-Refresh
 
-### MQTT-Save: `nvsOk` ohne Apply-Wait
+GET `/api/wifi/scan` ist read-only (Cache/Poll). POST invalidiert den Cache und kickt einen Sweep. Refresh-Button ruft `startWifiScan()` (POST), Mount hydriert nur GET.
 
-Settings pollt `applyPending` — das ist richtig. MQTT-POST speichert nur Pending, GET liefert die **aktive** Config. `MqttPage` macht danach genau ein GET:
+### Soft-Off-Timeout — kein sofortiges Wiederaufwachen
 
-- Formular springt oft auf die alten Werte zurück
-- `nvsOk` wird am POST-Anfang true → Fast immer Success-Toast
-- TLS-Toast hängt am GET, nicht am gerade gespeicherten Formular
+Timeout schneidet den Latch und wartet weiter. `batteryPowerOffAndSleep()` armiert EXT1 nur wenn PWR nicht LOW ist.
 
-**Tun:** wie Settings `applyPending` + Poll, oder GET muss Pending liefern.
+---
 
-### WiFi-Scan-Refresh tot
-
-Poll-GET nach Cache-Hit nicht neu kicken: richtig (sonst Scan-Sturm). Aber Refresh-Button ruft dasselbe GET auf → immer derselbe Snapshot.
-
-**Tun:** expliziter Refresh invalidiert Cache + kick; Poll bleibt cache-only.
+## Noch offen (echte Restbugs)
 
 ### SegmentedControl: Fokus bleibt auf altem Radio
 
@@ -139,10 +125,6 @@ SoftAP 24-Zeichen-PSK, Host-Allowlist, CSRF nur Body, Flasher SHA-256, Display-U
 
 ## Reihenfolge zum Aufräumen
 
-1. Tote UPSTREAM-Links + PIN-Doku + OpenAPI 3.1/3.2
-2. MQTT-Save wie Settings poll-en
-3. WiFi-Scan expliziter Refresh
-4. OTA-Walker entschlacken (Allowlist lassen)
-5. SoftAP WPA2-Fallback wieder
-6. Soft-Off Stuck-Pfad — erledigt
-7. Optional entschlacken: SPA-ACAO, MQTT-ASCII-User, Web-Hook-Registry, RSSI-Hysterese, SegmentedControl-Fokus, clang-tidy CI
+1. OTA-Walker entschlacken (Allowlist lassen)
+2. SoftAP WPA2-Fallback wieder
+3. Optional entschlacken: SPA-ACAO, MQTT-ASCII-User, Web-Hook-Registry, RSSI-Hysterese, SegmentedControl-Fokus, clang-tidy CI

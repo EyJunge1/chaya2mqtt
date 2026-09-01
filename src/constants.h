@@ -65,8 +65,8 @@ inline bool mqttServerSyntaxOk(const char* host, size_t maxLen) {
 }
 
 /**
- * MQTT username: empty OK (anonymous); otherwise printable ASCII (0x20–0x7E), fits in maxLen.
- * SEC-09.
+ * MQTT username: empty OK (anonymous); otherwise no control chars (< 0x20), fits in maxLen.
+ * UTF-8 broker users are allowed; same control-char rule as the password. SEC-09.
  */
 inline bool mqttUsernameSyntaxOk(const char* user, size_t maxLen) {
     if (user == nullptr || maxLen == 0U) {
@@ -81,8 +81,7 @@ inline bool mqttUsernameSyntaxOk(const char* user, size_t maxLen) {
         if (len >= maxLen) {
             return false;
         }
-        const unsigned char c = static_cast<unsigned char>(*p);
-        if (c < 0x20U || c > 0x7EU) {
+        if (static_cast<unsigned char>(*p) < 0x20U) {
             return false;
         }
     }

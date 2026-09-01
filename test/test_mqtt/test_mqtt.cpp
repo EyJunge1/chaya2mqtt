@@ -30,7 +30,7 @@ void test_mqtt_username_syntax() {
     TEST_ASSERT_TRUE(mqttUsernameSyntaxOk("", 64));
     TEST_ASSERT_TRUE(mqttUsernameSyntaxOk("chaya", 64));
     TEST_ASSERT_FALSE(mqttUsernameSyntaxOk("bad\x01user", 64));
-    TEST_ASSERT_FALSE(mqttUsernameSyntaxOk("\xc3\xbcser", 64)); // non-ASCII
+    TEST_ASSERT_TRUE(mqttUsernameSyntaxOk("\xc3\xbcser", 64)); // UTF-8 broker user
     TEST_ASSERT_FALSE(mqttUsernameSyntaxOk(nullptr, 64));
     char tooLong[65];
     memset(tooLong, 'a', 64);

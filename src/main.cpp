@@ -24,7 +24,6 @@
 #include "network/network_task.h"
 #include "ota/ota.h"
 #include "ota/ota_task.h"
-#include "web/admin.h"
 #include "async/web_server_hooks.h"
 #include "wifi/wlan.h"
 
@@ -108,7 +107,6 @@ void setup() {
         }
     }
 
-    webAdminInstallServerHooks();
     webServerRegisterRoutes();
     buttonSetActionHooks(ButtonActionHooks{onButtonRequestSend, onButtonSoftOffAllowed, onButtonPerformSoftOff});
     setupWiFi();
