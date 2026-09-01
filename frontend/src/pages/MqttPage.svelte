@@ -151,7 +151,8 @@
       if (seq !== loadSeq) return;
       onToast(i18n.t("toast.save-failed"), "error");
     } finally {
-      if (seq === loadSeq) busy = false;
+      // refreshDevice bumps refreshSeq → $effect bumps loadSeq; still unlock the buttons.
+      busy = false;
     }
   }
 
