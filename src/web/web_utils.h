@@ -23,7 +23,7 @@ void webSendJsonOk(AsyncWebServerRequest *req, int code, const char *message = n
 
 void webSendJsonOkQueued(AsyncWebServerRequest *req, int code, bool queued);
 
-/** Serialize doc into buf. Returns bytes written (excl. NUL) or 0 on overflow. */
+/** Serialize doc into buf. Returns bytes written (excl. NUL) or 0 on document or buffer overflow. */
 size_t webSerializeJson(const JsonDocument &doc, char *buf, size_t bufLen);
 
 void webSendEmpty(AsyncWebServerRequest *req, int code);

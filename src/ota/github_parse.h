@@ -13,7 +13,7 @@ inline bool otaDeserializeJson(const char *json, JsonDocument &doc) {
     if (json == nullptr) {
         return false;
     }
-    return deserializeJson(doc, json) == DeserializationError::Ok;
+    return deserializeJson(doc, json) == DeserializationError::Ok && !doc.overflowed();
 }
 
 inline bool otaGithubJsonRootIsArray(const char *json) {

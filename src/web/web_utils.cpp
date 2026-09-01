@@ -100,10 +100,19 @@ bool webRequestOriginAllowed(AsyncWebServerRequest *req) {
 }
 
 void webSendJsonDoc(AsyncWebServerRequest *req, int code, JsonDocument &doc) {
+    if (doc.overflowed()) {
+        webSendEmpty(req, 500);
+        return;
+    }
     AsyncJsonResponse *resp = new AsyncJsonResponse();
     resp->setCode(code);
     JsonObject dest = resp->getRoot().to<JsonObject>();
     dest.set(doc.as<JsonObjectConst>());
+    if (resp->overflowed()) {
+        delete resp;
+        webSendEmpty(req, 500);
+        return;
+    }
     resp->setLength();
     webAddSecurityHeaders(resp);
     req->send(resp);
@@ -136,7 +145,7 @@ void webSendJsonOkQueued(AsyncWebServerRequest *req, int code, bool queued) {
 }
 
 size_t webSerializeJson(const JsonDocument &doc, char *buf, size_t bufLen) {
-    if (buf == nullptr || bufLen == 0U) {
+    if (buf == nullptr || bufLen == 0U || doc.overflowed()) {
         return 0;
     }
     const size_t n = serializeJson(doc, buf, bufLen);
