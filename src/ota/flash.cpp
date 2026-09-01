@@ -79,9 +79,15 @@ bool resolveHttpLocation(const char* baseUrl, const String& location, char* out,
     return true;
 }
 
+bool isHeadProbeInconclusive(int code) {
+    return code < 0 || code == HTTP_CODE_FORBIDDEN || code == HTTP_CODE_METHOD_NOT_ALLOWED
+           || code == HTTP_CODE_NOT_IMPLEMENTED;
+}
+
 /**
- * Follow redirects manually and re-check every Location against the allowlist (SEC-11).
- * On success, outUrl holds a final HTTPS URL that returned a non-redirect response.
+ * Follow redirects via HEAD only. Parse each Location and re-check the allowlist (SEC-11).
+ * Never GET: a 403 HEAD fallback would pull firmware.bin before HTTPUpdate.
+ * If HEAD is rejected on an already-allowlisted URL, hand that URL to HTTPUpdate.
  */
 bool otaResolveDownloadUrl(WiFiClientSecure& tls, const char* startUrl, OtaDownloadAsset asset,
                            char* outUrl, size_t outLen) {
@@ -107,21 +113,7 @@ bool otaResolveDownloadUrl(WiFiClientSecure& tls, const char* startUrl, OtaDownl
         https.setTimeout(kHttpClientTimeoutMs);
         https.addHeader(F("User-Agent"), F("Chaya2MQTT-esp32"));
 
-        // Prefer HEAD to avoid pulling the body; fall back to GET if rejected.
-        int code = https.sendRequest("HEAD");
-        if (code == HTTP_CODE_METHOD_NOT_ALLOWED || code == HTTP_CODE_NOT_IMPLEMENTED
-            || code == HTTP_CODE_FORBIDDEN || code == HTTP_CODE_BAD_REQUEST || code < 0) {
-            https.end();
-            if (!https.begin(tls, outUrl)) {
-                return false;
-            }
-            https.setFollowRedirects(HTTPC_DISABLE_FOLLOW_REDIRECTS);
-            https.setReuse(false);
-            https.setConnectTimeout(15000);
-            https.setTimeout(kHttpClientTimeoutMs);
-            https.addHeader(F("User-Agent"), F("Chaya2MQTT-esp32"));
-            code = https.GET();
-        }
+        const int code = https.sendRequest("HEAD");
 
         if (isHttpRedirect(code)) {
             const String location = https.getLocation();
@@ -144,12 +136,29 @@ bool otaResolveDownloadUrl(WiFiClientSecure& tls, const char* startUrl, OtaDownl
         }
 
         https.end();
-        if (code != HTTP_CODE_OK && code != HTTP_CODE_PARTIAL_CONTENT) {
-            ESP_LOGE(TAG, "OTA URL resolve HTTP %d for %s", code, outUrl);
-            return false;
+        if (code == HTTP_CODE_OK || code == HTTP_CODE_PARTIAL_CONTENT) {
+            return otaReleaseDownloadRedirectUrlAllowed(outUrl);
         }
-        // Final URL must still pass redirect allowlist (covers zero-redirect case).
-        return otaReleaseDownloadRedirectUrlAllowed(outUrl);
+        // CDN often rejects HEAD (403). Do not GET — that would pull firmware.bin.
+        // Only accept if this hop is already a CDN/allowlisted target; the GitHub
+        // release URL still needs a Location (HTTPUpdate does not follow redirects).
+        if (isHeadProbeInconclusive(code)) {
+            const bool stillGithubRelease =
+                otaReleaseDownloadUrlAllowed(outUrl, OtaDownloadAsset::Firmware)
+                || otaReleaseDownloadUrlAllowed(outUrl, OtaDownloadAsset::Sha256);
+            if (stillGithubRelease) {
+                ESP_LOGE(TAG, "OTA HEAD %d on GitHub release URL (no Location)", code);
+                return false;
+            }
+            if (!otaReleaseDownloadRedirectUrlAllowed(outUrl)) {
+                ESP_LOGE(TAG, "OTA resolved URL rejected by allowlist: %s", outUrl);
+                return false;
+            }
+            return true;
+        }
+
+        ESP_LOGE(TAG, "OTA URL resolve HTTP %d for %s", code, outUrl);
+        return false;
     }
     return false;
 }
