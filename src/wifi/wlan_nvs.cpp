@@ -16,7 +16,7 @@
 
 DEFINE_LOG_TAG("WIFI");
 
-bool wlanLoadConfigFromNvs(WlanConfig* cfg) {
+bool wlanLoadConfigFromNvs(WlanConfig *cfg) {
     if (cfg == nullptr) {
         return false;
     }
@@ -44,12 +44,11 @@ bool wlanLoadConfigFromNvs(WlanConfig* cfg) {
 
     if (!loaded && prefs.getBytesLength(kNvsKeyWifiCredV1) == sizeof(PackedWifiCredentials)) {
         PackedWifiCredentials pk{};
-        if (prefs.getBytes(kNvsKeyWifiCredV1, &pk, sizeof(pk)) == sizeof(pk)
-            && pk.magic == kWifiCredPackedMagic) {
+        if (prefs.getBytes(kNvsKeyWifiCredV1, &pk, sizeof(pk)) == sizeof(pk) && pk.magic == kWifiCredPackedMagic) {
             pk.ssid[sizeof(pk.ssid) - 1U] = '\0';
             pk.pass[sizeof(pk.pass) - 1U] = '\0';
-            if (pk.ssid[0] != '\0' && strnlen(pk.ssid, sizeof(pk.ssid)) < sizeof(pk.ssid)
-                && strnlen(pk.pass, sizeof(pk.pass)) < sizeof(pk.pass)) {
+            if (pk.ssid[0] != '\0' && strnlen(pk.ssid, sizeof(pk.ssid)) < sizeof(pk.ssid) &&
+                strnlen(pk.pass, sizeof(pk.pass)) < sizeof(pk.pass)) {
                 wlanConfigClear(cfg);
                 strlcpy(cfg->ssid, pk.ssid, sizeof(cfg->ssid));
                 strlcpy(cfg->pass, pk.pass, sizeof(cfg->pass));
@@ -84,7 +83,7 @@ bool wlanLoadConfigFromNvs(WlanConfig* cfg) {
     return loaded;
 }
 
-void wifiLoadCredentialsFromNvs(char* ssid, size_t ssidLen, char* pass, size_t passLen) {
+void wifiLoadCredentialsFromNvs(char *ssid, size_t ssidLen, char *pass, size_t passLen) {
     if (ssid == nullptr || pass == nullptr || ssidLen == 0U || passLen == 0U) {
         return;
     }
@@ -98,7 +97,7 @@ void wifiLoadCredentialsFromNvs(char* ssid, size_t ssidLen, char* pass, size_t p
     strlcpy(pass, cfg.pass, passLen);
 }
 
-bool wlanSaveConfigToNvs(const WlanConfig& cfg) {
+bool wlanSaveConfigToNvs(const WlanConfig &cfg) {
     if (wlanConfigValidate(&cfg) != nullptr) {
         ESP_LOGE(TAG, "NVS wifi: refuse save (invalid config)");
         return false;
@@ -122,12 +121,11 @@ bool wlanSaveConfigToNvs(const WlanConfig& cfg) {
         ESP_LOGE(TAG, "NVS wifi: cfg_v2 write failed");
         return false;
     }
-    ESP_LOGI(TAG, "WiFi NVS saved ssid=%s mode=%s", cfg.ssid,
-             cfg.mode == WlanIpMode::Static ? "static" : "dhcp");
+    ESP_LOGI(TAG, "WiFi NVS saved ssid=%s mode=%s", cfg.ssid, cfg.mode == WlanIpMode::Static ? "static" : "dhcp");
     return true;
 }
 
-bool configSaveWiFiCredentials(const char* ssid, const char* password) {
+bool configSaveWiFiCredentials(const char *ssid, const char *password) {
     if (ssid == nullptr || ssid[0] == '\0') {
         return false;
     }

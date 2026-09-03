@@ -8,7 +8,7 @@ enum class NetCmd : uint8_t {
     MqttKillClient,
     WifiGotIp,
     WifiReconnect,
-    ChayaSendRequested,
+    ChayaPublish,
     FactoryResetRequested,
 };
 
@@ -19,7 +19,7 @@ struct DisplayMsg {
         DrawSplash,
         DrawPowerOff,
     };
-    Cmd      cmd;
+    Cmd cmd;
     uint32_t payload;
 };
 

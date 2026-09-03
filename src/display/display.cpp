@@ -2,23 +2,26 @@
 #include "display_task_internal.h"
 #include "internal.h"
 
-#include "mqtt/config.h"
 #include "util/log_tag.h"
-#include "wifi/wlan.h"
 
 #include <Arduino.h>
+#include <atomic>
 #include <esp_log.h>
 #include <freertos/FreeRTOS.h>
 
 DEFINE_LOG_TAG("DISP");
 
-void displaySetDesiredHeartIcon(DisplayHeartIcon icon) {
-    displayTaskSetDesiredHeartIcon(icon);
-}
+namespace {
+std::atomic<bool> s_contentAllowed{false};
+} // namespace
 
-DisplayHeartIcon displayDesiredHeartIcon() {
-    return displayTaskDesiredHeartIcon();
-}
+void displaySetContentAllowed(bool allowed) { s_contentAllowed.store(allowed, std::memory_order_release); }
+
+bool displayContentAllowed() { return s_contentAllowed.load(std::memory_order_acquire); }
+
+void displaySetDesiredHeartIcon(DisplayHeartIcon icon) { displayTaskSetDesiredHeartIcon(icon); }
+
+DisplayHeartIcon displayDesiredHeartIcon() { return displayTaskDesiredHeartIcon(); }
 
 bool displayRequest(DisplayMsg::Cmd cmd, DisplayRequestMode mode, uint32_t waitMs) {
     switch (mode) {
@@ -27,15 +30,14 @@ bool displayRequest(DisplayMsg::Cmd cmd, DisplayRequestMode mode, uint32_t waitM
             ESP_LOGW(TAG, "displayRequest Content only supports DrawHeart");
             return false;
         }
-        // SoftAP QR and waiting title (no broker/partner yet): never overlay heart content.
-        if (configIsApMode() || !mqttCfgIsHeartReady()) {
+        if (!displayContentAllowed()) {
             return true;
         }
         return displayPostHeartRedraw(pdMS_TO_TICKS(waitMs));
     }
     case DisplayRequestMode::BootIfChanged: {
         if (cmd == DisplayMsg::Cmd::DrawHeart) {
-            if (configIsApMode()) {
+            if (!displayContentAllowed()) {
                 return true;
             }
             displayTaskDrainDrawIdleSem();
@@ -44,8 +46,7 @@ bool displayRequest(DisplayMsg::Cmd cmd, DisplayRequestMode mode, uint32_t waitM
         if (cmd == DisplayMsg::Cmd::DrawSplash) {
             displayTaskDrainDrawIdleSem();
             ESP_LOGI(TAG, "splash queued");
-            if (displayPostMsg(DisplayMsg::Cmd::DrawSplash, kDrawOnlyIfViewChanged,
-                               pdMS_TO_TICKS(waitMs))) {
+            if (displayPostMsg(DisplayMsg::Cmd::DrawSplash, kDrawOnlyIfViewChanged, pdMS_TO_TICKS(waitMs))) {
                 displayTaskSetSplashDrawPending(false);
                 return true;
             }
@@ -66,9 +67,7 @@ bool displayRequest(DisplayMsg::Cmd cmd, DisplayRequestMode mode, uint32_t waitM
     return false;
 }
 
-bool displayWaitDrawIdle(uint32_t timeoutMs) {
-    return displayTaskWaitDrawIdle(timeoutMs);
-}
+bool displayWaitDrawIdle(uint32_t timeoutMs) { return displayTaskWaitDrawIdle(timeoutMs); }
 
 void displayInit() {
     displayHwInitPins();
@@ -80,6 +79,4 @@ void displayInit() {
     displayInitGxEpd();
 }
 
-void displayStartTask() {
-    displayTaskStart();
-}
+void displayStartTask() { displayTaskStart(); }

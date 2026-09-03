@@ -2,6 +2,7 @@
 
 #include "display/view_state.h"
 
+#include <cstddef>
 #include <cstdint>
 
 void configLoadResetPeriodFromNvs();
@@ -11,13 +12,13 @@ void configLoadUiPrefsFromNvs();
 uint8_t configGetResetPeriodDays();
 bool configSetResetPeriodDays(uint8_t days);
 
-/** UI language: "en" or "de" (default "en"). */
-const char* configGetUiLang();
-bool configSetUiLang(const char* lang);
+/** UI language: "en" or "de" (default "en"). Snapshot under mux (QUAL-07). */
+void configCopyUiLang(char *out, size_t outLen);
+bool configSetUiLang(const char *lang);
 
-/** UI theme: "light" or "dark" (default "light"). */
-const char* configGetUiTheme();
-bool configSetUiTheme(const char* theme);
+/** UI theme: "system", "light", or "dark" (default "system"). Snapshot under mux (QUAL-07). */
+void configCopyUiTheme(char *out, size_t outLen);
+bool configSetUiTheme(const char *theme);
 
 /** Header user LED activity (default true = blinks on TX/RX/refresh). */
 void configLoadLedFromNvs();
@@ -25,11 +26,11 @@ bool configGetLedEnabled();
 bool configSetLedEnabled(bool enabled);
 
 /** Last successfully painted E-Ink view (Unknown when missing/invalid). */
-void        configLoadDisplayViewFromNvs();
+void configLoadDisplayViewFromNvs();
 DisplayView configGetDisplayView();
-bool        configSetDisplayView(DisplayView view);
+bool configSetDisplayView(DisplayView view);
 /** Mark panel contents unknown (cache + NVS) so the next draw is not skipped. */
-bool        configInvalidateDisplayView();
+bool configInvalidateDisplayView();
 
 /** Heart-click audio: per-kind enable, volume 0–100, quiet hours (local, equal = off), TX/RX Hz/ms. */
 void configLoadAudioFromNvs();

@@ -1,71 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { api, refreshCsrf, setCsrfToken } from "./client";
+import { api } from "./client";
 
 describe("api client", () => {
   beforeEach(() => {
-    setCsrfToken("abc123");
     vi.restoreAllMocks();
   });
 
-  it("refreshCsrf stores token", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn().mockResolvedValue({
-        ok: true,
-        status: 200,
-        text: async () => JSON.stringify({ token: "deadbeef" }),
-      }),
-    );
-    await expect(refreshCsrf()).resolves.toBe("deadbeef");
-  });
-
-  it("refreshes CSRF once and retries only idempotent posts", async () => {
-    let settingsAttempts = 0;
-    const fetchMock = vi.fn().mockImplementation(async (path: string) => {
-      if (path === "/api/csrf") {
-        return {
-          ok: true,
-          status: 200,
-          text: async () => JSON.stringify({ token: "fresh", expiresInSeconds: 86400 }),
-        };
-      }
-      settingsAttempts += 1;
-      if (settingsAttempts <= 2) {
-        return {
-          ok: false,
-          status: 403,
-          text: async () => JSON.stringify({ ok: false, error: "csrf" }),
-        };
-      }
-      return {
-        ok: true,
-        status: 200,
-        text: async () => JSON.stringify({ ok: true, message: "saved" }),
-      };
-    });
-    vi.stubGlobal("fetch", fetchMock);
-    await expect(
-      Promise.all([api.saveSettings({ lang: "de" }), api.saveSettings({ theme: "dark" })]),
-    ).resolves.toEqual([
-      { ok: true, message: "saved" },
-      { ok: true, message: "saved" },
-    ]);
-    expect(fetchMock.mock.calls.filter(([path]) => path === "/api/csrf")).toHaveLength(1);
-    expect(String(fetchMock.mock.calls[3]?.[1]?.body ?? "")).toContain("csrf_token=fresh");
-  });
-
-  it("does not retry non-idempotent heart sends after CSRF rejection", async () => {
-    const fetchMock = vi.fn().mockResolvedValue({
-      ok: false,
-      status: 403,
-      text: async () => JSON.stringify({ ok: false, error: "csrf" }),
-    });
-    vi.stubGlobal("fetch", fetchMock);
-    await expect(api.sendChaya()).resolves.toEqual({ ok: false, error: "csrf" });
-    expect(fetchMock).toHaveBeenCalledTimes(1);
-  });
-
-  it("sendChaya posts csrf form body", async () => {
+  it("sendChaya posts JSON", async () => {
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
       status: 202,
@@ -78,24 +19,63 @@ describe("api client", () => {
       "/api/chaya/send",
       expect.objectContaining({
         method: "POST",
-        body: "csrf_token=abc123",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: "{}",
       }),
     );
   });
 
-  it("scanWifi returns pending on 202", async () => {
+  it("scanWifi parses a pending snapshot", async () => {
     vi.stubGlobal(
       "fetch",
       vi.fn().mockResolvedValue({
-        ok: false,
-        status: 202,
-        text: async () => "",
+        ok: true,
+        status: 200,
+        text: async () => JSON.stringify({ status: "pending" }),
       }),
     );
-    await expect(api.scanWifi()).resolves.toBe("pending");
+    await expect(api.scanWifi()).resolves.toEqual({ status: "pending" });
   });
 
-  it("connectWifi posts network fields and csrf", async () => {
+  it("scanWifi parses a ready snapshot", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        text: async () =>
+          JSON.stringify({ status: "ready", aps: [{ ssid: "Home", rssi: -40, open: false }] }),
+      }),
+    );
+    await expect(api.scanWifi()).resolves.toEqual({
+      status: "ready",
+      aps: [{ ssid: "Home", rssi: -40, open: false }],
+    });
+  });
+
+  it("startWifiScan posts and accepts 202", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 202,
+      text: async () => JSON.stringify({ ok: true }),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    await expect(api.startWifiScan()).resolves.toEqual({ ok: true });
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/wifi/scan",
+      expect.objectContaining({
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: "{}",
+      }),
+    );
+  });
+
+  it("connectWifi posts network fields", async () => {
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
       status: 200,
@@ -120,13 +100,24 @@ describe("api client", () => {
       "/api/wifi/connect",
       expect.objectContaining({
         method: "POST",
-        body: expect.stringContaining("csrf_token=abc123&ssid=Home&password=secret&mode=static"),
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: expect.stringContaining('"ssid":"Home"'),
       }),
     );
-    const body = String(fetchMock.mock.calls[0]?.[1]?.body ?? "");
-    expect(body).toContain("ip=192.168.1.50");
-    expect(body).toContain("gateway=192.168.1.1");
-    expect(body).toContain("ntp1=time.cloudflare.com");
+    const body = JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body ?? "{}")) as Record<
+      string,
+      unknown
+    >;
+    expect(body).toMatchObject({
+      ssid: "Home",
+      password: "secret",
+      mode: "static",
+      ip: "192.168.1.50",
+      gateway: "192.168.1.1",
+      ntp1: "time.cloudflare.com",
+    });
   });
 
   it("getWifiConfig fetches saved config", async () => {
@@ -152,7 +143,7 @@ describe("api client", () => {
     await expect(api.getWifiConfig()).resolves.toMatchObject({ ssid: "Home", mode: "dhcp" });
   });
 
-  it("checkUpdate posts channel and csrf", async () => {
+  it("checkUpdate posts channel", async () => {
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
       status: 200,
@@ -164,12 +155,15 @@ describe("api client", () => {
       "/api/update/check",
       expect.objectContaining({
         method: "POST",
-        body: "csrf_token=abc123&channel=beta",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ channel: "beta" }),
       }),
     );
   });
 
-  it("installUpdate posts csrf", async () => {
+  it("installUpdate posts empty JSON", async () => {
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
       status: 200,
@@ -181,12 +175,15 @@ describe("api client", () => {
       "/api/update/install",
       expect.objectContaining({
         method: "POST",
-        body: "csrf_token=abc123",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: "{}",
       }),
     );
   });
 
-  it("factoryReset posts csrf", async () => {
+  it("factoryReset posts empty JSON", async () => {
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
       status: 202,
@@ -198,9 +195,51 @@ describe("api client", () => {
       "/api/factory-reset",
       expect.objectContaining({
         method: "POST",
-        body: "csrf_token=abc123",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: "{}",
       }),
     );
+  });
+
+  it("encodes boolean false as JSON false", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      text: async () => JSON.stringify({ ok: true, message: "saved" }),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    await expect(
+      api.saveMqtt({ mqtt_server: "broker", mqtt_port: 8883, mqtt_tls: false }),
+    ).resolves.toEqual({
+      ok: true,
+      message: "saved",
+    });
+    const body = JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body ?? "{}")) as Record<
+      string,
+      unknown
+    >;
+    expect(body.mqtt_tls).toBe(false);
+  });
+
+  it("returns ApiResult on HTTP error without throwing", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: false,
+        status: 503,
+        text: async () => JSON.stringify({ ok: false, error: "busy" }),
+      }),
+    );
+    await expect(
+      api.saveMqtt({ mqtt_server: "broker", mqtt_port: 8883, mqtt_tls: true }),
+    ).resolves.toEqual({
+      ok: false,
+      error: "busy",
+    });
+    await expect(api.saveSettings({ lang: "de" })).resolves.toEqual({ ok: false, error: "busy" });
+    await expect(api.sendChaya()).resolves.toEqual({ ok: false, error: "busy" });
   });
 
   it("saveSettings posts reset_days and audio fields", async () => {
@@ -213,8 +252,8 @@ describe("api client", () => {
     await expect(
       api.saveSettings({
         reset_days: 7,
-        audio_tx_enabled: 0,
-        audio_rx_enabled: 0,
+        audio_tx_enabled: false,
+        audio_rx_enabled: false,
         audio_tx_volume: 70,
         audio_rx_volume: 70,
         quiet_hour_start: 0,
@@ -228,15 +267,23 @@ describe("api client", () => {
       "/api/settings",
       expect.objectContaining({
         method: "POST",
-        body: "csrf_token=abc123&reset_days=7&audio_tx_enabled=0&audio_rx_enabled=0&audio_tx_volume=70&audio_rx_volume=70&quiet_hour_start=0&quiet_hour_end=0",
+        body: JSON.stringify({
+          reset_days: 7,
+          audio_tx_enabled: false,
+          audio_rx_enabled: false,
+          audio_tx_volume: 70,
+          audio_rx_volume: 70,
+          quiet_hour_start: 0,
+          quiet_hour_end: 0,
+        }),
       }),
     );
-    await expect(api.saveSettings({ led_enabled: 0 })).resolves.toEqual({
+    await expect(api.saveSettings({ led_enabled: false })).resolves.toEqual({
       ok: true,
       message: "saved",
     });
     expect(String(fetchMock.mock.calls[1]?.[1]?.body ?? "")).toBe(
-      "csrf_token=abc123&led_enabled=0",
+      JSON.stringify({ led_enabled: false }),
     );
   });
 });

@@ -26,6 +26,26 @@ void test_mqtt_server_syntax() {
     TEST_ASSERT_FALSE(mqttServerSyntaxOk("", 128));
 }
 
+void test_mqtt_username_syntax() {
+    TEST_ASSERT_TRUE(mqttUsernameSyntaxOk("", 64));
+    TEST_ASSERT_TRUE(mqttUsernameSyntaxOk("chaya", 64));
+    TEST_ASSERT_FALSE(mqttUsernameSyntaxOk("bad\x01user", 64));
+    TEST_ASSERT_TRUE(mqttUsernameSyntaxOk("\xc3\xbcser", 64)); // UTF-8 broker user
+    TEST_ASSERT_FALSE(mqttUsernameSyntaxOk(nullptr, 64));
+    char tooLong[65];
+    memset(tooLong, 'a', 64);
+    tooLong[64] = '\0';
+    TEST_ASSERT_FALSE(mqttUsernameSyntaxOk(tooLong, 64));
+}
+
+void test_mqtt_password_syntax() {
+    TEST_ASSERT_TRUE(mqttPasswordSyntaxOk("", 64));
+    TEST_ASSERT_TRUE(mqttPasswordSyntaxOk("s3cret!@#", 64));
+    TEST_ASSERT_FALSE(mqttPasswordSyntaxOk("bad\npass", 64));
+    TEST_ASSERT_FALSE(mqttPasswordSyntaxOk("bad\x01pass", 64));
+    TEST_ASSERT_FALSE(mqttPasswordSyntaxOk(nullptr, 64));
+}
+
 void test_device_id_syntax() {
     TEST_ASSERT_TRUE(deviceIdSyntaxOk("a1b2c3"));
     TEST_ASSERT_FALSE(deviceIdSyntaxOk("A1B2C3"));
@@ -35,10 +55,8 @@ void test_device_id_syntax() {
 }
 
 void test_device_id_create_mode() {
-    TEST_ASSERT_EQUAL(static_cast<int>(DeviceIdCreateMode::FromMacMigrate),
-                      static_cast<int>(deviceIdCreateMode(true)));
-    TEST_ASSERT_EQUAL(static_cast<int>(DeviceIdCreateMode::FromRandom),
-                      static_cast<int>(deviceIdCreateMode(false)));
+    TEST_ASSERT_EQUAL(static_cast<int>(DeviceIdCreateMode::FromMacMigrate), static_cast<int>(deviceIdCreateMode(true)));
+    TEST_ASSERT_EQUAL(static_cast<int>(DeviceIdCreateMode::FromRandom), static_cast<int>(deviceIdCreateMode(false)));
 }
 
 void test_device_id_format_from_bytes() {
@@ -127,8 +145,7 @@ void test_backoff_helpers() {
     TEST_ASSERT_TRUE(mqttBackoffElapsed(st, 0));
     const unsigned long wait = mqttNextFailureBackoffMs(st, false);
     TEST_ASSERT_EQUAL_UINT32(kMqttBackoffInitialMs, wait);
-    TEST_ASSERT_TRUE(st.currentBackoffMs > kMqttBackoffInitialMs
-                     || st.currentBackoffMs == kMqttBackoffMaxMs);
+    TEST_ASSERT_TRUE(st.currentBackoffMs > kMqttBackoffInitialMs || st.currentBackoffMs == kMqttBackoffMaxMs);
 
     mqttBackoffResetOnConnect(st);
     TEST_ASSERT_EQUAL_UINT32(kMqttBackoffInitialMs, st.currentBackoffMs);
@@ -137,12 +154,9 @@ void test_backoff_helpers() {
     const unsigned long wifiWait = mqttNextFailureBackoffMs(wifiSt, true);
     TEST_ASSERT_TRUE(wifiWait >= kMqttWifiLostDuringTlsBackoffMs);
 
-    TEST_ASSERT_EQUAL_UINT32(kMqttBrokerMissingBackoffMs,
-                             mqttConnectPrecheckDeferMsPure(false, true, true, true));
-    TEST_ASSERT_EQUAL_UINT32(kMqttWifiDownBackoffMs,
-                             mqttConnectPrecheckDeferMsPure(true, false, false, false));
-    TEST_ASSERT_EQUAL_UINT32(kMqttNtpRetryMs,
-                             mqttConnectPrecheckDeferMsPure(true, true, false, true));
+    TEST_ASSERT_EQUAL_UINT32(kMqttBrokerMissingBackoffMs, mqttConnectPrecheckDeferMsPure(false, true, true, true));
+    TEST_ASSERT_EQUAL_UINT32(kMqttWifiDownBackoffMs, mqttConnectPrecheckDeferMsPure(true, false, false, false));
+    TEST_ASSERT_EQUAL_UINT32(kMqttNtpRetryMs, mqttConnectPrecheckDeferMsPure(true, true, false, true));
     TEST_ASSERT_EQUAL_UINT32(0U, mqttConnectPrecheckDeferMsPure(true, true, true, true));
 }
 
@@ -164,10 +178,12 @@ void test_publish_ack_state() {
     TEST_ASSERT_FALSE(mqttPublishAckWasConfirmed(state, 9, 4U));
 }
 
-int main(int, char**) {
+int main(int, char **) {
     UNITY_BEGIN();
     RUN_TEST(test_mqtt_topic_syntax);
     RUN_TEST(test_mqtt_server_syntax);
+    RUN_TEST(test_mqtt_username_syntax);
+    RUN_TEST(test_mqtt_password_syntax);
     RUN_TEST(test_device_id_syntax);
     RUN_TEST(test_device_id_create_mode);
     RUN_TEST(test_device_id_format_from_bytes);

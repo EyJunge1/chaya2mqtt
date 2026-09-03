@@ -15,23 +15,23 @@ extern std::atomic<int> heartSentCounter;
 extern std::atomic<int> counterBaseline;
 extern std::atomic<int> sentCountBaseline;
 
-extern std::atomic<bool>     s_chayaNvsWritesSuspended;
-extern portMUX_TYPE          s_heartDisplayMux;
+extern std::atomic<bool> s_chayaNvsWritesSuspended;
+extern portMUX_TYPE s_heartDisplayMux;
 extern std::atomic<uint32_t> s_lastResetCalendarDayUtc;
 
 constexpr unsigned long kHeartCounterSaveMinIntervalMs = 30000UL;
 
 struct ChayaBaselineBlob {
-    int32_t  cntBase;
-    int32_t  sntBase;
+    int32_t cntBase;
+    int32_t sntBase;
     uint32_t rstDay;
 };
 
 static_assert(sizeof(ChayaBaselineBlob) == 12, "ChayaBaselineBlob layout");
 
 class DebouncedChayaCounter {
-public:
-    DebouncedChayaCounter(std::atomic<int>* value, const char* nvsKey, const char* saveFailMsg);
+  public:
+    DebouncedChayaCounter(std::atomic<int> *value, const char *nvsKey, const char *saveFailMsg);
 
     void syncAfterExternalLoad(unsigned long ms);
     void resetCommittedAndTimestamps(unsigned long ms);
@@ -39,12 +39,12 @@ public:
     void maybeSave();
     void flushIfDirty();
 
-private:
-    std::atomic<int>* value_;
-    const char*       nvsKey_;
-    const char*       saveFailMsg_;
-    int               lastCommitted_;
-    unsigned long     lastSaveMs_;
+  private:
+    std::atomic<int> *value_;
+    const char *nvsKey_;
+    const char *saveFailMsg_;
+    int lastCommitted_;
+    unsigned long lastSaveMs_;
 };
 
 extern DebouncedChayaCounter s_rxCounter;
@@ -52,7 +52,7 @@ extern DebouncedChayaCounter s_txCounter;
 
 bool chayaNvsWritesAllowed();
 
-void loadBaselineFromNvs(Preferences& prefs, int32_t* cntBase, int32_t* sntBase, uint32_t* rstDay);
+void loadBaselineFromNvs(Preferences &prefs, int32_t *cntBase, int32_t *sntBase, uint32_t *rstDay);
 bool persistCounterBaselineState();
 
 inline void heartDebounceLock() {

@@ -7,9 +7,7 @@
 #include "display/display_config.h"
 
 /** Non-negative display delta: max(0, raw - baseline). */
-inline int heartCounterDeltaPure(int raw, int baseline) {
-    return (raw > baseline) ? (raw - baseline) : 0;
-}
+inline int heartCounterDeltaPure(int raw, int baseline) { return (raw > baseline) ? (raw - baseline) : 0; }
 
 /**
  * Format-side capped delta used by the E-Ink footer.

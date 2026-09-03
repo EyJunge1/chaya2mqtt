@@ -474,7 +474,7 @@
       {lang}
       {manifestUrl}
       versionLabel={selectedInfo.tag}
-      eraseDefault={true}
+      eraseDefault={false}
       port={flashPort}
       onClose={closeFlashDialog}
       onRetryPort={() => void connectAndFlash()}

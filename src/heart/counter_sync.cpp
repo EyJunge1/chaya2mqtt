@@ -22,24 +22,23 @@ bool persistCounterBaselineState() {
     if (!chayaNvsWritesAllowed()) {
         return false;
     }
-    int      snapCntBase = 0;
-    int      snapSntBase = 0;
-    uint32_t snapRstDay  = UINT32_MAX;
+    int snapCntBase = 0;
+    int snapSntBase = 0;
+    uint32_t snapRstDay = UINT32_MAX;
     portENTER_CRITICAL(&s_heartDisplayMux);
     snapCntBase = counterBaseline.load(std::memory_order_relaxed);
     snapSntBase = sentCountBaseline.load(std::memory_order_relaxed);
-    snapRstDay  = s_lastResetCalendarDayUtc.load(std::memory_order_relaxed);
+    snapRstDay = s_lastResetCalendarDayUtc.load(std::memory_order_relaxed);
     portEXIT_CRITICAL(&s_heartDisplayMux);
 
     app_nvs::ScopedNvsLock lock;
-    Preferences            prefs;
+    Preferences prefs;
     if (!prefs.begin(kNvsNsChaya, false)) {
         ESP_LOGE(TAG, "NVS chaya: open for baseline write failed");
         return false;
     }
     const ChayaBaselineBlob blob{snapCntBase, snapSntBase, snapRstDay};
-    const bool okBlob =
-        prefs.putBytes(kNvsKeyChayaBaselineBlob, &blob, sizeof(blob)) == sizeof(blob);
+    const bool okBlob = prefs.putBytes(kNvsKeyChayaBaselineBlob, &blob, sizeof(blob)) == sizeof(blob);
     prefs.end();
     if (!okBlob) {
         ESP_LOGE(TAG, "NVS chaya: baseline blob write failed");
@@ -72,25 +71,22 @@ void maybePeriodicallyResetCounters() {
     }
 
     const uint32_t lastDayRaw = s_lastResetCalendarDayUtc.load(std::memory_order_relaxed);
-    uint32_t       lastDay    = lastDayRaw;
+    uint32_t lastDay = lastDayRaw;
     if (lastDay != UINT32_MAX && lastDay > currentDay + 1U) {
         ESP_LOGW(TAG, "rstDay ahead of today — clamping anchor to today (%" PRIu32 ")", currentDay);
         lastDay = currentDay;
         s_lastResetCalendarDayUtc.store(lastDay, std::memory_order_relaxed);
     }
-    const uint32_t daysSinceReset
-        = (currentDay >= lastDay) ? (currentDay - lastDay) : 0U;
+    const uint32_t daysSinceReset = (currentDay >= lastDay) ? (currentDay - lastDay) : 0U;
     const bool shouldReset = (daysSinceReset >= static_cast<uint32_t>(periodDays));
 
     if (!shouldReset) {
         static unsigned long s_lastNoResetLogMs = 0;
-        const unsigned long  nowMs              = millis();
+        const unsigned long nowMs = millis();
         if (s_lastNoResetLogMs == 0UL || (nowMs - s_lastNoResetLogMs) >= 300000UL) {
             s_lastNoResetLogMs = nowMs;
-            ESP_LOGD(TAG,
-                     "Periodic reset not due: %u / %u days since anchor day %" PRIu32 " (today %" PRIu32 ")",
-                     static_cast<unsigned>(daysSinceReset), static_cast<unsigned>(periodDays), lastDay,
-                     currentDay);
+            ESP_LOGD(TAG, "Periodic reset not due: %u / %u days since anchor day %" PRIu32 " (today %" PRIu32 ")",
+                     static_cast<unsigned>(daysSinceReset), static_cast<unsigned>(periodDays), lastDay, currentDay);
         }
         return;
     }
@@ -110,17 +106,17 @@ void maybeResetDisplayBaselinesWhenCapped() {
     if (configIsApMode()) {
         return;
     }
-    bool    changed   = false;
+    bool changed = false;
     int32_t snapHeart = 0;
-    int32_t snapSent  = 0;
-    int32_t snapCb    = 0;
-    int32_t snapSb    = 0;
+    int32_t snapSent = 0;
+    int32_t snapCb = 0;
+    int32_t snapSb = 0;
     portENTER_CRITICAL(&s_heartDisplayMux);
     snapHeart = heartCounter.load(std::memory_order_relaxed);
-    snapSent  = heartSentCounter.load(std::memory_order_relaxed);
-    snapCb    = counterBaseline.load(std::memory_order_relaxed);
-    snapSb    = sentCountBaseline.load(std::memory_order_relaxed);
-    auto applyCapBaseline = [&](int32_t counter, int32_t baseline, std::atomic<int>& baselineAtom) {
+    snapSent = heartSentCounter.load(std::memory_order_relaxed);
+    snapCb = counterBaseline.load(std::memory_order_relaxed);
+    snapSb = sentCountBaseline.load(std::memory_order_relaxed);
+    auto applyCapBaseline = [&](int32_t counter, int32_t baseline, std::atomic<int> &baselineAtom) {
         if (static_cast<int64_t>(counter) - static_cast<int64_t>(baseline) >= kDisplayCounterMax) {
             baselineAtom.store(counter, std::memory_order_relaxed);
             changed = true;

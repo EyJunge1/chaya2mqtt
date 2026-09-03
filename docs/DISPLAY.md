@@ -93,7 +93,7 @@ When a displayed delta reaches ≥ **999** (`kDisplayCounterMax` in `display/dis
 
 ## Lucide icons
 
-Bitmaps are pre-rasterized from Lucide (`scripts/generate_display_icons.mjs` → `src/display/icons_lucide.h`, ISC license) and drawn with Adafruit GFX `drawBitmap()`.
+Bitmaps are pre-rasterized from Lucide (`scripts/generate_display_icons.mjs` → `src/display/icons_lucide.h`, ISC license) and drawn with Adafruit GFX `drawBitmap()`. The generator pins Lucide **0.468.0** (`LUCIDE_REF`) so E-Ink glyphs stay reproducible. The web UI and flasher use npm `@lucide/svelte` **1.34.0** (Svelte 5 package, different version scheme). Regenerating the header against a newer Lucide tag can change stroke/fill; do that only when the on-panel icons should match a UI update.
 
 | Element | Glyph | Color | Position (200×200) |
 |---------|-------|-------|--------------------|
@@ -163,17 +163,16 @@ sequenceDiagram
 
 | Screen | Content | TextSize |
 |--------|---------|----------|
-| SoftAP `SetupQr` | Red „Chaya2MQTT" above a bottom-aligned WIFI QR; no battery | Title 3 (min 1) |
+| SoftAP `SetupQr` | Red „Chaya2MQTT" above WIFI QR with equal top/bottom frame pads; no battery | Title 3 (min 1) |
 | Product `ProductTitle` | Centered red „Chaya2MQTT" with top-right battery | Title 3 (min 1) |
 
 ## Panel power / SPI
 
-Follows Waveshare [`08_E_paper_test`](https://github.com/waveshareteam/ESP32-S3-ePaper-1.54G/tree/main/Example/Arduino_3.2.0/examples/08_E_paper_test) and GxEPD2:
+Follows Waveshare [`08_E_paper_test`](https://github.com/waveshareteam/ESP32-S3-ePaper-1.54G/tree/main/Example/Arduino_3.2.0/examples/08_E_paper_test) for board wiring and GxEPD2 stock panel timing (A/B: Demo-Reset/Busy not required):
 - `EPD3V3_EN` (GPIO6) LOW once at boot (`digitalWrite(EPD_PWR, LOW)`); no rail cycle between frames
 - Custom SPI pins (`SCK=12`, `MOSI=13`, `CS=11`) attached **before** `init()` so ESP32-S3 defaults do not swap CS/SDI
 - SPI stays attached between draws; `hibernate()` wakes via RST, not `SPI.end()`
-- Reset: RST HIGH 200 ms, LOW 2 ms, HIGH 200 ms (`EPD_1IN54G_Reset`)
-- Busy: 100 ms then wait until BUSY is HIGH (`EPD_1IN54G_ReadBusyH`)
+- Reset / busy: GxEPD2 `GDEM0154F51H` defaults (`init(0, true, 2, false)` for Waveshare clever-reset pulse)
 - First frame is painted in `setup()` **before** SoftAP RF comes up
 
 ## EPD driver

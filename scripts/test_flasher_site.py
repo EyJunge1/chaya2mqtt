@@ -10,11 +10,12 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from typing import Any
 
 ROOT = Path(__file__).resolve().parents[1]
 
 
-def load_module(name: str, relative: str):
+def load_module(name: str, relative: str) -> Any:
     """Load a repository script under a stable module name."""
     path = ROOT / relative
     spec = importlib.util.spec_from_file_location(name, path)
@@ -51,7 +52,7 @@ class PrepareReleaseArtifactsTests(unittest.TestCase):
         """Write all expected checksum files for valid firmware images."""
         with tempfile.TemporaryDirectory() as tmp:
             build = Path(tmp)
-            firmware = b"\xE9app-image-bytes"
+            firmware = b"\xe9app-image-bytes"
             (build / "firmware.bin").write_bytes(firmware)
             self._write_factory(build / "firmware.factory.bin", firmware)
             hashes = self.mod.prepare(build)
@@ -69,7 +70,7 @@ class PrepareReleaseArtifactsTests(unittest.TestCase):
         """Reject a factory image without ESP image markers."""
         with tempfile.TemporaryDirectory() as tmp:
             build = Path(tmp)
-            (build / "firmware.bin").write_bytes(b"\xE9app")
+            (build / "firmware.bin").write_bytes(b"\xe9app")
             (build / "firmware.factory.bin").write_bytes(b"\x00" * 0x11000)
             with self.assertRaises(SystemExit):
                 self.mod.prepare(build)
@@ -79,9 +80,9 @@ class PrepareReleaseArtifactsTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             build = Path(tmp)
             _, ota_size = self.mod.load_ota_slot(self.mod.PARTITION_TABLE)
-            firmware = b"\xE9" + b"x" * ota_size
+            firmware = b"\xe9" + b"x" * ota_size
             (build / "firmware.bin").write_bytes(firmware)
-            self._write_factory(build / "firmware.factory.bin", b"\xE9")
+            self._write_factory(build / "firmware.factory.bin", b"\xe9")
             with self.assertRaises(SystemExit):
                 self.mod.prepare(build)
 
@@ -93,11 +94,10 @@ class PrepareReleaseArtifactsTests(unittest.TestCase):
             build.mkdir()
             table = root / "partitions.csv"
             table.write_text(
-                "# Name, Type, SubType, Offset, Size\n"
-                "ota_0, app, ota_0, 0x20000, 4K\n",
+                "# Name, Type, SubType, Offset, Size\nota_0, app, ota_0, 0x20000, 4K\n",
                 encoding="utf-8",
             )
-            firmware = b"\xE9app"
+            firmware = b"\xe9app"
             (build / "firmware.bin").write_bytes(firmware)
             self._write_factory(
                 build / "firmware.factory.bin",
@@ -114,8 +114,8 @@ class PrepareReleaseArtifactsTests(unittest.TestCase):
         """Reject a factory image built from a different firmware.bin."""
         with tempfile.TemporaryDirectory() as tmp:
             build = Path(tmp)
-            (build / "firmware.bin").write_bytes(b"\xE9expected")
-            self._write_factory(build / "firmware.factory.bin", b"\xE9different")
+            (build / "firmware.bin").write_bytes(b"\xe9expected")
+            self._write_factory(build / "firmware.factory.bin", b"\xe9different")
             with self.assertRaises(SystemExit):
                 self.mod.prepare(build)
 
@@ -153,6 +153,11 @@ class GenerateFlasherSiteTests(unittest.TestCase):
         manifest = self.mod.make_manifest("Chaya2MQTT", "2026.8.1", "firmware.factory.bin")
         self.assertEqual(manifest["builds"][0]["chipFamily"], "ESP32-S3")
         self.assertEqual(manifest["builds"][0]["parts"][0]["offset"], 0)
+        self.assertNotIn("sha256", manifest["builds"][0]["parts"][0])
+        with_hash = self.mod.make_manifest(
+            "Chaya2MQTT", "2026.8.1", "firmware.factory.bin", sha256="a" * 64
+        )
+        self.assertEqual(with_hash["builds"][0]["parts"][0]["sha256"], "a" * 64)
         self.assertTrue(manifest["new_install_prompt_erase"])
         self.assertEqual(manifest["new_install_improv_wait_time"], 0)
 
@@ -193,6 +198,8 @@ class GenerateFlasherSiteTests(unittest.TestCase):
             self.assertEqual(
                 stable_manifest["builds"][0]["parts"][0]["path"], "firmware.factory.bin"
             )
+            self.assertEqual(len(stable_manifest["builds"][0]["parts"][0]["sha256"]), 64)
+            self.assertTrue((out / "firmware" / "stable" / "firmware.factory.sha256").is_file())
 
 
 class FetchFlasherReleasesTests(unittest.TestCase):
@@ -262,8 +269,8 @@ class FetchFlasherReleasesTests(unittest.TestCase):
         original_api = self.mod.github_api_page
         original_write = self.mod.write_release
         self.mod.github_api_page = lambda _url, _token: next(pages)
-        self.mod.write_release = (
-            lambda rel, out, _token: written.append(rel["tag_name"]) or out / rel["tag_name"]
+        self.mod.write_release = lambda rel, out, _token: (
+            written.append(rel["tag_name"]) or out / rel["tag_name"]
         )
         try:
             with tempfile.TemporaryDirectory() as tmp:

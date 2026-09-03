@@ -4,9 +4,7 @@
 #include <ctime>
 
 /** Milliseconds elapsed since startMs (wrap-safe). */
-inline uint32_t elapsedMs(uint32_t startMs, uint32_t nowMs) {
-    return nowMs - startMs;
-}
+inline uint32_t elapsedMs(uint32_t startMs, uint32_t nowMs) { return nowMs - startMs; }
 
 /** True when nowMs is at or past startMs + durationMs (wrap-safe). */
 inline bool deadlineReached(uint32_t startMs, uint32_t durationMs, uint32_t nowMs) {

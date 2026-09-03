@@ -6,7 +6,7 @@ All persistent settings are stored in the ESP32-S3 **NVS** (Non-Volatile Storage
 
 | Namespace | Module | Description |
 |-----------|--------|-------------|
-| `wifi` | `wifi/wlan_*.cpp` | WiFi credentials, IP/DNS/NTP, SoftAP PIN |
+| `wifi` | `wifi/wlan_*.cpp` | WiFi credentials, IP/DNS/NTP, SoftAP PSK |
 | `mqtt` | `mqtt/config.cpp` | Broker configuration |
 | `cfg` | `config/app_config.cpp`, `ota/ota.cpp` | App settings, OTA check day |
 | `chaya` | `heart/counter_nvs.cpp` | Counters and baselines |
@@ -19,7 +19,7 @@ All persistent settings are stored in the ESP32-S3 **NVS** (Non-Volatile Storage
 | `cred_v1` | Bytes (packed) | Legacy: SSID + password only (migrated to DHCP when loaded) |
 | `ssid` | String | Legacy format (fallback) |
 | `pass` | String | Legacy format (fallback) |
-| `ap_pin` | String | 8-digit SoftAP PIN for WIFI QR (created on first setup AP; survives STA save) |
+| `ap_pin` | String | SoftAP WPA-PSK (24 alphanumeric) for WIFI QR (created on first setup AP; legacy 8-digit values are regenerated) |
 
 When saving, legacy keys (`ssid`, `pass`, `cred_v1`) are removed and only `cfg_v2` is written.
 
@@ -76,7 +76,7 @@ Legacy keys `topic_pub` / `topic_sub` are removed when saving. Topics now exist 
 | `device_id` | String | (random) | Own 6-char hex device ID (MQTT topics, client ID, LAN hostname) |
 | `rstPeriod` | UChar | `7` | Display reset period in UTC days (0=off, 1–30) |
 | `ui_lang` | String | `en` | UI language (`en` / `de`) |
-| `ui_theme` | String | `light` | Web UI theme (`light` / `dark`) |
+| `ui_theme` | String | `system` | Web UI theme (`system` / `light` / `dark`; appearance follows OS when `system`) |
 | `led_en` | UChar | `1` | Header user LED (`1`=activity blinks, `0`=off) |
 | `disp_view` | UChar | `0` | Last painted E-Ink view (`0`=unknown, `1`=heart, `2`=setup QR, `3`=product title, `4`=heart-crack, `5`=power-off) |
 | `snd_tx_en` | UChar | `0` | TX (send) click enabled (`1` = on; default off) |
@@ -100,10 +100,9 @@ Legacy keys `topic_pub` / `topic_sub` are removed when saving. Topics now exist 
 - `upd_day`: automatically after an OTA check
 - `upd_chan`: when selecting a channel during the update check
 
-Note: Older firmware versions could set `cfg/authEn` and `cfg/disp_dark`; these keys are ignored.
+Leftover keys from older firmware (`authEn`, `disp_dark`, `snd_custom`) are unused.
 Legacy `cfg/snd_mute` is migrated once to `snd_tx_en` / `snd_rx_en` (`unmuted` → both on) when the new keys are absent.
 Legacy `cfg/snd_vol` is migrated once to `snd_tx_vol` / `snd_rx_vol` when the new keys are absent.
-Legacy `cfg/snd_custom` is ignored; TX/RX Hz/ms always apply.
 
 ### Reset period (`rstPeriod`)
 

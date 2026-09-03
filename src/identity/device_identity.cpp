@@ -20,7 +20,7 @@ namespace {
 char s_cachedId[kDeviceIdBufLen]{};
 bool s_cached = false;
 
-bool idFromStaMac(char* out, size_t outLen) {
+bool idFromStaMac(char *out, size_t outLen) {
     uint8_t mac[6] = {};
     if (esp_read_mac(mac, ESP_MAC_WIFI_STA) != ESP_OK) {
         return false;
@@ -29,17 +29,17 @@ bool idFromStaMac(char* out, size_t outLen) {
     return deviceIdFormatFromBytes(tail, out, outLen);
 }
 
-bool idFromRandom(char* out, size_t outLen) {
+bool idFromRandom(char *out, size_t outLen) {
     uint8_t rnd[3] = {};
     esp_fill_random(rnd, sizeof(rnd));
     return deviceIdFormatFromBytes(rnd, out, outLen);
 }
 
 /** True if WiFi or MQTT NVS still has setup data (OTA upgrade path). */
-bool hadPriorSetupConfig(Preferences& prefs) {
+bool hadPriorSetupConfig(Preferences &prefs) {
     if (prefs.begin(kNvsNsWifi, true)) {
-        const bool wifi = prefs.isKey(kNvsKeyWifiCfgV2) || prefs.isKey(kNvsKeyWifiCredV1)
-                          || prefs.isKey(kNvsKeyWifiSsid) || prefs.isKey(kNvsKeyWifiApPin);
+        const bool wifi = prefs.isKey(kNvsKeyWifiCfgV2) || prefs.isKey(kNvsKeyWifiCredV1) || prefs.isKey(kNvsKeyWifiSsid) ||
+                          prefs.isKey(kNvsKeyWifiApPin);
         prefs.end();
         if (wifi) {
             return true;
@@ -53,7 +53,7 @@ bool hadPriorSetupConfig(Preferences& prefs) {
     return false;
 }
 
-bool persistDeviceId(Preferences& prefs, const char* id) {
+bool persistDeviceId(Preferences &prefs, const char *id) {
     if (!prefs.begin(kNvsNsCfg, false)) {
         return false;
     }
@@ -62,7 +62,7 @@ bool persistDeviceId(Preferences& prefs, const char* id) {
     return written >= kDeviceIdHexLen;
 }
 
-void ensureDeviceIdLocked(char* out, size_t outLen) {
+void ensureDeviceIdLocked(char *out, size_t outLen) {
     out[0] = '\0';
 
     Preferences prefs;
@@ -110,7 +110,7 @@ void ensureDeviceIdLocked(char* out, size_t outLen) {
 
 } // namespace
 
-void buildDeviceId(char* out, size_t outLen) {
+void buildDeviceId(char *out, size_t outLen) {
     if (out == nullptr || outLen < kDeviceIdBufLen) {
         if (out != nullptr && outLen > 0U) {
             out[0] = '\0';

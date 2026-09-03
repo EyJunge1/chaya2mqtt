@@ -14,6 +14,15 @@
   import TextInput from "../components/TextInput.svelte";
   import type { ShowToast } from "../components/toastStack.ts";
   import { i18n } from "../i18n/i18n.svelte.ts";
+  import { applyDeviceUiPrefs } from "../prefs/uiPrefs.ts";
+  import {
+    AUDIO_TONE_HZ_MAX,
+    AUDIO_TONE_HZ_MIN,
+    AUDIO_TONE_MS_MAX,
+    AUDIO_TONE_MS_MIN,
+    AUDIO_VOLUME_MAX,
+    AUDIO_VOLUME_MIN,
+  } from "../audio/ranges.ts";
 
   let {
     onToast,
@@ -29,36 +38,59 @@
   let loadError = $state(false);
   let confirmReboot = $state(false);
   let confirmFactory = $state(false);
+  let loadSeq = 0;
 
   async function load() {
+    const seq = ++loadSeq;
     loadError = false;
     settings = null;
     try {
       const s = await api.getSettings();
+      if (seq !== loadSeq) return;
       settings = s;
       quietHoursEnabled = s.quietHourStart !== s.quietHourEnd;
+      applyDeviceUiPrefs(s.lang, s.theme);
     } catch {
+      if (seq !== loadSeq) return;
       loadError = true;
-      onToast(i18n.t("toast.settings-load-failed"), "error");
     }
+  }
+
+  /** Wait for deferred apply; surface NVS failure via nvsOk (QUAL-01). */
+  async function waitForSettingsPersist(seq: number): Promise<SettingsInfo | null> {
+    for (let i = 0; i < 25; i++) {
+      if (seq !== loadSeq) return null;
+      const s = await api.getSettings();
+      if (seq !== loadSeq) return null;
+      if (!s.applyPending) {
+        return s;
+      }
+      await new Promise((r) => setTimeout(r, 80));
+    }
+    if (seq !== loadSeq) return null;
+    return api.getSettings();
   }
 
   $effect(() => {
     untrack(() => {
       void load();
     });
+    return () => {
+      loadSeq += 1;
+    };
   });
 
   async function save(e: SubmitEvent) {
     e.preventDefault();
     if (!settings) return;
+    const seq = loadSeq;
     busy = true;
     try {
       const res = await api.saveSettings({
         reset_days: settings.resetDays,
-        led_enabled: settings.ledEnabled ? 1 : 0,
-        audio_tx_enabled: settings.audioTxEnabled ? 1 : 0,
-        audio_rx_enabled: settings.audioRxEnabled ? 1 : 0,
+        led_enabled: settings.ledEnabled,
+        audio_tx_enabled: settings.audioTxEnabled,
+        audio_rx_enabled: settings.audioRxEnabled,
         audio_tx_volume: settings.audioTxVolume,
         audio_rx_volume: settings.audioRxVolume,
         quiet_hour_start: settings.quietHourStart,
@@ -68,16 +100,28 @@
         rx_hz: settings.rxHz,
         rx_ms: settings.rxMs,
       });
+      if (seq !== loadSeq) return;
       if (!res.ok) {
+        onToast(i18n.t("toast.save-failed"), "error");
+        return;
+      }
+      const applied = await waitForSettingsPersist(seq);
+      if (seq !== loadSeq) return;
+      if (applied) {
+        settings = applied;
+        quietHoursEnabled = applied.quietHourStart !== applied.quietHourEnd;
+      }
+      if (applied?.nvsOk === false) {
         onToast(i18n.t("toast.save-failed"), "error");
         return;
       }
       onToast(i18n.t("toast.saved"), "success");
       await onDeviceRefresh();
     } catch {
+      if (seq !== loadSeq) return;
       onToast(i18n.t("toast.save-failed"), "error");
     } finally {
-      busy = false;
+      if (seq === loadSeq) busy = false;
     }
   }
 
@@ -105,7 +149,10 @@
         res.ok ? i18n.t("toast.reset-factory") : i18n.t("toast.reset-factory-failed"),
         res.ok ? "info" : "error",
       );
-      if (res.ok) confirmFactory = false;
+      if (res.ok) {
+        confirmFactory = false;
+        await onDeviceRefresh();
+      }
     } catch {
       onToast(i18n.t("toast.reset-factory-failed"), "error");
     } finally {
@@ -182,14 +229,29 @@
             label={i18n.t("settings.audio-volume")}
             hint={i18n.t("settings.audio-volume-hint")}
           >
-            <TextInput type="number" min={0} max={100} bind:value={settings.audioTxVolume} />
+            <TextInput
+              type="number"
+              min={AUDIO_VOLUME_MIN}
+              max={AUDIO_VOLUME_MAX}
+              bind:value={settings.audioTxVolume}
+            />
           </Field>
           <div class="grid gap-3 sm:grid-cols-2">
             <Field label={i18n.t("settings.tone-tx-hz")} hint={i18n.t("settings.tone-hz-hint")}>
-              <TextInput type="number" min={40} max={2000} bind:value={settings.txHz} />
+              <TextInput
+                type="number"
+                min={AUDIO_TONE_HZ_MIN}
+                max={AUDIO_TONE_HZ_MAX}
+                bind:value={settings.txHz}
+              />
             </Field>
             <Field label={i18n.t("settings.tone-tx-ms")} hint={i18n.t("settings.tone-ms-hint")}>
-              <TextInput type="number" min={20} max={500} bind:value={settings.txMs} />
+              <TextInput
+                type="number"
+                min={AUDIO_TONE_MS_MIN}
+                max={AUDIO_TONE_MS_MAX}
+                bind:value={settings.txMs}
+              />
             </Field>
           </div>
         {/if}
@@ -208,14 +270,29 @@
             label={i18n.t("settings.audio-volume")}
             hint={i18n.t("settings.audio-volume-hint")}
           >
-            <TextInput type="number" min={0} max={100} bind:value={settings.audioRxVolume} />
+            <TextInput
+              type="number"
+              min={AUDIO_VOLUME_MIN}
+              max={AUDIO_VOLUME_MAX}
+              bind:value={settings.audioRxVolume}
+            />
           </Field>
           <div class="grid gap-3 sm:grid-cols-2">
             <Field label={i18n.t("settings.tone-rx-hz")} hint={i18n.t("settings.tone-hz-hint")}>
-              <TextInput type="number" min={40} max={2000} bind:value={settings.rxHz} />
+              <TextInput
+                type="number"
+                min={AUDIO_TONE_HZ_MIN}
+                max={AUDIO_TONE_HZ_MAX}
+                bind:value={settings.rxHz}
+              />
             </Field>
             <Field label={i18n.t("settings.tone-rx-ms")} hint={i18n.t("settings.tone-ms-hint")}>
-              <TextInput type="number" min={20} max={500} bind:value={settings.rxMs} />
+              <TextInput
+                type="number"
+                min={AUDIO_TONE_MS_MIN}
+                max={AUDIO_TONE_MS_MAX}
+                bind:value={settings.rxMs}
+              />
             </Field>
           </div>
         {/if}

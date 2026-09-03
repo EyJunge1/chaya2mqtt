@@ -51,6 +51,9 @@ jobs:
               echo "changed: $path"
 
               case "$path" in
+                docs/openapi.yaml|docs/asyncapi.yaml)
+                  frontend=true
+                  ;;
                 docs/*|*.md|LICENSE|THIRD_PARTY_NOTICES.md|.github/ISSUE_TEMPLATE/*)
                   ;;
                 frontend/*)
@@ -70,7 +73,7 @@ jobs:
                 scripts/fetch_flasher_releases.py|scripts/generate_flasher_site.py|scripts/test_flasher_site.py)
                   flasher=true
                   ;;
-                scripts/patch_gxepd2_busy_wait.py|scripts/test_patch_gxepd2_busy_wait.py|scripts/pio_native_asan.py)
+                scripts/pio_native_asan.py)
                   firmware_tests=true
                   firmware_build=true
                   ;;
@@ -116,6 +119,10 @@ jobs:
           npm ci
           npx playwright install --with-deps chromium
 
+      - name: npm audit (fail on high/critical)
+        working-directory: frontend
+        run: npm audit --audit-level=high
+
       - name: Run frontend quality gate
         run: "make check-frontend FRONTEND_NPM_CI=:"
 
@@ -140,6 +147,10 @@ jobs:
       - name: Run web-flasher quality gate
         run: make check-flasher
 
+      - name: npm audit (fail on high/critical)
+        working-directory: flasher
+        run: npm audit --audit-level=high
+
   firmware_tests:
     name: Firmware tests
     needs: changes
@@ -162,6 +173,9 @@ jobs:
 
       - name: Install PlatformIO
         run: pip install platformio==6.1.19
+
+      - name: Install clang-tidy
+        run: sudo apt-get update && sudo apt-get install -y clang-tidy
 
       - name: Run native and static firmware checks
         run: make check-firmware-tests PIO=pio

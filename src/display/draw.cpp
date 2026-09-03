@@ -1,12 +1,12 @@
 #include "display.h"
 #include "internal.h"
 
+#include "battery/battery.h"
 #include "constants.h"
 #include "display_config.h"
 #include "draw_pure.h"
 #include "heart/counter.h"
 #include "heart/counter_pure.h"
-#include "battery/battery.h"
 #include "hw/pins.h"
 #include "icons_lucide.h"
 #include "wifi/wifi_qr_pure.h"
@@ -30,32 +30,29 @@ DEFINE_LOG_TAG("DISP");
 namespace {
 
 // QR work buffers live in BSS — display task stack is too small for encode + draw locals.
-static constexpr int kQrMaxVersion = 3;
+// Setup AP WIFI MeCard is ~52 bytes (SSID + 24-char PSK). Version 3-M holds 42 bytes;
+// version 4-M holds 62. 1.54" 200×200 still scales to 4 px/module with quiet zone.
+static constexpr int kQrMaxVersion = 4;
 static uint8_t s_qrTempBuf[qrcodegen_BUFFER_LEN_FOR_VERSION(kQrMaxVersion)];
 static uint8_t s_qrcode[qrcodegen_BUFFER_LEN_FOR_VERSION(kQrMaxVersion)];
-static char    s_wifiQrPayload[kWifiQrPayloadMaxLen];
+static char s_wifiQrPayload[kWifiQrPayloadMaxLen];
 
 static constexpr int kDisplayRightMargin = 4;
 static constexpr int16_t kBatteryTopMargin = 4;
 
-uint16_t displayFgColor() {
-    return GxEPD_BLACK;
-}
+uint16_t displayFgColor() { return GxEPD_BLACK; }
 
-uint16_t displayBgColor() {
-    return GxEPD_WHITE;
-}
+uint16_t displayBgColor() { return GxEPD_WHITE; }
 
-static void drawLucideIcon(int16_t x, int16_t y, const uint8_t* bitmap, int16_t w, int16_t h,
-                           uint16_t color) {
+static void drawLucideIcon(int16_t x, int16_t y, const uint8_t *bitmap, int16_t w, int16_t h, uint16_t color) {
     displayPanel().drawBitmap(x, y, bitmap, w, h, color);
 }
 
 struct BatteryIconRow {
     DisplayBatteryIcon icon;
-    const uint8_t*     bitmap;
-    int16_t            w;
-    int16_t            h;
+    const uint8_t *bitmap;
+    int16_t w;
+    int16_t h;
 };
 
 static constexpr BatteryIconRow kBatteryIconRows[] = {
@@ -67,9 +64,9 @@ static constexpr BatteryIconRow kBatteryIconRows[] = {
 
 struct HeartIconRow {
     DisplayHeartIcon icon;
-    const uint8_t*   bitmap;
-    int16_t          w;
-    int16_t          h;
+    const uint8_t *bitmap;
+    int16_t w;
+    int16_t h;
 };
 
 static constexpr HeartIconRow kHeartIconRows[] = {
@@ -77,9 +74,8 @@ static constexpr HeartIconRow kHeartIconRows[] = {
     {DisplayHeartIcon::Crack, kIconHeartCrack, kIconHeartCrackW, kIconHeartCrackH},
 };
 
-template <typename Row, typename Icon, size_t N>
-static const Row* findIconRow(const Row (&table)[N], Icon icon) {
-    for (const Row& row : table) {
+template <typename Row, typename Icon, size_t N> static const Row *findIconRow(const Row (&table)[N], Icon icon) {
+    for (const Row &row : table) {
         if (row.icon == icon) {
             return &row;
         }
@@ -87,26 +83,22 @@ static const Row* findIconRow(const Row (&table)[N], Icon icon) {
     return nullptr;
 }
 
-static uint8_t footerTextSizeForDigitCount(size_t digitLen) {
-    return digitLen <= 3 ? 4 : 3;
-}
+static uint8_t footerTextSizeForDigitCount(size_t digitLen) { return digitLen <= 3 ? 4 : 3; }
 
 static void drawBatteryLucide(int16_t x, int16_t y, int pct, uint16_t color) {
     const DisplayBatteryIcon icon = displayBatteryIcon(pct);
-    if (const BatteryIconRow* row = findIconRow(kBatteryIconRows, icon)) {
+    if (const BatteryIconRow *row = findIconRow(kBatteryIconRows, icon)) {
         drawLucideIcon(x, y, row->bitmap, row->w, row->h, color);
     }
 }
 
-static bool splashApSetupSnapshot(char* ssid, size_t ssidLen, char* ip, size_t ipLen, char* pass,
-                                  size_t passLen) {
-    return configIsApMode() && wlanApSetupSnapshot(ssid, ssidLen, ip, ipLen)
-           && wlanApSetupPassSnapshot(pass, passLen);
+static bool splashApSetupSnapshot(char *ssid, size_t ssidLen, char *ip, size_t ipLen, char *pass, size_t passLen) {
+    return configIsApMode() && wlanApSetupSnapshot(ssid, ssidLen, ip, ipLen) && wlanApSetupPassSnapshot(pass, passLen);
 }
 
 // Same top-right placement as the RX/TX heart counter view.
 static void drawBatteryTopRight() {
-    auto& epd = displayPanel();
+    auto &epd = displayPanel();
     const int batPct = batteryPercent();
     uint16_t batColor = displayFgColor();
     switch (displayBatteryColor(batPct)) {
@@ -119,25 +111,23 @@ static void drawBatteryTopRight() {
     case DisplayBatteryColor::Black:
         break;
     }
-    const int16_t batteryX =
-        static_cast<int16_t>(epd.width() - kDisplayRightMargin - kIconBatteryFullW);
+    const int16_t batteryX = static_cast<int16_t>(epd.width() - kDisplayRightMargin - kIconBatteryFullW);
     drawBatteryLucide(batteryX, kBatteryTopMargin, batPct, batColor);
 }
 
 // Centered text; shrink textSize down to minSize if needed.
-void drawCenteredTextScreen(const char* text, uint8_t startSize, uint8_t minSize, uint16_t color,
-                            bool showBattery) {
-    auto& epd = displayPanel();
+void drawCenteredTextScreen(const char *text, uint8_t startSize, uint8_t minSize, uint16_t color, bool showBattery) {
+    auto &epd = displayPanel();
     const int dw = epd.width();
     const int dh = epd.height();
     const uint16_t bg = displayBgColor();
 
     epd.setTextColor(color);
-    uint8_t  textSize = startSize;
-    int16_t  x1       = 0;
-    int16_t  y1       = 0;
-    uint16_t w        = 0;
-    uint16_t h        = 0;
+    uint8_t textSize = startSize;
+    int16_t x1 = 0;
+    int16_t y1 = 0;
+    uint16_t w = 0;
+    uint16_t h = 0;
 
     for (;;) {
         epd.setTextSize(textSize);
@@ -168,13 +158,12 @@ void drawCenteredTextScreen(const char* text, uint8_t startSize, uint8_t minSize
     } while (epd.nextPage());
 }
 
-static void formatCappedCounterForDisplay(int rawCounter, int baseline, char* buf, size_t buflen) {
+static void formatCappedCounterForDisplay(int rawCounter, int baseline, char *buf, size_t buflen) {
     if (heartCounterShouldShowPlusPure(rawCounter, baseline)) {
         static_cast<void>(snprintf(buf, buflen, "%d+", kDisplayCounterMax));
         return;
     }
-    static_cast<void>(
-        snprintf(buf, buflen, "%d", heartCounterShownDeltaPure(rawCounter, baseline)));
+    static_cast<void>(snprintf(buf, buflen, "%d", heartCounterShownDeltaPure(rawCounter, baseline)));
 }
 
 } // namespace
@@ -183,10 +172,9 @@ HeartCounterDrawSnapshot drawHeartWithNumber(DisplayHeartIcon icon) {
     displayResumeSpiForDraw();
 
     const bool showFooter = (icon != DisplayHeartIcon::Crack);
-    ESP_LOGI(TAG, "Drawing Lucide heart (icon=%u showFooter=%d)...",
-             static_cast<unsigned>(icon), showFooter ? 1 : 0);
+    ESP_LOGI(TAG, "Drawing Lucide heart (icon=%u showFooter=%d)...", static_cast<unsigned>(icon), showFooter ? 1 : 0);
 
-    auto& epd = displayPanel();
+    auto &epd = displayPanel();
     const uint16_t fg = displayFgColor();
     const uint16_t bg = displayBgColor();
     const int dw = epd.width();
@@ -203,34 +191,30 @@ HeartCounterDrawSnapshot drawHeartWithNumber(DisplayHeartIcon icon) {
     int sentTextCursorX = 0;
 
     static constexpr int kFooterTextTop = 167;
-    static constexpr int kLeftMargin    = 4;
+    static constexpr int kLeftMargin = 4;
     // 14 px move icon + exactly 5 px gap to the counter.
     static constexpr int kArrowLane = kIconMoveDownW + 5;
     static constexpr int16_t kHeartFooterGap = 4;
 
-    const HeartIconRow* heartRow = findIconRow(kHeartIconRows, icon);
+    const HeartIconRow *heartRow = findIconRow(kHeartIconRows, icon);
     if (heartRow == nullptr) {
         heartRow = &kHeartIconRows[0];
     }
-    const int16_t heartW   = heartRow->w;
-    const int16_t heartH   = heartRow->h;
-    const uint8_t* heartBmp = heartRow->bitmap;
+    const int16_t heartW = heartRow->w;
+    const int16_t heartH = heartRow->h;
+    const uint8_t *heartBmp = heartRow->bitmap;
     const int16_t heartX = static_cast<int16_t>((dw - heartW) / 2);
     const int16_t heartY =
-        showFooter ? static_cast<int16_t>(kFooterTextTop - heartH - kHeartFooterGap)
-                   : static_cast<int16_t>((dh - heartH) / 2);
+        showFooter ? static_cast<int16_t>(kFooterTextTop - heartH - kHeartFooterGap) : static_cast<int16_t>((dh - heartH) / 2);
 
     const int16_t downArrowX = static_cast<int16_t>(kLeftMargin);
     const int16_t downArrowY = static_cast<int16_t>(kFooterTextTop);
-    const int16_t upArrowX =
-        static_cast<int16_t>(dw - kDisplayRightMargin - kIconMoveUpW);
+    const int16_t upArrowX = static_cast<int16_t>(dw - kDisplayRightMargin - kIconMoveUpW);
     const int16_t upArrowY = static_cast<int16_t>(kFooterTextTop);
 
     if (showFooter) {
-        formatCappedCounterForDisplay(snap.heartCounterRaw, snap.counterBaselineRaw, recvBuf,
-                                      sizeof(recvBuf));
-        formatCappedCounterForDisplay(snap.heartSentCounterRaw, snap.sentCountBaselineRaw, sentBuf,
-                                      sizeof(sentBuf));
+        formatCappedCounterForDisplay(snap.heartCounterRaw, snap.counterBaselineRaw, recvBuf, sizeof(recvBuf));
+        formatCappedCounterForDisplay(snap.heartSentCounterRaw, snap.sentCountBaselineRaw, sentBuf, sizeof(sentBuf));
         const size_t recvLen = std::max<size_t>(strlen(recvBuf), size_t{1});
         const size_t sentLen = std::max<size_t>(strlen(sentBuf), size_t{1});
         recvTextSize = footerTextSizeForDigitCount(recvLen);
@@ -255,8 +239,8 @@ HeartCounterDrawSnapshot drawHeartWithNumber(DisplayHeartIcon icon) {
         // The classic GFX font reports one trailing blank column per text size.
         // Compensate it so the visible rightmost digit is also 5 px from the icon.
         const int sentTrailingBlankPx = sentTextSize;
-        sentTextCursorX = dw - kDisplayRightMargin - kArrowLane - static_cast<int>(sw)
-                          - static_cast<int>(sx1) + sentTrailingBlankPx;
+        sentTextCursorX =
+            dw - kDisplayRightMargin - kArrowLane - static_cast<int>(sw) - static_cast<int>(sx1) + sentTrailingBlankPx;
     }
 
     epd.setFullWindow();
@@ -267,19 +251,16 @@ HeartCounterDrawSnapshot drawHeartWithNumber(DisplayHeartIcon icon) {
         drawLucideIcon(heartX, heartY, heartBmp, heartW, heartH, GxEPD_RED);
 
         if (showFooter) {
-            drawLucideIcon(downArrowX, downArrowY, kIconMoveDown, kIconMoveDownW, kIconMoveDownH,
-                           fg);
+            drawLucideIcon(downArrowX, downArrowY, kIconMoveDown, kIconMoveDownW, kIconMoveDownH, fg);
             drawLucideIcon(upArrowX, upArrowY, kIconMoveUp, kIconMoveUpW, kIconMoveUpH, fg);
 
             epd.setTextColor(fg);
             epd.setTextSize(recvTextSize);
-            epd.setCursor(static_cast<int16_t>(recvTextCursorX),
-                          static_cast<int16_t>(kFooterTextTop));
+            epd.setCursor(static_cast<int16_t>(recvTextCursorX), static_cast<int16_t>(kFooterTextTop));
             epd.print(recvBuf);
 
             epd.setTextSize(sentTextSize);
-            epd.setCursor(static_cast<int16_t>(sentTextCursorX),
-                          static_cast<int16_t>(kFooterTextTop));
+            epd.setCursor(static_cast<int16_t>(sentTextCursorX), static_cast<int16_t>(kFooterTextTop));
             epd.print(sentBuf);
         }
 
@@ -316,31 +297,27 @@ DisplayView drawSplashScreen() {
         static_cast<void>(apIp);
         if (!wifiQrBuildWpaPayload(apSsid, apPass, s_wifiQrPayload, sizeof(s_wifiQrPayload))) {
             ESP_LOGE(TAG, "AP WIFI QR payload failed");
-            // AP-mode fallback: no battery icon.
-            drawCenteredTextScreen(kSetupApSsid, 3, 1, GxEPD_RED, false);
+            drawCenteredTextScreen(kSetupApSsid, 3, 1, GxEPD_RED, true);
             displayPanel().hibernate();
             displaySuspendSpiLowPower();
             return DisplayView::ProductTitle;
         }
 
-        // Version 3 (29 modules) holds our ~40-byte MeCard with ECC-M.
-        const bool ok = qrcodegen_encodeText(
-            s_wifiQrPayload, s_qrTempBuf, s_qrcode, qrcodegen_Ecc_MEDIUM, 1, kQrMaxVersion,
-            qrcodegen_Mask_AUTO, true);
+        const bool ok = qrcodegen_encodeText(s_wifiQrPayload, s_qrTempBuf, s_qrcode, qrcodegen_Ecc_MEDIUM, 1, kQrMaxVersion,
+                                             qrcodegen_Mask_AUTO, true);
         if (!ok) {
-            ESP_LOGE(TAG, "AP WIFI QR encode failed");
-            // AP-mode fallback: no battery icon.
-            drawCenteredTextScreen(kSetupApSsid, 3, 1, GxEPD_RED, false);
+            ESP_LOGE(TAG, "AP WIFI QR encode failed (len=%u)", static_cast<unsigned>(std::strlen(s_wifiQrPayload)));
+            drawCenteredTextScreen(kSetupApSsid, 3, 1, GxEPD_RED, true);
             displayPanel().hibernate();
             displaySuspendSpiLowPower();
             return DisplayView::ProductTitle;
         }
 
-        auto& epd = displayPanel();
+        auto &epd = displayPanel();
         const int dw = epd.width();
         const int dh = epd.height();
         const int qrSize = qrcodegen_getSize(s_qrcode);
-        // Quiet zone: 4 modules left/right/bottom (QR standard). Top is the title band.
+        // Quiet zone: 4 modules left/right (QR standard). Vertical outer pads match title↔frame.
         static constexpr int kQuiet = 4;
         static constexpr const char kSplashTitle[] = "Chaya2MQTT";
         const int totalMods = qrSize + 2 * kQuiet;
@@ -348,12 +325,10 @@ DisplayView drawSplashScreen() {
         if (scale < 1) {
             scale = 1;
         }
-        const int drawn   = totalMods * scale;
+        const int drawn = totalMods * scale;
         const int originX = (dw - drawn) / 2;
-        // Sit the modules near the bottom; keep a thin white pad so pixels are not clipped.
-        static constexpr int kBottomPadPx = 4;
-        const int originY = dh - kBottomPadPx - qrSize * scale;
-        const uint16_t dark  = GxEPD_BLACK;
+        const int qrPx = qrSize * scale;
+        const uint16_t dark = GxEPD_BLACK;
         const uint16_t light = GxEPD_WHITE;
 
         uint8_t titleSize = 3;
@@ -365,7 +340,9 @@ DisplayView drawSplashScreen() {
         for (;;) {
             epd.setTextSize(titleSize);
             epd.getTextBounds(kSplashTitle, 0, 0, &tx1, &ty1, &tw, &th);
-            if (static_cast<int>(tw) <= dw - 4 && static_cast<int>(th) + 2 <= originY) {
+            // Need room for equal top/bottom frame pads (min 4 px each) plus the QR.
+            const int free = dh - qrPx - static_cast<int>(th);
+            if (static_cast<int>(tw) <= dw - 4 && free >= 8) {
                 break;
             }
             if (titleSize <= 1) {
@@ -373,9 +350,12 @@ DisplayView drawSplashScreen() {
             }
             titleSize--;
         }
+        // Equal thirds: title↔top frame, title↔QR, QR↔bottom frame.
+        const int free = std::max(0, dh - qrPx - static_cast<int>(th));
+        const int outerPad = free / 3;
         const int titleCursorX = (dw - static_cast<int>(tw)) / 2 - static_cast<int>(tx1);
-        const int titleCursorY =
-            (originY - static_cast<int>(th)) / 2 - static_cast<int>(ty1);
+        const int titleCursorY = outerPad - static_cast<int>(ty1);
+        const int originY = dh - outerPad - qrPx;
 
         const uint32_t drawStartedMs = millis();
         epd.setFullWindow();
@@ -393,17 +373,17 @@ DisplayView drawSplashScreen() {
                     }
                     const int px = originX + (x + kQuiet) * scale;
                     const int py = originY + y * scale;
-                    epd.fillRect(static_cast<int16_t>(px), static_cast<int16_t>(py),
-                                 static_cast<int16_t>(scale), static_cast<int16_t>(scale), dark);
+                    epd.fillRect(static_cast<int16_t>(px), static_cast<int16_t>(py), static_cast<int16_t>(scale),
+                                 static_cast<int16_t>(scale), dark);
                 }
             }
-            // SoftAP/setup splash intentionally omits the battery icon.
+            // SoftAP/setup QR splash intentionally omits the battery icon.
         } while (epd.nextPage());
         [[maybe_unused]] const uint32_t drawMs = millis() - drawStartedMs;
         epd.hibernate();
         displaySuspendSpiLowPower();
-        ESP_LOGI(TAG, "AP WIFI QR splash drawn (modules=%d scale=%d ms=%lu busy=%d)", qrSize,
-                 scale, static_cast<unsigned long>(drawMs), digitalRead(pins::kDisplayBusy));
+        ESP_LOGI(TAG, "AP WIFI QR splash drawn (modules=%d scale=%d ms=%lu busy=%d)", qrSize, scale,
+                 static_cast<unsigned long>(drawMs), digitalRead(pins::kDisplayBusy));
         return DisplayView::SetupQr;
     }
 
@@ -420,7 +400,7 @@ void drawPowerOffScreen() {
     displayResumeSpiForDraw();
 
     ESP_LOGI(TAG, "Drawing power-off Lucide heart-off...");
-    auto& epd = displayPanel();
+    auto &epd = displayPanel();
     const uint16_t bg = displayBgColor();
     static constexpr char kTitle[] = "Chaya2MQTT";
     // Same size as the configured-Wi-Fi startup title, with equal outer/title gaps.
@@ -436,12 +416,10 @@ void drawPowerOffScreen() {
     uint16_t titleH = 0;
     epd.setTextSize(kTitleSize);
     epd.getTextBounds(kTitle, 0, 0, &titleX1, &titleY1, &titleW, &titleH);
-    const int16_t titleX =
-        static_cast<int16_t>((epd.width() - static_cast<int>(titleW)) / 2 - titleX1);
+    const int16_t titleX = static_cast<int16_t>((epd.width() - static_cast<int>(titleW)) / 2 - titleX1);
     const int16_t heartX = static_cast<int16_t>((epd.width() - kIconHeartOffW) / 2);
     const int16_t heartY =
-        static_cast<int16_t>(kTitleTop + static_cast<int16_t>(titleH) + kPowerOffGap
-                             - kHeartOffVisualTopInset);
+        static_cast<int16_t>(kTitleTop + static_cast<int16_t>(titleH) + kPowerOffGap - kHeartOffVisualTopInset);
 
     epd.setFullWindow();
     epd.firstPage();
@@ -451,8 +429,7 @@ void drawPowerOffScreen() {
         epd.setTextSize(kTitleSize);
         epd.setCursor(titleX, kTitleTop);
         epd.print(kTitle);
-        drawLucideIcon(heartX, heartY, kIconHeartOff, kIconHeartOffW, kIconHeartOffH,
-                       GxEPD_BLACK);
+        drawLucideIcon(heartX, heartY, kIconHeartOff, kIconHeartOffW, kIconHeartOffH, GxEPD_BLACK);
     } while (epd.nextPage());
 
     epd.hibernate();

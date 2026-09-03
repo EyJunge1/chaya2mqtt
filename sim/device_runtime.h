@@ -22,38 +22,30 @@
  */
 class DeviceRuntime {
   public:
-    explicit DeviceRuntime(const char* ownDeviceId = "a1b2c3") {
-        setOwnId(ownDeviceId);
-    }
+    explicit DeviceRuntime(const char *ownDeviceId = "a1b2c3") { setOwnId(ownDeviceId); }
 
-    void setOwnId(const char* id) {
+    void setOwnId(const char *id) {
         ownId_.clear();
         if (id != nullptr) {
             ownId_ = id;
         }
     }
 
-    const char* ownId() const {
-        return ownId_.c_str();
-    }
+    const char *ownId() const { return ownId_.c_str(); }
 
-    FakeClock&          clock() { return clock_; }
-    FakeNvs&            nvs() { return nvs_; }
-    FakeNetwork&        net() { return net_; }
-    FakeMqttTransport&  transport() { return transport_; }
-    const MqttConfig&   mqtt() const { return mqtt_; }
-    const MqttBackoffState& backoff() const { return backoff_; }
-    bool                mqttConnected() const { return transport_.connected; }
-    long                remoteCounter() const { return remoteCounter_; }
-    int                 localTxCounter() const { return localTxCounter_; }
-    int                 displayRxDelta() const {
-        return heartCounterDeltaPure(static_cast<int>(remoteCounter_), rxBaseline_);
-    }
-    int                 displayTxDelta() const {
-        return heartCounterDeltaPure(localTxCounter_, txBaseline_);
-    }
+    FakeClock &clock() { return clock_; }
+    FakeNvs &nvs() { return nvs_; }
+    FakeNetwork &net() { return net_; }
+    FakeMqttTransport &transport() { return transport_; }
+    const MqttConfig &mqtt() const { return mqtt_; }
+    const MqttBackoffState &backoff() const { return backoff_; }
+    bool mqttConnected() const { return transport_.connected; }
+    long remoteCounter() const { return remoteCounter_; }
+    int localTxCounter() const { return localTxCounter_; }
+    int displayRxDelta() const { return heartCounterDeltaPure(static_cast<int>(remoteCounter_), rxBaseline_); }
+    int displayTxDelta() const { return heartCounterDeltaPure(localTxCounter_, txBaseline_); }
 
-    void configureBroker(const char* server, int port, const char* user, const char* pass) {
+    void configureBroker(const char *server, int port, const char *user, const char *pass) {
         std::strncpy(mqtt_.server, server ? server : "", sizeof(mqtt_.server) - 1U);
         mqtt_.server[sizeof(mqtt_.server) - 1U] = '\0';
         mqtt_.port = normalizeMqttPort(port);
@@ -64,7 +56,7 @@ class DeviceRuntime {
         mqttSanitizeConfigAfterLoad(mqtt_, ownId_.c_str());
     }
 
-    bool pair(const char* partnerId) {
+    bool pair(const char *partnerId) {
         if (partnerId == nullptr) {
             mqtt_.partnerDeviceId[0] = '\0';
         } else {
@@ -80,9 +72,7 @@ class DeviceRuntime {
         mqttApplyPairingTopicsWithIds(&mqtt_, ownId_.c_str());
     }
 
-    bool persist() {
-        return nvs_.saveMqtt(mqtt_, ownId_.c_str());
-    }
+    bool persist() { return nvs_.saveMqtt(mqtt_, ownId_.c_str()); }
 
     bool restore() {
         MqttConfig loaded{};
@@ -117,8 +107,7 @@ class DeviceRuntime {
         if (messageId < 0) {
             return false;
         }
-        return mqttPublishAckBegin(&publishAck_, messageId, clientGeneration_,
-                                   heartSentCounterNextPure(localTxCounter_));
+        return mqttPublishAckBegin(&publishAck_, messageId, clientGeneration_, heartSentCounterNextPure(localTxCounter_));
     }
 
     bool confirmPublish(int messageId) {
@@ -129,21 +118,16 @@ class DeviceRuntime {
         return true;
     }
 
-    bool confirmPendingPublish() {
-        return confirmPublish(publishAck_.messageId);
-    }
+    bool confirmPendingPublish() { return confirmPublish(publishAck_.messageId); }
 
-    bool publishPending() const {
-        return mqttPublishAckIsPending(publishAck_);
-    }
+    bool publishPending() const { return mqttPublishAckIsPending(publishAck_); }
 
-    bool injectRemoteCounter(const char* payload) {
+    bool injectRemoteCounter(const char *payload) {
         if (payload == nullptr) {
             return false;
         }
         long parsed = 0;
-        if (!mqttParseCounterPayload(payload, static_cast<unsigned>(std::strlen(payload)),
-                                     &parsed)) {
+        if (!mqttParseCounterPayload(payload, static_cast<unsigned>(std::strlen(payload)), &parsed)) {
             return false;
         }
         remoteCounter_ = parsed;
@@ -168,16 +152,15 @@ class DeviceRuntime {
             return;
         }
         backoff_.lastAttemptAtMs = clock_.now();
-        const unsigned long defer = mqttConnectPrecheckDeferMsPure(
-            mqtt_.server[0] != '\0', net_.wifiConnected, net_.wifiStable, net_.ntpSynced);
+        const unsigned long defer =
+            mqttConnectPrecheckDeferMsPure(mqtt_.server[0] != '\0', net_.wifiConnected, net_.wifiStable, net_.ntpSynced);
         if (defer != 0U) {
             backoff_.backoffPeriodMs = defer;
             return;
         }
         backoff_.backoffPeriodMs = 0;
         if (!transport_.connect(mqtt_.server, mqtt_.port)) {
-            const unsigned long wait =
-                mqttNextFailureBackoffMs(backoff_, /*wifiSuspect=*/!net_.wifiConnected);
+            const unsigned long wait = mqttNextFailureBackoffMs(backoff_, /*wifiSuspect=*/!net_.wifiConnected);
             backoff_.backoffPeriodMs = wait;
             backoff_.lastAttemptAtMs = clock_.now();
             return;
@@ -188,17 +171,17 @@ class DeviceRuntime {
         }
     }
 
-    std::string       ownId_;
-    FakeClock         clock_{};
-    FakeNvs           nvs_{};
-    FakeNetwork       net_{};
+    std::string ownId_;
+    FakeClock clock_{};
+    FakeNvs nvs_{};
+    FakeNetwork net_{};
     FakeMqttTransport transport_{};
-    MqttConfig        mqtt_{};
-    MqttBackoffState  backoff_{};
+    MqttConfig mqtt_{};
+    MqttBackoffState backoff_{};
     MqttPublishAckState publishAck_{};
-    uint32_t          clientGeneration_ = 1U;
-    long              remoteCounter_ = 0;
-    int               localTxCounter_ = 0;
-    int               rxBaseline_     = 0;
-    int               txBaseline_     = 0;
+    uint32_t clientGeneration_ = 1U;
+    long remoteCounter_ = 0;
+    int localTxCounter_ = 0;
+    int rxBaseline_ = 0;
+    int txBaseline_ = 0;
 };

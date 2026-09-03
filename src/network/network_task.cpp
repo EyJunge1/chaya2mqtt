@@ -3,7 +3,7 @@
 #include "async/event_types.h"
 #include "async/task_config.h"
 #include "async/task_handles.h"
-#include "web/admin_globals.h"
+#include "async/web_server_hooks.h"
 
 #include "config/app_config.h"
 #include "display/display.h"
@@ -29,15 +29,18 @@ DEFINE_LOG_TAG("NET");
 
 static bool s_mqttSettingsChangedDeferred = false;
 
+static void mqttFinishSettingsApply() {
+    mqttEndSettingsApply();
+    mqttCfgSetApplyPending(false);
+}
+
 static void handleNetCommand(NetCmd cmd) {
-    static const char* const kNetCmdNames[] = {
-        "MqttSettingsChanged", "MqttKillClient", "WifiGotIp",
-        "WifiReconnect",       "ChayaSendRequested", "FactoryResetRequested",
+    static const char *const kNetCmdNames[] = {
+        "MqttSettingsChanged", "MqttKillClient", "WifiGotIp", "WifiReconnect", "ChayaPublish",
+        "FactoryResetRequested",
     };
     const unsigned idx = static_cast<unsigned>(cmd);
-    ESP_LOGI(TAG, "netCmd=%s",
-             idx < (sizeof(kNetCmdNames) / sizeof(kNetCmdNames[0])) ? kNetCmdNames[idx]
-                                                                   : "?");
+    ESP_LOGI(TAG, "netCmd=%s", idx < (sizeof(kNetCmdNames) / sizeof(kNetCmdNames[0])) ? kNetCmdNames[idx] : "?");
     switch (cmd) {
     case NetCmd::MqttSettingsChanged: {
         if (wlanEpdRefreshActive()) {
@@ -48,7 +51,7 @@ static void handleNetCommand(NetCmd cmd) {
         ESP_LOGI(TAG, "MQTT settings apply: start");
         mqttBeginSettingsApply();
         if (!mqttCfgHasUnappliedPending()) {
-            mqttEndSettingsApply();
+            mqttFinishSettingsApply();
             ESP_LOGI(TAG, "MQTT settings apply: nothing pending");
             break;
         }
@@ -58,9 +61,10 @@ static void handleNetCommand(NetCmd cmd) {
         if (mqttCfgMatchesNvs()) {
             mqttSetup();
             mqttPostponeConnect(3000UL);
-            mqttEndSettingsApply();
+            mqttFinishSettingsApply();
             chayaTaskWatchdogReset();
             // Waiting title ↔ operational heart (view change; bypass Content coalesce).
+            displaySetContentAllowed(!configIsApMode() && mqttCfgIsHeartReady());
             if (mqttCfgIsHeartReady()) {
                 (void)displayRequest(DisplayMsg::Cmd::DrawHeart, DisplayRequestMode::BootIfChanged);
             } else {
@@ -72,16 +76,17 @@ static void handleNetCommand(NetCmd cmd) {
         if (!saveMQTTConfig()) {
             ESP_LOGW(TAG, "MQTT settings: NVS save failed — reloading from flash");
             loadMQTTConfig();
-            g_webAdminMqttNvsWriteFailed.store(true, std::memory_order_release);
+            mqttCfgSetNvsWriteFailed(true);
         } else {
-            g_webAdminMqttNvsWriteFailed.store(false, std::memory_order_release);
+            mqttCfgSetNvsWriteFailed(false);
         }
         chayaTaskWatchdogReset();
         mqttSetup();
         mqttPostponeConnect(3000UL);
-        mqttEndSettingsApply();
+        mqttFinishSettingsApply();
         chayaTaskWatchdogReset();
         // Waiting title ↔ operational heart (view change; bypass Content coalesce).
+        displaySetContentAllowed(!configIsApMode() && mqttCfgIsHeartReady());
         if (mqttCfgIsHeartReady()) {
             (void)displayRequest(DisplayMsg::Cmd::DrawHeart, DisplayRequestMode::BootIfChanged);
         } else {
@@ -103,20 +108,20 @@ static void handleNetCommand(NetCmd cmd) {
     case NetCmd::WifiReconnect:
         wlanHandleStaReconnectNetCmd();
         break;
-    case NetCmd::ChayaSendRequested:
-        (void)chayaRequestSend();
+    case NetCmd::ChayaPublish:
+        mqttRunChayaPublishOnNetworkTask();
         break;
     case NetCmd::FactoryResetRequested:
+        webServerEnd();
         resetAllSettings();
         break;
     }
 }
 
-static void networkTaskFn(void*) {
+static void networkTaskFn(void *) {
     chayaTaskWatchdogSubscribe(TAG);
     ESP_LOGI(TAG, "network task core=%d poll=%u/%u ms", static_cast<int>(xPortGetCoreID()),
-             static_cast<unsigned>(kNetworkPollApMs),
-             static_cast<unsigned>(kNetworkPollStaMs));
+             static_cast<unsigned>(kNetworkPollApMs), static_cast<unsigned>(kNetworkPollStaMs));
     static uint32_t s_stackLogCounter = 0;
     for (;;) {
         NetCmd cmd;
@@ -145,8 +150,7 @@ static void networkTaskFn(void*) {
 }
 
 void networkTaskStart() {
-    const BaseType_t ok = xTaskCreatePinnedToCore(networkTaskFn, "network",
-                                                  kNetworkTaskStackBytes, nullptr, 5, nullptr, 1);
+    const BaseType_t ok = xTaskCreatePinnedToCore(networkTaskFn, "network", kNetworkTaskStackBytes, nullptr, 5, nullptr, 1);
     if (ok != pdPASS) {
         ESP_LOGE(TAG, "network task create failed");
         abort();

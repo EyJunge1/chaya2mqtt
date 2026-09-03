@@ -40,8 +40,10 @@ describe("SettingsPage", () => {
       txMs: 80,
       rxHz: 660,
       rxMs: 140,
+      nvsOk: true,
+      applyPending: false,
     });
-    saveSettings.mockResolvedValue({ ok: true, message: "saved" });
+    saveSettings.mockResolvedValue({ ok: true, message: "accepted" });
   });
 
   it("loads settings and saves the reset period", async () => {
@@ -56,9 +58,9 @@ describe("SettingsPage", () => {
     await waitFor(() =>
       expect(saveSettings).toHaveBeenCalledWith({
         reset_days: 14,
-        led_enabled: 1,
-        audio_tx_enabled: 0,
-        audio_rx_enabled: 0,
+        led_enabled: true,
+        audio_tx_enabled: false,
+        audio_rx_enabled: false,
         audio_tx_volume: 70,
         audio_rx_volume: 70,
         quiet_hour_start: 0,
@@ -69,8 +71,55 @@ describe("SettingsPage", () => {
         rx_ms: 140,
       }),
     );
-    expect(onToast).toHaveBeenCalledWith("Saved", "success");
+    await waitFor(() => expect(onToast).toHaveBeenCalledWith("Saved", "success"));
     expect(onDeviceRefresh).toHaveBeenCalled();
+  });
+
+  it("shows save-failed when nvsOk is false after accept", async () => {
+    getSettings
+      .mockResolvedValueOnce({
+        resetDays: 7,
+        lang: "en",
+        theme: "light",
+        ledEnabled: true,
+        audioTxEnabled: false,
+        audioRxEnabled: false,
+        audioTxVolume: 70,
+        audioRxVolume: 70,
+        quietHourStart: 0,
+        quietHourEnd: 0,
+        txHz: 880,
+        txMs: 80,
+        rxHz: 660,
+        rxMs: 140,
+        nvsOk: true,
+        applyPending: false,
+      })
+      .mockResolvedValue({
+        resetDays: 7,
+        lang: "en",
+        theme: "light",
+        ledEnabled: true,
+        audioTxEnabled: false,
+        audioRxEnabled: false,
+        audioTxVolume: 70,
+        audioRxVolume: 70,
+        quietHourStart: 0,
+        quietHourEnd: 0,
+        txHz: 880,
+        txMs: 80,
+        rxHz: 660,
+        rxMs: 140,
+        nvsOk: false,
+        applyPending: false,
+      });
+    const onToast = vi.fn();
+    const onDeviceRefresh = vi.fn().mockResolvedValue(undefined);
+    render(SettingsPage, { props: { onToast, onDeviceRefresh } });
+    await waitFor(() => expect(screen.getByDisplayValue("7")).toBeInTheDocument());
+    fireEvent.click(screen.getAllByRole("button", { name: "Save" })[0]!);
+    await waitFor(() => expect(onToast).toHaveBeenCalledWith("Save failed", "error"));
+    expect(onDeviceRefresh).not.toHaveBeenCalled();
   });
 
   it("saves the status LED switch", async () => {
@@ -91,7 +140,7 @@ describe("SettingsPage", () => {
     await waitFor(() =>
       expect(saveSettings).toHaveBeenCalledWith(
         expect.objectContaining({
-          led_enabled: 0,
+          led_enabled: false,
         }),
       ),
     );

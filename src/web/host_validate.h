@@ -6,13 +6,12 @@
 #include <cstring>
 
 /** Case-insensitive full-string host equality. */
-inline bool hostEqualsIgnoreCase(const char* host, const char* ref) {
+inline bool hostEqualsIgnoreCase(const char *host, const char *ref) {
     if (host == nullptr || ref == nullptr) {
         return false;
     }
     while (*host != '\0' && *ref != '\0') {
-        if (std::tolower(static_cast<unsigned char>(*host))
-            != std::tolower(static_cast<unsigned char>(*ref))) {
+        if (std::tolower(static_cast<unsigned char>(*host)) != std::tolower(static_cast<unsigned char>(*ref))) {
             return false;
         }
         ++host;
@@ -22,13 +21,12 @@ inline bool hostEqualsIgnoreCase(const char* host, const char* ref) {
 }
 
 /** True when host equals prefix (case-insensitive) or prefix followed by ':port'. */
-inline bool hostPrefixIgnoreCaseThenPortOrEnd(const char* host, const char* prefix) {
+inline bool hostPrefixIgnoreCaseThenPortOrEnd(const char *host, const char *prefix) {
     if (host == nullptr || prefix == nullptr) {
         return false;
     }
     while (*prefix != '\0') {
-        if (std::tolower(static_cast<unsigned char>(*host))
-            != std::tolower(static_cast<unsigned char>(*prefix))) {
+        if (std::tolower(static_cast<unsigned char>(*host)) != std::tolower(static_cast<unsigned char>(*prefix))) {
             return false;
         }
         ++host;
@@ -38,20 +36,32 @@ inline bool hostPrefixIgnoreCaseThenPortOrEnd(const char* host, const char* pref
 }
 
 /**
- * Host allow-list for Host / Origin checks (pure logic).
+ * Host allow-list (pure logic).
  * @param host request host (may include :port)
- * @param apMode captive portal: allow any host
+ * @param apMode captive portal: setup IP and hostname allowlist only
  * @param deviceHostname current station hostname (without .local)
  * @param staIp optional STA IPv4 string; nullptr/empty skips IP match
  */
-inline bool webHostCStringAllowed(const char* host, bool apMode, const char* deviceHostname,
-                                  const char* staIp) {
+inline bool webHostCStringAllowed(const char *host, bool apMode, const char *deviceHostname, const char *staIp) {
     if (host == nullptr || host[0] == '\0') {
         // HTTP/1.1 requires Host. Keep hostless HTTP/1.0 captive probes working only in AP mode.
         return apMode;
     }
     if (apMode) {
-        return true;
+        // SEC-04: SoftAP allowlist only — setup IP / captive hostname (not arbitrary Host).
+        if (hostEqualsIgnoreCase(host, "4.3.2.1")) {
+            return true;
+        }
+        if (hostPrefixIgnoreCaseThenPortOrEnd(host, "4.3.2.1")) {
+            return true;
+        }
+        if (hostEqualsIgnoreCase(host, "chaya2mqtt")) {
+            return true;
+        }
+        if (hostPrefixIgnoreCaseThenPortOrEnd(host, "chaya2mqtt.local")) {
+            return true;
+        }
+        return false;
     }
     if (deviceHostname == nullptr || deviceHostname[0] == '\0') {
         return false;
@@ -60,8 +70,7 @@ inline bool webHostCStringAllowed(const char* host, bool apMode, const char* dev
         return true;
     }
     char localPrefix[48];
-    static_cast<void>(
-        std::snprintf(localPrefix, sizeof(localPrefix), "%s.local", deviceHostname));
+    static_cast<void>(std::snprintf(localPrefix, sizeof(localPrefix), "%s.local", deviceHostname));
     if (hostPrefixIgnoreCaseThenPortOrEnd(host, localPrefix)) {
         return true;
     }

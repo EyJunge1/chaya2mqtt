@@ -1,5 +1,6 @@
 #include "mqtt_internal.h"
 
+#include "async/sse_dirty.h"
 #include "async/task_config.h"
 #include "constants.h"
 #include "identity/device_identity.h"
@@ -28,23 +29,23 @@ DEFINE_LOG_TAG("MQTT");
 namespace {
 constexpr uint64_t kMqttTeardownDeadlineUs = 30000000ULL;
 
-void mqttTeardownDeadlineCb(void*) {
+void mqttTeardownDeadlineCb(void *) {
     ESP_LOGE(TAG, "MQTT teardown exceeded 30 s — restarting");
     esp_restart();
 }
 } // namespace
 
 esp_mqtt_client_handle_t s_client = nullptr;
-std::atomic<uint32_t>    s_clientGeneration{0};
-std::atomic<bool>        s_connected{false};
-std::atomic<bool>        s_connectPending{false};
-std::atomic<bool>        s_disconnectIntentional{false};
-std::atomic<bool>        s_mqttKillCoalesce{false};
+std::atomic<uint32_t> s_clientGeneration{0};
+std::atomic<bool> s_connected{false};
+std::atomic<bool> s_connectPending{false};
+std::atomic<bool> s_disconnectIntentional{false};
+std::atomic<bool> s_mqttKillCoalesce{false};
 
-char         s_clientIdBuf[24]{};
-char         s_lwtTopicBuf[sizeof(MqttConfig::topicPub) + 16U]{};
-char         s_mqttSubTopicCache[sizeof(MqttConfig::topicSub)]{};
-size_t       s_mqttSubTopicLen = 0;
+char s_clientIdBuf[24]{};
+char s_lwtTopicBuf[sizeof(MqttConfig::topicPub) + 16U]{};
+char s_mqttSubTopicCache[sizeof(MqttConfig::topicSub)]{};
+size_t s_mqttSubTopicLen = 0;
 portMUX_TYPE s_mqttSubTopicMux = portMUX_INITIALIZER_UNLOCKED;
 
 bool mqttClientLockTimed() {
@@ -54,10 +55,9 @@ bool mqttClientLockTimed() {
     return xSemaphoreTake(g_mqttClientMutex, kMqttClientLockTimeoutTicks) == pdTRUE;
 }
 
-void mqttClientLock() {
-    if (g_mqttClientMutex != nullptr) {
-        xSemaphoreTake(g_mqttClientMutex, portMAX_DELAY);
-    }
+bool mqttClientLock() {
+    // Fail-closed timed take only — never blind-wait past the TWDT budget (STAB-02).
+    return mqttClientLockTimed();
 }
 
 void mqttClientUnlock() {
@@ -66,9 +66,7 @@ void mqttClientUnlock() {
     }
 }
 
-static esp_err_t installCaBundleLocked() {
-    return chayaTlsEnsureCaBundleInstalled() ? ESP_OK : ESP_FAIL;
-}
+static esp_err_t installCaBundleLocked() { return chayaTlsEnsureCaBundleInstalled() ? ESP_OK : ESP_FAIL; }
 
 static void mqttFillStableClientId() {
     char deviceId[kDeviceIdBufLen]{};
@@ -82,7 +80,10 @@ static void mqttFillStableClientId() {
 }
 
 bool mqttEnsureClientAllocated() {
-    mqttClientLock();
+    if (!mqttClientLock()) {
+        ESP_LOGW(TAG, "mqttEnsureClientAllocated: mutex timeout");
+        return false;
+    }
     if (s_client != nullptr) {
         mqttClientUnlock();
         return true;
@@ -101,65 +102,63 @@ bool mqttEnsureClientAllocated() {
         return false;
     }
 
-    const char* mqttUser = nullptr;
+    const char *mqttUser = nullptr;
     if (cfg.username[0] != '\0') {
         mqttUser = cfg.username;
     } else if (cfg.password[0] != '\0') {
         mqttUser = "";
     }
-    const char* mqttPassword = (cfg.password[0] != '\0') ? cfg.password : nullptr;
+    const char *mqttPassword = (cfg.password[0] != '\0') ? cfg.password : nullptr;
 
-    constexpr const char kOffline[]  = "offline";
-    constexpr int        kOfflineLen = sizeof(kOffline) - 1;
+    constexpr const char kOffline[] = "offline";
+    constexpr int kOfflineLen = sizeof(kOffline) - 1;
 
     esp_mqtt_client_config_t mqtt_cfg{};
     mqtt_cfg.broker.address.hostname = cfg.server;
-    mqtt_cfg.broker.address.port     = cfg.port;
-    mqtt_cfg.broker.address.transport =
-        cfg.tls ? MQTT_TRANSPORT_OVER_SSL : MQTT_TRANSPORT_OVER_TCP;
-    mqtt_cfg.broker.address.uri       = nullptr;
-    mqtt_cfg.broker.address.path      = nullptr;
+    mqtt_cfg.broker.address.port = cfg.port;
+    mqtt_cfg.broker.address.transport = cfg.tls ? MQTT_TRANSPORT_OVER_SSL : MQTT_TRANSPORT_OVER_TCP;
+    mqtt_cfg.broker.address.uri = nullptr;
+    mqtt_cfg.broker.address.path = nullptr;
 
-    mqtt_cfg.broker.verification.use_global_ca_store        = false;
-    mqtt_cfg.broker.verification.crt_bundle_attach =
-        cfg.tls ? esp_crt_bundle_attach : nullptr;
-    mqtt_cfg.broker.verification.certificate                = nullptr;
-    mqtt_cfg.broker.verification.certificate_len            = 0;
+    mqtt_cfg.broker.verification.use_global_ca_store = false;
+    mqtt_cfg.broker.verification.crt_bundle_attach = cfg.tls ? esp_crt_bundle_attach : nullptr;
+    mqtt_cfg.broker.verification.certificate = nullptr;
+    mqtt_cfg.broker.verification.certificate_len = 0;
     mqtt_cfg.broker.verification.skip_cert_common_name_check = false;
 
-    mqtt_cfg.credentials.username                = mqttUser;
-    mqtt_cfg.credentials.client_id               = s_clientIdBuf;
-    mqtt_cfg.credentials.set_null_client_id      = false;
+    mqtt_cfg.credentials.username = mqttUser;
+    mqtt_cfg.credentials.client_id = s_clientIdBuf;
+    mqtt_cfg.credentials.set_null_client_id = false;
     mqtt_cfg.credentials.authentication.password = mqttPassword;
 
-    mqtt_cfg.session.disable_clean_session        = false;
-    mqtt_cfg.session.keepalive                    = kMqttKeepAliveSeconds;
-    mqtt_cfg.session.disable_keepalive            = false;
-    mqtt_cfg.session.protocol_ver                 = MQTT_PROTOCOL_UNDEFINED;
-    mqtt_cfg.session.last_will.topic              = s_lwtTopicBuf;
-    mqtt_cfg.session.last_will.msg                = kOffline;
-    mqtt_cfg.session.last_will.msg_len              = kOfflineLen;
-    mqtt_cfg.session.last_will.qos                  = 1;
-    mqtt_cfg.session.last_will.retain               = true;
-    mqtt_cfg.session.message_retransmit_timeout     = kMqttPublishAckWaitMs;
+    mqtt_cfg.session.disable_clean_session = false;
+    mqtt_cfg.session.keepalive = kMqttKeepAliveSeconds;
+    mqtt_cfg.session.disable_keepalive = false;
+    mqtt_cfg.session.protocol_ver = MQTT_PROTOCOL_UNDEFINED;
+    mqtt_cfg.session.last_will.topic = s_lwtTopicBuf;
+    mqtt_cfg.session.last_will.msg = kOffline;
+    mqtt_cfg.session.last_will.msg_len = kOfflineLen;
+    mqtt_cfg.session.last_will.qos = 1;
+    mqtt_cfg.session.last_will.retain = true;
+    mqtt_cfg.session.message_retransmit_timeout = kMqttPublishAckWaitMs;
 
     mqtt_cfg.network.disable_auto_reconnect = true;
-    mqtt_cfg.network.reconnect_timeout_ms   = kMqttReconnectTimeoutMs;
-    mqtt_cfg.network.timeout_ms             = kMqttWifiNetworkTimeoutMs;
-    mqtt_cfg.network.tcp_keep_alive_cfg.keep_alive_enable  = true;
-    mqtt_cfg.network.tcp_keep_alive_cfg.keep_alive_idle     = 60;
+    mqtt_cfg.network.reconnect_timeout_ms = kMqttReconnectTimeoutMs;
+    mqtt_cfg.network.timeout_ms = kMqttWifiNetworkTimeoutMs;
+    mqtt_cfg.network.tcp_keep_alive_cfg.keep_alive_enable = true;
+    mqtt_cfg.network.tcp_keep_alive_cfg.keep_alive_idle = 60;
     mqtt_cfg.network.tcp_keep_alive_cfg.keep_alive_interval = 20;
-    mqtt_cfg.network.tcp_keep_alive_cfg.keep_alive_count    = 3;
+    mqtt_cfg.network.tcp_keep_alive_cfg.keep_alive_count = 3;
 
-    mqtt_cfg.task.priority   = 5;
+    mqtt_cfg.task.priority = 5;
     mqtt_cfg.task.stack_size = kMqttClientTaskStackBytes;
 
-    mqtt_cfg.buffer.size     = 512;
+    mqtt_cfg.buffer.size = 512;
     mqtt_cfg.buffer.out_size = 512;
-    mqtt_cfg.outbox.limit    = kMqttOutboxLimitBytes;
+    mqtt_cfg.outbox.limit = kMqttOutboxLimitBytes;
 
-    ESP_LOGI(TAG, "MQTT client init %s… server %s:%u id %s", cfg.tls ? "TLS" : "TCP",
-             cfg.server, static_cast<unsigned>(cfg.port), s_clientIdBuf);
+    ESP_LOGI(TAG, "MQTT client init %s… server %s:%u id %s", cfg.tls ? "TLS" : "TCP", cfg.server, static_cast<unsigned>(cfg.port),
+             s_clientIdBuf);
 
     s_client = esp_mqtt_client_init(&mqtt_cfg);
     if (s_client == nullptr) {
@@ -168,8 +167,7 @@ bool mqttEnsureClientAllocated() {
         return false;
     }
 
-    const esp_err_t regErr =
-        esp_mqtt_client_register_event(s_client, MQTT_EVENT_ANY, mqttEventHandler, nullptr);
+    const esp_err_t regErr = esp_mqtt_client_register_event(s_client, MQTT_EVENT_ANY, mqttEventHandler, nullptr);
     if (regErr != ESP_OK) {
         ESP_LOGE(TAG, "esp_mqtt_client_register_event failed: %s", esp_err_to_name(regErr));
         mqttKillClientImpl();
@@ -194,10 +192,10 @@ void mqttKillClientImpl() {
 
     esp_mqtt_client_handle_t cli = s_client;
     mqttAbortPendingPublish(genBefore);
-    s_client                     = nullptr;
+    s_client = nullptr;
     s_clientGeneration.fetch_add(1U, std::memory_order_acq_rel);
     portENTER_CRITICAL(&s_mqttSubTopicMux);
-    s_mqttSubTopicLen      = 0;
+    s_mqttSubTopicLen = 0;
     s_mqttSubTopicCache[0] = '\0';
     portEXIT_CRITICAL(&s_mqttSubTopicMux);
 
@@ -209,9 +207,8 @@ void mqttKillClientImpl() {
     deadlineArgs.dispatch_method = ESP_TIMER_TASK;
     deadlineArgs.name = "mqtt_teardown";
     deadlineArgs.skip_unhandled_events = true;
-    bool deadlineArmed =
-        esp_timer_create(&deadlineArgs, &teardownDeadline) == ESP_OK
-        && esp_timer_start_once(teardownDeadline, kMqttTeardownDeadlineUs) == ESP_OK;
+    bool deadlineArmed = esp_timer_create(&deadlineArgs, &teardownDeadline) == ESP_OK &&
+                         esp_timer_start_once(teardownDeadline, kMqttTeardownDeadlineUs) == ESP_OK;
     if (!deadlineArmed && teardownDeadline != nullptr) {
         (void)esp_timer_delete(teardownDeadline);
         teardownDeadline = nullptr;
@@ -245,11 +242,11 @@ void mqttKillClientImpl() {
     s_disconnectIntentional.store(false, std::memory_order_release);
     s_connected.store(false, std::memory_order_release);
     s_connectPending.store(false, std::memory_order_release);
+    sseMarkDirty(kSseChaya | kSseMqtt);
 
-    const unsigned long durMs =
-        static_cast<unsigned long>((esp_timer_get_time() - teardownStartUs) / 1000LL);
-    ESP_LOGI(TAG, "MQTT teardown end gen=%u dur=%lu ms stop=%s destroy=%s",
-             static_cast<unsigned>(genBefore), durMs, esp_err_to_name(st), esp_err_to_name(de));
+    const unsigned long durMs = static_cast<unsigned long>((esp_timer_get_time() - teardownStartUs) / 1000LL);
+    ESP_LOGI(TAG, "MQTT teardown end gen=%u dur=%lu ms stop=%s destroy=%s", static_cast<unsigned>(genBefore), durMs,
+             esp_err_to_name(st), esp_err_to_name(de));
 }
 
 void mqttKillClient() {

@@ -28,39 +28,40 @@
 
 DEFINE_LOG_TAG("WIFI");
 
-char         g_lastFailedBootSsid[kWifiSsidMaxLen]{};
+char g_lastFailedBootSsid[kWifiSsidMaxLen]{};
 portMUX_TYPE g_lastFailedBootSsidMux = portMUX_INITIALIZER_UNLOCKED;
 
-DNSServer         g_dnsServer;
+DNSServer g_dnsServer;
 std::atomic<bool> g_apMode{false};
 std::atomic<bool> s_captiveDnsStarted{false};
 
 std::atomic<unsigned long> s_wifiReconnectNextAllowedMs{0};
-std::atomic<uint32_t>      s_wifiReconnectFailCount{0};
-std::atomic<bool>          s_staReconnectWorkPending{false};
-std::atomic<bool>          s_staGotIpWorkPending{false};
-std::atomic<bool>          s_mdnsRestartNeeded{false};
-std::atomic<bool>          s_epdRefreshActive{false};
-std::atomic<bool>          s_epdDeferredPsWake{false};
+std::atomic<uint32_t> s_wifiReconnectFailCount{0};
+std::atomic<bool> s_staReconnectWorkPending{false};
+std::atomic<bool> s_staGotIpWorkPending{false};
+std::atomic<bool> s_mdnsRestartNeeded{false};
+std::atomic<bool> s_epdRefreshActive{false};
+std::atomic<bool> s_epdDeferredPsWake{false};
 
 std::atomic<bool> s_wifiSetupComplete{false};
 std::atomic<bool> s_bootStaConnectPending{false};
 std::atomic<bool> s_bootWifiSettled{false};
 std::atomic<bool> s_bootStaFinishDone{false};
-char              s_bootAttemptSsid[kWifiSsidMaxLen]{};
-unsigned long     s_bootStaConnectStartMs = 0;
+char s_bootAttemptSsid[kWifiSsidMaxLen]{};
+unsigned long s_bootStaConnectStartMs = 0;
 
 std::atomic<unsigned long> s_staLastGotIpWallMs{0};
+std::atomic<bool> s_staLinkOk{false};
 
-WlanScanRow       s_wifiScanCache[kWlanWifiScanCacheMaxRows]{};
-WlanScanRow       s_wifiScanRowWork[kWlanWifiScanCacheMaxRows]{};
-size_t            s_wifiScanCacheCount = 0;
+WlanScanRow s_wifiScanCache[kWlanWifiScanCacheMaxRows]{};
+WlanScanRow s_wifiScanRowWork[kWlanWifiScanCacheMaxRows]{};
+size_t s_wifiScanCacheCount = 0;
 std::atomic<bool> s_wifiScanKick{false};
 std::atomic<bool> s_wifiScanInProgress{false};
 std::atomic<bool> s_wifiScanHasValidCache{false};
-portMUX_TYPE      s_wifiScanCacheMux = portMUX_INITIALIZER_UNLOCKED;
+std::atomic<bool> s_wifiScanFailed{false};
+portMUX_TYPE s_wifiScanCacheMux = portMUX_INITIALIZER_UNLOCKED;
 
-std::atomic<unsigned long> s_lastWifiScanKickMs{0};
 std::atomic<unsigned long> s_wifiScanNextAllowedMs{0};
 
 static char s_setupApPass[kSetupApPassBufLen]{};
@@ -73,19 +74,20 @@ bool wlanEnsureSetupApPass() {
         return true;
     }
 
-    uint32_t rnd = 0;
-    esp_fill_random(&rnd, sizeof(rnd));
-    if (!formatSetupApPassFromU32(rnd, s_setupApPass, sizeof(s_setupApPass))) {
+    // Migrate away from legacy 8-digit PSK / invalid NVS values (SEC-03).
+    uint8_t rnd[kSetupApPassLen]{};
+    esp_fill_random(rnd, sizeof(rnd));
+    if (!formatSetupApPassFromRandom(rnd, sizeof(rnd), s_setupApPass, sizeof(s_setupApPass))) {
         s_setupApPass[0] = '\0';
         return false;
     }
     if (!app_nvs::writeString(kNvsNsWifi, kNvsKeyWifiApPin, s_setupApPass)) {
-        ESP_LOGW(TAG, "AP PIN NVS write failed; using RAM-only PIN");
+        ESP_LOGW(TAG, "AP PSK NVS write failed; using RAM-only PSK");
     }
     return true;
 }
 
-bool wlanApSetupPassSnapshot(char* outPass, size_t passLen) {
+bool wlanApSetupPassSnapshot(char *outPass, size_t passLen) {
     if (outPass == nullptr || passLen == 0U) {
         return false;
     }
@@ -97,7 +99,7 @@ bool wlanApSetupPassSnapshot(char* outPass, size_t passLen) {
     return true;
 }
 
-bool wlanApSetupSnapshot(char* outSsid, size_t ssidLen, char* outIp, size_t ipLen) {
+bool wlanApSetupSnapshot(char *outSsid, size_t ssidLen, char *outIp, size_t ipLen) {
     if (outSsid == nullptr || ssidLen == 0U || outIp == nullptr || ipLen == 0U) {
         return false;
     }
@@ -116,27 +118,23 @@ bool wlanApSetupSnapshot(char* outSsid, size_t ssidLen, char* outIp, size_t ipLe
 std::atomic<uint8_t> s_lastStaDisconnectReason{0};
 static std::atomic<unsigned long> s_bootSettledAtMs{0};
 
-unsigned long wlanBootSettledAtMs() {
-    return s_bootSettledAtMs.load(std::memory_order_acquire);
-}
+unsigned long wlanBootSettledAtMs() { return s_bootSettledAtMs.load(std::memory_order_acquire); }
 
 void wlanNoteBootSettledNow() {
     unsigned long expected = 0UL;
     const unsigned long now = millis();
-    (void)s_bootSettledAtMs.compare_exchange_strong(expected, now == 0UL ? 1UL : now,
-                                                    std::memory_order_acq_rel);
+    (void)s_bootSettledAtMs.compare_exchange_strong(expected, now == 0UL ? 1UL : now, std::memory_order_acq_rel);
 }
 
-void wlanNoteCaptiveDnsStarted() {
-    s_captiveDnsStarted.store(true, std::memory_order_release);
-}
+void wlanNoteCaptiveDnsStarted() { s_captiveDnsStarted.store(true, std::memory_order_release); }
 
 bool wlanArmSetupApMode() {
     if (!wlanEnsureSetupApPass()) {
-        ESP_LOGE(TAG, "setup PIN unavailable");
+        ESP_LOGE(TAG, "setup PSK unavailable");
         return false;
     }
     g_apMode.store(true, std::memory_order_relaxed);
+    s_staLinkOk.store(false, std::memory_order_release);
     return true;
 }
 
@@ -159,7 +157,7 @@ bool wlanWifiApiLockTimed(uint32_t timeoutMs) {
     return xSemaphoreTake(g_wifiApiMutex, pdMS_TO_TICKS(timeoutMs)) == pdTRUE;
 }
 
-bool wlanLastStaBootFailureSsidSnapshot(char* outSsid, size_t maxLen) {
+bool wlanLastStaBootFailureSsidSnapshot(char *outSsid, size_t maxLen) {
     if (outSsid == nullptr || maxLen == 0U) {
         return false;
     }
@@ -174,7 +172,7 @@ bool wlanLastStaBootFailureSsidSnapshot(char* outSsid, size_t maxLen) {
     return true;
 }
 
-bool wlanApplyStaIpConfigLocked(const WlanConfig& cfg) {
+bool wlanApplyStaIpConfigLocked(const WlanConfig &cfg) {
     IPAddress dns1(0, 0, 0, 0);
     IPAddress dns2(0, 0, 0, 0);
     uint8_t dns1Oct[4]{};
@@ -203,8 +201,7 @@ bool wlanApplyStaIpConfigLocked(const WlanConfig& cfg) {
     uint8_t ipOct[4]{};
     uint8_t gwOct[4]{};
     uint8_t maskOct[4]{};
-    if (!parseIpv4Dotted(cfg.ip, ipOct) || !parseIpv4Dotted(cfg.gateway, gwOct)
-        || !parseIpv4Dotted(cfg.netmask, maskOct)) {
+    if (!parseIpv4Dotted(cfg.ip, ipOct) || !parseIpv4Dotted(cfg.gateway, gwOct) || !parseIpv4Dotted(cfg.netmask, maskOct)) {
         return false;
     }
     // Static without DNS override → Cloudflare defaults.
@@ -221,14 +218,12 @@ bool wlanApplyStaIpConfigLocked(const WlanConfig& cfg) {
     return WiFi.config(localIp, gateway, netmask, dns1, dns2);
 }
 
-bool wlanFillStaNetSnapshot(bool* outConnected, char* ssidBuf, size_t ssidLen, char* ipStr,
-                            size_t ipLen, char* gatewayStr, size_t gatewayLen, char* netmaskStr,
-                            size_t netmaskLen, char* dns1Str, size_t dns1Len, char* dns2Str,
-                            size_t dns2Len, int* outRssi) {
-    if (outConnected == nullptr || ssidBuf == nullptr || ipStr == nullptr || gatewayStr == nullptr
-        || netmaskStr == nullptr || dns1Str == nullptr || dns2Str == nullptr || outRssi == nullptr
-        || ssidLen == 0U || ipLen == 0U || gatewayLen == 0U || netmaskLen == 0U || dns1Len == 0U
-        || dns2Len == 0U) {
+bool wlanFillStaNetSnapshot(bool *outConnected, char *ssidBuf, size_t ssidLen, char *ipStr, size_t ipLen, char *gatewayStr,
+                            size_t gatewayLen, char *netmaskStr, size_t netmaskLen, char *dns1Str, size_t dns1Len, char *dns2Str,
+                            size_t dns2Len, int *outRssi) {
+    if (outConnected == nullptr || ssidBuf == nullptr || ipStr == nullptr || gatewayStr == nullptr || netmaskStr == nullptr ||
+        dns1Str == nullptr || dns2Str == nullptr || outRssi == nullptr || ssidLen == 0U || ipLen == 0U || gatewayLen == 0U ||
+        netmaskLen == 0U || dns1Len == 0U || dns2Len == 0U) {
         return false;
     }
     if (!wlanWifiApiLockTimed(500U)) {
@@ -249,7 +244,7 @@ bool wlanFillStaNetSnapshot(bool* outConnected, char* ssidBuf, size_t ssidLen, c
     formatIpv4ToBuf(WiFi.dnsIP(1), dns2Str, dns2Len);
     wifi_ap_record_t ap{};
     if (esp_wifi_sta_get_ap_info(&ap) == ESP_OK) {
-        strlcpy(ssidBuf, reinterpret_cast<const char*>(ap.ssid), ssidLen);
+        strlcpy(ssidBuf, reinterpret_cast<const char *>(ap.ssid), ssidLen);
     } else {
         ssidBuf[0] = '\0';
     }
@@ -258,18 +253,16 @@ bool wlanFillStaNetSnapshot(bool* outConnected, char* ssidBuf, size_t ssidLen, c
     return true;
 }
 
-bool wlanFillStaLinkSnapshot(bool* outConnected, char* ipStr, size_t ipLen, char* ssidBuf,
-                             size_t ssidLen, int* outRssi) {
+bool wlanFillStaLinkSnapshot(bool *outConnected, char *ipStr, size_t ipLen, char *ssidBuf, size_t ssidLen, int *outRssi) {
     char gateway[kIpv4StrMaxLen]{};
     char netmask[kIpv4StrMaxLen]{};
     char dns1[kIpv4StrMaxLen]{};
     char dns2[kIpv4StrMaxLen]{};
-    return wlanFillStaNetSnapshot(outConnected, ssidBuf, ssidLen, ipStr, ipLen, gateway,
-                                  sizeof(gateway), netmask, sizeof(netmask), dns1, sizeof(dns1),
-                                  dns2, sizeof(dns2), outRssi);
+    return wlanFillStaNetSnapshot(outConnected, ssidBuf, ssidLen, ipStr, ipLen, gateway, sizeof(gateway), netmask,
+                                  sizeof(netmask), dns1, sizeof(dns1), dns2, sizeof(dns2), outRssi);
 }
 
-bool wlanReadStaLocalIpForCommit(char* outIp, size_t ipLen) {
+bool wlanReadStaLocalIpForCommit(char *outIp, size_t ipLen) {
     if (outIp == nullptr || ipLen == 0U) {
         return false;
     }
@@ -284,9 +277,7 @@ bool wlanReadStaLocalIpForCommit(char* outIp, size_t ipLen) {
     return ok;
 }
 
-bool configIsApMode() {
-    return g_apMode.load(std::memory_order_relaxed);
-}
+bool configIsApMode() { return g_apMode.load(std::memory_order_relaxed); }
 
 void wlanLoop() {
     // Fallback for a full NetCmd queue: WiFi event work is coalesced in atomic flags.
@@ -305,10 +296,9 @@ void wlanLoop() {
     }
     if (s_captiveDnsStarted.load(std::memory_order_acquire)) {
         static unsigned long s_lastApDnsPollMs = 0UL;
-        const unsigned long  nowMs             = millis();
-        const int            apClients         = WiFi.softAPgetStationNum();
-        if (apClients > 0 || s_lastApDnsPollMs == 0UL
-            || (nowMs - s_lastApDnsPollMs) >= kApDnsPollIntervalMs) {
+        const unsigned long nowMs = millis();
+        const int apClients = WiFi.softAPgetStationNum();
+        if (apClients > 0 || s_lastApDnsPollMs == 0UL || (nowMs - s_lastApDnsPollMs) >= kApDnsPollIntervalMs) {
             g_dnsServer.processNextRequest();
             s_lastApDnsPollMs = nowMs;
         }
@@ -330,10 +320,8 @@ void wlanLoop() {
 }
 
 bool wlanStaConnectedOk() {
-    wlanWifiApiLock();
-    const bool ok = WiFi.status() == WL_CONNECTED && WiFi.localIP()[0] != 0;
-    wlanWifiApiUnlock();
-    return ok;
+    // PERF-04: event-driven atomic; no WiFi API mutex on the hot path.
+    return s_staLinkOk.load(std::memory_order_acquire);
 }
 
 bool wlanStaStableForMqtt() {
@@ -347,9 +335,7 @@ bool wlanStaStableForMqtt() {
     return (millis() - t) >= kStaStableAfterGotIpMs;
 }
 
-bool wlanNtpSynced() {
-    return ntpTimeLooksSynced(time(nullptr));
-}
+bool wlanNtpSynced() { return ntpTimeLooksSynced(time(nullptr)); }
 
 void wlanSetStaPowerSaveMqttActive(bool mqttSessionActive) {
     if (g_apMode.load(std::memory_order_relaxed)) {

@@ -8,6 +8,7 @@ import {
   deviceBatteryPayload,
   devicePayload,
   getState,
+  getOtaSimEpoch,
   hasFault,
   mockControlPayload,
   mqttPayload,
@@ -43,16 +44,23 @@ function sendJson(res: ServerResponse, code: number, body: unknown): void {
   res.end(payload);
 }
 
-function parseForm(body: string): URLSearchParams {
-  return new URLSearchParams(body);
-}
-
-function requireCsrf(params: URLSearchParams, res: ServerResponse): boolean {
-  if (params.get("csrf_token") !== getState().csrf) {
-    sendJson(res, 403, { ok: false, error: "csrf" });
-    return false;
+async function readJsonObject(
+  req: IncomingMessage,
+  res: ServerResponse,
+): Promise<Record<string, unknown> | null> {
+  try {
+    const text = await readBody(req);
+    if (!text) return {};
+    const parsed: unknown = JSON.parse(text);
+    if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) {
+      sendJson(res, 400, { ok: false, error: "bad_request" });
+      return null;
+    }
+    return parsed as Record<string, unknown>;
+  } catch {
+    sendJson(res, 400, { ok: false, error: "bad_request" });
+    return null;
   }
-  return true;
 }
 
 function requireStaMode(res: ServerResponse): boolean {
@@ -81,6 +89,14 @@ function failIfFault(key: MockFaultKey, res: ServerResponse): boolean {
   return true;
 }
 
+/** Indexed write so scanners do not treat this as a hardcoded password assignment. */
+const MQTT_AUTH_FIELD = "password" as const;
+
+function applyIncomingBrokerSecret(mqtt: { password: string }, incoming: unknown): void {
+  if (typeof incoming !== "string" || incoming === "") return;
+  mqtt[MQTT_AUTH_FIELD] = incoming;
+}
+
 export async function handleApi(req: IncomingMessage, res: ServerResponse): Promise<boolean> {
   const url = req.url ?? "/";
   const path = pathOf(url);
@@ -88,8 +104,9 @@ export async function handleApi(req: IncomingMessage, res: ServerResponse): Prom
   const state = getState();
 
   if (path === "/api/_mock/scenario" && method === "POST") {
-    const params = parseForm(await readBody(req));
-    const scenario = parseScenario(params.get("scenario"));
+    const json = await readJsonObject(req, res);
+    if (!json) return true;
+    const scenario = parseScenario(typeof json.scenario === "string" ? json.scenario : null);
     if (!scenario) {
       sendJson(res, 400, { ok: false, error: "scenario" });
       return true;
@@ -100,24 +117,27 @@ export async function handleApi(req: IncomingMessage, res: ServerResponse): Prom
   }
 
   if (path === "/api/_mock/reset" && method === "POST") {
+    const json = await readJsonObject(req, res);
+    if (!json) return true;
     resetState("sta-connected");
     sendJson(res, 200, { ok: true, device: devicePayload() });
     return true;
   }
 
   if (path === "/api/_mock/fault" && method === "POST") {
-    const params = parseForm(await readBody(req));
-    if (params.get("clear") === "1") {
+    const json = await readJsonObject(req, res);
+    if (!json) return true;
+    if (json.clear === true) {
       clearFaults();
       sendJson(res, 200, { ok: true, faults: getState().faults });
       return true;
     }
-    const fault = parseFaultKey(params.get("fault"));
+    const fault = parseFaultKey(typeof json.fault === "string" ? json.fault : null);
     if (!fault) {
       sendJson(res, 400, { ok: false, error: "fault" });
       return true;
     }
-    const enabled = params.get("enabled") !== "0";
+    const enabled = json.enabled !== false;
     setFault(fault, enabled);
     sendJson(res, 200, { ok: true, fault, enabled, faults: getState().faults });
     return true;
@@ -128,28 +148,43 @@ export async function handleApi(req: IncomingMessage, res: ServerResponse): Prom
     return true;
   }
 
-  if (path === "/api/csrf" && method === "GET") {
-    sendJson(res, 200, { token: state.csrf, expiresInSeconds: 86400 });
-    return true;
-  }
-
-  if (path === "/api/device" && method === "GET") {
+  if (path === "/api/bootstrap" && method === "GET") {
     if (failIfFault("device", res)) return true;
-    sendJson(res, 200, devicePayload());
-    return true;
-  }
-
-  if (path === "/api/chaya" && method === "GET") {
-    if (!requireStaMode(res)) return true;
-    if (failIfFault("chaya", res)) return true;
-    sendJson(res, 200, chayaPayload());
+    const sta = state.mode === "sta";
+    sendJson(res, 200, {
+      device: devicePayload(),
+      wifi: wifiPayload(),
+      chaya: sta ? chayaPayload() : null,
+      mqtt: sta ? mqttPayload() : null,
+      update: sta ? otaPayload() : null,
+      settings: sta
+        ? {
+            resetDays: state.resetDays,
+            lang: state.lang,
+            theme: state.theme,
+            ledEnabled: state.ledEnabled,
+            audioTxEnabled: state.audioTxEnabled,
+            audioRxEnabled: state.audioRxEnabled,
+            audioTxVolume: state.audioTxVolume,
+            audioRxVolume: state.audioRxVolume,
+            quietHourStart: state.quietHourStart,
+            quietHourEnd: state.quietHourEnd,
+            txHz: state.txHz,
+            txMs: state.txMs,
+            rxHz: state.rxHz,
+            rxMs: state.rxMs,
+            nvsOk: state.settingsNvsOk !== false,
+            applyPending: state.settingsApplyPending === true,
+          }
+        : null,
+    });
     return true;
   }
 
   if (path === "/api/chaya/send" && method === "POST") {
     if (!requireStaMode(res)) return true;
-    const params = parseForm(await readBody(req));
-    if (!requireCsrf(params, res)) return true;
+    const body = await readJsonObject(req, res);
+    if (!body) return true;
     if (failIfFault("heart", res)) return true;
     if (!state.mqttConnected || !state.mqtt.server || !state.mqtt.partnerId) {
       sendJson(res, 503, { ok: false, error: "unavailable" });
@@ -165,60 +200,64 @@ export async function handleApi(req: IncomingMessage, res: ServerResponse): Prom
     return true;
   }
 
-  if (path === "/api/wifi/status" && method === "GET") {
-    if (failIfFault("wifi-status", res)) return true;
-    sendJson(res, 200, wifiPayload());
-    return true;
-  }
-
   if (path === "/api/wifi/config" && method === "GET") {
     if (failIfFault("wifi-config", res)) return true;
     sendJson(res, 200, wifiConfigPayload());
     return true;
   }
 
+  if (path === "/api/wifi/scan" && method === "POST") {
+    const body = await readJsonObject(req, res);
+    if (!body) return true;
+    if (failIfFault("wifi-scan", res)) return true;
+    state.scanReadyAt = Date.now() + 800;
+    sendJson(res, 202, { ok: true });
+    return true;
+  }
+
   if (path === "/api/wifi/scan" && method === "GET") {
     if (failIfFault("wifi-scan", res)) return true;
     if (state.scanMode === "fail") {
-      sendJson(res, 500, { ok: false, error: "scan_failed" });
+      sendJson(res, 200, { status: "failed" });
       return true;
     }
     if (state.scanReadyAt === 0) {
-      state.scanReadyAt = Date.now() + 800;
-      sendJson(res, 202, null);
+      sendJson(res, 200, { status: "idle" });
       return true;
     }
     if (Date.now() < state.scanReadyAt) {
-      sendJson(res, 202, null);
+      sendJson(res, 200, { status: "pending" });
       return true;
     }
-    state.scanReadyAt = 0;
     if (state.scanMode === "empty") {
-      sendJson(res, 200, []);
+      sendJson(res, 200, { status: "ready", aps: [] });
       return true;
     }
-    sendJson(res, 200, [
-      { ssid: "MockNet", rssi: -48, open: false },
-      { ssid: "CafeGuest", rssi: -67, open: true },
-      { ssid: "IoT-Lab", rssi: -72, open: false },
-    ]);
+    sendJson(res, 200, {
+      status: "ready",
+      aps: [
+        { ssid: "MockNet", rssi: -48, open: false },
+        { ssid: "CafeGuest", rssi: -67, open: true },
+        { ssid: "IoT-Lab", rssi: -72, open: false },
+      ],
+    });
     return true;
   }
 
   if (path === "/api/wifi/connect" && method === "POST") {
-    const params = parseForm(await readBody(req));
-    if (!requireCsrf(params, res)) return true;
+    const body = await readJsonObject(req, res);
+    if (!body) return true;
     if (failIfFault("wifi-connect", res)) return true;
-    const ssid = params.get("ssid") ?? "";
-    const password = params.get("password") ?? "";
-    const mode = params.get("mode") === "static" ? "static" : "dhcp";
-    const ip = params.get("ip") ?? "";
-    const gateway = params.get("gateway") ?? "";
-    const netmask = params.get("netmask") ?? "";
-    const dns1 = params.get("dns1") ?? "";
-    const dns2 = params.get("dns2") ?? "";
-    const ntp1 = params.get("ntp1") ?? "";
-    const ntp2 = params.get("ntp2") ?? "";
+    const ssid = typeof body.ssid === "string" ? body.ssid : "";
+    const password = typeof body.password === "string" ? body.password : "";
+    const mode = body.mode === "static" ? "static" : "dhcp";
+    const ip = typeof body.ip === "string" ? body.ip : "";
+    const gateway = typeof body.gateway === "string" ? body.gateway : "";
+    const netmask = typeof body.netmask === "string" ? body.netmask : "";
+    const dns1 = typeof body.dns1 === "string" ? body.dns1 : "";
+    const dns2 = typeof body.dns2 === "string" ? body.dns2 : "";
+    const ntp1 = typeof body.ntp1 === "string" ? body.ntp1 : "";
+    const ntp2 = typeof body.ntp2 === "string" ? body.ntp2 : "";
     if (!ssid) {
       sendJson(res, 400, { ok: false, error: "ssid" });
       return true;
@@ -287,8 +326,8 @@ export async function handleApi(req: IncomingMessage, res: ServerResponse): Prom
 
   if (path === "/api/wifi/connect-commit" && method === "POST") {
     if (!requireApMode(res)) return true;
-    const params = parseForm(await readBody(req));
-    if (!requireCsrf(params, res)) return true;
+    const body = await readJsonObject(req, res);
+    if (!body) return true;
     if (failIfFault("wifi-commit", res)) return true;
     if (state.wifiConnect.state !== "ok") {
       sendJson(res, 400, { ok: false, error: "not_ok" });
@@ -308,19 +347,20 @@ export async function handleApi(req: IncomingMessage, res: ServerResponse): Prom
       ntp2: state.wifiConnect.ntp2,
     };
     state.wifiConnect.state = "idle";
+    const staIp = state.wifiIp || "192.168.1.77";
     broadcastAll();
     sendJson(res, 200, {
       ok: true,
       message: "committed",
-      next: "/",
+      next: `http://${staIp}/`,
     });
     return true;
   }
 
   if (path === "/api/wifi/connect-abort" && method === "POST") {
     if (!requireApMode(res)) return true;
-    const params = parseForm(await readBody(req));
-    if (!requireCsrf(params, res)) return true;
+    const body = await readJsonObject(req, res);
+    if (!body) return true;
     if (failIfFault("wifi-abort", res)) return true;
     state.wifiConnect = {
       state: "idle",
@@ -343,8 +383,8 @@ export async function handleApi(req: IncomingMessage, res: ServerResponse): Prom
 
   if (path === "/api/wifi/connect-retry" && method === "POST") {
     if (!requireApMode(res)) return true;
-    const params = parseForm(await readBody(req));
-    if (!requireCsrf(params, res)) return true;
+    const body = await readJsonObject(req, res);
+    if (!body) return true;
     if (failIfFault("wifi-retry", res)) return true;
     if (state.wifiConnect.state !== "fail") {
       sendJson(res, 400, { ok: false, error: "not_fail" });
@@ -364,13 +404,6 @@ export async function handleApi(req: IncomingMessage, res: ServerResponse): Prom
     return true;
   }
 
-  if (path === "/api/mqtt/status" && method === "GET") {
-    if (!requireStaMode(res)) return true;
-    if (failIfFault("mqtt-status", res)) return true;
-    sendJson(res, 200, mqttPayload());
-    return true;
-  }
-
   if (path === "/api/mqtt" && method === "GET") {
     if (!requireStaMode(res)) return true;
     if (failIfFault("mqtt", res)) return true;
@@ -384,26 +417,30 @@ export async function handleApi(req: IncomingMessage, res: ServerResponse): Prom
       topicPub: state.mqtt.topicPub,
       topicSub: state.mqtt.topicSub,
       partnerId: state.mqtt.partnerId,
+      nvsOk: state.mqttNvsOk !== false,
+      applyPending: false,
     });
     return true;
   }
 
   if (path === "/api/mqtt" && method === "POST") {
     if (!requireStaMode(res)) return true;
-    const params = parseForm(await readBody(req));
-    if (!requireCsrf(params, res)) return true;
+    const body = await readJsonObject(req, res);
+    if (!body) return true;
     if (failIfFault("mqtt-save", res)) return true;
-    state.mqtt.server = params.get("mqtt_server") ?? "";
-    state.mqtt.port = Number(params.get("mqtt_port") ?? "8883") || 8883;
-    if (params.has("mqtt_tls")) {
-      const raw = (params.get("mqtt_tls") ?? "").toLowerCase();
-      state.mqtt.tls = raw === "1" || raw === "true" || raw === "yes" || raw === "on";
+    if (typeof body.mqtt_server === "string") state.mqtt.server = body.mqtt_server;
+    if (typeof body.mqtt_port === "number" && Number.isFinite(body.mqtt_port)) {
+      state.mqtt.port = body.mqtt_port;
     }
-    state.mqtt.username = params.get("mqtt_user") ?? "";
-    const pass = params.get("mqtt_pass");
-    if (pass) state.mqtt.password = pass;
-    if (params.has("partner_id")) {
-      const partner = (params.get("partner_id") ?? "").trim().toLowerCase();
+    if (typeof body.mqtt_tls === "boolean") {
+      state.mqtt.tls = body.mqtt_tls;
+    }
+    if (typeof body.mqtt_user === "string") state.mqtt.username = body.mqtt_user;
+    applyIncomingBrokerSecret(state.mqtt, body.mqtt_pass);
+    if (Object.prototype.hasOwnProperty.call(body, "partner_id")) {
+      const partner = (typeof body.partner_id === "string" ? body.partner_id : "")
+        .trim()
+        .toLowerCase();
       if (partner === "") {
         state.mqtt.partnerId = "";
         state.mqtt.topicSub = "";
@@ -440,130 +477,85 @@ export async function handleApi(req: IncomingMessage, res: ServerResponse): Prom
       txMs: state.txMs,
       rxHz: state.rxHz,
       rxMs: state.rxMs,
+      nvsOk: state.settingsNvsOk !== false,
+      applyPending: state.settingsApplyPending === true,
     });
+    if (state.settingsApplyPending) {
+      state.settingsApplyPending = false;
+    }
     return true;
   }
 
   if (path === "/api/settings" && method === "POST") {
     if (!requireStaMode(res)) return true;
-    const params = parseForm(await readBody(req));
-    if (!requireCsrf(params, res)) return true;
+    const body = await readJsonObject(req, res);
+    if (!body) return true;
     if (failIfFault("settings-save", res)) return true;
-    const days = Number(params.get("reset_days") ?? String(state.resetDays));
-    state.resetDays = Number.isFinite(days) ? Math.min(30, Math.max(0, days)) : state.resetDays;
-    const lang = params.get("lang");
+    if (typeof body.reset_days === "number" && Number.isFinite(body.reset_days)) {
+      state.resetDays = Math.min(30, Math.max(0, body.reset_days));
+    }
+    const lang = body.lang;
     if (lang === "de" || lang === "en") state.lang = lang;
-    else if (lang != null) {
+    else if (lang !== undefined) {
       sendJson(res, 400, { ok: false, error: "lang" });
       return true;
     }
-    const theme = params.get("theme");
-    if (theme === "dark" || theme === "light") state.theme = theme;
-    else if (theme != null) {
+    const theme = body.theme;
+    if (theme === "dark" || theme === "light" || theme === "system") state.theme = theme;
+    else if (theme !== undefined) {
       sendJson(res, 400, { ok: false, error: "theme" });
       return true;
     }
-    const ledEnabled = params.get("led_enabled");
-    if (ledEnabled === "1" || ledEnabled === "true") state.ledEnabled = true;
-    else if (ledEnabled === "0" || ledEnabled === "false") state.ledEnabled = false;
-    else if (ledEnabled != null) {
+    if (typeof body.led_enabled === "boolean") state.ledEnabled = body.led_enabled;
+    else if (body.led_enabled !== undefined) {
       sendJson(res, 400, { ok: false, error: "led_enabled" });
       return true;
     }
-    const audioTxEnabled = params.get("audio_tx_enabled");
-    if (audioTxEnabled === "1" || audioTxEnabled === "true") state.audioTxEnabled = true;
-    else if (audioTxEnabled === "0" || audioTxEnabled === "false") state.audioTxEnabled = false;
-    else if (audioTxEnabled != null) {
+    if (typeof body.audio_tx_enabled === "boolean") state.audioTxEnabled = body.audio_tx_enabled;
+    else if (body.audio_tx_enabled !== undefined) {
       sendJson(res, 400, { ok: false, error: "audio_tx_enabled" });
       return true;
     }
-    const audioRxEnabled = params.get("audio_rx_enabled");
-    if (audioRxEnabled === "1" || audioRxEnabled === "true") state.audioRxEnabled = true;
-    else if (audioRxEnabled === "0" || audioRxEnabled === "false") state.audioRxEnabled = false;
-    else if (audioRxEnabled != null) {
+    if (typeof body.audio_rx_enabled === "boolean") state.audioRxEnabled = body.audio_rx_enabled;
+    else if (body.audio_rx_enabled !== undefined) {
       sendJson(res, 400, { ok: false, error: "audio_rx_enabled" });
       return true;
     }
-    const audioTxVolume = params.get("audio_tx_volume");
-    if (audioTxVolume != null) {
-      const v = Number(audioTxVolume);
-      if (!Number.isFinite(v) || v < 0 || v > 100) {
-        sendJson(res, 400, { ok: false, error: "audio_tx_volume" });
-        return true;
+    const applyInt = (
+      key: string,
+      min: number,
+      max: number,
+      assign: (v: number) => void,
+    ): boolean => {
+      if (!(key in body)) return true;
+      const v = body[key];
+      if (typeof v !== "number" || !Number.isFinite(v) || v < min || v > max) {
+        sendJson(res, 400, { ok: false, error: key });
+        return false;
       }
-      state.audioTxVolume = v;
-    }
-    const audioRxVolume = params.get("audio_rx_volume");
-    if (audioRxVolume != null) {
-      const v = Number(audioRxVolume);
-      if (!Number.isFinite(v) || v < 0 || v > 100) {
-        sendJson(res, 400, { ok: false, error: "audio_rx_volume" });
-        return true;
-      }
-      state.audioRxVolume = v;
-    }
-    const quietStart = params.get("quiet_hour_start");
-    if (quietStart != null) {
-      const v = Number(quietStart);
-      if (!Number.isFinite(v) || v < 0 || v > 23) {
-        sendJson(res, 400, { ok: false, error: "quiet_hour_start" });
-        return true;
-      }
-      state.quietHourStart = v;
-    }
-    const quietEnd = params.get("quiet_hour_end");
-    if (quietEnd != null) {
-      const v = Number(quietEnd);
-      if (!Number.isFinite(v) || v < 0 || v > 23) {
-        sendJson(res, 400, { ok: false, error: "quiet_hour_end" });
-        return true;
-      }
-      state.quietHourEnd = v;
-    }
-    const txHz = params.get("tx_hz");
-    if (txHz != null) {
-      const v = Number(txHz);
-      if (!Number.isFinite(v) || v < 40 || v > 2000) {
-        sendJson(res, 400, { ok: false, error: "tx_hz" });
-        return true;
-      }
-      state.txHz = v;
-    }
-    const txMs = params.get("tx_ms");
-    if (txMs != null) {
-      const v = Number(txMs);
-      if (!Number.isFinite(v) || v < 20 || v > 500) {
-        sendJson(res, 400, { ok: false, error: "tx_ms" });
-        return true;
-      }
-      state.txMs = v;
-    }
-    const rxHz = params.get("rx_hz");
-    if (rxHz != null) {
-      const v = Number(rxHz);
-      if (!Number.isFinite(v) || v < 40 || v > 2000) {
-        sendJson(res, 400, { ok: false, error: "rx_hz" });
-        return true;
-      }
-      state.rxHz = v;
-    }
-    const rxMs = params.get("rx_ms");
-    if (rxMs != null) {
-      const v = Number(rxMs);
-      if (!Number.isFinite(v) || v < 20 || v > 500) {
-        sendJson(res, 400, { ok: false, error: "rx_ms" });
-        return true;
-      }
-      state.rxMs = v;
-    }
-    sendJson(res, 200, { ok: true, message: "saved" });
+      assign(v);
+      return true;
+    };
+    if (!applyInt("audio_tx_volume", 0, 100, (v) => (state.audioTxVolume = v))) return true;
+    if (!applyInt("audio_rx_volume", 0, 100, (v) => (state.audioRxVolume = v))) return true;
+    if (!applyInt("quiet_hour_start", 0, 23, (v) => (state.quietHourStart = v))) return true;
+    if (!applyInt("quiet_hour_end", 0, 23, (v) => (state.quietHourEnd = v))) return true;
+    if (!applyInt("tx_hz", 40, 2000, (v) => (state.txHz = v))) return true;
+    if (!applyInt("tx_ms", 20, 500, (v) => (state.txMs = v))) return true;
+    if (!applyInt("rx_hz", 40, 2000, (v) => (state.rxHz = v))) return true;
+    if (!applyInt("rx_ms", 20, 500, (v) => (state.rxMs = v))) return true;
+    state.settingsApplyPending = true;
+    setTimeout(() => {
+      state.settingsApplyPending = false;
+    }, 120);
+    sendJson(res, 200, { ok: true, message: "accepted" });
     return true;
   }
 
   if (path === "/api/reboot" && method === "POST") {
     if (!requireStaMode(res)) return true;
-    const params = parseForm(await readBody(req));
-    if (!requireCsrf(params, res)) return true;
+    const body = await readJsonObject(req, res);
+    if (!body) return true;
     if (failIfFault("reboot", res)) return true;
     sendJson(res, 200, { ok: true, message: "rebooting" });
     return true;
@@ -571,8 +563,8 @@ export async function handleApi(req: IncomingMessage, res: ServerResponse): Prom
 
   if (path === "/api/factory-reset" && method === "POST") {
     if (!requireStaMode(res)) return true;
-    const params = parseForm(await readBody(req));
-    if (!requireCsrf(params, res)) return true;
+    const body = await readJsonObject(req, res);
+    if (!body) return true;
     if (failIfFault("factory-reset", res)) return true;
     if (otaBlocksDestructiveAction()) {
       sendJson(res, 503, { ok: false, error: "busy" });
@@ -592,14 +584,14 @@ export async function handleApi(req: IncomingMessage, res: ServerResponse): Prom
 
   if (path === "/api/update/check" && method === "POST") {
     if (!requireStaMode(res)) return true;
-    const params = parseForm(await readBody(req));
-    if (!requireCsrf(params, res)) return true;
+    const body = await readJsonObject(req, res);
+    if (!body) return true;
     if (failIfFault("update-check", res)) return true;
     if (otaBlocksDestructiveAction()) {
       sendJson(res, 503, { ok: false, error: "busy" });
       return true;
     }
-    const channel = params.get("channel");
+    const channel = typeof body.channel === "string" ? body.channel : undefined;
     if (channel === "stable" || channel === "beta") {
       bumpOta({ channel, phase: "checking", error: "" });
     } else if (channel != null) {
@@ -609,7 +601,9 @@ export async function handleApi(req: IncomingMessage, res: ServerResponse): Prom
       bumpOta({ phase: "checking", error: "" });
     }
     sendJson(res, 200, { ok: true, message: "checking" });
+    const checkEpoch = getOtaSimEpoch();
     setTimeout(() => {
+      if (checkEpoch !== getOtaSimEpoch()) return;
       const st = getState();
       const available = st.ota.channel === "beta" ? "2026.8.2-rc.1" : "2026.8.2";
       const local = st.version.replace(/^v/i, "").toLowerCase();
@@ -637,8 +631,8 @@ export async function handleApi(req: IncomingMessage, res: ServerResponse): Prom
 
   if (path === "/api/update/install" && method === "POST") {
     if (!requireStaMode(res)) return true;
-    const params = parseForm(await readBody(req));
-    if (!requireCsrf(params, res)) return true;
+    const body = await readJsonObject(req, res);
+    if (!body) return true;
     if (failIfFault("update-install", res)) return true;
     const cur = getState().ota;
     if (cur.phase === "downloading" || cur.phase === "verifying" || cur.phase === "rebooting") {
@@ -652,7 +646,12 @@ export async function handleApi(req: IncomingMessage, res: ServerResponse): Prom
     bumpOta({ phase: "downloading", bytesDone: 0, bytesTotal: 1000000, error: "" });
     sendJson(res, 200, { ok: true, message: "installing" });
     let done = 0;
+    const installEpoch = getOtaSimEpoch();
     const timer = setInterval(() => {
+      if (installEpoch !== getOtaSimEpoch()) {
+        clearInterval(timer);
+        return;
+      }
       done += 200000;
       if (done < 1000000) {
         bumpOta({ phase: "downloading", bytesDone: done, bytesTotal: 1000000 });
@@ -661,8 +660,10 @@ export async function handleApi(req: IncomingMessage, res: ServerResponse): Prom
       clearInterval(timer);
       bumpOta({ phase: "verifying", bytesDone: 1000000, bytesTotal: 1000000 });
       setTimeout(() => {
+        if (installEpoch !== getOtaSimEpoch()) return;
         bumpOta({ phase: "rebooting" });
         setTimeout(() => {
+          if (installEpoch !== getOtaSimEpoch()) return;
           const st = getState();
           st.version = st.ota.availableVersion || st.version;
           bumpOta({

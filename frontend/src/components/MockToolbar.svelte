@@ -42,6 +42,7 @@
       items: [
         { id: "settings-load-fail", label: "Load failed", path: "/settings/device" },
         { id: "settings-save-fail", label: "Save failed", path: "/settings/device" },
+        { id: "settings-nvs-fail", label: "NVS persist failed", path: "/settings/device" },
         { id: "settings-reboot-fail", label: "Reboot failed", path: "/settings/device" },
         {
           id: "settings-factory-reset-fail",
@@ -278,8 +279,11 @@
   async function setScenario(scenario: { id: ScenarioId; path: string }) {
     busy = true;
     try {
-      const body = new URLSearchParams({ scenario: scenario.id });
-      const response = await fetch("/api/_mock/scenario", { method: "POST", body });
+      const response = await fetch("/api/_mock/scenario", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ scenario: scenario.id }),
+      });
       if (!response.ok) throw new Error(`scenario failed (${response.status})`);
       activeScenario = scenario.id;
       router.navigate(scenario.path);

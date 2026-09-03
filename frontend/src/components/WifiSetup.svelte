@@ -72,27 +72,80 @@
   let scanning = $state(false);
   let busy = $state(false);
   let configLoaded = $state(false);
+  let scanSeq = 0;
+
+  const SCAN_POLL_MS = 500;
+  const SCAN_POLL_MAX_MS = 90_000;
+
+  async function pollScan(seq: number): Promise<boolean> {
+    const deadline = Date.now() + SCAN_POLL_MAX_MS;
+    for (;;) {
+      if (seq !== scanSeq) return false;
+      const result = await api.scanWifi();
+      if (seq !== scanSeq) return false;
+      if (result.status === "ready") {
+        aps = result.aps;
+        return true;
+      }
+      if (result.status === "failed") {
+        return false;
+      }
+      if (Date.now() >= deadline) {
+        return false;
+      }
+      await new Promise((r) => setTimeout(r, SCAN_POLL_MS));
+    }
+  }
+
+  async function startAndPoll(seq: number): Promise<void> {
+    const started = await api.startWifiScan();
+    if (seq !== scanSeq) return;
+    if (!started.ok) {
+      onToast(i18n.t("toast.wifi-scan-failed"), "error");
+      return;
+    }
+    if (!(await pollScan(seq))) {
+      if (seq !== scanSeq) return;
+      onToast(i18n.t("toast.wifi-scan-failed"), "error");
+    }
+  }
 
   async function scan() {
+    const seq = ++scanSeq;
     scanning = true;
     try {
-      let gotResult = false;
-      for (let i = 0; i < 20; i++) {
-        const result = await api.scanWifi();
-        if (result !== "pending") {
-          aps = result;
-          gotResult = true;
-          break;
-        }
-        await new Promise((r) => setTimeout(r, 500));
-      }
-      if (!gotResult) {
-        onToast(i18n.t("toast.wifi-scan-failed"), "error");
-      }
+      await startAndPoll(seq);
     } catch {
+      if (seq !== scanSeq) return;
       onToast(i18n.t("toast.wifi-scan-failed"), "error");
     } finally {
-      scanning = false;
+      if (seq === scanSeq) scanning = false;
+    }
+  }
+
+  async function hydrateScan() {
+    const seq = ++scanSeq;
+    scanning = true;
+    try {
+      const snap = await api.scanWifi();
+      if (seq !== scanSeq) return;
+      if (snap.status === "ready") {
+        aps = snap.aps;
+        return;
+      }
+      if (snap.status === "pending") {
+        if (!(await pollScan(seq))) {
+          if (seq !== scanSeq) return;
+          onToast(i18n.t("toast.wifi-scan-failed"), "error");
+        }
+        return;
+      }
+      await startAndPoll(seq);
+    } catch {
+      if (seq !== scanSeq) return;
+      onToast(i18n.t("toast.wifi-scan-failed"), "error");
+    } finally {
+      if (seq === scanSeq) scanning = false;
     }
   }
 
@@ -102,8 +155,11 @@
 
   $effect(() => {
     untrack(() => {
-      void scan();
+      void hydrateScan();
     });
+    return () => {
+      scanSeq += 1;
+    };
   });
 
   $effect(() => {
@@ -274,7 +330,7 @@
         <TextInput
           type="password"
           bind:value={password}
-          maxlength={64}
+          maxlength={63}
           autocomplete="current-password"
         />
       </Field>

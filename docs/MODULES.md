@@ -29,7 +29,7 @@ src/
   heart/                   RX/TX counters, baselines, NVS chaya
   config/                  App prefs, NVS utils/keys, version (not MQTT broker)
 
-  web/                     Admin site: server, CSRF, middleware, SPA, assets
+  web/                     Admin site: server, Host allowlist, middleware, SPA, assets
     routes/                HTTP routes (JSON /api/*, captive, SPA)
     events.*               SSE /events
 
@@ -82,7 +82,6 @@ Namespaces stay separate (`wifi` / `mqtt` / `cfg` / `chaya`). Do not fold MQTT/W
 10. `mqttSetup()`
 11. `buttonStartupBlink()` (before the button task!)
 12. `audioStartTask()`, `buttonStartTask()`, `networkTaskStart()`, `otaTaskStart()`, `appTaskStart()`
-13. `ledEnableGpioHoldForLightSleep()`
 
 **`loop()`:** `vTaskDelete(nullptr)`—terminates immediately.
 
@@ -95,7 +94,7 @@ Namespaces stay separate (`wifi` / `mqtt` / `cfg` / `chaya`). Do not fold MQTT/W
 ```cpp
 enum class NetCmd : uint8_t {
     MqttSettingsChanged, MqttKillClient, WifiGotIp, WifiReconnect,
-    ChayaSendRequested, FactoryResetRequested,
+    ChayaPublish, FactoryResetRequested,
 };
 
 struct DisplayMsg {
@@ -211,6 +210,7 @@ The active `MqttConfig` is static in `config.cpp`. It is accessed only through A
 | `mqttCfgSnapshot(MqttConfig*)` | Thread-safe copy |
 | `mqttCfgStorePending(...)` | Web form → pending |
 | `mqttCfgApplyPendingToActive()` | Pending → Active |
+| `mqttCfgSetApplyPending(bool)` / `mqttCfgApplyPending()` | Web apply in flight (POST until NVS/apply finishes); GET `/api/mqtt` `applyPending` |
 | `mqttCfgApplyPairingTopics(MqttConfig*)` | Derive topics from own ID + partner ID (without a partner: empty subscribe topic) |
 
 Sanitization when loading NVS: invalid servers/topics/partner IDs are cleaned up.
@@ -236,7 +236,7 @@ ESP-IDF `esp_mqtt_client` over `mqtts://` with a TLS bundle (`tls/`).
 | `mqttLoop()` | Reconnect logic, prechecks, client initialization |
 | `mqttDisconnect()` | Stop and destroy client |
 | `chayaRequestSend()` | Single send entry (button + web): guards + LED TX sequence → publish |
-| `mqttPublishChayaAndApplySentCounters()` | Publish retained QoS 1; return after matching PUBACK or 5 s timeout |
+| `mqttPublishChayaAndApplySentCounters()` | Start retained QoS 1 publish; counters apply on PUBACK (network task does not wait) |
 | `mqttIsConnected()` | Connection status |
 | `mqttPublishBlocked()` | True while applying settings |
 | `mqttBeginSettingsApply()` / `mqttEndSettingsApply()` | Publishing lock |
@@ -253,7 +253,7 @@ Event handler (`MQTT_EVENT_DATA`): parse payload → `heartCounterStoreFromRemot
 |------|----------------|
 | `wlan.cpp` | Global state, `wlanLoop()`, SoftAP snapshot, API lock, STA snapshots |
 | `wlan_reset.cpp` | Factory reset, controlled restart, forced STA reassociation |
-| `wlan_boot.cpp` | `setupWiFi()`, STA/AP fallback (WPA2/WPA3 setup AP), mDNS/NTP |
+| `wlan_boot.cpp` | `setupWiFi()`, STA or WPA2/WPA3 setup AP, mDNS/NTP |
 | `wlan_events.cpp` | STA events, reconnect backoff |
 | `wlan_recovery.cpp` / `wlan_recovery.h` | Stage 2 recovery (forced reassociation / restart with OTA guard) |
 | `wlan_nvs.cpp` | NVS WiFi configuration (packed `cfg_v2`, migration from `cred_v1`) |
@@ -265,7 +265,7 @@ Event handler (`MQTT_EVENT_DATA`): parse payload → `heartCounterStoreFromRemot
 | `wlanLoop()` | Captive DNS, mDNS restart, WiFi scan service, recovery |
 | `wlanRecoveryServiceLoop()` | Forced reassociation after an extended STA outage; restart with guards |
 | `wlanApSetupSnapshot(...)` | SoftAP SSID and IP for display and API |
-| `wlanApSetupPassSnapshot(...)` | 8-digit SoftAP PIN (WIFI QR payload; not shown as plain text) |
+| `wlanApSetupPassSnapshot(...)` | SoftAP WPA-PSK for WIFI QR payload (not shown as plain text) |
 | `wlanSaveConfigToNvs(...)` | Write NVS `wifi` (packed `cfg_v2`: DHCP/static, DNS, NTP) |
 | `configSaveWiFiCredentials(...)` | Compatibility wrapper: stores a DHCP-only configuration |
 | `configIsApMode()` | SoftAP setup mode? |
@@ -313,7 +313,7 @@ counters after the active display command. Splash and power-off commands keep pr
 | `displayInit()` | Initialize SPI + EPD |
 | `displayStartTask()` | FreeRTOS task (8192 stack, priority 3) |
 | `drawHeartWithNumber(icon)` | Lucide heart / heart-crack + RX/TX deltas + arrows + battery |
-| `drawSplashScreen()` | SoftAP: red title + bottom-aligned WIFI QR for phone camera join |
+| `drawSplashScreen()` | SoftAP: red title + WIFI QR with equal top/bottom frame pads for phone camera join |
 | `displayRequest(cmd, mode, waitMs)` | Single entry: Content / BootIfChanged / PowerOffWait |
 | `displayWaitDrawIdle()` | Wait until the display task finishes the next draw |
 
@@ -337,7 +337,7 @@ Geometry details: [DISPLAY.md](DISPLAY.md)
 
 **Files:** `battery/battery.h`, `battery/battery.cpp`, `battery/battery_pure.h`, `battery/battery_config.h`
 
-GPIO4 ADC, `VBAT = VADC × 2`, averaged in the app task about every 30 s. Always treated as a LiPo. `batteryPowerOffAndSleep()` arms active-low PWR wake, drives `kBatControl` LOW, and enters deep sleep if USB still powers the ESP32. ETA6098 charge termination/recharge is autonomous and is not controlled from firmware.
+GPIO4 ADC, `VBAT = VADC × 2`, averaged in the app task about every 30 s. Always treated as a LiPo. `batteryCutLatch()` drives `kBatControl` LOW. `batteryPowerOffAndSleep()` waits for a stable PWR HIGH (300 ms), arms EXT1 ANY_LOW only then, cuts the latch, and re-checks the RTC pad immediately before `esp_deep_sleep_start()` so a still-LOW PWR cannot bounce-wake. ETA6098 charge termination/recharge is autonomous and is not controlled from firmware.
 
 ## `hw/` – power-save hold-off + pin map
 
@@ -355,11 +355,11 @@ cycle, so bursts do not grow an unbounded audio backlog.
 
 ## `button/` – BOOT, PWR latch
 
-**Files:** `button/button.h`, `button/button_config.h`, `button/button_internal.h`, `button/button_debounce_pure.h`, `button/button_input.cpp`
+**Files:** `button/button.h`, `button/button_config.h`, `button/button_internal.h`, `button/button_debounce_pure.h`, `button/button_soft_off_pure.h`, `button/button_input.cpp`
 
 | File | Responsibility |
 |------|----------------|
-| `button_input.cpp` | BOOT GPIO/ISR and debounce; PWR arms soft-off after ≥2 s (LED ack via `led/`), runs shutdown on release |
+| `button_input.cpp` | BOOT GPIO/ISR and debounce; PWR arms soft-off after ≥2 s (LED ack via `led/`), runs shutdown on release. After the E-Ink power-off view, waits for PWR HIGH + 300 ms settle before sleep. A 15 s timeout cuts the battery latch and keeps waiting (no EXT1 while PWR is LOW). |
 
 | Constant | Value | Meaning |
 |----------|-------|---------|
@@ -393,7 +393,6 @@ LED priority: MQTT TX sequence > finite pattern > E-Ink/RX refresh pulse > idle.
 |----------|-------------|
 | `ledInit()` | Configure GPIO |
 | `ledApplyEnabled()` | Force off when user disabled LED in settings |
-| `ledEnableGpioHoldForLightSleep()` | Hold LED level for light sleep |
 | `ledIsActivityActive()` | TX sequence, pattern, or refresh pulse running? |
 | `ledIsTxSendBusy()` | MQTT TX send sequence running (blocks a second send) |
 | `ledStartChayaSendSequence()` | Arm TX sequence (prefer `chayaRequestSend()`) |
@@ -410,12 +409,11 @@ Presets: Boot (startup), WifiUp (STA ready / reconnect), MqttUp (broker connecte
 | File | Purpose |
 |------|---------|
 | `admin.h` / `admin.cpp` | Server singleton, route registration, `webAdminLoop()` |
-| `admin_globals.h` / `admin_globals.cpp` | Shared atomics/flags; `adminApplyOptional*` form helpers |
-| `admin_json.h` | JSON helper for small responses |
+| `admin_globals.h` / `admin_globals.cpp` | Shared atomics/flags; `adminApplyOptional*` JSON helpers |
+| `json_payloads.h` | Shared `fill*` helpers for GET `/api/bootstrap` and SSE event data |
 | `deferred_reboot.h` / `deferred_reboot.cpp` | Reboot after saving WiFi |
-| `web_utils.h` / `web_utils.cpp` | Redirects, security headers |
-| `web_middleware.h` / `web_middleware.cpp` | Host/CSRF middleware for API routes |
-| `csrf.h` / `csrf.cpp` | Generate and validate CSRF tokens |
+| `web_utils.h` / `web_utils.cpp` | Redirects, security headers, `webSendJsonDoc` / `webSerializeJson` |
+| `web_middleware.h` / `web_middleware.cpp` | Host allowlist once on the server; AP/STA gates per API route |
 | `events.h` / `events.cpp` | SSE `/events` |
 | `routes/admin_routes_api.cpp` | Register entry + shared `sendOk`/`sendErr` |
 | `routes/admin_routes_api_*.cpp` | Thematic JSON API `/api/*` (device, chaya, wifi, mqtt, settings, system, ota) |
@@ -433,11 +431,12 @@ Details: [WEB_ADMIN.md](WEB_ADMIN.md)
 | File | Purpose |
 |------|---------|
 | `ota.h` / `ota.cpp` | Automatic check logic, download queue |
-| `ota_task.cpp` | OTA task (8192 stack, priority 4) |
+| `ota_json.h` | `otaFillStatusJson` for GET `/api/update/status` and SSE `ota` |
+| `ota_task.cpp` | OTA task (12288 stack, priority 4) |
 | `github.h` / `github.cpp` | GitHub Releases API, CalVer comparison |
 | `flash.h` / `flash.cpp` | TLS + SHA-256 sidecar, Arduino `HTTPUpdate` |
 | `version_cmp.h` | CalVer/beta (`-rc.N`) comparison (header-only) |
-| `github_parse.h` | GitHub release JSON helper (header-only) |
+| `github_parse.h` | GitHub release JSON helper (ArduinoJson filter, header-only) |
 
 | Function | Description |
 |----------|-------------|

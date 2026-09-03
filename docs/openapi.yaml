@@ -3,27 +3,26 @@ info:
   title: Chaya2MQTT Web Admin API
   version: 1.0.0
   description: |
-    HTTP JSON API served by the device firmware (ESPAsyncWebServer on port 80).
-    Mutations use `application/x-www-form-urlencoded` and require `csrf_token`.
-    There is no login; access is limited by Host/Origin allowlists on the LAN.
-    Routes restricted to STA or setup-AP mode return HTTP 400 with `ap_mode` or
-    `not_ap`. Temporarily blocked operations return HTTP 503 with `busy` or `shutdown`.
+    HTTP JSON API for the device web admin.
+    Every operation may return 403 when the Host header is not on the device allowlist
+    (`Host rejected`). Per-operation access is in `x-protection`
+    (`Host`, `Host + STA`, `AP + Host`).
+  contact:
+    name: Chaya2MQTT
+    url: https://eyjunge1.github.io/chaya2mqtt/
   license:
-    name: GNU General Public License v3.0 only
-    identifier: GPL-3.0-only
+    name: GNU GPL v3.0 only
+    url: https://github.com/EyJunge1/chaya2mqtt/blob/main/LICENSE
 servers:
   - url: http://chaya2mqtt-{deviceId}.local
-    description: STA mode via the device-specific mDNS hostname
+    description: STA mDNS hostname
     variables:
       deviceId:
-        default: a1b2c3
-        description: Six-character device ID from NVS (random; MAC-seeded once on OTA migration)
+        default: deviceId
   - url: http://4.3.2.1
     description: AP setup mode
 security: []
 tags:
-  - name: csrf
-    description: CSRF token for state-changing requests
   - name: device
     description: Device identity and firmware mode
   - name: chaya
@@ -39,70 +38,53 @@ tags:
   - name: reset
     description: Factory reset
 paths:
-  /api/csrf:
+  /api/bootstrap:
     get:
-      tags: [csrf]
-      summary: Fetch CSRF token
-      operationId: getCsrf
+      tags: [device]
+      summary: Cold-boot snapshot
+      operationId: getBootstrap
+      x-protection: Host
+      description: >
+        Always includes device and wifi. In STA mode also fills chaya, mqtt, update,
+        and settings; in AP those keys are null. Live updates after boot are SSE
+        (device, wifi, chaya, mqtt).
       responses:
         "200":
-          description: Token payload
+          description: Aggregated boot payload
           content:
             application/json:
               schema:
                 type: object
-                required: [token, expiresInSeconds]
+                required: [device, wifi]
                 properties:
-                  token:
-                    type: string
-                    pattern: "^[0-9a-f]{32}$"
-                  expiresInSeconds:
-                    type: integer
-                    minimum: 0
-                    maximum: 86400
-        "403":
-          $ref: "#/components/responses/Forbidden"
-  /api/device:
-    get:
-      tags: [device]
-      summary: Device identity and mode
-      operationId: getDevice
-      responses:
-        "200":
-          description: Device info
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/DeviceInfo"
-        "403":
-          $ref: "#/components/responses/Forbidden"
-  /api/chaya:
-    get:
-      tags: [chaya]
-      summary: Heart counters (STA)
-      operationId: getChaya
-      responses:
-        "200":
-          description: Counter snapshot
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ChayaStatus"
-        "400":
-          $ref: "#/components/responses/ApiError"
-        "403":
-          $ref: "#/components/responses/Forbidden"
+                  device:
+                    $ref: "#/components/schemas/DeviceInfo"
+                  wifi:
+                    $ref: "#/components/schemas/WifiStatus"
+                  chaya:
+                    oneOf:
+                      - $ref: "#/components/schemas/ChayaStatus"
+                      - type: "null"
+                  mqtt:
+                    oneOf:
+                      - $ref: "#/components/schemas/MqttStatus"
+                      - type: "null"
+                  update:
+                    type: [object, "null"]
+                  settings:
+                    type: [object, "null"]
   /api/chaya/send:
     post:
       tags: [chaya]
-      summary: Queue heart send (requires broker and partner)
+      summary: Queue heart send
       operationId: sendChaya
+      x-protection: Host + STA
       requestBody:
         required: true
         content:
-          application/x-www-form-urlencoded:
+          application/json:
             schema:
-              $ref: "#/components/schemas/CsrfForm"
+              $ref: "#/components/schemas/EmptyJson"
       responses:
         "202":
           description: Queued
@@ -112,29 +94,14 @@ paths:
                 $ref: "#/components/schemas/ApiOk"
         "400":
           $ref: "#/components/responses/ApiError"
-        "403":
-          $ref: "#/components/responses/Forbidden"
         "503":
           $ref: "#/components/responses/ApiError"
-  /api/wifi/status:
-    get:
-      tags: [wifi]
-      summary: Current Wi-Fi link status
-      operationId: getWifiStatus
-      responses:
-        "200":
-          description: Connected or disconnected status
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/WifiStatus"
-        "403":
-          $ref: "#/components/responses/Forbidden"
   /api/wifi/config:
     get:
       tags: [wifi]
       summary: Stored Wi-Fi config (no password)
       operationId: getWifiConfig
+      x-protection: Host
       responses:
         "200":
           description: Config
@@ -142,51 +109,62 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/WifiConfig"
-        "403":
-          $ref: "#/components/responses/Forbidden"
   /api/wifi/scan:
     get:
       tags: [wifi]
-      summary: Scan access points
-      operationId: scanWifi
+      summary: Read cached access-point scan
+      operationId: getWifiScan
+      x-protection: Host
+      description: Cached snapshot. POST starts a scan. `status` is idle, pending, ready, or failed.
       responses:
         "200":
-          description: Scan results
+          description: Scan snapshot
           content:
             application/json:
               schema:
-                type: array
-                items:
-                  $ref: "#/components/schemas/WifiScanAp"
+                $ref: "#/components/schemas/WifiScanSnapshot"
+    post:
+      tags: [wifi]
+      summary: Start access-point scan
+      operationId: startWifiScan
+      x-protection: Host
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EmptyJson"
+      responses:
         "202":
-          description: Scan still running
-        "403":
-          $ref: "#/components/responses/Forbidden"
+          description: Scan started; poll GET for results
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiOk"
   /api/wifi/connect:
     post:
       tags: [wifi]
       summary: Start AP test or save STA credentials
       operationId: connectWifi
+      x-protection: Host
       requestBody:
         required: true
         content:
-          application/x-www-form-urlencoded:
+          application/json:
             schema:
-              allOf:
-                - $ref: "#/components/schemas/CsrfForm"
-                - type: object
-                  required: [ssid, mode]
-                  properties:
-                    ssid: { type: string, minLength: 1, maxLength: 32 }
-                    password: { type: string, maxLength: 63 }
-                    mode: { type: string, enum: [dhcp, static] }
-                    ip: { type: string, maxLength: 15 }
-                    gateway: { type: string, maxLength: 15 }
-                    netmask: { type: string, maxLength: 15 }
-                    dns1: { type: string, maxLength: 15 }
-                    dns2: { type: string, maxLength: 15 }
-                    ntp1: { type: string, maxLength: 63 }
-                    ntp2: { type: string, maxLength: 63 }
+              type: object
+              required: [ssid, mode]
+              properties:
+                ssid: { type: string, minLength: 1, maxLength: 32 }
+                password: { type: string, maxLength: 63 }
+                mode: { type: string, enum: [dhcp, static] }
+                ip: { type: string, maxLength: 15 }
+                gateway: { type: string, maxLength: 15 }
+                netmask: { type: string, maxLength: 15 }
+                dns1: { type: string, maxLength: 15 }
+                dns2: { type: string, maxLength: 15 }
+                ntp1: { type: string, maxLength: 63 }
+                ntp2: { type: string, maxLength: 63 }
       responses:
         "200":
           description: Accepted
@@ -196,13 +174,30 @@ paths:
                 $ref: "#/components/schemas/ApiOk"
         "400":
           $ref: "#/components/responses/ApiError"
-        "403":
-          $ref: "#/components/responses/Forbidden"
+        "500":
+          description: Failed to save credentials
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErr"
+              example:
+                ok: false
+                error: save
+        "503":
+          description: Test could not start
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErr"
+              example:
+                ok: false
+                error: test_start
   /api/wifi/connect-status:
     get:
       tags: [wifi]
       summary: AP connection test status
       operationId: getWifiConnectStatus
+      x-protection: AP + Host
       responses:
         "200":
           description: Test state
@@ -219,19 +214,18 @@ paths:
                     type: string
         "400":
           $ref: "#/components/responses/ApiError"
-        "403":
-          $ref: "#/components/responses/Forbidden"
   /api/wifi/connect-commit:
     post:
       tags: [wifi]
       summary: Commit successful AP test and reboot
       operationId: commitWifiConnect
+      x-protection: AP + Host
       requestBody:
         required: true
         content:
-          application/x-www-form-urlencoded:
+          application/json:
             schema:
-              $ref: "#/components/schemas/CsrfForm"
+              $ref: "#/components/schemas/EmptyJson"
       responses:
         "200":
           description: Saved
@@ -241,19 +235,18 @@ paths:
                 $ref: "#/components/schemas/ApiOk"
         "400":
           $ref: "#/components/responses/ApiError"
-        "403":
-          $ref: "#/components/responses/Forbidden"
   /api/wifi/connect-abort:
     post:
       tags: [wifi]
       summary: Abort AP connection test
       operationId: abortWifiConnect
+      x-protection: AP + Host
       requestBody:
         required: true
         content:
-          application/x-www-form-urlencoded:
+          application/json:
             schema:
-              $ref: "#/components/schemas/CsrfForm"
+              $ref: "#/components/schemas/EmptyJson"
       responses:
         "200":
           description: Aborted
@@ -263,19 +256,18 @@ paths:
                 $ref: "#/components/schemas/ApiOk"
         "400":
           $ref: "#/components/responses/ApiError"
-        "403":
-          $ref: "#/components/responses/Forbidden"
   /api/wifi/connect-retry:
     post:
       tags: [wifi]
-      summary: Retry failed AP connection test with the same credentials
+      summary: Retry AP connection test
       operationId: retryWifiConnect
+      x-protection: AP + Host
       requestBody:
         required: true
         content:
-          application/x-www-form-urlencoded:
+          application/json:
             schema:
-              $ref: "#/components/schemas/CsrfForm"
+              $ref: "#/components/schemas/EmptyJson"
       responses:
         "200":
           description: Retry started
@@ -285,34 +277,17 @@ paths:
                 $ref: "#/components/schemas/ApiOk"
         "400":
           $ref: "#/components/responses/ApiError"
-        "403":
-          $ref: "#/components/responses/Forbidden"
         "503":
           $ref: "#/components/responses/ApiError"
-  /api/mqtt/status:
-    get:
-      tags: [mqtt]
-      summary: MQTT connection status (STA)
-      operationId: getMqttStatus
-      responses:
-        "200":
-          description: Status
-          content:
-            application/json:
-              schema:
-                type: object
-                required: [connected]
-                properties:
-                  connected: { type: boolean }
-        "400":
-          $ref: "#/components/responses/ApiError"
-        "403":
-          $ref: "#/components/responses/Forbidden"
   /api/mqtt:
     get:
       tags: [mqtt]
-      summary: MQTT config view (password never returned)
+      summary: MQTT config (no password)
       operationId: getMqttConfig
+      x-protection: Host + STA
+      description: >
+        Broker and partner ID. Topics are derived. Password is never included.
+        Includes nvsOk and applyPending while a save is still being applied.
       responses:
         "200":
           description: Config
@@ -322,53 +297,44 @@ paths:
                 $ref: "#/components/schemas/MqttConfigView"
         "400":
           $ref: "#/components/responses/ApiError"
-        "403":
-          $ref: "#/components/responses/Forbidden"
         "503":
           $ref: "#/components/responses/ApiError"
     post:
       tags: [mqtt]
-      summary: Save MQTT broker and partner ID (topics are derived)
+      summary: Save MQTT config
       operationId: saveMqttConfig
+      x-protection: Host + STA
+      description: Omitted fields keep their current value. Topics are derived.
       requestBody:
         required: true
         content:
-          application/x-www-form-urlencoded:
+          application/json:
             schema:
-              allOf:
-                - $ref: "#/components/schemas/CsrfForm"
-                - type: object
-                  properties:
-                    mqtt_server:
-                      type: string
-                      maxLength: 127
-                      description: Broker hostname or IP; omitted fields keep their current value
-                    mqtt_port:
-                      type: integer
-                      description: MQTT port (typically 1883 plain / 8883 TLS); omitted fields keep their current value
-                    mqtt_tls:
-                      type: integer
-                      enum: [0, 1]
-                      description: >
-                        1 = mqtts (TLS), 0 = mqtt (plain TCP). Omitted fields keep their current value.
-                        Default for new/missing NVS is TLS (1).
-                    mqtt_user:
-                      type: string
-                      maxLength: 63
-                      description: MQTT username (optional; empty for anonymous)
-                    mqtt_pass:
-                      type: string
-                      maxLength: 63
-                      description: >
-                        MQTT password (optional). Omit or leave empty to keep the stored password.
-                    partner_id:
-                      type: string
-                      maxLength: 6
-                      description: >
-                        Optional pairing: 6 lowercase hex digits for the partner device,
-                        or empty to unpair.
-                        Topics are derived automatically.
-                      pattern: "^([0-9a-f]{6})?$"
+              type: object
+              properties:
+                mqtt_server:
+                  type: string
+                  maxLength: 127
+                  description: Broker hostname or IP
+                mqtt_port:
+                  type: integer
+                  description: Port (1883 plain / 8883 TLS)
+                mqtt_tls:
+                  type: boolean
+                  description: true = TLS. Default for new NVS is true.
+                mqtt_user:
+                  type: string
+                  maxLength: 63
+                  description: Username; empty for anonymous
+                mqtt_pass:
+                  type: string
+                  maxLength: 63
+                  description: Omit or empty to keep the stored password
+                partner_id:
+                  type: string
+                  maxLength: 6
+                  description: Partner ID (6 hex digits) or empty to unpair
+                  pattern: "^([0-9a-f]{6})?$"
       responses:
         "200":
           description: Saved
@@ -378,8 +344,6 @@ paths:
                 $ref: "#/components/schemas/ApiOk"
         "400":
           $ref: "#/components/responses/ApiError"
-        "403":
-          $ref: "#/components/responses/Forbidden"
         "503":
           $ref: "#/components/responses/ApiError"
   /api/settings:
@@ -387,6 +351,7 @@ paths:
       tags: [settings]
       summary: Device settings
       operationId: getSettings
+      x-protection: Host + STA
       responses:
         "200":
           description: Settings
@@ -396,50 +361,32 @@ paths:
                 $ref: "#/components/schemas/SettingsInfo"
         "400":
           $ref: "#/components/responses/ApiError"
-        "403":
-          $ref: "#/components/responses/Forbidden"
     post:
       tags: [settings]
       summary: Save settings
       operationId: saveSettings
+      x-protection: Host + STA
       requestBody:
         required: true
         content:
-          application/x-www-form-urlencoded:
+          application/json:
             schema:
-              allOf:
-                - $ref: "#/components/schemas/CsrfForm"
-                - type: object
-                  properties:
-                    reset_days: { type: integer, minimum: 0, maximum: 30 }
-                    lang: { type: string, enum: [de, en] }
-                    theme: { type: string, enum: [dark, light] }
-                    led_enabled:
-                      {
-                        type: integer,
-                        enum: [0, 1],
-                        description: Header user LED activity (0 = off),
-                      }
-                    audio_tx_enabled:
-                      {
-                        type: integer,
-                        enum: [0, 1],
-                        description: Enable click when a heart is sent (default off),
-                      }
-                    audio_rx_enabled:
-                      {
-                        type: integer,
-                        enum: [0, 1],
-                        description: Enable click when a heart is received (default off),
-                      }
-                    audio_tx_volume: { type: integer, minimum: 0, maximum: 100, description: TX click volume }
-                    audio_rx_volume: { type: integer, minimum: 0, maximum: 100, description: RX click volume }
-                    quiet_hour_start: { type: integer, minimum: 0, maximum: 23 }
-                    quiet_hour_end: { type: integer, minimum: 0, maximum: 23 }
-                    tx_hz: { type: integer, minimum: 40, maximum: 2000, description: Send click frequency Hz }
-                    tx_ms: { type: integer, minimum: 20, maximum: 500, description: Send click duration ms }
-                    rx_hz: { type: integer, minimum: 40, maximum: 2000, description: Receive click frequency Hz }
-                    rx_ms: { type: integer, minimum: 20, maximum: 500, description: Receive click duration ms }
+              type: object
+              properties:
+                reset_days: { type: integer, minimum: 0, maximum: 30 }
+                lang: { type: string, enum: [de, en] }
+                theme: { type: string, enum: [system, dark, light] }
+                led_enabled: { type: boolean, description: User LED (false = off) }
+                audio_tx_enabled: { type: boolean, description: Click on send }
+                audio_rx_enabled: { type: boolean, description: Click on receive }
+                audio_tx_volume: { type: integer, minimum: 0, maximum: 100, description: TX volume }
+                audio_rx_volume: { type: integer, minimum: 0, maximum: 100, description: RX volume }
+                quiet_hour_start: { type: integer, minimum: 0, maximum: 23 }
+                quiet_hour_end: { type: integer, minimum: 0, maximum: 23 }
+                tx_hz: { type: integer, minimum: 40, maximum: 2000, description: Send click Hz }
+                tx_ms: { type: integer, minimum: 20, maximum: 500, description: Send click ms }
+                rx_hz: { type: integer, minimum: 40, maximum: 2000, description: Receive click Hz }
+                rx_ms: { type: integer, minimum: 20, maximum: 500, description: Receive click ms }
       responses:
         "200":
           description: Saved
@@ -449,8 +396,6 @@ paths:
                 $ref: "#/components/schemas/ApiOk"
         "400":
           $ref: "#/components/responses/ApiError"
-        "403":
-          $ref: "#/components/responses/Forbidden"
         "503":
           $ref: "#/components/responses/ApiError"
   /api/reboot:
@@ -458,12 +403,13 @@ paths:
       tags: [settings]
       summary: Reboot device
       operationId: rebootDevice
+      x-protection: Host + STA
       requestBody:
         required: true
         content:
-          application/x-www-form-urlencoded:
+          application/json:
             schema:
-              $ref: "#/components/schemas/CsrfForm"
+              $ref: "#/components/schemas/EmptyJson"
       responses:
         "200":
           description: Reboot scheduled
@@ -473,8 +419,6 @@ paths:
                 $ref: "#/components/schemas/ApiOk"
         "400":
           $ref: "#/components/responses/ApiError"
-        "403":
-          $ref: "#/components/responses/Forbidden"
         "503":
           $ref: "#/components/responses/ApiError"
   /api/factory-reset:
@@ -482,12 +426,14 @@ paths:
       tags: [reset]
       summary: Factory reset
       operationId: factoryReset
+      x-protection: Host + STA
+      description: Delete all NVS data and restart in AP setup mode.
       requestBody:
         required: true
         content:
-          application/x-www-form-urlencoded:
+          application/json:
             schema:
-              $ref: "#/components/schemas/CsrfForm"
+              $ref: "#/components/schemas/EmptyJson"
       responses:
         "202":
           description: Queued
@@ -497,8 +443,6 @@ paths:
                 $ref: "#/components/schemas/ApiOk"
         "400":
           $ref: "#/components/responses/ApiError"
-        "403":
-          $ref: "#/components/responses/Forbidden"
         "503":
           $ref: "#/components/responses/ApiError"
   /api/update/status:
@@ -506,6 +450,7 @@ paths:
       tags: [update]
       summary: OTA status
       operationId: getUpdateStatus
+      x-protection: Host + STA
       responses:
         "200":
           description: Status
@@ -515,25 +460,22 @@ paths:
                 $ref: "#/components/schemas/OtaStatus"
         "400":
           $ref: "#/components/responses/ApiError"
-        "403":
-          $ref: "#/components/responses/Forbidden"
   /api/update/check:
     post:
       tags: [update]
       summary: Check GitHub for updates
       operationId: checkUpdate
+      x-protection: Host + STA
       requestBody:
         required: true
         content:
-          application/x-www-form-urlencoded:
+          application/json:
             schema:
-              allOf:
-                - $ref: "#/components/schemas/CsrfForm"
-                - type: object
-                  properties:
-                    channel:
-                      type: string
-                      enum: [stable, beta]
+              type: object
+              properties:
+                channel:
+                  type: string
+                  enum: [stable, beta]
       responses:
         "200":
           description: Check queued
@@ -543,8 +485,6 @@ paths:
                 $ref: "#/components/schemas/ApiOk"
         "400":
           $ref: "#/components/responses/ApiError"
-        "403":
-          $ref: "#/components/responses/Forbidden"
         "503":
           $ref: "#/components/responses/ApiError"
   /api/update/install:
@@ -552,12 +492,13 @@ paths:
       tags: [update]
       summary: Install pending update
       operationId: installUpdate
+      x-protection: Host + STA
       requestBody:
         required: true
         content:
-          application/x-www-form-urlencoded:
+          application/json:
             schema:
-              $ref: "#/components/schemas/CsrfForm"
+              $ref: "#/components/schemas/EmptyJson"
       responses:
         "200":
           description: Install started
@@ -567,20 +508,15 @@ paths:
                 $ref: "#/components/schemas/ApiOk"
         "400":
           $ref: "#/components/responses/ApiError"
-        "403":
-          $ref: "#/components/responses/Forbidden"
         "409":
           $ref: "#/components/responses/ApiError"
         "503":
           $ref: "#/components/responses/ApiError"
 components:
   schemas:
-    CsrfForm:
+    EmptyJson:
       type: object
-      required: [csrf_token]
-      properties:
-        csrf_token:
-          type: string
+      additionalProperties: false
     ApiOk:
       type: object
       required: [ok]
@@ -594,7 +530,7 @@ components:
           type: boolean
         next:
           type: string
-          description: UI path or absolute device URL to open after the operation
+          description: UI path after the operation
     ApiErr:
       type: object
       required: [ok, error]
@@ -610,43 +546,48 @@ components:
       properties:
         hostname:
           type: string
-          description: "`chaya2mqtt` in AP mode; `chaya2mqtt-<deviceId>` in STA mode"
+          description: "`chaya2mqtt` (AP) or `chaya2mqtt-<deviceId>` (STA)"
         version: { type: string }
         mode: { type: string, enum: [ap, sta] }
         deviceId: { type: string }
         batteryMv:
           type: integer
-          description: LiPo pack millivolts (GPIO4 ADC × 2)
+          description: Pack millivolts
         batteryPct:
           type: integer
           minimum: 0
           maximum: 100
-          description: Coarse LiPo estimate
+          description: Coarse percent
         apSsid:
           type: string
-          description: SoftAP SSID (AP/setup mode only)
+          description: SoftAP SSID (AP mode)
         apIp:
           type: string
-          description: SoftAP IPv4 (AP/setup mode only)
+          description: SoftAP IPv4 (AP mode)
     ChayaStatus:
       type: object
       required: [rx, tx, connected, configured, paired]
       properties:
         rx:
           type: integer
-          description: Uncapped received-heart display delta (absolute counter minus saved baseline)
+          description: Received hearts since last reset
         tx:
           type: integer
-          description: Uncapped sent-heart display delta (absolute counter minus saved baseline)
+          description: Sent hearts since last reset
         connected:
           type: boolean
-          description: Whether the MQTT client is currently connected
+          description: MQTT client connected
         configured:
           type: boolean
-          description: Whether an MQTT broker is configured
+          description: MQTT broker configured
         paired:
           type: boolean
-          description: Whether a partner device ID is set (required for heart send / heart display)
+          description: Partner ID set
+    MqttStatus:
+      type: object
+      required: [connected]
+      properties:
+        connected: { type: boolean }
     WifiStatus:
       oneOf:
         - type: object
@@ -684,27 +625,42 @@ components:
         ssid: { type: string }
         rssi: { type: integer }
         open: { type: boolean }
+    WifiScanSnapshot:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+          enum: [idle, pending, ready, failed]
+        aps:
+          type: array
+          items:
+            $ref: "#/components/schemas/WifiScanAp"
     MqttConfigView:
       type: object
       required: [deviceId, server, port, tls, username, hasPassword, topicPub, topicSub, partnerId]
       properties:
         deviceId:
           type: string
-          description: Own 6-char lowercase hex device ID (NVS `cfg/device_id`)
+          description: Own 6-char hex device ID
         server: { type: string }
         port: { type: integer }
         tls:
           type: boolean
-          description: true = mqtts (TLS on typically 8883), false = mqtt (plain TCP on typically 1883)
+          description: true = TLS (mqtts)
         username: { type: string }
         hasPassword: { type: boolean }
         topicPub:
           type: string
-          description: Derived publish topic chaya2mqtt/<deviceId>
+          description: "`chaya2mqtt/<deviceId>`"
         topicSub:
           type: string
-          description: Derived subscribe topic chaya2mqtt/<partnerId>, or empty when unpaired
+          description: "`chaya2mqtt/<partnerId>`, empty if unpaired"
         partnerId: { type: string }
+        nvsOk:
+          { type: boolean, description: false if last NVS persist failed }
+        applyPending:
+          { type: boolean, description: true while apply is in flight }
     SettingsInfo:
       type: object
       required:
@@ -727,31 +683,31 @@ components:
       properties:
         resetDays: { type: integer, minimum: 0, maximum: 30 }
         lang: { type: string, enum: [de, en] }
-        theme: { type: string, enum: [dark, light] }
+        theme: { type: string, enum: [system, dark, light] }
         ledEnabled:
           type: boolean
-          description: Header user LED activity (false = dark except factory reset)
+          description: User LED (false = off)
         audioTxEnabled:
           type: boolean
-          description: Click when a heart is sent (default false)
+          description: Click on send
         audioRxEnabled:
           type: boolean
-          description: Click when a heart is received (default false)
+          description: Click on receive
         audioTxVolume:
           type: integer
           minimum: 0
           maximum: 100
-          description: TX click volume (default 70)
+          description: TX volume
         audioRxVolume:
           type: integer
           minimum: 0
           maximum: 100
-          description: RX click volume (default 70)
+          description: RX volume
         quietHourStart:
           type: integer
           minimum: 0
           maximum: 23
-          description: Quiet hours start (local, after NTP). Equal to quietHourEnd = off (default both 0)
+          description: Quiet hours start; equal to end = off
         quietHourEnd:
           type: integer
           minimum: 0
@@ -760,22 +716,28 @@ components:
           type: integer
           minimum: 40
           maximum: 2000
-          description: Send click sine frequency (Hz)
+          description: Send click Hz
         txMs:
           type: integer
           minimum: 20
           maximum: 500
-          description: Send click duration (ms)
+          description: Send click ms
         rxHz:
           type: integer
           minimum: 40
           maximum: 2000
-          description: Receive click sine frequency (Hz)
+          description: Receive click Hz
         rxMs:
           type: integer
           minimum: 20
           maximum: 500
-          description: Receive click duration (ms)
+          description: Receive click ms
+        nvsOk:
+          type: boolean
+          description: false if last NVS persist failed
+        applyPending:
+          type: boolean
+          description: true while apply is in flight
     OtaStatus:
       type: object
       required:
@@ -794,12 +756,6 @@ components:
         error: { type: string }
         generation: { type: integer }
   responses:
-    Forbidden:
-      description: Host/Origin or CSRF rejected
-      content:
-        application/json:
-          schema:
-            $ref: "#/components/schemas/ApiErr"
     ApiError:
       description: Request failed
       content:

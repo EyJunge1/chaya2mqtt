@@ -12,34 +12,30 @@ enum class SpaCacheClass : uint8_t {
 };
 
 struct SpaAssetEntry {
-    const char* path;       // request path, e.g. "/assets/index-abc.js"
-    uint32_t offset;        // byte offset into gWebUiBlobStart
-    uint32_t length;        // payload length (gzip-compressed bytes in the blob)
-    const char* contentType;
+    const char *path; // request path, e.g. "/assets/index-abc.js"
+    uint32_t offset;  // byte offset into gWebUiBlobStart
+    uint32_t length;  // payload length (gzip-compressed bytes in the blob)
+    const char *contentType;
     SpaCacheClass cache;
 };
 
-inline bool spaPathEquals(const char* a, const char* b) {
+inline bool spaPathEquals(const char *a, const char *b) {
     if (!a || !b) {
         return false;
     }
     return std::strcmp(a, b) == 0;
 }
 
-inline bool spaIsAssetPath(const char* uri) {
-    return uri && std::strncmp(uri, "/assets/", 8) == 0;
-}
+inline bool spaIsAssetPath(const char *uri) { return uri && std::strncmp(uri, "/assets/", 8) == 0; }
 
 /**
  * Blob assets under /assets/ are stored gzip-compressed and served with
  * Content-Encoding: gzip. URLs keep normal extensions (.js/.css) — never .gz —
  * so Safari/iOS CNA can render them. index.html is not in the blob.
  */
-inline bool spaAssetUsesGzip(const char* path) {
-    return spaIsAssetPath(path);
-}
+inline bool spaAssetUsesGzip(const char *path) { return spaIsAssetPath(path); }
 
-inline bool spaIsApiOrEventsPath(const char* uri) {
+inline bool spaIsApiOrEventsPath(const char *uri) {
     if (!uri) {
         return false;
     }
@@ -47,20 +43,18 @@ inline bool spaIsApiOrEventsPath(const char* uri) {
 }
 
 /** OS captive-portal connectivity checks (handled by dedicated routes in AP mode). */
-inline bool spaIsCaptivePortalProbe(const char* uri) {
+inline bool spaIsCaptivePortalProbe(const char *uri) {
     if (!uri) {
         return false;
     }
-    return spaPathEquals(uri, "/generate_204") || spaPathEquals(uri, "/gen_204")
-           || spaPathEquals(uri, "/hotspot-detect.html")
-           || spaPathEquals(uri, "/library/test/success.html")
-           || spaPathEquals(uri, "/canonical.html") || spaPathEquals(uri, "/ncsi.txt")
-           || spaPathEquals(uri, "/connecttest.txt") || spaPathEquals(uri, "/redirect")
-           || spaPathEquals(uri, "/success.txt") || spaPathEquals(uri, "/wpad.dat");
+    return spaPathEquals(uri, "/generate_204") || spaPathEquals(uri, "/gen_204") || spaPathEquals(uri, "/hotspot-detect.html") ||
+           spaPathEquals(uri, "/library/test/success.html") || spaPathEquals(uri, "/canonical.html") ||
+           spaPathEquals(uri, "/ncsi.txt") || spaPathEquals(uri, "/connecttest.txt") || spaPathEquals(uri, "/redirect") ||
+           spaPathEquals(uri, "/success.txt") || spaPathEquals(uri, "/wpad.dat");
 }
 
 /** True when an unknown GET path should receive the SPA index (client router). */
-inline bool spaShouldFallbackToIndex(const char* uri) {
+inline bool spaShouldFallbackToIndex(const char *uri) {
     if (!uri || uri[0] != '/') {
         return false;
     }
@@ -73,8 +67,7 @@ inline bool spaShouldFallbackToIndex(const char* uri) {
     return true;
 }
 
-inline const SpaAssetEntry* spaFindAsset(const SpaAssetEntry* entries, size_t count,
-                                         const char* uri) {
+inline const SpaAssetEntry *spaFindAsset(const SpaAssetEntry *entries, size_t count, const char *uri) {
     if (!entries || !uri) {
         return nullptr;
     }
@@ -86,15 +79,15 @@ inline const SpaAssetEntry* spaFindAsset(const SpaAssetEntry* entries, size_t co
     return nullptr;
 }
 
-inline const SpaAssetEntry* spaFindIndex(const SpaAssetEntry* entries, size_t count) {
-    const SpaAssetEntry* indexHtml = spaFindAsset(entries, count, "/index.html");
+inline const SpaAssetEntry *spaFindIndex(const SpaAssetEntry *entries, size_t count) {
+    const SpaAssetEntry *indexHtml = spaFindAsset(entries, count, "/index.html");
     if (indexHtml) {
         return indexHtml;
     }
     return spaFindAsset(entries, count, "/");
 }
 
-inline SpaCacheClass spaCacheClassForPath(const char* path) {
+inline SpaCacheClass spaCacheClassForPath(const char *path) {
     if (!path) {
         return SpaCacheClass::NoCache;
     }
@@ -105,11 +98,11 @@ inline SpaCacheClass spaCacheClassForPath(const char* path) {
     return SpaCacheClass::NoCache;
 }
 
-inline const char* spaContentTypeForPath(const char* path) {
+inline const char *spaContentTypeForPath(const char *path) {
     if (!path) {
         return "application/octet-stream";
     }
-    const char* dot = std::strrchr(path, '.');
+    const char *dot = std::strrchr(path, '.');
     if (!dot) {
         return "application/octet-stream";
     }

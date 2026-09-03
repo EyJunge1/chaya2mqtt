@@ -4,25 +4,21 @@
 #include "wlan_config.h"
 #include "wlan_internal.h"
 
+#include "async/system_lifecycle.h"
 #include "async/task_handles.h"
 #include "config/nvs_keys.h"
 #include "config/nvs_utils.h"
 #include "constants.h"
 #include "diag/task_watchdog.h"
 #include "heart/counter.h"
-#include "hw/pins.h"
 #include "identity/device_identity.h"
 #include "ota/ota.h"
 #include "util/log_tag.h"
-#include "web/admin.h"
-#include "web/admin_globals.h"
 
 #include <Arduino.h>
-#include <ESPAsyncWebServer.h>
 #include <ESPmDNS.h>
 #include <WiFi.h>
 #include <cstring>
-#include <driver/gpio.h>
 #include <esp_heap_caps.h>
 #include <esp_log.h>
 #include <esp_wifi.h>
@@ -31,12 +27,6 @@
 
 DEFINE_LOG_TAG("WIFI");
 
-void releaseGpioHoldBeforeRestart() {
-    (void)gpio_hold_dis(static_cast<gpio_num_t>(pins::kSpiCs));
-    (void)gpio_hold_dis(static_cast<gpio_num_t>(pins::kDisplayPwrEn));
-    (void)gpio_hold_dis(static_cast<gpio_num_t>(pins::kButtonLed));
-}
-
 static void prepareForResetAndRestart() {
     g_systemShutdownInProgress.store(true, std::memory_order_release);
     vTaskDelay(pdMS_TO_TICKS(100));
@@ -44,7 +34,6 @@ static void prepareForResetAndRestart() {
     portENTER_CRITICAL(&g_lastFailedBootSsidMux);
     g_lastFailedBootSsid[0] = '\0';
     portEXIT_CRITICAL(&g_lastFailedBootSsidMux);
-    webAdminWebServer().end();
     if (s_captiveDnsStarted.exchange(false, std::memory_order_acq_rel)) {
         g_dnsServer.stop();
     }
@@ -58,7 +47,7 @@ static void prepareForResetAndRestart() {
     wlanWifiApiUnlock();
 }
 
-void wlanForceStaReassoc(const char* reasonTag) {
+void wlanForceStaReassoc(const char *reasonTag) {
     if (g_apMode.load(std::memory_order_relaxed) || s_activeWlanConfig.ssid[0] == '\0') {
         return;
     }
@@ -76,8 +65,7 @@ void wlanForceStaReassoc(const char* reasonTag) {
              reasonTag != nullptr ? reasonTag : "n/a", s_activeWlanConfig.ssid,
              static_cast<unsigned>(s_lastStaDisconnectReason.load(std::memory_order_relaxed)),
              haveAp ? static_cast<int>(ap.rssi) : 0, haveAp ? static_cast<unsigned>(ap.primary) : 0U,
-             static_cast<size_t>(esp_get_free_heap_size()),
-             static_cast<size_t>(esp_get_minimum_free_heap_size()),
+             static_cast<size_t>(esp_get_free_heap_size()), static_cast<size_t>(esp_get_minimum_free_heap_size()),
              static_cast<size_t>(heap_caps_get_largest_free_block(MALLOC_CAP_8BIT)));
 
     if (WiFi.getMode() == WIFI_STA || WiFi.getMode() == WIFI_AP_STA) {
@@ -95,12 +83,11 @@ void wlanForceStaReassoc(const char* reasonTag) {
     wlanWifiApiUnlock();
 }
 
-void wlanControlledRestart(const char* reasonTag) {
+void wlanControlledRestart(const char *reasonTag) {
     ESP_LOGE(TAG, "WLAN controlled restart (%s)", reasonTag != nullptr ? reasonTag : "n/a");
     flushAllHeartCountersIfDirty();
     prepareForResetAndRestart();
     delay(200);
-    releaseGpioHoldBeforeRestart();
     ESP.restart();
 }
 
@@ -131,6 +118,5 @@ void resetAllSettings() {
     }
     counterResetRamAfterFactoryClear();
     delay(500);
-    releaseGpioHoldBeforeRestart();
     ESP.restart();
 }

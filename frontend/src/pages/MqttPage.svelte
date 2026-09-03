@@ -21,6 +21,8 @@
 
   const MQTT_PLAIN_PORT = 1883;
   const MQTT_TLS_PORT = 8883;
+  const MQTT_APPLY_POLL_MS = 200;
+  const MQTT_APPLY_POLL_MAX = 150;
 
   type MqttProtocol = "mqtt" | "mqtts";
 
@@ -43,17 +45,20 @@
   let loadError = $state(false);
   let copied = $state(false);
   let copiedReset: ReturnType<typeof setTimeout> | undefined;
+  let loadSeq = 0;
 
   async function load() {
+    const seq = ++loadSeq;
     loadError = false;
     try {
       const next = await api.getMqttConfig();
+      if (seq !== loadSeq) return;
       cfg = next;
       partner = next.partnerId;
     } catch {
+      if (seq !== loadSeq) return;
       cfg = null;
       loadError = true;
-      onToast(i18n.t("toast.mqtt-load-failed"), "error");
     }
   }
 
@@ -62,6 +67,10 @@
     untrack(() => {
       void load();
     });
+    return () => {
+      loadSeq += 1;
+      clearTimeout(copiedReset);
+    };
   });
 
   function protocolOf(tls: boolean): MqttProtocol {
@@ -81,18 +90,38 @@
     cfg.tls = nextTls;
   }
 
+  /** Wait for deferred apply; surface NVS failure via nvsOk (QUAL-01). */
+  async function waitForMqttPersist(seq: number): Promise<MqttConfigView | "aborted" | "timeout"> {
+    for (let i = 0; i < MQTT_APPLY_POLL_MAX; i++) {
+      if (seq !== loadSeq) return "aborted";
+      const next = await api.getMqttConfig();
+      if (seq !== loadSeq) return "aborted";
+      if (!next.applyPending) {
+        return next;
+      }
+      await new Promise((r) => setTimeout(r, MQTT_APPLY_POLL_MS));
+    }
+    if (seq !== loadSeq) return "aborted";
+    const last = await api.getMqttConfig();
+    if (seq !== loadSeq) return "aborted";
+    return last.applyPending ? "timeout" : last;
+  }
+
   async function persist(nextPartner: string) {
     if (!cfg) return;
+    const seq = loadSeq;
+    const submittedTls = cfg.tls;
     busy = true;
     try {
       const res = await api.saveMqtt({
         mqtt_server: cfg.server,
         mqtt_port: cfg.port,
-        mqtt_tls: cfg.tls ? 1 : 0,
+        mqtt_tls: cfg.tls,
         mqtt_user: cfg.username,
         mqtt_pass: password || undefined,
         partner_id: nextPartner.trim().toLowerCase(),
       });
+      if (seq !== loadSeq) return;
       if (!res.ok) {
         onToast(
           res.error === "partner" ? i18n.t("toast.partner-invalid") : i18n.t("toast.save-failed"),
@@ -100,15 +129,29 @@
         );
         return;
       }
-      onToast(i18n.t("toast.mqtt-saved"), "success");
       password = "";
-      const next = await api.getMqttConfig();
-      cfg = next;
-      partner = next.partnerId;
+      const applied = await waitForMqttPersist(seq);
+      if (seq !== loadSeq || applied === "aborted") return;
+      if (applied === "timeout") {
+        onToast(i18n.t("toast.save-failed"), "error");
+        return;
+      }
+      cfg = applied;
+      partner = applied.partnerId;
+      if (applied.nvsOk === false) {
+        onToast(i18n.t("toast.save-failed"), "error");
+        return;
+      }
+      onToast(i18n.t("toast.mqtt-saved"), "success");
+      if (!submittedTls) {
+        onToast(i18n.t("toast.mqtt-tls-off"), "warning");
+      }
       await onDeviceRefresh?.();
     } catch {
+      if (seq !== loadSeq) return;
       onToast(i18n.t("toast.save-failed"), "error");
     } finally {
+      // refreshDevice bumps refreshSeq → $effect bumps loadSeq; still unlock the buttons.
       busy = false;
     }
   }
@@ -158,6 +201,28 @@
   <LoadingBlock label={i18n.t("mqtt.loading")} />
 {:else}
   <div class="space-y-4">
+    {#snippet deviceIdValue()}
+      <span class="inline-flex items-center gap-1.5 tracking-widest">
+        {dash(cfg?.deviceId)}
+        {#if hasDeviceId}
+          <button
+            type="button"
+            aria-label={i18n.t("mqtt.copy-device-id")}
+            class={cn(
+              "inline-flex size-7 shrink-0 items-center justify-center rounded-full text-muted transition focus-ring",
+              HOVER_SURFACE,
+            )}
+            onclick={() => void copyDeviceId()}
+          >
+            {#if copied}
+              <Check size={14} strokeWidth={2.25} class="pointer-events-none" aria-hidden="true" />
+            {:else}
+              <Copy size={14} strokeWidth={2.25} class="pointer-events-none" aria-hidden="true" />
+            {/if}
+          </button>
+        {/if}
+      </span>
+    {/snippet}
     <Panel>
       {#snippet title()}
         <StatusBadge
@@ -168,33 +233,6 @@
           detailOk={i18n.t("status.mqtt-ok")}
           detailBad={i18n.t(brokerConfigured ? "status.mqtt-bad" : "status.mqtt-unconfigured")}
         />
-      {/snippet}
-      {#snippet deviceIdValue()}
-        <span class="inline-flex items-center gap-1.5 tracking-widest">
-          {dash(cfg.deviceId)}
-          {#if hasDeviceId}
-            <button
-              type="button"
-              aria-label={i18n.t("mqtt.copy-device-id")}
-              class={cn(
-                "inline-flex size-7 shrink-0 items-center justify-center rounded-full text-muted transition focus-ring",
-                HOVER_SURFACE,
-              )}
-              onclick={() => void copyDeviceId()}
-            >
-              {#if copied}
-                <Check
-                  size={14}
-                  strokeWidth={2.25}
-                  class="pointer-events-none"
-                  aria-hidden="true"
-                />
-              {:else}
-                <Copy size={14} strokeWidth={2.25} class="pointer-events-none" aria-hidden="true" />
-              {/if}
-            </button>
-          {/if}
-        </span>
       {/snippet}
       <KeyValueGrid
         items={[

@@ -18,7 +18,7 @@ Local test pyramid for chaya2mqtt based on this **principle**: real firmware log
      ┌─────────────────────────┴─────────────────────────┐
      │ Frontend Vitest + Coverage                        │
      │ Native Unity + device simulator + ASan/UBSan      │
-     │ cppcheck + Python embedding tests                 │
+     │ cppcheck + clang-tidy (*_pure.h) + embed tests    │
      └───────────────────────────────────────────────────┘
 ```
 
@@ -30,10 +30,10 @@ Local test pyramid for chaya2mqtt based on this **principle**: real firmware log
 | MQTT QoS-1 ACK / Backoff / Reconnect | `mqtt_publish_ack.h`, `backoff.h`, `mqtt_reconnect.cpp` | `test_mqtt`, `test_device_sim` | — |
 | Counter Payload / Display-Delta | `counter_payload.h`, `heart/counter_pure.h` | `test_mqtt`, `test_time`, device-sim | Dashboard SSE |
 | WiFi / NVS-Pack | `wifi/wlan_pack.h`, `wlan_config.*` | `test_wifi`, device-sim NVS | `WifiSetup`, E2E AP |
-| Web CSRF TTL/Grace / Host / Hex / SPA | `csrf_pure.h`, `hex_codec.h`, `host_validate.h`, `spa_asset_lookup.h` | `test_web` | single-flight refresh/retry, contract |
+| Web Host / SPA | `host_validate.h`, `spa_asset_lookup.h` | `test_web` | contract |
 | OTA Version / GitHub JSON / URL allowlist | `version_cmp.h`, `github_parse.h`, `ota_url_allow.h` | `test_ota` | `UpdatePage`, E2E |
 | OTA health window (30 s) | `ota/ota_health.h` | `test_ota` (`test_ota_health_window`) | — |
-| WiFi forced-reassociation threshold | `wifi/wlan_config.h` | `test_wifi` | — |
+| WiFi Soft→Force reconnect threshold | `wifi/wlan_config.h` (`kWifiSoftReconnectAttemptsBeforeForce`) | `test_wifi` (constant assert only) | Soft-reconnect recovery loop: HIL/manual |
 | Time helpers | `util/time_helpers.h` | `test_time` | — |
 | Battery / audio gates / queue coalescing / display link + battery icons / LED patterns / button debounce | pure helpers in `hw`, `audio`, `async`, `display`, `button`, `led` | `test_hw` | Settings, dashboard |
 | Device orchestration | Pure helpers + `sim/device_runtime.h` | `test_device_sim` | Mock scenarios |
@@ -49,13 +49,14 @@ Generated artifacts (`frontend/coverage/`, `frontend/test-results/`, `playwright
 - Python 3 (embedding tests, optional `paho-mqtt` for the hardware smoke test)
 - Install the Playwright browser once: `cd frontend && npx playwright install chromium`
 - For ASan: host Clang/GCC with AddressSanitizer/UBSan (macOS Xcode CLT is sufficient)
+- clang-tidy: required in CI (`scripts/check_pure_clang_tidy.sh`). Locally optional; without it `make check-firmware-tests` skips TEST-05. Homebrew: `llvm` on `PATH`.
 
 ## Quick commands
 
 | Target / command | Purpose |
 |------------------|---------|
 | `make check` | Complete hardware-free gate before commits |
-| `make check-frontend` | Frontend lint, coverage, build, and Playwright E2E |
+| `make check-frontend` | Frontend lint, svelte-check, coverage, build, and Playwright E2E |
 | `make check-flasher` | Web-flasher lint, type-check, build, and Python tests |
 | `make check-firmware` | Native/ASan tests, cppcheck, and release build |
 | `cd frontend && npm test` | Vitest |
@@ -72,7 +73,7 @@ Generated artifacts (`frontend/coverage/`, `frontend/test-results/`, `playwright
 
 ### `make check` (complete)
 
-Frontend linting and formatting, coverage thresholds, frontend build, SPA embedding + Python embedding tests, flasher/release artifact tests, native Unity, ASan/UBSan, cppcheck, Playwright E2E, the ESP32-S3 release build, and `prepare_release_artifacts.py` validation.
+Frontend linting and formatting, coverage thresholds, frontend build, SPA embedding + Python embedding tests, flasher/release artifact tests, native Unity, ASan/UBSan, cppcheck, clang-tidy on `*_pure.h`, Playwright E2E, the ESP32-S3 release build, and `prepare_release_artifacts.py` validation.
 
 For pull requests, the `Quality gate` workflow selects the affected frontend, flasher, and firmware
 jobs from the changed paths and runs them in parallel. Documentation-only changes finish without
@@ -85,7 +86,7 @@ The Pages deploy workflow publishes the browser flasher to
 
 - **Unit/integration:** Vitest + Testing Library (`frontend/src/**/*.test.ts`, `frontend/mock/**/*.test.ts`)
 - **Coverage:** `npm run test:coverage`—thresholds in `frontend/vite.config.ts` (70% lines/functions/statements, 60% branches)
-- **Contract:** `frontend/src/api/contract.test.ts` keeps the mock, firmware routes, OpenAPI/AsyncAPI, and MQTT fields synchronized
+- **Contract:** `frontend/src/api/contract.test.ts` treats `docs/openapi.yaml` and `docs/asyncapi.yaml` as the source of truth and checks the client, mock, firmware routes, and MQTT fields against them
 - **E2E:** `frontend/e2e/` with scenario reset through `/api/_mock/scenario`
 
 ## Native C++ / device simulator
@@ -124,8 +125,8 @@ attached device and `make check` stays hardware-free.
 
 1. **Flash/boot**—flash the release over USB-C; on battery press PWR and confirm GPIO17 stays latched; display updates (~20 s). Do not hold BOOT except for download.
 2. **AP setup**—scan the WIFI QR on the display (phone camera); join WPA2/WPA3 `Chaya2MQTT`; confirm `chaya2mqtt.local` and captive probes reach the connected AP; on **iPhone**, confirm the Captive Network Assistant (or Safari) loads the Wi‑Fi setup SPA with gzip `/assets/*` (page renders, not a download); SSID scan; test & connect; commit.
-3. **Multi-device network identity**—start two unconfigured devices; use each display's QR/PIN to configure the two same-named but isolated setup APs. After both join the same LAN, confirm `chaya2mqtt-<id-a>.local` and `chaya2mqtt-<id-b>.local` consistently open the matching dashboards and expose matching IDs. Confirm the unsuffixed STA name does not select an arbitrary device.
-4. **WiFi change/recovery**—wrong password → error; correct password → STA; reboot retains configuration; repeated disconnects → soft reconnect, then forced reassociation; longer outage → controlled restart (no restart during OTA); LOST_IP triggers the same reconnect path.
+3. **Multi-device network identity**—start two unconfigured devices; scan each display's WIFI QR to configure the two same-named but isolated setup APs. After both join the same LAN, confirm `chaya2mqtt-<id-a>.local` and `chaya2mqtt-<id-b>.local` consistently open the matching dashboards and expose matching IDs. Confirm the unsuffixed STA name does not select an arbitrary device.
+4. **WiFi change/recovery**—wrong password → error; correct password → STA; reboot retains configuration; repeated disconnects → soft reconnect, then forced reassociation (Soft→Force threshold is unit-asserted only; full soft-reconnect recovery loop is HIL/manual); longer outage → controlled restart (no restart during OTA); LOST_IP triggers the same reconnect path.
 5. **MQTT pairing/telemetry**—broker + partner; LWT online; send/receive heart; while MQTT is down, modem power saving is off (`WIFI_PS_NONE`), and after connection it returns to `MIN_MODEM`. Unpair → waiting `Chaya2MQTT` title stays; web send disabled and device button does not send until partner is set again.
 6. **Broker outage**—restart broker with stable WiFi → MQTT backoff/reconnect without factory reset; LWT offline → online.
 7. **WiFi interruption**—briefly turn off the access point → STA reconnect → MQTT online again.
@@ -139,7 +140,7 @@ attached device and `make check` stays hardware-free.
 
 - Bug fix → regression test (native or Vitest/E2E)
 - New business logic → host-testable pure header/helper + Unity case
-- REST/SSE change → update `contract.test.ts` + OpenAPI/AsyncAPI + mock
+- REST/SSE change → update OpenAPI/AsyncAPI + mock (and firmware); `contract.test.ts` reads the YAML
 - Hardware adapter → at least a successful `esp32s3-release` build
 - Before committing: `make check`
 

@@ -13,22 +13,18 @@
 
 DEFINE_LOG_TAG("CTR");
 
-DebouncedChayaCounter::DebouncedChayaCounter(std::atomic<int>* value, const char* nvsKey,
-                                             const char* saveFailMsg)
-    : value_(value)
-    , nvsKey_(nvsKey)
-    , saveFailMsg_(saveFailMsg)
-    , lastCommitted_(value->load(std::memory_order_relaxed))
-    , lastSaveMs_(0) {}
+DebouncedChayaCounter::DebouncedChayaCounter(std::atomic<int> *value, const char *nvsKey, const char *saveFailMsg)
+    : value_(value), nvsKey_(nvsKey), saveFailMsg_(saveFailMsg), lastCommitted_(value->load(std::memory_order_relaxed)),
+      lastSaveMs_(0) {}
 
 void DebouncedChayaCounter::syncAfterExternalLoad(unsigned long ms) {
     lastCommitted_ = value_->load(std::memory_order_relaxed);
-    lastSaveMs_    = ms;
+    lastSaveMs_ = ms;
 }
 
 void DebouncedChayaCounter::resetCommittedAndTimestamps(unsigned long ms) {
     lastCommitted_ = value_->load(std::memory_order_relaxed);
-    lastSaveMs_    = ms;
+    lastSaveMs_ = ms;
 }
 
 bool DebouncedChayaCounter::save() {
@@ -52,7 +48,7 @@ void DebouncedChayaCounter::maybeSave() {
     if (now - lastSaveMs_ >= kHeartCounterSaveMinIntervalMs) {
         if (save()) {
             lastCommitted_ = v;
-            lastSaveMs_    = now;
+            lastSaveMs_ = now;
         }
     }
 }
@@ -62,54 +58,48 @@ void DebouncedChayaCounter::flushIfDirty() {
     if (v != lastCommitted_) {
         if (save()) {
             lastCommitted_ = v;
-            lastSaveMs_    = millis();
+            lastSaveMs_ = millis();
         }
     }
 }
 
 DebouncedChayaCounter s_rxCounter(&heartCounter, kNvsKeyChayaCounter, "NVS chaya: write counter failed");
-DebouncedChayaCounter s_txCounter(&heartSentCounter, kNvsKeyChayaSentCount,
-                                  "NVS chaya: write sentCount failed");
+DebouncedChayaCounter s_txCounter(&heartSentCounter, kNvsKeyChayaSentCount, "NVS chaya: write sentCount failed");
 
-bool chayaNvsWritesAllowed() {
-    return !s_chayaNvsWritesSuspended.load(std::memory_order_acquire);
-}
+bool chayaNvsWritesAllowed() { return !s_chayaNvsWritesSuspended.load(std::memory_order_acquire); }
 
-void loadBaselineFromNvs(Preferences& prefs, int32_t* cntBase, int32_t* sntBase, uint32_t* rstDay) {
+void loadBaselineFromNvs(Preferences &prefs, int32_t *cntBase, int32_t *sntBase, uint32_t *rstDay) {
     ChayaBaselineBlob blob{};
     const size_t blobLen = prefs.getBytesLength(kNvsKeyChayaBaselineBlob);
-    if (blobLen == sizeof(blob)
-        && prefs.getBytes(kNvsKeyChayaBaselineBlob, &blob, sizeof(blob)) == sizeof(blob)) {
+    if (blobLen == sizeof(blob) && prefs.getBytes(kNvsKeyChayaBaselineBlob, &blob, sizeof(blob)) == sizeof(blob)) {
         *cntBase = blob.cntBase;
         *sntBase = blob.sntBase;
-        *rstDay  = blob.rstDay;
+        *rstDay = blob.rstDay;
         return;
     }
     *cntBase = prefs.getInt(kNvsKeyChayaCntBase, 0);
     *sntBase = prefs.getInt(kNvsKeyChayaSntBase, 0);
-    *rstDay  = prefs.getUInt(kNvsKeyChayaRstDay, UINT32_MAX);
+    *rstDay = prefs.getUInt(kNvsKeyChayaRstDay, UINT32_MAX);
 }
 
-void counterSuspendNvsSavesForFactoryReset() {
-    s_chayaNvsWritesSuspended.store(true, std::memory_order_release);
-}
+void counterSuspendNvsSavesForFactoryReset() { s_chayaNvsWritesSuspended.store(true, std::memory_order_release); }
 
 void loadHeartCounter() {
     const unsigned long t = millis();
-    int32_t             loadedCounter = 0;
-    int32_t             loadedSent    = 0;
-    int32_t             loadedCntBase = 0;
-    int32_t             loadedSntBase = 0;
-    uint32_t            loadedRstDay  = UINT32_MAX;
-    bool                nvsPresent    = false;
+    int32_t loadedCounter = 0;
+    int32_t loadedSent = 0;
+    int32_t loadedCntBase = 0;
+    int32_t loadedSntBase = 0;
+    uint32_t loadedRstDay = UINT32_MAX;
+    bool nvsPresent = false;
 
     {
         app_nvs::ScopedNvsLock lock;
-        Preferences            prefs;
+        Preferences prefs;
         if (prefs.begin(kNvsNsChaya, true)) {
             nvsPresent = true;
             loadedCounter = std::max<int32_t>(prefs.getInt(kNvsKeyChayaCounter, 0), 0);
-            loadedSent    = std::max<int32_t>(prefs.getInt(kNvsKeyChayaSentCount, 0), 0);
+            loadedSent = std::max<int32_t>(prefs.getInt(kNvsKeyChayaSentCount, 0), 0);
             loadBaselineFromNvs(prefs, &loadedCntBase, &loadedSntBase, &loadedRstDay);
             prefs.end();
         }
@@ -126,9 +116,8 @@ void loadHeartCounter() {
                 loadedRstDay = today;
             }
         }
-        ESP_LOGD(TAG,
-                 "Counters loaded from NVS: counter=%d sent=%d cntBase=%d sntBase=%d rstDay=%" PRIu32,
-                 loadedCounter, loadedSent, loadedCntBase, loadedSntBase, loadedRstDay);
+        ESP_LOGD(TAG, "Counters loaded from NVS: counter=%d sent=%d cntBase=%d sntBase=%d rstDay=%" PRIu32, loadedCounter,
+                 loadedSent, loadedCntBase, loadedSntBase, loadedRstDay);
     }
 
     heartCounter.store(loadedCounter, std::memory_order_relaxed);

@@ -34,7 +34,6 @@ vi.mock("../i18n/i18n.svelte.ts", () => ({
     language: "en",
     setLanguage: () => undefined,
   },
-  useI18n: () => ({ t: (key: string) => key }),
 }));
 
 function status(partial: Partial<OtaStatus> = {}): OtaStatus {
@@ -155,5 +154,44 @@ describe("UpdatePage", () => {
       expect(onToast).toHaveBeenCalledTimes(2);
     });
     expect(onToast).toHaveBeenLastCalledWith("update.error-title", "error");
+  });
+
+  it("ignores a late GET that is older than SSE status", async () => {
+    let resolveGet!: (value: OtaStatus) => void;
+    getUpdateStatus.mockImplementation(
+      () =>
+        new Promise<OtaStatus>((resolve) => {
+          resolveGet = resolve;
+        }),
+    );
+    const onToast = vi.fn();
+    const { rerender } = render(UpdatePage, { props: { onToast } });
+
+    await rerender({
+      onToast,
+      otaStatus: status({
+        phase: "downloading",
+        availableVersion: "2026.8.2",
+        bytesDone: 500000,
+        bytesTotal: 1000000,
+        generation: 5,
+      }),
+    });
+    await waitFor(() => {
+      expect(screen.getByText("update.phase.downloading")).toBeInTheDocument();
+    });
+
+    resolveGet(
+      status({
+        phase: "idle",
+        generation: 1,
+      }),
+    );
+
+    await waitFor(() => {
+      expect(getUpdateStatus).toHaveBeenCalled();
+    });
+    expect(screen.getByText("update.phase.downloading")).toBeInTheDocument();
+    expect(screen.queryByText("update.phase.idle")).not.toBeInTheDocument();
   });
 });

@@ -3,12 +3,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { WifiConfig, WifiStatus } from "../api/types.ts";
 import WifiSetup from "./WifiSetup.svelte";
 
+const startWifiScan = vi.fn();
 const scanWifi = vi.fn();
 const connectWifi = vi.fn();
 const getWifiConfig = vi.fn();
 
 vi.mock("../api/client", () => ({
   api: {
+    startWifiScan: () => startWifiScan(),
     scanWifi: () => scanWifi(),
     connectWifi: (fields: unknown) => connectWifi(fields),
     getWifiConfig: () => getWifiConfig(),
@@ -17,7 +19,6 @@ vi.mock("../api/client", () => ({
 
 vi.mock("../i18n/i18n.svelte.ts", () => ({
   i18n: { t: (key: string) => key, language: "en", setLanguage: () => undefined },
-  useI18n: () => ({ t: (key: string) => key }),
 }));
 
 const wifiConnected: WifiStatus = {
@@ -56,16 +57,20 @@ describe("WifiSetup", () => {
   });
 
   beforeEach(() => {
-    scanWifi.mockResolvedValue([]);
+    startWifiScan.mockResolvedValue({ ok: true });
+    scanWifi.mockResolvedValue({ status: "ready", aps: [] });
     getWifiConfig.mockResolvedValue(dhcpConfig);
     connectWifi.mockResolvedValue({ ok: true, message: "saved_rebooting" });
   });
 
   it("renders duplicate scan rows without duplicate-key failure", async () => {
-    scanWifi.mockResolvedValue([
-      { ssid: "MeshNet", rssi: -48, open: false },
-      { ssid: "MeshNet", rssi: -48, open: false },
-    ]);
+    scanWifi.mockResolvedValue({
+      status: "ready",
+      aps: [
+        { ssid: "MeshNet", rssi: -48, open: false },
+        { ssid: "MeshNet", rssi: -48, open: false },
+      ],
+    });
 
     render(WifiSetup, {
       props: {
@@ -83,6 +88,90 @@ describe("WifiSetup", () => {
     });
 
     await waitFor(() => expect(screen.getAllByText("MeshNet")).toHaveLength(2));
+    expect(startWifiScan).not.toHaveBeenCalled();
+  });
+
+  it("starts a sweep on mount when the snapshot is idle", async () => {
+    scanWifi.mockResolvedValueOnce({ status: "idle" }).mockResolvedValue({
+      status: "ready",
+      aps: [{ ssid: "FreshNet", rssi: -40, open: true }],
+    });
+
+    render(WifiSetup, {
+      props: {
+        device: {
+          hostname: "chaya2mqtt",
+          version: "dev",
+          mode: "ap",
+          deviceId: "a1b2c3",
+          batteryMv: 3900,
+          batteryPct: 55,
+        },
+        wifi: { connected: false },
+        onToast: vi.fn(),
+      },
+    });
+
+    await waitFor(() => expect(screen.getByText("FreshNet")).toBeTruthy());
+    expect(startWifiScan).toHaveBeenCalled();
+  });
+
+  it("kicks a new sweep when refresh is clicked even if a cache is ready", async () => {
+    scanWifi
+      .mockResolvedValueOnce({
+        status: "ready",
+        aps: [{ ssid: "OldNet", rssi: -60, open: true }],
+      })
+      .mockResolvedValue({
+        status: "ready",
+        aps: [{ ssid: "NewNet", rssi: -40, open: true }],
+      });
+
+    render(WifiSetup, {
+      props: {
+        device: {
+          hostname: "chaya2mqtt",
+          version: "dev",
+          mode: "ap",
+          deviceId: "a1b2c3",
+          batteryMv: 3900,
+          batteryPct: 55,
+        },
+        wifi: { connected: false },
+        onToast: vi.fn(),
+      },
+    });
+
+    await waitFor(() => expect(screen.getByText("OldNet")).toBeTruthy());
+    expect(startWifiScan).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: "wifi.scan" }));
+
+    await waitFor(() => expect(screen.getByText("NewNet")).toBeTruthy());
+    expect(startWifiScan).toHaveBeenCalledTimes(1);
+    expect(screen.queryByText("OldNet")).toBeNull();
+  });
+
+  it("toasts when a started scan fails", async () => {
+    const onToast = vi.fn();
+    scanWifi.mockResolvedValueOnce({ status: "idle" }).mockResolvedValue({ status: "failed" });
+
+    render(WifiSetup, {
+      props: {
+        device: {
+          hostname: "chaya2mqtt",
+          version: "dev",
+          mode: "ap",
+          deviceId: "a1b2c3",
+          batteryMv: 3900,
+          batteryPct: 55,
+        },
+        wifi: { connected: false },
+        onToast,
+      },
+    });
+
+    await waitFor(() => expect(onToast).toHaveBeenCalledWith("toast.wifi-scan-failed", "error"));
   });
 
   it("hides manual IP fields under DHCP; DNS/NTP show automatic previews", async () => {

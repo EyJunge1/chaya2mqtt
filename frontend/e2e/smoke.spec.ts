@@ -11,7 +11,7 @@ test.beforeEach(async ({ page, request }) => {
 
 test("app boots and navigates @smoke", async ({ page }) => {
   await waitForAppReady(page);
-  await expect(page.getByText("Hearts")).toBeVisible();
+  await expect(page.getByTestId("dashboard-hearts")).toBeVisible();
   await page.getByRole("link", { name: "MQTT" }).first().click();
   await expect(page).toHaveURL(/\/mqtt$/);
   await expect(page.getByText("a1b2c3").first()).toBeVisible();
@@ -45,23 +45,28 @@ test("wifi test then commit in AP mode", async ({ page, request }) => {
   await expect(page.getByRole("button", { name: "Save & reboot" })).toBeEnabled({
     timeout: 15_000,
   });
+  const commit = page.waitForResponse(
+    (r) => r.url().includes("/api/wifi/connect-commit") && r.request().method() === "POST",
+  );
   await page.getByRole("button", { name: "Save & reboot" }).click();
-  await expect(page).toHaveURL(/\/$/);
+  expect((await commit).status()).toBe(200);
+  await expect(page.getByText(/rebooting|Neustart/i)).toBeVisible();
 });
 
 test("diagnostics live via SSE counters @smoke", async ({ page }) => {
   await waitForAppReady(page);
-  await expect(page.getByText("Hearts")).toBeVisible();
-  await expect(page.getByText(/\d+/).first()).toBeVisible();
+  await expect(page.getByTestId("dashboard-hearts")).toBeVisible();
+  await expect(page.getByTestId("dashboard-rx-count")).toBeVisible();
+  await expect(page.getByTestId("dashboard-tx-count")).toBeVisible();
 });
 
 test("ota check success and error paths", async ({ page, request }) => {
   await resetMock(request, "update-available");
   await waitForAppReady(page);
   await page.goto("/update");
-  await expect(page.getByRole("button", { name: /Check for updates/i })).toBeVisible();
+  await expect(page.getByTestId("update-status-phase")).toBeVisible();
   await page.getByRole("button", { name: /Check for updates/i }).click();
-  await expect(page.getByText(/available|update/i).first()).toBeVisible();
+  await expect(page.getByTestId("update-status-phase")).toBeVisible();
 
   await resetMock(request, "update-error");
   await page.reload();
@@ -130,4 +135,67 @@ test("battery critical icon from simulator scenario @smoke", async ({ page, requ
   await waitForAppReady(page);
   await expect(page.getByLabel(/Battery: 8%/i)).toBeVisible();
   await expect(page.getByText("8%")).toBeVisible();
+});
+
+test("ota install confirm starts downloading", async ({ page, request }) => {
+  await resetMock(request, "update-available");
+  await waitForAppReady(page);
+  await page.goto("/update");
+  await page.getByRole("button", { name: /Check for updates/i }).click();
+  await expect(
+    page.getByRole("button", { name: /Install update|Update installieren/i }),
+  ).toBeVisible({
+    timeout: 10_000,
+  });
+  await page.getByRole("button", { name: /Install update|Update installieren/i }).click();
+  await expect(page.getByRole("dialog")).toBeVisible();
+  await page
+    .getByRole("dialog")
+    .getByRole("button", { name: /Install update|Update installieren/i })
+    .click();
+  await expect(page.getByText(/Downloading|Herunterladen/i).first()).toBeVisible({
+    timeout: 10_000,
+  });
+});
+
+test("factory reset confirm posts and enters AP setup", async ({ page, request }) => {
+  await resetMock(request, "sta-connected");
+  await waitForAppReady(page);
+  await page.goto("/settings/device");
+  const resetPromise = page.waitForResponse(
+    (r) => r.url().includes("/api/factory-reset") && r.request().method() === "POST",
+  );
+  await page
+    .getByRole("main")
+    .getByRole("button", { name: /Delete everything|Alles löschen/i })
+    .click();
+  await expect(page.getByRole("dialog")).toBeVisible();
+  await page
+    .getByRole("dialog")
+    .getByRole("button", { name: /Delete everything|Alles löschen/i })
+    .click();
+  const res = await resetPromise;
+  expect(res.status()).toBe(202);
+  // Mock switches to ap-setup after reset (FE-14).
+  await expect(page.getByRole("button", { name: /Test & connect/i })).toBeVisible({
+    timeout: 15_000,
+  });
+});
+
+test("settings nvsOk false shows save-failed toast", async ({ page, request }) => {
+  await resetMock(request, "settings-nvs-fail");
+  await waitForAppReady(page);
+  await page.goto("/settings/device");
+  await page.getByRole("main").getByRole("button", { name: "Save", exact: true }).first().click();
+  await expect(page.getByText("Save failed")).toBeVisible();
+});
+
+test("wifi commit returns absolute next URL", async ({ request }) => {
+  await resetMock(request, "ap-test-ok");
+  const commit = await request.post("/api/wifi/connect-commit", {
+    data: {},
+  });
+  const commitBody = (await commit.json()) as { ok: boolean; next?: string };
+  expect(commitBody.ok).toBeTruthy();
+  expect(commitBody.next).toMatch(/^http:\/\/\d+\.\d+\.\d+\.\d+\//);
 });

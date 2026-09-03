@@ -5,7 +5,7 @@
 /** Prefix for auto-generated MQTT pair topics: chaya2mqtt/<device_id>. */
 constexpr const char kMqttPairTopicPrefix[] = "chaya2mqtt/";
 
-constexpr uint16_t kMqttDefaultTlsPort   = 8883;
+constexpr uint16_t kMqttDefaultTlsPort = 8883;
 constexpr uint16_t kMqttDefaultPlainPort = 1883;
 
 constexpr int kMqttKeepAliveSeconds = 60;
@@ -17,6 +17,4 @@ inline constexpr uint16_t normalizeMqttPort(int p) {
 }
 
 /** Standard port for the given transport (mqtt vs mqtts). */
-inline constexpr uint16_t mqttDefaultPortForTls(bool tls) {
-    return tls ? kMqttDefaultTlsPort : kMqttDefaultPlainPort;
-}
+inline constexpr uint16_t mqttDefaultPortForTls(bool tls) { return tls ? kMqttDefaultTlsPort : kMqttDefaultPlainPort; }

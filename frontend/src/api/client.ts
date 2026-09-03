@@ -1,33 +1,15 @@
 import type {
   ApiResult,
-  ChayaStatus,
-  DeviceInfo,
+  BootstrapPayload,
   MqttConfigView,
-  MqttStatus,
   OtaChannel,
-  OtaStatus,
   SettingsInfo,
   WifiConfig,
   WifiConnectFields,
   WifiConnectStatus,
-  WifiScanAp,
-  WifiStatus,
+  WifiScanSnapshot,
 } from "./types";
-
-let csrfToken = "";
-let csrfRefreshPromise: Promise<string> | null = null;
-
-const csrfRetryablePosts = new Set([
-  "/api/wifi/connect",
-  "/api/wifi/connect-abort",
-  "/api/mqtt",
-  "/api/settings",
-  "/api/update/check",
-]);
-
-export function setCsrfToken(token: string): void {
-  csrfToken = token;
-}
+import { parseOtaStatus, parseWifiScanSnapshot } from "./validate";
 
 async function parseJson<T>(res: Response): Promise<T> {
   const text = await res.text();
@@ -37,22 +19,17 @@ async function parseJson<T>(res: Response): Promise<T> {
   return JSON.parse(text) as T;
 }
 
-function formBody(fields: Record<string, string | number | boolean | undefined>): string {
-  const body = new URLSearchParams();
-  body.set("csrf_token", csrfToken);
+function jsonBody(fields: Record<string, string | number | boolean | undefined>): string {
+  const body: Record<string, string | number | boolean> = {};
   for (const [key, value] of Object.entries(fields)) {
     if (value === undefined) continue;
-    if (typeof value === "boolean") {
-      if (value) body.set(key, "1");
-      continue;
-    }
-    body.set(key, String(value));
+    body[key] = value;
   }
-  return body.toString();
+  return JSON.stringify(body);
 }
 
 async function apiGet<T>(path: string): Promise<T> {
-  const res = await fetch(path, { credentials: "same-origin" });
+  const res = await fetch(path);
   if (!res.ok) {
     throw new Error(`${path} failed (${res.status})`);
   }
@@ -62,28 +39,15 @@ async function apiGet<T>(path: string): Promise<T> {
 async function apiPost(
   path: string,
   fields: Record<string, string | number | boolean | undefined> = {},
-  csrfRetried = false,
 ): Promise<ApiResult> {
   const res = await fetch(path, {
     method: "POST",
-    credentials: "same-origin",
-    headers: { "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8" },
-    body: formBody(fields),
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: jsonBody(fields),
   });
   const data = await parseJson<ApiResult>(res);
-  if (
-    res.status === 403 &&
-    data &&
-    typeof data === "object" &&
-    "ok" in data &&
-    data.ok === false &&
-    data.error === "csrf" &&
-    !csrfRetried &&
-    csrfRetryablePosts.has(path)
-  ) {
-    await refreshCsrf();
-    return apiPost(path, fields, true);
-  }
   if (!res.ok && data && typeof data === "object" && "ok" in data && data.ok === false) {
     return data;
   }
@@ -93,31 +57,21 @@ async function apiPost(
   return data;
 }
 
-export async function refreshCsrf(): Promise<string> {
-  if (csrfRefreshPromise === null) {
-    csrfRefreshPromise = apiGet<{ token: string; expiresInSeconds: number }>("/api/csrf")
-      .then((data) => {
-        csrfToken = data.token;
-        return csrfToken;
-      })
-      .finally(() => {
-        csrfRefreshPromise = null;
-      });
-  }
-  return csrfRefreshPromise;
-}
-
 export const api = {
-  getDevice: () => apiGet<DeviceInfo>("/api/device"),
-  getChaya: () => apiGet<ChayaStatus>("/api/chaya"),
+  getBootstrap: async (): Promise<BootstrapPayload> => {
+    const raw = await apiGet<BootstrapPayload>("/api/bootstrap");
+    return {
+      ...raw,
+      update: raw.update ? parseOtaStatus(raw.update) : null,
+    };
+  },
   sendChaya: () => apiPost("/api/chaya/send"),
-  getWifiStatus: () => apiGet<WifiStatus>("/api/wifi/status"),
   getWifiConfig: () => apiGet<WifiConfig>("/api/wifi/config"),
-  scanWifi: async (): Promise<WifiScanAp[] | "pending"> => {
-    const res = await fetch("/api/wifi/scan", { credentials: "same-origin" });
-    if (res.status === 202) return "pending";
+  startWifiScan: () => apiPost("/api/wifi/scan"),
+  scanWifi: async (): Promise<WifiScanSnapshot> => {
+    const res = await fetch("/api/wifi/scan");
     if (!res.ok) throw new Error(`wifi scan failed (${res.status})`);
-    return parseJson<WifiScanAp[]>(res);
+    return parseWifiScanSnapshot(await parseJson<unknown>(res));
   },
   connectWifi: (fields: WifiConnectFields) =>
     apiPost("/api/wifi/connect", {
@@ -136,12 +90,11 @@ export const api = {
   commitWifiConnect: () => apiPost("/api/wifi/connect-commit"),
   abortWifiConnect: () => apiPost("/api/wifi/connect-abort"),
   retryWifiConnect: () => apiPost("/api/wifi/connect-retry"),
-  getMqttStatus: () => apiGet<MqttStatus>("/api/mqtt/status"),
   getMqttConfig: () => apiGet<MqttConfigView>("/api/mqtt"),
   saveMqtt: (fields: {
     mqtt_server: string;
     mqtt_port: number;
-    mqtt_tls: boolean | number;
+    mqtt_tls: boolean;
     mqtt_user?: string;
     mqtt_pass?: string;
     partner_id?: string;
@@ -151,9 +104,9 @@ export const api = {
     reset_days?: number;
     lang?: string;
     theme?: string;
-    led_enabled?: boolean | number;
-    audio_tx_enabled?: boolean | number;
-    audio_rx_enabled?: boolean | number;
+    led_enabled?: boolean;
+    audio_tx_enabled?: boolean;
+    audio_rx_enabled?: boolean;
     audio_tx_volume?: number;
     audio_rx_volume?: number;
     quiet_hour_start?: number;
@@ -165,7 +118,7 @@ export const api = {
   }) => apiPost("/api/settings", fields),
   reboot: () => apiPost("/api/reboot"),
   factoryReset: () => apiPost("/api/factory-reset"),
-  getUpdateStatus: () => apiGet<OtaStatus>("/api/update/status"),
+  getUpdateStatus: async () => parseOtaStatus(await apiGet<unknown>("/api/update/status")),
   checkUpdate: (channel?: OtaChannel) => apiPost("/api/update/check", channel ? { channel } : {}),
   installUpdate: () => apiPost("/api/update/install"),
 };

@@ -13,7 +13,6 @@
 #include "draw_pure.h"
 #include "heart/counter.h"
 #include "led/led.h"
-#include "mqtt/config.h"
 #include "util/log_tag.h"
 #include "wifi/wlan.h"
 
@@ -79,7 +78,7 @@ bool displayPostHeartRedraw(TickType_t waitTicks) {
         return false;
     }
     // Waiting title / SoftAP: never queue heart content over ProductTitle or SetupQr.
-    if (configIsApMode() || !mqttCfgIsHeartReady()) {
+    if (!displayContentAllowed()) {
         s_heartDrawPending.store(false, std::memory_order_release);
         return true;
     }
@@ -217,8 +216,8 @@ static void displayTaskFn(void *) {
         switch (msg.cmd) {
         case DisplayMsg::Cmd::DrawHeart: {
             // Drop queued heart paints after unpair (or while still on waiting title).
-            if (configIsApMode() || !mqttCfgIsHeartReady()) {
-                ESP_LOGI(TAG, "heart draw skipped; not heart-ready");
+            if (!displayContentAllowed()) {
+                ESP_LOGI(TAG, "heart draw skipped; not content-allowed");
                 s_heartDrawQueued.store(false, std::memory_order_release);
                 s_heartDrawPending.store(false, std::memory_order_release);
                 break;

@@ -2,10 +2,11 @@
 
 #include <ESPAsyncWebServer.h>
 
+/** Host allowlist. Attach once on the server (`ws.addMiddleware`). */
 ArMiddlewareCallback mwRequireAllowedHost();
 
-/** JSON APIs: 403 on bad host/origin/CSRF instead of redirects. */
-ArMiddlewareCallback mwApiPostCsrf();
-ArMiddlewareCallback mwApiApPostCsrf();
+/** STA-only API (`400 ap_mode`). Host is the server middleware. */
 ArMiddlewareCallback mwApiStaMode();
+
+/** AP-only API (`400 not_ap`). Host is the server middleware. */
 ArMiddlewareCallback mwApiApMode();

@@ -30,8 +30,8 @@ DEFINE_LOG_TAG("AUDIO");
 
 namespace {
 
-bool     s_codecPresent = false;
-uint32_t s_stackLog     = 0;
+bool s_codecPresent = false;
+uint32_t s_stackLog = 0;
 std::atomic<bool> s_txPending{false};
 std::atomic<bool> s_rxPending{false};
 
@@ -98,28 +98,28 @@ bool es8311PreparePlayback(uint8_t volume0to100) {
     }
     delay(20);
     (void)es8311Write(0x00, 0x00);
-    (void)es8311Write(0x00, 0x80);  // CSM on before clock/fmt (Waveshare es8311_init)
+    (void)es8311Write(0x00, 0x80); // CSM on before clock/fmt (Waveshare es8311_init)
     // Clock: MCLK from pin, all clocks on; 24 kHz @ MCLK 6.144 MHz (256×fs).
     (void)es8311Write(0x01, 0x3F);
-    (void)es8311Write(0x02, 0x00);  // pre_div=1, pre_multi=1x
-    (void)es8311Write(0x03, 0x10);  // adc_osr
-    (void)es8311Write(0x04, 0x10);  // dac_osr
-    (void)es8311Write(0x05, 0x00);  // adc/dac div = 1
-    (void)es8311Write(0x06, 0x03);  // bclk_div = 4
+    (void)es8311Write(0x02, 0x00); // pre_div=1, pre_multi=1x
+    (void)es8311Write(0x03, 0x10); // adc_osr
+    (void)es8311Write(0x04, 0x10); // dac_osr
+    (void)es8311Write(0x05, 0x00); // adc/dac div = 1
+    (void)es8311Write(0x06, 0x03); // bclk_div = 4
     (void)es8311Write(0x07, 0x00);
-    (void)es8311Write(0x08, 0xFF);  // lrck divider
+    (void)es8311Write(0x08, 0xFF); // lrck divider
     // SDP 16-bit I2S slave (resolution bits = 3 << 2).
     (void)es8311Write(0x09, 0x0C);
     (void)es8311Write(0x0A, 0x0C);
-    (void)es8311Write(0x0D, 0x01);  // analog power up
-    (void)es8311Write(0x0E, 0x02);  // analog PGA / path (must not clear for DAC)
+    (void)es8311Write(0x0D, 0x01); // analog power up
+    (void)es8311Write(0x0E, 0x02); // analog PGA / path (must not clear for DAC)
     es8311MuteMicOnly();
-    (void)es8311Write(0x12, 0x00);  // DAC power up
-    (void)es8311Write(0x13, 0x10);  // HP drive
+    (void)es8311Write(0x12, 0x00); // DAC power up
+    (void)es8311Write(0x13, 0x10); // HP drive
     (void)es8311Write(0x1C, 0x6A);
     (void)es8311Write(0x37, 0x08);
     (void)es8311Write(0x32, dacVolumeRegister(volume0to100));
-    (void)es8311Write(0x31, 0x00);  // unmute
+    (void)es8311Write(0x31, 0x00); // unmute
     return true;
 }
 
@@ -128,24 +128,23 @@ void es8311MuteAndSleep() {
     es8311MuteMicOnly();
 }
 
-bool i2sStart(i2s_chan_handle_t* outTx) {
+bool i2sStart(i2s_chan_handle_t *outTx) {
     i2s_chan_config_t chanCfg = I2S_CHANNEL_DEFAULT_CONFIG(I2S_NUM_0, I2S_ROLE_MASTER);
-    i2s_chan_handle_t tx      = nullptr;
+    i2s_chan_handle_t tx = nullptr;
     if (i2s_new_channel(&chanCfg, &tx, nullptr) != ESP_OK) {
         return false;
     }
     i2s_std_config_t stdCfg = {};
-    stdCfg.clk_cfg               = I2S_STD_CLK_DEFAULT_CONFIG(kAudioSampleRateHz);
+    stdCfg.clk_cfg = I2S_STD_CLK_DEFAULT_CONFIG(kAudioSampleRateHz);
     stdCfg.clk_cfg.mclk_multiple = I2S_MCLK_MULTIPLE_256;
     // Waveshare 07_Audio_out: mono left (not stereo).
-    stdCfg.slot_cfg =
-        I2S_STD_PHILIPS_SLOT_DEFAULT_CONFIG(I2S_DATA_BIT_WIDTH_16BIT, I2S_SLOT_MODE_MONO);
+    stdCfg.slot_cfg = I2S_STD_PHILIPS_SLOT_DEFAULT_CONFIG(I2S_DATA_BIT_WIDTH_16BIT, I2S_SLOT_MODE_MONO);
     stdCfg.slot_cfg.slot_mask = I2S_STD_SLOT_LEFT;
-    stdCfg.gpio_cfg.mclk      = static_cast<gpio_num_t>(pins::kI2sMclk);
-    stdCfg.gpio_cfg.bclk      = static_cast<gpio_num_t>(pins::kI2sSclk);
-    stdCfg.gpio_cfg.ws        = static_cast<gpio_num_t>(pins::kI2sLrck);
-    stdCfg.gpio_cfg.dout      = static_cast<gpio_num_t>(pins::kI2sDsdin);
-    stdCfg.gpio_cfg.din       = I2S_GPIO_UNUSED;
+    stdCfg.gpio_cfg.mclk = static_cast<gpio_num_t>(pins::kI2sMclk);
+    stdCfg.gpio_cfg.bclk = static_cast<gpio_num_t>(pins::kI2sSclk);
+    stdCfg.gpio_cfg.ws = static_cast<gpio_num_t>(pins::kI2sLrck);
+    stdCfg.gpio_cfg.dout = static_cast<gpio_num_t>(pins::kI2sDsdin);
+    stdCfg.gpio_cfg.din = I2S_GPIO_UNUSED;
     if (i2s_channel_init_std_mode(tx, &stdCfg) != ESP_OK) {
         (void)i2s_del_channel(tx);
         return false;
@@ -168,17 +167,17 @@ void i2sStop(i2s_chan_handle_t tx) {
 
 void writeTone(i2s_chan_handle_t tx, uint32_t durationMs, float hz, float amplitude) {
     static constexpr size_t kChunkFrames = 128;
-    int16_t                 mono[kChunkFrames];
-    const float             twoPi = 6.28318530718f;
-    const uint32_t          total = (kAudioSampleRateHz * durationMs) / 1000U;
-    uint32_t                done  = 0;
+    int16_t mono[kChunkFrames];
+    const float twoPi = 6.28318530718f;
+    const uint32_t total = (kAudioSampleRateHz * durationMs) / 1000U;
+    uint32_t done = 0;
     while (done < total) {
         const size_t n = ((total - done) < kChunkFrames) ? (total - done) : kChunkFrames;
         for (size_t i = 0; i < n; ++i) {
-            const float t   = static_cast<float>(done + i) / static_cast<float>(kAudioSampleRateHz);
+            const float t = static_cast<float>(done + i) / static_cast<float>(kAudioSampleRateHz);
             const float env = 1.0f - (static_cast<float>(done + i) / static_cast<float>(total));
-            const float s   = sinf(twoPi * hz * t) * amplitude * env;
-            mono[i]         = static_cast<int16_t>(s * 28000.0f);
+            const float s = sinf(twoPi * hz * t) * amplitude * env;
+            mono[i] = static_cast<int16_t>(s * 28000.0f);
         }
         size_t written = 0;
         (void)i2s_channel_write(tx, mono, n * sizeof(int16_t), &written, pdMS_TO_TICKS(200));
@@ -188,12 +187,12 @@ void writeTone(i2s_chan_handle_t tx, uint32_t durationMs, float hz, float amplit
 
 void writeSilence(i2s_chan_handle_t tx, uint32_t durationMs) {
     static constexpr size_t kChunkFrames = 128;
-    int16_t                 mono[kChunkFrames]{};
-    const uint32_t          total = (kAudioSampleRateHz * durationMs) / 1000U;
-    uint32_t                done  = 0;
+    int16_t mono[kChunkFrames]{};
+    const uint32_t total = (kAudioSampleRateHz * durationMs) / 1000U;
+    uint32_t done = 0;
     while (done < total) {
         const size_t n = ((total - done) < kChunkFrames) ? (total - done) : kChunkFrames;
-        size_t       written = 0;
+        size_t written = 0;
         (void)i2s_channel_write(tx, mono, n * sizeof(int16_t), &written, pdMS_TO_TICKS(200));
         done += static_cast<uint32_t>(n);
     }
@@ -213,17 +212,14 @@ bool playbackAllowedNow(AudioMsg::Kind kind) {
     const bool synced = wlanNtpSynced();
     if (synced) {
         const time_t now = time(nullptr);
-        struct tm    t{};
+        struct tm t{};
         if (localtime_r(&now, &t) != nullptr) {
             hour = static_cast<uint8_t>(t.tm_hour);
         }
     }
-    const bool kindEnabled =
-        kind == AudioMsg::Kind::Tx ? configGetAudioTxEnabled() : configGetAudioRxEnabled();
-    const uint8_t volume =
-        kind == AudioMsg::Kind::Tx ? configGetAudioTxVolume() : configGetAudioRxVolume();
-    return audioPlaybackAllowed(kindEnabled, volume, synced, hour, configGetAudioQuietStart(),
-                                configGetAudioQuietEnd());
+    const bool kindEnabled = kind == AudioMsg::Kind::Tx ? configGetAudioTxEnabled() : configGetAudioRxEnabled();
+    const uint8_t volume = kind == AudioMsg::Kind::Tx ? configGetAudioTxVolume() : configGetAudioRxVolume();
+    return audioPlaybackAllowed(kindEnabled, volume, synced, hour, configGetAudioQuietStart(), configGetAudioQuietEnd());
 }
 
 void playKind(AudioMsg::Kind kind) {
@@ -232,13 +228,11 @@ void playKind(AudioMsg::Kind kind) {
         return;
     }
     if (!playbackAllowedNow(kind)) {
-        ESP_LOGI(TAG, "skip %s — disabled/vol0/quiet hours",
-                 kind == AudioMsg::Kind::Tx ? "Tx" : "Rx");
+        ESP_LOGI(TAG, "skip %s — disabled/vol0/quiet hours", kind == AudioMsg::Kind::Tx ? "Tx" : "Rx");
         return;
     }
     ESP_LOGI(TAG, "play %s", kind == AudioMsg::Kind::Tx ? "Tx" : "Rx");
-    const uint8_t vol =
-        kind == AudioMsg::Kind::Tx ? configGetAudioTxVolume() : configGetAudioRxVolume();
+    const uint8_t vol = kind == AudioMsg::Kind::Tx ? configGetAudioTxVolume() : configGetAudioRxVolume();
     // Waveshare: PA_EN LOW + PA_CTRL HIGH before codec/I2S use.
     paAudioPowerAndAmpOn();
     delay(40);
@@ -264,7 +258,7 @@ void playKind(AudioMsg::Kind kind) {
     ESP_LOGI(TAG, "done %s", kind == AudioMsg::Kind::Tx ? "Tx" : "Rx");
 }
 
-void audioTaskFn(void*) {
+void audioTaskFn(void *) {
     chayaTaskWatchdogSubscribe(TAG);
     for (;;) {
         AudioMsg msg{};
@@ -282,7 +276,7 @@ void audioTaskFn(void*) {
     }
 }
 
-}  // namespace
+} // namespace
 
 void audioInit() {
     pinMode(pins::kPaEn, OUTPUT);
@@ -300,8 +294,7 @@ void audioInit() {
 }
 
 void audioStartTask() {
-    const BaseType_t ok =
-        xTaskCreatePinnedToCore(audioTaskFn, "audio", kAudioTaskStackBytes, nullptr, 3, nullptr, 1);
+    const BaseType_t ok = xTaskCreatePinnedToCore(audioTaskFn, "audio", kAudioTaskStackBytes, nullptr, 3, nullptr, 1);
     if (ok != pdPASS) {
         ESP_LOGE(TAG, "audio task create failed");
         abort();
@@ -314,7 +307,7 @@ void audioRequest(AudioMsg::Kind kind) {
     }
     AudioMsg msg{kind};
     if (xQueueSend(g_audioCmdQueue, &msg, 0) != pdTRUE) {
-        std::atomic<bool>& pending = kind == AudioMsg::Kind::Tx ? s_txPending : s_rxPending;
+        std::atomic<bool> &pending = kind == AudioMsg::Kind::Tx ? s_txPending : s_rxPending;
         pending.store(true, std::memory_order_release);
         ESP_LOGD(TAG, "audio queue full — coalescing pending tone");
     }

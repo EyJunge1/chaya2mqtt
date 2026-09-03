@@ -11,7 +11,7 @@ UPLOAD_PORT_FLAG := $(if $(UPLOAD_PORT),--upload-port $(UPLOAD_PORT),)
 
 help:
 	@echo "  make check    # run the full quality gate"
-	@echo "  make check-frontend  # run frontend lint, tests, build, and E2E"
+	@echo "  make check-frontend  # run frontend lint, type-check, tests, build, and E2E"
 	@echo "  make check-flasher   # run web-flasher checks"
 	@echo "  make check-firmware  # run native/static tests and release build"
 	@echo "  make upload       # build and flash debug; keep saved settings"
@@ -26,22 +26,23 @@ check: check-frontend check-flasher check-firmware
 
 check-frontend:
 	cd frontend && $(FRONTEND_NPM_CI)
-	cd frontend && npm run lint && npm run format:check && npm run test:coverage && npm run build
+	cd frontend && npm run lint && npm run format:check && npm run check && npm run test:coverage && npm run build
 	cd frontend && npm run test:e2e
 
 check-flasher:
 	cd flasher && $(FLASHER_NPM_CI)
-	cd flasher && npm run lint && npm run format:check && npm run check && npm run build
+	cd flasher && npm run lint && npm run format:check && npm run check && npm run test && npm run build
+	cd flasher && npm audit --audit-level=high
 	python3 scripts/test_flasher_site.py
 
 check-firmware: check-firmware-tests check-firmware-build
 
 check-firmware-tests:
-	python3 scripts/test_patch_gxepd2_busy_wait.py
 	"$(PIO)" test -e native
 	"$(PIO)" test -e native-asan
 	"$(PIO)" pkg install -g -t tool-cppcheck
 	"$(PIO)" check -e esp32s3 --fail-on-defect=high -f "-<*>" -f "+<src/>"
+	bash scripts/check_pure_clang_tidy.sh
 
 check-firmware-build:
 	CHAYA_SKIP_FRONTEND_BUILD=1 "$(PIO)" run -e esp32s3-release

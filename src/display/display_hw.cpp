@@ -10,24 +10,21 @@
 
 DEFINE_LOG_TAG("DISP");
 
-static ChayaEpdPanel display(GxEPD2_154c_GDEM0154F51H(/*CS=*/ pins::kSpiCs, /*DC=*/ pins::kDisplayDc,
-                                                        /*RST=*/ pins::kDisplayRst,
-                                                        /*BUSY=*/ pins::kDisplayBusy));
+static ChayaEpdPanel display(GxEPD2_154c_GDEM0154F51H(/*CS=*/pins::kSpiCs, /*DC=*/pins::kDisplayDc,
+                                                      /*RST=*/pins::kDisplayRst,
+                                                      /*BUSY=*/pins::kDisplayBusy));
 
-static bool     s_panelInited    = false;
-static bool     s_hibernating    = false;
+static bool s_panelInited = false;
+static bool s_hibernating = false;
 static uint32_t s_busyCbLastLogMs = 0;
 
-ChayaEpdPanel& displayPanel() {
-    return display;
-}
+ChayaEpdPanel &displayPanel() { return display; }
 
-static void displayBusyProgressCb(const void*) {
+static void displayBusyProgressCb(const void *) {
     const uint32_t now = millis();
     if (now - s_busyCbLastLogMs >= 2000U) {
         s_busyCbLastLogMs = now;
-        ESP_LOGI(TAG, "EPD busy… pin=%d pwr_en=%d", digitalRead(pins::kDisplayBusy),
-                 digitalRead(pins::kDisplayPwrEn));
+        ESP_LOGI(TAG, "EPD busy… pin=%d pwr_en=%d", digitalRead(pins::kDisplayBusy), digitalRead(pins::kDisplayPwrEn));
     }
     // GxEPD2 skips its internal delay(1) when a busy callback is set; yield here.
     delay(1);
@@ -42,16 +39,16 @@ static void displaySetPanelPower(bool on) {
 static void displayAttachSpiPins() {
     // Must run before GxEPD2 init(). init() calls SPI.begin() with ESP32-S3 defaults
     // (MOSI=11, MISO=13) which swap CS and SDI. begin() is a no-op if already started.
-    SPI.begin(/*SCK=*/ pins::kSpiSck, /*MISO=*/ pins::kSpiMiso, /*MOSI=*/ pins::kSpiMosi,
-              /*SS=*/ pins::kSpiCs);
+    SPI.begin(/*SCK=*/pins::kSpiSck, /*MISO=*/pins::kSpiMiso, /*MOSI=*/pins::kSpiMosi,
+              /*SS=*/pins::kSpiCs);
 }
 
 void displayInitGxEpd() {
-    static constexpr uint32_t kEpdSerialDiagOff   = 0;
-    static constexpr bool     kEpdInitialFull     = true;
+    static constexpr uint32_t kEpdSerialDiagOff = 0;
+    static constexpr bool kEpdInitialFull = true;
     // Waveshare "clever" reset: RST LOW ~2 ms (GxEPD2 + official EPD_1IN54G_Reset).
     static constexpr uint16_t kEpdResetDurationMs = 2;
-    static constexpr bool     kEpdPulldownRst     = false;
+    static constexpr bool kEpdPulldownRst = false;
 
     displayAttachSpiPins();
     display.init(kEpdSerialDiagOff, kEpdInitialFull, kEpdResetDurationMs, kEpdPulldownRst);
@@ -60,8 +57,8 @@ void displayInitGxEpd() {
     pinMode(pins::kDisplayBusy, INPUT);
     display.epd2.setBusyCallback(displayBusyProgressCb, nullptr);
     s_busyCbLastLogMs = 0;
-    s_panelInited     = true;
-    s_hibernating     = false;
+    s_panelInited = true;
+    s_hibernating = false;
     ESP_LOGI(TAG, "EPD ready busy=%d", digitalRead(pins::kDisplayBusy));
 }
 

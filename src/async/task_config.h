@@ -4,18 +4,18 @@
 
 /** FreeRTOS task stack sizes (bytes). */
 constexpr uint32_t kNetworkTaskStackBytes = 7168U;
-constexpr uint32_t kButtonTaskStackBytes  = 4096U;
-constexpr uint32_t kAppTaskStackBytes     = 4096U;
-constexpr uint32_t kOtaTaskStackBytes     = 8192U;
+constexpr uint32_t kButtonTaskStackBytes = 4096U;
+constexpr uint32_t kAppTaskStackBytes = 4096U;
+constexpr uint32_t kOtaTaskStackBytes = 12288U;
 constexpr uint32_t kDisplayTaskStackBytes = 8192U;
-constexpr uint32_t kAudioTaskStackBytes   = 6144U;
+constexpr uint32_t kAudioTaskStackBytes = 6144U;
 constexpr uint32_t kMqttClientTaskStackBytes = 10240U;
 
 /** Network task service cadence: fast captive DNS in AP mode, lower wake rate in STA mode. */
-constexpr uint32_t kNetworkPollApMs  = 50U;
+constexpr uint32_t kNetworkPollApMs = 50U;
 constexpr uint32_t kNetworkPollStaMs = 250U;
 
 /** g_netCmdQueue depth. */
-constexpr uint8_t kNetCmdQueueDepth     = 32U;
+constexpr uint8_t kNetCmdQueueDepth = 32U;
 constexpr uint8_t kDisplayCmdQueueDepth = 32U;
-constexpr uint8_t kAudioCmdQueueDepth   = 4U;
+constexpr uint8_t kAudioCmdQueueDepth = 4U;

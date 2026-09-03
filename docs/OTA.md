@@ -29,9 +29,11 @@ flowchart LR
 | Channel | Source | Selection |
 |---------|--------|-----------|
 | `stable` | `/repos/.../releases/latest` | Latest non-draft release |
-| `beta` | Paginated `/repos/.../releases?per_page=1&page=N` | Highest CalVer prerelease, otherwise stable; maximum 20 release pages |
+| `beta` | `/repos/.../releases?per_page=20` | Highest CalVer prerelease, otherwise stable; newest 20 releases |
 
 The channel selection is stored in NVS (`cfg/upd_chan`). Automatic downgrades are not performed.
+
+GitHub JSON is streamed with an ArduinoJson filter (`tag_name`, `draft`, `prerelease`, `assets[].name`) so long release notes never need a full-document buffer.
 
 ## GitHub release source
 
@@ -121,7 +123,7 @@ Web UI: `/update`—channel selection, version display, progress, and a confirma
 `otaFlashVerifiedInstall(binUrl, sha256Url)` in `ota/flash.cpp`:
 
 1. **Configure sidecar:** pass `firmware.sha256` to `setSHA256sumUrl()`
-2. **HTTPUpdate:** download the sidecar and firmware via HTTPS + TLS (CA bundle), redirects enabled, `rebootOnUpdate(false)`
+2. **HTTPUpdate:** download the sidecar and firmware via HTTPS + TLS (CA bundle). GitHub redirects are resolved and allowlisted first; `HTTPUpdate` then disables further follow-redirects. `rebootOnUpdate(false)`
 3. **Flash:** Arduino `HTTPUpdate`/`Update` writes to the next OTA partition
 4. **Progress:** callbacks update the OTA status for SSE/UI
 5. **Reboot:** controlled by chaya2mqtt after flushing
@@ -132,23 +134,25 @@ On a SHA-256 mismatch, sidecar error, or flash error: **no reboot**.
 
 | Parameter | Value |
 |-----------|-------|
-| Stack | 8192 bytes |
+| Stack | 12288 bytes |
 | Priority | 4 |
 | Core | 1 |
 | WDT | Registered (temporarily unregistered during `otaLoop()`) |
 
 Before rebooting after a successful flash:
 - `flushAllHeartCountersIfDirty()`
-- `releaseGpioHoldBeforeRestart()`
 - `ESP.restart()`
 
 ## Boot after OTA
+
+Arduino-ESP32 would otherwise auto-mark a pending OTA image as valid inside `initArduino()` (`verifyOta()`). chaya overrides `verifyRollbackLater()` in `src/ota/ota.cpp` so the image stays `ESP_OTA_IMG_PENDING_VERIFY` until the app health gate runs.
 
 In the **app task** (`appTaskFn`), rollback is canceled only after a **stable runtime window**:
 
 - Helper: `otaHealthWindowElapsed()` in `src/ota/ota_health.h`
 - Default: **`kOtaHealthStableMs = 30000`** (30 s) after the first WiFi boot settlement (`wlanBootSettledAtMs()`)
-- Requirements: `wlanIsSetupComplete()` and `wlanIsBootWifiSettled()` (STA **or** AP fallback)
+- Requirements: `wlanIsSetupComplete()`, `wlanIsBootWifiSettled()`, and **STA linked** (`wlanStaConnectedOk()` / `staConnected`)
+- SoftAP-only boot does **not** cancel rollback — keeps the previous image recoverable if STA never comes up
 - MQTT availability is **not** required (broker/router are external sources of failure)
 - Then `otaTryMarkValidAfterHealthCheck()` marks the image as valid and cancels rollback
 

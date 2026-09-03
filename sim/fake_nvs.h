@@ -19,12 +19,12 @@ class FakeNvs {
     void clear() {
         wifiPacked_.clear();
         hasWifi_ = false;
-        mqtt_    = MqttConfig{};
+        mqtt_ = MqttConfig{};
         hasMqtt_ = false;
         failNextWifiSave = failNextWifiLoad = failNextMqttSave = failNextMqttLoad = false;
     }
 
-    bool saveWifi(const WlanConfig& cfg) {
+    bool saveWifi(const WlanConfig &cfg) {
         if (failNextWifiSave) {
             failNextWifiSave = false;
             return false;
@@ -34,12 +34,12 @@ class FakeNvs {
         }
         PackedWifiConfigV2 pk{};
         wlanPackConfigV2(cfg, &pk);
-        wifiPacked_.assign(reinterpret_cast<const char*>(&pk), sizeof(pk));
+        wifiPacked_.assign(reinterpret_cast<const char *>(&pk), sizeof(pk));
         hasWifi_ = true;
         return true;
     }
 
-    bool loadWifi(WlanConfig* cfg) const {
+    bool loadWifi(WlanConfig *cfg) const {
         if (failNextWifiLoad) {
             failNextWifiLoad = false;
             return false;
@@ -52,19 +52,19 @@ class FakeNvs {
         return wlanUnpackConfigV2(pk, cfg);
     }
 
-    bool saveMqtt(const MqttConfig& cfg, const char* ownId) {
+    bool saveMqtt(const MqttConfig &cfg, const char *ownId) {
         if (failNextMqttSave) {
             failNextMqttSave = false;
             return false;
         }
         MqttConfig copy = cfg;
         mqttSanitizeConfigAfterLoad(copy, ownId);
-        mqtt_    = copy;
+        mqtt_ = copy;
         hasMqtt_ = true;
         return true;
     }
 
-    bool loadMqtt(MqttConfig* cfg, const char* ownId) const {
+    bool loadMqtt(MqttConfig *cfg, const char *ownId) const {
         if (failNextMqttLoad) {
             failNextMqttLoad = false;
             return false;
@@ -79,7 +79,7 @@ class FakeNvs {
 
   private:
     std::string wifiPacked_;
-    bool        hasWifi_ = false;
-    MqttConfig  mqtt_{};
-    bool        hasMqtt_ = false;
+    bool hasWifi_ = false;
+    MqttConfig mqtt_{};
+    bool hasMqtt_ = false;
 };

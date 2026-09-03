@@ -343,21 +343,25 @@ function drawSetupQr(icons, qrModules) {
   if (scale < 1) scale = 1;
   const drawn = totalMods * scale;
   const originX = Math.floor((PANEL - drawn) / 2);
-  const bottomPad = 4;
-  const originY = PANEL - bottomPad - qrSize * scale;
+  const qrPx = qrSize * scale;
 
   let titleSize = 3;
   let bounds;
   for (;;) {
     bounds = textBounds(title, titleSize);
-    if (bounds.w <= PANEL - 4 && bounds.h + 2 <= originY) {
+    const free = PANEL - qrPx - bounds.h;
+    if (bounds.w <= PANEL - 4 && free >= 8) {
       break;
     }
     if (titleSize <= 1) break;
     titleSize--;
   }
+  // Equal thirds: title↔top frame, title↔QR, QR↔bottom frame (matches firmware).
+  const free = Math.max(0, PANEL - qrPx - bounds.h);
+  const outerPad = Math.floor(free / 3);
   const titleX = Math.floor((PANEL - bounds.w) / 2) - bounds.x1;
-  const titleY = Math.floor((originY - bounds.h) / 2) - bounds.y1;
+  const titleY = outerPad - bounds.y1;
+  const originY = PANEL - outerPad - qrPx;
   drawText(frame, titleX, titleY, title, titleSize, "red");
 
   for (let y = 0; y < qrSize; y++) {

@@ -28,14 +28,13 @@ enum class LedTxPhase : uint8_t {
 };
 
 extern std::atomic<LedTxPhase> ledTxPhase;
-extern unsigned long           ledPhaseStartMs;
-extern unsigned long           ledPhaseDurationMs;
+extern unsigned long ledPhaseStartMs;
+extern unsigned long ledPhaseDurationMs;
 
 void armLedPhase(unsigned long durationMs);
 void ledOutput(int level);
 /** Internal active-low LED write that bypasses the user preference. */
 void ledOutputForced(int level);
-void ledHoldWhenIdle();
 
 void advanceLedSequence();
 void startMqttSendLedSequence();

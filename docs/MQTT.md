@@ -47,7 +47,7 @@ Multiple pairs can use the same broker without topic collisions as long as their
 2. Note each device's own ID and save it as the **partner ID** on the other device.
 3. Topics are set automatically (`mqttCfgApplyPairingTopics`).
 
-The broker and partner are saved atomically through `POST /api/mqtt`. An empty partner ID unpairs the device without losing the broker configuration.
+The broker and partner are saved atomically through `POST /api/mqtt`. An empty partner ID unpairs the device without losing the broker configuration. `GET /api/mqtt` returns the **active** config plus `nvsOk` and `applyPending`; the admin UI polls until apply (including NVS) finishes.
 
 ## Message format
 
@@ -63,12 +63,12 @@ Requires heart-ready config (broker **and** partner). Without a partner, device 
 | Retain | **true** |
 | Example | `"42"` |
 
-The send call waits up to **5 seconds** for the matching `MQTT_EVENT_PUBLISHED` (PUBACK).
-Only that generation- and message-ID-bound acknowledgement increments and persists
-`heartSentCounter`, triggers TX audio, and redraws the display. There is no automatic retry.
-After a caller timeout, the in-flight value remains locked until a late PUBACK or disconnect;
-after disconnect the same absolute retained value may be sent again, so QoS-1 duplicates are
-idempotent for receivers.
+Publish is **non-blocking** for the network task: it starts the retained QoS-1 message and
+continues. Only the matching `MQTT_EVENT_PUBLISHED` (PUBACK) for that generation and message ID
+increments and persists `heartSentCounter`, triggers TX audio, and redraws the display. There is
+no automatic retry. If PUBACK does not arrive within **5 seconds**, `mqttLoop` fails the pending
+async send; a late PUBACK after timeout is ignored. After disconnect the same absolute retained
+value may be sent again, so QoS-1 duplicates are idempotent for receivers.
 
 ### Subscribe (reception)
 
@@ -160,6 +160,7 @@ The active MQTT configuration exists only in `mqtt/config.cpp`. It is accessed e
 | `mqttCfgTopicPubLockedCopy(char*, size_t)` | Copy publish topic under mutex |
 | `mqttCfgIsBrokerConfigured()` | Is the server field non-empty? |
 | `mqttCfgHasUnappliedPending()` | Is pending configuration not yet applied? |
+| `mqttCfgSetApplyPending(bool)` / `mqttCfgApplyPending()` | Web POST queued through network-task apply (including NVS); GET `/api/mqtt` exposes `applyPending` |
 
 ### `MqttConfig` struct
 
@@ -203,14 +204,17 @@ sequenceDiagram
     participant M as mqtt
 
     W->>W: mqttCfgStorePending
+    W->>W: mqttCfgSetApplyPending true
     W->>W: g_webAdminMqttApplyVersion.fetch_add(1)
     A->>A: webAdminLoop detects flag
     A->>N: NetCmd MqttSettingsChanged
+    Note over N: EPD refresh may defer this command
     N->>M: mqttBeginSettingsApply
     N->>M: mqttDisconnect
     N->>N: mqttCfgApplyPendingToActive + saveMQTTConfig
     N->>M: mqttSetup + mqttPostponeConnect(3000)
     N->>M: mqttEndSettingsApply
+    N->>N: mqttCfgSetApplyPending false
     N->>N: displayRequest DrawHeart Content
 ```
 

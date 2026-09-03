@@ -13,6 +13,7 @@ describe("ToastStack", () => {
     const toasts: ToastItem[] = [{ id: "1", text: "Gespeichert", variant: "success" }];
     render(Toast, { props: { toasts, onDismiss: () => {} } });
     expect(screen.getByRole("status")).toHaveTextContent("Gespeichert");
+    expect(screen.getByRole("region", { name: "Notifications" })).toBeInTheDocument();
   });
 
   it("renders error toast as alert", () => {

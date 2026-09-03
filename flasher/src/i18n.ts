@@ -51,7 +51,8 @@ const translations = {
     "flash.confirmTitle": "Install firmware",
     "flash.confirmText": "Flash Chaya2MQTT {version} to the connected device.",
     "flash.eraseLabel": "Erase flash before install",
-    "flash.eraseHint": "Recommended for first installs. Removes previous firmware and NVS data.",
+    "flash.eraseHint":
+      "Leave unchecked for normal updates. Enable only for first install or recovery when settings are corrupt — erases firmware and all NVS data.",
     "flash.install": "Install",
     "flash.cancel": "Cancel",
     "flash.runningTitle": "Installing…",
@@ -81,6 +82,10 @@ const translations = {
       "Could not enter download mode. Hold BOOT, click Install again, then release BOOT.",
     "flash.error.unsupported": "Unsupported chip: {chip}",
     "flash.error.download": "Firmware download failed. Check your network and try again.",
+    "flash.error.hashMismatch":
+      "Firmware integrity check failed (SHA-256 mismatch). Do not flash — refresh the page and try again.",
+    "flash.error.hashMissing":
+      "Firmware checksum is missing or invalid. Do not flash — refresh the page and try again.",
     "flash.error.erase": "Erase failed. Reconnect USB and try again.",
     "flash.error.write": "Write failed. Reconnect USB and try again.",
   },
@@ -137,7 +142,8 @@ const translations = {
     "flash.confirmTitle": "Firmware installieren",
     "flash.confirmText": "Chaya2MQTT {version} auf das verbundene Gerät flashen.",
     "flash.eraseLabel": "Flash vor der Installation löschen",
-    "flash.eraseHint": "Empfohlen bei Erstinstallation. Entfernt alte Firmware und NVS-Daten.",
+    "flash.eraseHint":
+      "Für normale Updates ausgelassen lassen. Nur bei Erstinstallation oder Recovery bei kaputten Einstellungen — löscht Firmware und alle NVS-Daten.",
     "flash.install": "Installieren",
     "flash.cancel": "Abbrechen",
     "flash.runningTitle": "Installation läuft …",
@@ -168,6 +174,10 @@ const translations = {
     "flash.error.unsupported": "Nicht unterstützter Chip: {chip}",
     "flash.error.download":
       "Firmware-Download fehlgeschlagen. Netzwerk prüfen und erneut versuchen.",
+    "flash.error.hashMismatch":
+      "Integritätsprüfung fehlgeschlagen (SHA-256 stimmt nicht). Nicht flashen — Seite neu laden und erneut versuchen.",
+    "flash.error.hashMissing":
+      "Firmware-Prüfsumme fehlt oder ist ungültig. Nicht flashen — Seite neu laden und erneut versuchen.",
     "flash.error.erase": "Löschen fehlgeschlagen. USB neu stecken und erneut versuchen.",
     "flash.error.write": "Schreiben fehlgeschlagen. USB neu stecken und erneut versuchen.",
   },

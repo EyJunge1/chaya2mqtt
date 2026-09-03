@@ -35,7 +35,7 @@ What the PCB actually has. **Chaya** is the firmware use today.
 | **Battery latch** | GPIO17 (`BAT_Control`) | Must drive HIGH early or power dies when PWR is released |
 | **Charge IC** | ETA6098 (USB-C → cell) | No firmware |
 | **Charge LED** | Onboard status LED (typically red while charging) | Hardware only (ETA6098 STAT); not firmware-controllable |
-| **Battery ADC** | GPIO4, divider; VBAT = VADC × 2 | Polled ~30 s; `GET /api/device` + SSE `device` + E-Ink icon |
+| **Battery ADC** | GPIO4, divider; VBAT = VADC × 2 | Polled ~30 s; `/api/bootstrap` + SSE `device` + E-Ink icon |
 | **3.3 V rail** | MP1605 DC-DC | Hardware only |
 | **User LED** | GPIO3 on header, **green**, active-low | TX sequence, status blink patterns, soft-off armed ack, pulse during E-Ink refresh / RX ack; off via `cfg/led_en` |
 | **TF / microSD** | Slot, **1-bit** SDIO (CLK/CMD/DAT0), **FAT32** | Permanently off (GPIO 39/40/41 held LOW; no SDIO/FAT) |
@@ -134,8 +134,8 @@ SKU **34586** includes a **3.7 V** single-cell Li-ion on an **MX1.25 2-pin** h
 | **Charge LED** | Onboard | Hardware only (red while charging; not controllable) |
 | **3.3 V** | MP1605 DC-DC (`VCC3V3`) | Hardware only |
 | **USB-C** | Power, charge, flash, serial | Same as desktop use |
-| **BAT_KEY** | GPIO**18** | Press PWR to start on battery. Soft-off is armed only after that press is released; then hold ≥~2 s until the LED blinks (holding longer is fine). Releasing after that runs the shutdown screen and power-off. Firmware waits ~300 ms stable HIGH before deep sleep so USB EXT1 wake does not bounce-restart. |
-| **BAT_Control** | GPIO**17** | Drive **HIGH early in `setup()`** or the board cuts power when PWR is released. Controlled shutdown drives it LOW only after the E-Ink shutdown screen completes. |
+| **BAT_KEY** | GPIO**18** | Press PWR to start on battery. Soft-off is armed only after that press is released; then hold ≥~2 s until the LED blinks (holding longer is fine). Releasing after that runs the shutdown screen and power-off. Firmware waits ~300 ms stable HIGH before deep sleep so USB EXT1 wake does not bounce-restart. EXT1 ANY_LOW is armed only while PWR is HIGH (level-triggered). If PWR stays LOW for 15 s, the latch is cut and the firmware keeps waiting — it does not sleep with wake already true. |
+| **BAT_Control** | GPIO**17** | Drive **HIGH early in `setup()`** or the board cuts power when PWR is released. Controlled shutdown drives it LOW after the E-Ink shutdown screen (or after 15 s if PWR is still held). |
 | **BAT_ADC** | GPIO**4**, R21/R38 200 kΩ divider | `VBAT = VADC × 2`; firmware always treats the pack as present. |
 
 On battery there is **no** hardware hold switch: PWR is sense, GPIO17 is the latch. With USB

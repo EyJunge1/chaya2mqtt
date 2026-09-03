@@ -1,12 +1,13 @@
 #include "app_config.h"
 
-#include "nvs_utils.h"
-#include "nvs_keys.h"
 #include "audio/audio_config.h"
 #include "constants.h"
+#include "nvs_keys.h"
+#include "nvs_utils.h"
 
-#include <atomic>
 #include <Arduino.h>
+#include <atomic>
+#include <cstddef>
 #include <cstring>
 #include <esp_log.h>
 
@@ -23,7 +24,7 @@ struct AudioTone {
 
 static std::atomic<uint8_t> s_resetPeriodDaysCached{7};
 static char s_uiLangCached[3] = "en";
-static char s_uiThemeCached[6] = "light";
+static char s_uiThemeCached[8] = "system";
 static std::atomic<bool> s_ledEnabledCached{true};
 static std::atomic<DisplayView> s_displayViewCached{DisplayView::Unknown};
 static std::atomic<bool> s_audioTxEnabledCached{false};
@@ -38,8 +39,7 @@ static std::atomic<uint16_t> s_audioRxHzCached{kAudioDefaultRxHz};
 static std::atomic<uint16_t> s_audioRxMsCached{kAudioDefaultRxMs};
 static portMUX_TYPE s_uiPrefsMux = portMUX_INITIALIZER_UNLOCKED;
 
-template <typename T>
-static bool setCachedUChar(std::atomic<T>& cache, T value, const char* key, const char* errMsg) {
+template <typename T> static bool setCachedUChar(std::atomic<T> &cache, T value, const char *key, const char *errMsg) {
     if (cache.load(std::memory_order_relaxed) == value) {
         return true;
     }
@@ -51,8 +51,7 @@ static bool setCachedUChar(std::atomic<T>& cache, T value, const char* key, cons
     return true;
 }
 
-static bool setCachedBoolAsUChar(std::atomic<bool>& cache, bool value, const char* key,
-                                 const char* errMsg) {
+static bool setCachedBoolAsUChar(std::atomic<bool> &cache, bool value, const char *key, const char *errMsg) {
     if (cache.load(std::memory_order_relaxed) == value) {
         return true;
     }
@@ -64,10 +63,9 @@ static bool setCachedBoolAsUChar(std::atomic<bool>& cache, bool value, const cha
     return true;
 }
 
-static bool setCachedString(char* cache, size_t cacheLen, portMUX_TYPE* mux, const char* key,
-                            const char* value, const char* errMsg) {
-    if (cache == nullptr || mux == nullptr || key == nullptr || value == nullptr
-        || cacheLen == 0U) {
+static bool setCachedString(char *cache, size_t cacheLen, portMUX_TYPE *mux, const char *key, const char *value,
+                            const char *errMsg) {
+    if (cache == nullptr || mux == nullptr || key == nullptr || value == nullptr || cacheLen == 0U) {
         return false;
     }
     portENTER_CRITICAL(mux);
@@ -124,45 +122,52 @@ void configLoadUiPrefsFromNvs() {
     if (uiThemeSyntaxOk(theme)) {
         strlcpy(s_uiThemeCached, theme, sizeof(s_uiThemeCached));
     } else {
-        strlcpy(s_uiThemeCached, "light", sizeof(s_uiThemeCached));
+        strlcpy(s_uiThemeCached, "system", sizeof(s_uiThemeCached));
     }
     portEXIT_CRITICAL(&s_uiPrefsMux);
 }
 
-uint8_t configGetResetPeriodDays() {
-    return s_resetPeriodDaysCached.load(std::memory_order_relaxed);
-}
+uint8_t configGetResetPeriodDays() { return s_resetPeriodDaysCached.load(std::memory_order_relaxed); }
 
 bool configSetResetPeriodDays(uint8_t days) {
     if (days > 30U) {
         days = 30U;
     }
-    return setCachedUChar(s_resetPeriodDaysCached, days, kNvsKeyCfgRstPeriod,
-                          "NVS cfg: failed to persist rstPeriod");
+    return setCachedUChar(s_resetPeriodDaysCached, days, kNvsKeyCfgRstPeriod, "NVS cfg: failed to persist rstPeriod");
 }
 
-const char* configGetUiLang() {
-    return s_uiLangCached;
+void configCopyUiLang(char *out, size_t outLen) {
+    if (out == nullptr || outLen == 0U) {
+        return;
+    }
+    portENTER_CRITICAL(&s_uiPrefsMux);
+    strlcpy(out, s_uiLangCached, outLen);
+    portEXIT_CRITICAL(&s_uiPrefsMux);
 }
 
-bool configSetUiLang(const char* lang) {
+bool configSetUiLang(const char *lang) {
     if (!uiLangSyntaxOk(lang)) {
         return false;
     }
-    return setCachedString(s_uiLangCached, sizeof(s_uiLangCached), &s_uiPrefsMux,
-                           kNvsKeyCfgUiLang, lang, "NVS cfg: failed to persist ui_lang");
+    return setCachedString(s_uiLangCached, sizeof(s_uiLangCached), &s_uiPrefsMux, kNvsKeyCfgUiLang, lang,
+                           "NVS cfg: failed to persist ui_lang");
 }
 
-const char* configGetUiTheme() {
-    return s_uiThemeCached;
+void configCopyUiTheme(char *out, size_t outLen) {
+    if (out == nullptr || outLen == 0U) {
+        return;
+    }
+    portENTER_CRITICAL(&s_uiPrefsMux);
+    strlcpy(out, s_uiThemeCached, outLen);
+    portEXIT_CRITICAL(&s_uiPrefsMux);
 }
 
-bool configSetUiTheme(const char* theme) {
+bool configSetUiTheme(const char *theme) {
     if (!uiThemeSyntaxOk(theme)) {
         return false;
     }
-    return setCachedString(s_uiThemeCached, sizeof(s_uiThemeCached), &s_uiPrefsMux,
-                           kNvsKeyCfgUiTheme, theme, "NVS cfg: failed to persist ui_theme");
+    return setCachedString(s_uiThemeCached, sizeof(s_uiThemeCached), &s_uiPrefsMux, kNvsKeyCfgUiTheme, theme,
+                           "NVS cfg: failed to persist ui_theme");
 }
 
 void configLoadLedFromNvs() {
@@ -170,60 +175,42 @@ void configLoadLedFromNvs() {
     s_ledEnabledCached.store(raw != 0U, std::memory_order_relaxed);
 }
 
-bool configGetLedEnabled() {
-    return s_ledEnabledCached.load(std::memory_order_relaxed);
-}
+bool configGetLedEnabled() { return s_ledEnabledCached.load(std::memory_order_relaxed); }
 
 bool configSetLedEnabled(bool enabled) {
-    return setCachedBoolAsUChar(s_ledEnabledCached, enabled, kNvsKeyCfgLedEn,
-                                "NVS cfg: failed to persist led_en");
+    return setCachedBoolAsUChar(s_ledEnabledCached, enabled, kNvsKeyCfgLedEn, "NVS cfg: failed to persist led_en");
 }
 
 void configLoadDisplayViewFromNvs() {
-    const auto raw =
-        static_cast<DisplayView>(app_nvs::readUChar(kNvsNsCfg, kNvsKeyCfgDispView, 0));
-    s_displayViewCached.store(displayViewIsValid(raw) ? raw : DisplayView::Unknown,
-                              std::memory_order_relaxed);
+    const auto raw = static_cast<DisplayView>(app_nvs::readUChar(kNvsNsCfg, kNvsKeyCfgDispView, 0));
+    s_displayViewCached.store(displayViewIsValid(raw) ? raw : DisplayView::Unknown, std::memory_order_relaxed);
 }
 
-DisplayView configGetDisplayView() {
-    return s_displayViewCached.load(std::memory_order_relaxed);
-}
+DisplayView configGetDisplayView() { return s_displayViewCached.load(std::memory_order_relaxed); }
 
 bool configSetDisplayView(DisplayView view) {
     if (!displayViewIsValid(view) || view == DisplayView::Unknown) {
         return false;
     }
-    return setCachedUChar(s_displayViewCached, view, kNvsKeyCfgDispView,
-                          "NVS cfg: failed to persist disp_view");
+    return setCachedUChar(s_displayViewCached, view, kNvsKeyCfgDispView, "NVS cfg: failed to persist disp_view");
 }
 
 bool configInvalidateDisplayView() {
-    // Force a redraw in this boot even if NVS is temporarily unavailable.
-    s_displayViewCached.store(DisplayView::Unknown, std::memory_order_relaxed);
-    if (!app_nvs::writeUChar(kNvsNsCfg, kNvsKeyCfgDispView,
-                             static_cast<uint8_t>(DisplayView::Unknown))) {
-        ESP_LOGE(TAG, "NVS cfg: failed to invalidate disp_view");
-        return false;
-    }
-    return true;
+    // Persist Unknown before the waveform so a mid-refresh crash/brownout forces
+    // BootIfChanged to repaint instead of trusting a partial panel (STAB-01).
+    // Final view is written once via configSetDisplayView() after a successful draw.
+    // Cannot use configSetDisplayView(Unknown) — that API rejects Unknown.
+    return setCachedUChar(s_displayViewCached, DisplayView::Unknown, kNvsKeyCfgDispView,
+                          "NVS cfg: failed to persist disp_view=unknown");
 }
 
 void configLoadAudioFromNvs() {
     uint8_t q0 = app_nvs::readUChar(kNvsNsCfg, kNvsKeyCfgSndQ0, kAudioDefaultQuiet0);
     uint8_t q1 = app_nvs::readUChar(kNvsNsCfg, kNvsKeyCfgSndQ1, kAudioDefaultQuiet1);
-    const uint16_t txHz =
-        clampAudioToneHz(app_nvs::readUInt(kNvsNsCfg, kNvsKeyCfgSndTxHz, kAudioDefaultTxHz),
-                         kAudioDefaultTxHz);
-    const uint16_t txMs =
-        clampAudioToneMs(app_nvs::readUInt(kNvsNsCfg, kNvsKeyCfgSndTxMs, kAudioDefaultTxMs),
-                         kAudioDefaultTxMs);
-    const uint16_t rxHz =
-        clampAudioToneHz(app_nvs::readUInt(kNvsNsCfg, kNvsKeyCfgSndRxHz, kAudioDefaultRxHz),
-                         kAudioDefaultRxHz);
-    const uint16_t rxMs =
-        clampAudioToneMs(app_nvs::readUInt(kNvsNsCfg, kNvsKeyCfgSndRxMs, kAudioDefaultRxMs),
-                         kAudioDefaultRxMs);
+    const uint16_t txHz = clampAudioToneHz(app_nvs::readUInt(kNvsNsCfg, kNvsKeyCfgSndTxHz, kAudioDefaultTxHz), kAudioDefaultTxHz);
+    const uint16_t txMs = clampAudioToneMs(app_nvs::readUInt(kNvsNsCfg, kNvsKeyCfgSndTxMs, kAudioDefaultTxMs), kAudioDefaultTxMs);
+    const uint16_t rxHz = clampAudioToneHz(app_nvs::readUInt(kNvsNsCfg, kNvsKeyCfgSndRxHz, kAudioDefaultRxHz), kAudioDefaultRxHz);
+    const uint16_t rxMs = clampAudioToneMs(app_nvs::readUInt(kNvsNsCfg, kNvsKeyCfgSndRxMs, kAudioDefaultRxMs), kAudioDefaultRxMs);
 
     bool txEn = false;
     bool rxEn = false;
@@ -235,10 +222,10 @@ void configLoadAudioFromNvs() {
     } else if (app_nvs::hasKey(kNvsNsCfg, kNvsKeyCfgSndMute)) {
         // One-time migration from legacy global mute: unmuted → both kinds on.
         const bool unmuted = app_nvs::readUChar(kNvsNsCfg, kNvsKeyCfgSndMute, 0) == 0U;
-        txEn               = unmuted;
-        rxEn               = unmuted;
-        if (!app_nvs::writeUChar(kNvsNsCfg, kNvsKeyCfgSndTxEn, txEn ? 1U : 0U)
-            || !app_nvs::writeUChar(kNvsNsCfg, kNvsKeyCfgSndRxEn, rxEn ? 1U : 0U)) {
+        txEn = unmuted;
+        rxEn = unmuted;
+        if (!app_nvs::writeUChar(kNvsNsCfg, kNvsKeyCfgSndTxEn, txEn ? 1U : 0U) ||
+            !app_nvs::writeUChar(kNvsNsCfg, kNvsKeyCfgSndRxEn, rxEn ? 1U : 0U)) {
             ESP_LOGE(TAG, "NVS cfg: failed to migrate snd_mute → snd_tx_en/snd_rx_en");
         }
     }
@@ -248,16 +235,14 @@ void configLoadAudioFromNvs() {
     const bool hasTxVol = app_nvs::hasKey(kNvsNsCfg, kNvsKeyCfgSndTxVol);
     const bool hasRxVol = app_nvs::hasKey(kNvsNsCfg, kNvsKeyCfgSndRxVol);
     if (hasTxVol || hasRxVol) {
-        txVol = hasTxVol ? app_nvs::readUChar(kNvsNsCfg, kNvsKeyCfgSndTxVol, kAudioDefaultVolume)
-                         : kAudioDefaultVolume;
-        rxVol = hasRxVol ? app_nvs::readUChar(kNvsNsCfg, kNvsKeyCfgSndRxVol, kAudioDefaultVolume)
-                         : kAudioDefaultVolume;
+        txVol = hasTxVol ? app_nvs::readUChar(kNvsNsCfg, kNvsKeyCfgSndTxVol, kAudioDefaultVolume) : kAudioDefaultVolume;
+        rxVol = hasRxVol ? app_nvs::readUChar(kNvsNsCfg, kNvsKeyCfgSndRxVol, kAudioDefaultVolume) : kAudioDefaultVolume;
     } else if (app_nvs::hasKey(kNvsNsCfg, kNvsKeyCfgSndVol)) {
         const uint8_t legacy = app_nvs::readUChar(kNvsNsCfg, kNvsKeyCfgSndVol, kAudioDefaultVolume);
-        txVol                = legacy;
-        rxVol                = legacy;
-        if (!app_nvs::writeUChar(kNvsNsCfg, kNvsKeyCfgSndTxVol, txVol)
-            || !app_nvs::writeUChar(kNvsNsCfg, kNvsKeyCfgSndRxVol, rxVol)) {
+        txVol = legacy;
+        rxVol = legacy;
+        if (!app_nvs::writeUChar(kNvsNsCfg, kNvsKeyCfgSndTxVol, txVol) ||
+            !app_nvs::writeUChar(kNvsNsCfg, kNvsKeyCfgSndRxVol, rxVol)) {
             ESP_LOGE(TAG, "NVS cfg: failed to migrate snd_vol → snd_tx_vol/snd_rx_vol");
         }
     }
@@ -286,55 +271,39 @@ void configLoadAudioFromNvs() {
     s_audioRxMsCached.store(rxMs, std::memory_order_relaxed);
 }
 
-bool configGetAudioTxEnabled() {
-    return s_audioTxEnabledCached.load(std::memory_order_relaxed);
-}
+bool configGetAudioTxEnabled() { return s_audioTxEnabledCached.load(std::memory_order_relaxed); }
 
 bool configSetAudioTxEnabled(bool enabled) {
-    return setCachedBoolAsUChar(s_audioTxEnabledCached, enabled, kNvsKeyCfgSndTxEn,
-                                "NVS cfg: failed to persist snd_tx_en");
+    return setCachedBoolAsUChar(s_audioTxEnabledCached, enabled, kNvsKeyCfgSndTxEn, "NVS cfg: failed to persist snd_tx_en");
 }
 
-bool configGetAudioRxEnabled() {
-    return s_audioRxEnabledCached.load(std::memory_order_relaxed);
-}
+bool configGetAudioRxEnabled() { return s_audioRxEnabledCached.load(std::memory_order_relaxed); }
 
 bool configSetAudioRxEnabled(bool enabled) {
-    return setCachedBoolAsUChar(s_audioRxEnabledCached, enabled, kNvsKeyCfgSndRxEn,
-                                "NVS cfg: failed to persist snd_rx_en");
+    return setCachedBoolAsUChar(s_audioRxEnabledCached, enabled, kNvsKeyCfgSndRxEn, "NVS cfg: failed to persist snd_rx_en");
 }
 
-uint8_t configGetAudioTxVolume() {
-    return s_audioTxVolumeCached.load(std::memory_order_relaxed);
-}
+uint8_t configGetAudioTxVolume() { return s_audioTxVolumeCached.load(std::memory_order_relaxed); }
 
 bool configSetAudioTxVolume(uint8_t volume) {
     if (volume > kAudioVolumeMax) {
         volume = kAudioVolumeMax;
     }
-    return setCachedUChar(s_audioTxVolumeCached, volume, kNvsKeyCfgSndTxVol,
-                          "NVS cfg: failed to persist snd_tx_vol");
+    return setCachedUChar(s_audioTxVolumeCached, volume, kNvsKeyCfgSndTxVol, "NVS cfg: failed to persist snd_tx_vol");
 }
 
-uint8_t configGetAudioRxVolume() {
-    return s_audioRxVolumeCached.load(std::memory_order_relaxed);
-}
+uint8_t configGetAudioRxVolume() { return s_audioRxVolumeCached.load(std::memory_order_relaxed); }
 
 bool configSetAudioRxVolume(uint8_t volume) {
     if (volume > kAudioVolumeMax) {
         volume = kAudioVolumeMax;
     }
-    return setCachedUChar(s_audioRxVolumeCached, volume, kNvsKeyCfgSndRxVol,
-                          "NVS cfg: failed to persist snd_rx_vol");
+    return setCachedUChar(s_audioRxVolumeCached, volume, kNvsKeyCfgSndRxVol, "NVS cfg: failed to persist snd_rx_vol");
 }
 
-uint8_t configGetAudioQuietStart() {
-    return s_audioQuiet0Cached.load(std::memory_order_relaxed);
-}
+uint8_t configGetAudioQuietStart() { return s_audioQuiet0Cached.load(std::memory_order_relaxed); }
 
-uint8_t configGetAudioQuietEnd() {
-    return s_audioQuiet1Cached.load(std::memory_order_relaxed);
-}
+uint8_t configGetAudioQuietEnd() { return s_audioQuiet1Cached.load(std::memory_order_relaxed); }
 
 bool configSetAudioQuietHours(uint8_t startHour, uint8_t endHour) {
     if (startHour > kAudioHourMax) {
@@ -346,8 +315,8 @@ bool configSetAudioQuietHours(uint8_t startHour, uint8_t endHour) {
     if (configGetAudioQuietStart() == startHour && configGetAudioQuietEnd() == endHour) {
         return true;
     }
-    if (!app_nvs::writeUChar(kNvsNsCfg, kNvsKeyCfgSndQ0, startHour)
-        || !app_nvs::writeUChar(kNvsNsCfg, kNvsKeyCfgSndQ1, endHour)) {
+    if (!app_nvs::writeUChar(kNvsNsCfg, kNvsKeyCfgSndQ0, startHour) ||
+        !app_nvs::writeUChar(kNvsNsCfg, kNvsKeyCfgSndQ1, endHour)) {
         ESP_LOGE(TAG, "NVS cfg: failed to persist snd_q0/snd_q1");
         return false;
     }
@@ -356,35 +325,23 @@ bool configSetAudioQuietHours(uint8_t startHour, uint8_t endHour) {
     return true;
 }
 
-uint16_t configGetAudioTxHz() {
-    return s_audioTxHzCached.load(std::memory_order_relaxed);
-}
+uint16_t configGetAudioTxHz() { return s_audioTxHzCached.load(std::memory_order_relaxed); }
 
-uint16_t configGetAudioTxMs() {
-    return s_audioTxMsCached.load(std::memory_order_relaxed);
-}
+uint16_t configGetAudioTxMs() { return s_audioTxMsCached.load(std::memory_order_relaxed); }
 
-uint16_t configGetAudioRxHz() {
-    return s_audioRxHzCached.load(std::memory_order_relaxed);
-}
+uint16_t configGetAudioRxHz() { return s_audioRxHzCached.load(std::memory_order_relaxed); }
 
-uint16_t configGetAudioRxMs() {
-    return s_audioRxMsCached.load(std::memory_order_relaxed);
-}
+uint16_t configGetAudioRxMs() { return s_audioRxMsCached.load(std::memory_order_relaxed); }
 
 bool configSetAudioTones(uint16_t txHz, uint16_t txMs, uint16_t rxHz, uint16_t rxMs) {
-    const AudioTone tx{clampAudioToneHz(txHz, kAudioDefaultTxHz),
-                       clampAudioToneMs(txMs, kAudioDefaultTxMs)};
-    const AudioTone rx{clampAudioToneHz(rxHz, kAudioDefaultRxHz),
-                       clampAudioToneMs(rxMs, kAudioDefaultRxMs)};
-    if (configGetAudioTxHz() == tx.hz && configGetAudioTxMs() == tx.ms
-        && configGetAudioRxHz() == rx.hz && configGetAudioRxMs() == rx.ms) {
+    const AudioTone tx{clampAudioToneHz(txHz, kAudioDefaultTxHz), clampAudioToneMs(txMs, kAudioDefaultTxMs)};
+    const AudioTone rx{clampAudioToneHz(rxHz, kAudioDefaultRxHz), clampAudioToneMs(rxMs, kAudioDefaultRxMs)};
+    if (configGetAudioTxHz() == tx.hz && configGetAudioTxMs() == tx.ms && configGetAudioRxHz() == rx.hz &&
+        configGetAudioRxMs() == rx.ms) {
         return true;
     }
-    if (!app_nvs::writeUInt(kNvsNsCfg, kNvsKeyCfgSndTxHz, tx.hz)
-        || !app_nvs::writeUInt(kNvsNsCfg, kNvsKeyCfgSndTxMs, tx.ms)
-        || !app_nvs::writeUInt(kNvsNsCfg, kNvsKeyCfgSndRxHz, rx.hz)
-        || !app_nvs::writeUInt(kNvsNsCfg, kNvsKeyCfgSndRxMs, rx.ms)) {
+    if (!app_nvs::writeUInt(kNvsNsCfg, kNvsKeyCfgSndTxHz, tx.hz) || !app_nvs::writeUInt(kNvsNsCfg, kNvsKeyCfgSndTxMs, tx.ms) ||
+        !app_nvs::writeUInt(kNvsNsCfg, kNvsKeyCfgSndRxHz, rx.hz) || !app_nvs::writeUInt(kNvsNsCfg, kNvsKeyCfgSndRxMs, rx.ms)) {
         ESP_LOGE(TAG, "NVS cfg: failed to persist snd_tx/rx tone");
         return false;
     }
@@ -411,6 +368,6 @@ void app_configResetRamAfterFactoryClear() {
     s_audioRxMsCached.store(kAudioDefaultRxMs, std::memory_order_relaxed);
     portENTER_CRITICAL(&s_uiPrefsMux);
     strlcpy(s_uiLangCached, "en", sizeof(s_uiLangCached));
-    strlcpy(s_uiThemeCached, "light", sizeof(s_uiThemeCached));
+    strlcpy(s_uiThemeCached, "system", sizeof(s_uiThemeCached));
     portEXIT_CRITICAL(&s_uiPrefsMux);
 }

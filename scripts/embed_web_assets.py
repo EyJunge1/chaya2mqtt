@@ -20,7 +20,7 @@ from typing import TypedDict
 ROOT = Path(__file__).resolve().parents[1]
 DIST = ROOT / "frontend" / "dist"
 OUT_DIR = ROOT / "src" / "web" / "assets"
-MAX_TOTAL_PAYLOAD = 350 * 1024  # soft budget on compressed blob size (OTA flash headroom)
+MAX_TOTAL_PAYLOAD = 350 * 1024  # hard budget on compressed blob size (OTA flash headroom)
 
 SKIP_NAMES = {".DS_Store", "Thumbs.db"}
 

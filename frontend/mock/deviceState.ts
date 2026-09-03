@@ -1,5 +1,3 @@
-import { randomBytes } from "node:crypto";
-
 export type MockMode = "ap" | "sta";
 
 export const MOCK_SCENARIOS = [
@@ -24,6 +22,7 @@ export const MOCK_SCENARIOS = [
   // Settings
   "settings-load-fail",
   "settings-save-fail",
+  "settings-nvs-fail",
   "settings-reboot-fail",
   "settings-factory-reset-fail",
   // Wi-Fi
@@ -61,8 +60,6 @@ export type MockScenario = (typeof MOCK_SCENARIOS)[number];
 
 export const MOCK_FAULT_KEYS = [
   "device",
-  "chaya",
-  "wifi-status",
   "wifi-config",
   "wifi-scan",
   "wifi-connect",
@@ -71,7 +68,6 @@ export const MOCK_FAULT_KEYS = [
   "wifi-abort",
   "wifi-retry",
   "mqtt",
-  "mqtt-status",
   "mqtt-save",
   "settings",
   "settings-save",
@@ -96,7 +92,6 @@ export interface MockState {
   version: string;
   hostname: string;
   deviceId: string;
-  csrf: string;
   rx: number;
   tx: number;
   mqttConnected: boolean;
@@ -145,7 +140,7 @@ export interface MockState {
   };
   resetDays: number;
   lang: "de" | "en";
-  theme: "dark" | "light";
+  theme: "dark" | "light" | "system";
   ledEnabled: boolean;
   audioTxEnabled: boolean;
   audioRxEnabled: boolean;
@@ -157,6 +152,11 @@ export interface MockState {
   txMs: number;
   rxHz: number;
   rxMs: number;
+  /** QUAL-01: false after deferred settings apply failed to persist. */
+  settingsNvsOk: boolean;
+  /** Transient true after settings POST until next GET clears it. */
+  settingsApplyPending: boolean;
+  mqttNvsOk: boolean;
   batteryMv: number;
   batteryPct: number;
   heartBusy: boolean;
@@ -176,10 +176,6 @@ export interface MockState {
 }
 
 const listeners = new Set<(event: string, data: unknown) => void>();
-
-function newToken(): string {
-  return randomBytes(16).toString("hex");
-}
 
 export function emptyFaults(): MockFaults {
   return Object.fromEntries(MOCK_FAULT_KEYS.map((key) => [key, false])) as MockFaults;
@@ -310,11 +306,15 @@ function resetBaselineSettings(target: MockState): void {
   target.ledEnabled = true;
   target.resetDays = 7;
   target.lang = "en";
-  target.theme = "light";
+  target.theme = "system";
   target.txHz = 880;
   target.txMs = 80;
   target.rxHz = 660;
   target.rxMs = 140;
+  target.settingsNvsOk = true;
+  target.settingsApplyPending = false;
+  target.mqttNvsOk = true;
+  target.mqttNvsOk = true;
 }
 
 export function createInitialState(scenario: MockScenario = "sta-connected"): MockState {
@@ -325,7 +325,6 @@ export function createInitialState(scenario: MockScenario = "sta-connected"): Mo
     version: "dev-sim",
     hostname: `chaya2mqtt-${deviceId}`,
     deviceId,
-    csrf: newToken(),
     rx: 3,
     tx: 7,
     mqttConnected: true,
@@ -350,7 +349,7 @@ export function createInitialState(scenario: MockScenario = "sta-connected"): Mo
     mqtt: defaultMqtt(deviceId),
     resetDays: 7,
     lang: "en",
-    theme: "light",
+    theme: "system",
     ledEnabled: true,
     audioTxEnabled: false,
     audioRxEnabled: false,
@@ -362,6 +361,9 @@ export function createInitialState(scenario: MockScenario = "sta-connected"): Mo
     txMs: 80,
     rxHz: 660,
     rxMs: 140,
+    settingsNvsOk: true,
+    settingsApplyPending: false,
+    mqttNvsOk: true,
     batteryMv: 3900,
     batteryPct: 55,
     heartBusy: false,
@@ -566,6 +568,12 @@ export function applyScenario(state: MockState, scenario: MockScenario): void {
       state.faults["settings-save"] = true;
       setOtaIdle(state);
       break;
+    case "settings-nvs-fail":
+      applyStaOnlineDefaults(state);
+      state.mqttConnected = true;
+      state.settingsNvsOk = false;
+      setOtaIdle(state);
+      break;
     case "settings-reboot-fail":
       applyStaOnlineDefaults(state);
       state.mqttConnected = true;
@@ -730,16 +738,23 @@ export function applyScenario(state: MockState, scenario: MockScenario): void {
       setOtaIdle(state);
       break;
   }
-  state.csrf = newToken();
 }
 
 let state = createInitialState("sta-connected");
+
+/** Bumped on every reset so async OTA sim timers stop mutating a new state. */
+let otaSimEpoch = 0;
+
+export function getOtaSimEpoch(): number {
+  return otaSimEpoch;
+}
 
 export function getState(): MockState {
   return state;
 }
 
 export function resetState(scenario?: MockScenario): MockState {
+  otaSimEpoch += 1;
   state = createInitialState(scenario ?? state.scenario);
   broadcastAll();
   return state;

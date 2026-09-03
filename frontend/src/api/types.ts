@@ -79,6 +79,14 @@ export interface WifiScanAp {
   open: boolean;
 }
 
+export type WifiScanStatus = "idle" | "pending" | "ready" | "failed";
+
+export type WifiScanSnapshot =
+  | { status: "idle" }
+  | { status: "pending" }
+  | { status: "failed" }
+  | { status: "ready"; aps: WifiScanAp[] };
+
 export type WifiConnectState = "idle" | "testing" | "ok" | "fail";
 
 export interface WifiConnectStatus {
@@ -101,10 +109,14 @@ export interface MqttConfigView {
   topicPub: string;
   topicSub: string;
   partnerId: string;
+  /** Present when firmware reports deferred MQTT NVS apply status (QUAL-01). */
+  nvsOk?: boolean;
+  /** True while a changing POST is queued or the network task is still applying (QUAL-04). */
+  applyPending?: boolean;
 }
 
 export type UiLang = "de" | "en";
-export type UiTheme = "dark" | "light";
+export type UiTheme = "dark" | "light" | "system";
 
 export interface SettingsInfo {
   resetDays: number;
@@ -121,6 +133,9 @@ export interface SettingsInfo {
   txMs: number;
   rxHz: number;
   rxMs: number;
+  /** Present when firmware reports deferred-apply NVS status (QUAL-01). */
+  nvsOk?: boolean;
+  applyPending?: boolean;
 }
 
 export interface ApiOk {
@@ -151,4 +166,14 @@ export interface OtaStatus {
   bytesTotal: number;
   error: string;
   generation: number;
+}
+
+/** Cold-boot snapshot from `/api/bootstrap` (PERF-07). */
+export interface BootstrapPayload {
+  device: DeviceInfo;
+  wifi: WifiStatus;
+  chaya: ChayaStatus | null;
+  mqtt: MqttStatus | null;
+  update: OtaStatus | null;
+  settings: SettingsInfo | null;
 }

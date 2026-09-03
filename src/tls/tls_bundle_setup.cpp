@@ -8,7 +8,7 @@
 #include <esp_crt_bundle.h>
 
 static SemaphoreHandle_t s_caBundleMutex = nullptr;
-static bool              s_caBundleInstalled = false;
+static bool s_caBundleInstalled = false;
 
 void chayaTlsInfraInit() {
     if (s_caBundleMutex != nullptr) {
@@ -31,8 +31,7 @@ bool chayaTlsEnsureCaBundleInstalled() {
         xSemaphoreGive(s_caBundleMutex);
         return true;
     }
-    const size_t bundleLen =
-        static_cast<size_t>(x509_crt_bundle_end - x509_crt_bundle_start);
+    const size_t bundleLen = static_cast<size_t>(x509_crt_bundle_end - x509_crt_bundle_start);
     const bool ok = esp_crt_bundle_set(x509_crt_bundle_start, bundleLen) == ESP_OK;
     if (ok) {
         s_caBundleInstalled = true;

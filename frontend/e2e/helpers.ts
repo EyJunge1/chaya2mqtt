@@ -8,7 +8,7 @@ export async function resetMock(
   scenario: MockScenario = "sta-connected",
 ) {
   const res = await request.post("/api/_mock/scenario", {
-    form: { scenario },
+    data: { scenario },
   });
   if (!res.ok()) {
     throw new Error(`mock scenario failed: ${res.status()} ${await res.text()}`);
@@ -17,7 +17,7 @@ export async function resetMock(
 
 export async function setMockFault(request: APIRequestContext, fault: string, enabled = true) {
   const res = await request.post("/api/_mock/fault", {
-    form: { fault, enabled: enabled ? "1" : "0" },
+    data: { fault, enabled },
   });
   if (!res.ok()) {
     throw new Error(`mock fault failed: ${res.status()} ${await res.text()}`);

@@ -12,7 +12,7 @@
     lang,
     manifestUrl,
     versionLabel,
-    eraseDefault = true,
+    eraseDefault = false,
     port = null,
     onClose,
     onRetryPort,
@@ -29,7 +29,7 @@
 
   let dialogEl: HTMLDialogElement | undefined = $state();
   let step = $state<Step>("confirm");
-  let eraseFirst = $state(true);
+  let eraseFirst = $state(false);
   let progress = $state<FlashProgress | null>(null);
   let activePort: SerialPort | null = $state(null);
   let busy = $state(false);
@@ -67,6 +67,10 @@
         return t("flash.error.unsupported", { chip: current.chipFamily ?? "?" });
       case "download_failed":
         return t("flash.error.download");
+      case "hash_mismatch":
+        return t("flash.error.hashMismatch");
+      case "hash_missing":
+        return t("flash.error.hashMissing");
       case "erase_failed":
         return t("flash.error.erase");
       case "write_failed":

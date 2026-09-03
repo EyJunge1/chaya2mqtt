@@ -10,10 +10,10 @@ enum class DisplayBatteryColor : uint8_t {
 
 /** Lucide battery glyph chosen to match the web dashboard thresholds. */
 enum class DisplayBatteryIcon : uint8_t {
-    Full   = 0, // >= 80%
+    Full = 0,   // >= 80%
     Medium = 1, // >= 40%
-    Low    = 2, // >= 15%
-    Empty  = 3, // < 15%
+    Low = 2,    // >= 15%
+    Empty = 3,  // < 15%
 };
 
 inline DisplayBatteryIcon displayBatteryIcon(int batteryPct) {

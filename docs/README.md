@@ -59,8 +59,8 @@ If `pio: command not found` appears, PlatformIO is located at `~/.platformio/pen
 ## Initial setup (WiFi & MQTT)
 
 1. Power the device or restart it after flashing.
-2. If no WiFi configuration is stored, the ESP32-S3 opens the WPA2/WPA3 **`Chaya2MQTT`** access point with an individual 8-digit PIN. The E-Ink display shows the WIFI QR. On battery, press **PWR** to start (firmware must hold GPIO17 HIGH).
-3. Scan the WIFI QR on the display with your phone camera (or join `Chaya2MQTT` manually using its displayed PIN) and open the captive portal / browser (`http://chaya2mqtt.local` or `http://4.3.2.1`).
+2. If no WiFi configuration is stored, the ESP32-S3 opens the WPA2/WPA3 **`Chaya2MQTT`** access point with an individual alphanumeric SoftAP password. The E-Ink display shows the WIFI QR (join by scanning only). On battery, press **PWR** to start (firmware must hold GPIO17 HIGH).
+3. Scan the WIFI QR on the display with your phone camera and open the captive portal / browser (`http://chaya2mqtt.local` or `http://4.3.2.1`).
 4. Enter the **WiFi** SSID and password. After switching to STA mode, configure MQTT under **MQTT**:
    - **MQTT server** (hostname or IP) — required
    - **MQTT port** (default: **8883**) — required
@@ -69,7 +69,7 @@ If `pio: command not found` appears, PlatformIO is located at `~/.platformio/pen
 5. In AP mode, the WiFi connection is **tested** before the credentials are saved.
 6. After a successful connection, the admin UI is available at **`http://chaya2mqtt-<deviceId>.local`**, for example `http://chaya2mqtt-a1b2c3.local`. The address and ID are shown on the dashboard.
 
-Two devices can be set up in parallel. Both APs use the same SSID, but they are isolated networks with individual PINs; scanning the QR on the intended display joins the matching device. Once both devices share the normal LAN, their ID-suffixed hostnames keep web and mDNS access unambiguous. If static addressing is used, assign a different IP to every device.
+Two devices can be set up in parallel. Both APs use the same SSID, but they are isolated networks; scanning the QR on the intended display joins the matching device. Once both devices share the normal LAN, their ID-suffixed hostnames keep web and mDNS access unambiguous. If static addressing is used, assign a different IP to every device.
 
 ## Pairing two devices
 
@@ -102,7 +102,7 @@ chaya2mqtt/
 ├── partitions_chaya_8mb.csv  # Dual-OTA table (8 MB flash; ~3.75 MB per slot)
 ├── Makefile                  # PlatformIO wrapper
 ├── docs/                     # This documentation
-├── flasher/                  # Svelte/Vite/Tailwind ESP Web Tools app (GitHub Pages)
+├── flasher/                  # Svelte/Vite/Tailwind web flasher (esptool-js, GitHub Pages)
 ├── frontend/                 # Svelte 5 SPA (Vite, Tailwind, Lucide) + mock device
 └── src/
     ├── main.cpp              # Bootstrap, task startup
@@ -118,7 +118,7 @@ chaya2mqtt/
     ├── ota/                  # GitHub check, flash installation, health gate
     ├── tls/                  # CA bundle (MQTT + OTA)
     ├── util/                 # Time helpers, logging, IP formatting
-    ├── web/                  # Admin API + SPA serving (routes/, assets/, csrf)
+    ├── web/                  # Admin API + SPA serving (routes/, assets/)
     └── wifi/                 # WiFi, captive portal, recovery, connection test
 ```
 
@@ -147,7 +147,7 @@ The 1.54G has **8 MB** flash. `partitions_chaya_8mb.csv` is a dual-OTA map (~3
 | [ARCHITECTURE.md](ARCHITECTURE.md) | FreeRTOS tasks, queues, data flows |
 | [MODULES.md](MODULES.md) | Code reference for all modules |
 | [MQTT.md](MQTT.md) | Protocol, topics, TLS, pairing |
-| [WEB_ADMIN.md](WEB_ADMIN.md) | HTTP routes, CSRF, SSE |
+| [WEB_ADMIN.md](WEB_ADMIN.md) | SPA, Host allowlist; REST/SSE live in OpenAPI/AsyncAPI |
 | [openapi.yaml](openapi.yaml) | REST API (OpenAPI 3.2) |
 | [asyncapi.yaml](asyncapi.yaml) | SSE events (AsyncAPI 3) |
 | [HARDWARE.md](HARDWARE.md) | The only board: 1.54G SKU 34586, pins, battery |

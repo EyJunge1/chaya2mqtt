@@ -36,7 +36,7 @@ void test_counter_delta_and_cap() {
     TEST_ASSERT_EQUAL_INT(1, heartSentCounterNextPure(0));
 }
 
-int main(int, char**) {
+int main(int, char **) {
     UNITY_BEGIN();
     RUN_TEST(test_calendar_day_since_epoch);
     RUN_TEST(test_deadline_helpers);
