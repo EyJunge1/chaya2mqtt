@@ -185,7 +185,7 @@ The `NetCmd` enum (`async/event_types.h`) serializes network-related actions:
 | `MqttKillClient` | Internal | `mqttDisconnect()` |
 | `WifiGotIp` | `WiFi.onEvent` (`GOT_IP`) | Finish STA boot, apply power/NTP/mDNS, and queue the operational screen in the network task |
 | `WifiReconnect` | `WiFi.onEvent` (disconnect / LOST_IP) | Soft reconnect, then forced reassociation (`disconnect+begin`) with backoff after the threshold |
-| `ChayaSendRequested` | Legacy/internal (web uses `chayaRequestSend()` directly) | `chayaRequestSend()` |
+| `ChayaPublish` | LED button / `mqttRequestChayaPublishAsync()` | `mqttRunChayaPublishOnNetworkTask()` (QoS-1 retain publish on network task) |
 | `FactoryResetRequested` | Web POST `/api/factory-reset` | Network task calls `resetAllSettings()` outside the HTTP callback |
 
 The network task services its queue and WiFi/MQTT loops every **50 ms in setup-AP mode** (for

@@ -67,8 +67,6 @@ All UI paths return the same `index.html` (client-side router / SPA fallback):
 
 `/`, `/wifi`, `/wifi-testing`, `/mqtt`, `/settings`, `/settings/device`, `/update`
 
-The SPA redirects legacy `/pairing` links to `/mqtt`.
-
 Static assets include a Vite content hash and are located under `/assets/*` (Cache-Control: `immutable`). HTML remains `no-cache`.
 
 ## JSON API
@@ -111,7 +109,7 @@ Maximum **6** SSE clients. App-task poll remains ~500 ms, but SSE gather runs 
 - Host allowlist in STA and AP: in captive mode only `4.3.2.1` and `chaya2mqtt` / `.local`
   are accepted (see Access warning / SEC-10). The check is attached once on the HTTP server.
   Dedicated captive probe routes skip that middleware (OS probes send a foreign Host).
-- CSP without our inline scripts/styles (`script-src 'self'` plus exact captive-browser helper hashes; `style-src 'self'`)
+- Response headers: `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, and `Cache-Control: no-store` on dynamic responses (hashed `/assets/*` use `immutable` instead)
 
 ## Build integration
 

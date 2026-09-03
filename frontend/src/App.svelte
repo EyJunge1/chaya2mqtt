@@ -18,9 +18,7 @@
   );
 
   $effect(() => {
-    if (router.pathname === "/pairing") {
-      router.replace("/mqtt");
-    } else if (
+    if (
       device.device?.mode === "ap" &&
       router.pathname !== "/" &&
       router.pathname !== "/wifi-testing"

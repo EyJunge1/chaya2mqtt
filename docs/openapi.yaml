@@ -73,8 +73,6 @@ paths:
                     type: [object, "null"]
                   settings:
                     type: [object, "null"]
-        "403":
-          $ref: "#/components/responses/Forbidden"
   /api/chaya/send:
     post:
       tags: [chaya]
@@ -96,8 +94,6 @@ paths:
                 $ref: "#/components/schemas/ApiOk"
         "400":
           $ref: "#/components/responses/ApiError"
-        "403":
-          $ref: "#/components/responses/Forbidden"
         "503":
           $ref: "#/components/responses/ApiError"
   /api/wifi/config:
@@ -113,8 +109,6 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/WifiConfig"
-        "403":
-          $ref: "#/components/responses/Forbidden"
   /api/wifi/scan:
     get:
       tags: [wifi]
@@ -129,8 +123,6 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/WifiScanSnapshot"
-        "403":
-          $ref: "#/components/responses/Forbidden"
     post:
       tags: [wifi]
       summary: Start access-point scan
@@ -149,8 +141,6 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiOk"
-        "403":
-          $ref: "#/components/responses/Forbidden"
   /api/wifi/connect:
     post:
       tags: [wifi]
@@ -184,8 +174,6 @@ paths:
                 $ref: "#/components/schemas/ApiOk"
         "400":
           $ref: "#/components/responses/ApiError"
-        "403":
-          $ref: "#/components/responses/Forbidden"
         "500":
           description: Failed to save credentials
           content:
@@ -226,8 +214,6 @@ paths:
                     type: string
         "400":
           $ref: "#/components/responses/ApiError"
-        "403":
-          $ref: "#/components/responses/Forbidden"
   /api/wifi/connect-commit:
     post:
       tags: [wifi]
@@ -249,8 +235,6 @@ paths:
                 $ref: "#/components/schemas/ApiOk"
         "400":
           $ref: "#/components/responses/ApiError"
-        "403":
-          $ref: "#/components/responses/Forbidden"
   /api/wifi/connect-abort:
     post:
       tags: [wifi]
@@ -272,8 +256,6 @@ paths:
                 $ref: "#/components/schemas/ApiOk"
         "400":
           $ref: "#/components/responses/ApiError"
-        "403":
-          $ref: "#/components/responses/Forbidden"
   /api/wifi/connect-retry:
     post:
       tags: [wifi]
@@ -295,8 +277,6 @@ paths:
                 $ref: "#/components/schemas/ApiOk"
         "400":
           $ref: "#/components/responses/ApiError"
-        "403":
-          $ref: "#/components/responses/Forbidden"
         "503":
           $ref: "#/components/responses/ApiError"
   /api/mqtt:
@@ -317,8 +297,6 @@ paths:
                 $ref: "#/components/schemas/MqttConfigView"
         "400":
           $ref: "#/components/responses/ApiError"
-        "403":
-          $ref: "#/components/responses/Forbidden"
         "503":
           $ref: "#/components/responses/ApiError"
     post:
@@ -366,8 +344,6 @@ paths:
                 $ref: "#/components/schemas/ApiOk"
         "400":
           $ref: "#/components/responses/ApiError"
-        "403":
-          $ref: "#/components/responses/Forbidden"
         "503":
           $ref: "#/components/responses/ApiError"
   /api/settings:
@@ -385,8 +361,6 @@ paths:
                 $ref: "#/components/schemas/SettingsInfo"
         "400":
           $ref: "#/components/responses/ApiError"
-        "403":
-          $ref: "#/components/responses/Forbidden"
     post:
       tags: [settings]
       summary: Save settings
@@ -422,8 +396,6 @@ paths:
                 $ref: "#/components/schemas/ApiOk"
         "400":
           $ref: "#/components/responses/ApiError"
-        "403":
-          $ref: "#/components/responses/Forbidden"
         "503":
           $ref: "#/components/responses/ApiError"
   /api/reboot:
@@ -447,8 +419,6 @@ paths:
                 $ref: "#/components/schemas/ApiOk"
         "400":
           $ref: "#/components/responses/ApiError"
-        "403":
-          $ref: "#/components/responses/Forbidden"
         "503":
           $ref: "#/components/responses/ApiError"
   /api/factory-reset:
@@ -473,8 +443,6 @@ paths:
                 $ref: "#/components/schemas/ApiOk"
         "400":
           $ref: "#/components/responses/ApiError"
-        "403":
-          $ref: "#/components/responses/Forbidden"
         "503":
           $ref: "#/components/responses/ApiError"
   /api/update/status:
@@ -492,8 +460,6 @@ paths:
                 $ref: "#/components/schemas/OtaStatus"
         "400":
           $ref: "#/components/responses/ApiError"
-        "403":
-          $ref: "#/components/responses/Forbidden"
   /api/update/check:
     post:
       tags: [update]
@@ -519,8 +485,6 @@ paths:
                 $ref: "#/components/schemas/ApiOk"
         "400":
           $ref: "#/components/responses/ApiError"
-        "403":
-          $ref: "#/components/responses/Forbidden"
         "503":
           $ref: "#/components/responses/ApiError"
   /api/update/install:
@@ -544,8 +508,6 @@ paths:
                 $ref: "#/components/schemas/ApiOk"
         "400":
           $ref: "#/components/responses/ApiError"
-        "403":
-          $ref: "#/components/responses/Forbidden"
         "409":
           $ref: "#/components/responses/ApiError"
         "503":
@@ -794,12 +756,6 @@ components:
         error: { type: string }
         generation: { type: integer }
   responses:
-    Forbidden:
-      description: Host rejected
-      content:
-        application/json:
-          schema:
-            $ref: "#/components/schemas/ApiErr"
     ApiError:
       description: Request failed
       content:

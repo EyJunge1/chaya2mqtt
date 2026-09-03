@@ -15,25 +15,11 @@ void webAddSecurityHeaders(AsyncWebServerResponse *resp, bool noStore) {
     if (resp == nullptr) {
         return;
     }
-    resp->addHeader(F("X-Frame-Options"), F("DENY"));
     resp->addHeader(F("X-Content-Type-Options"), F("nosniff"));
-    resp->addHeader(F("X-XSS-Protection"), F("0"));
-    resp->addHeader(F("Referrer-Policy"), F("no-referrer"));
+    resp->addHeader(F("X-Frame-Options"), F("DENY"));
     if (noStore) {
         resp->addHeader(F("Cache-Control"), F("no-store"));
     }
-    resp->addHeader(F("Permissions-Policy"), F("camera=(), microphone=(), geolocation=()"));
-    // SPA assets are external same-origin files (no inline JS/CSS required).
-    // Favicon uses data: / same-origin; QR codes are inline SVG.
-    // Captive browsers inject small helper scripts; allow only their exact hashes
-    // instead of weakening the policy with unsafe-inline.
-    resp->addHeader(F("Content-Security-Policy"), F("default-src 'self'; "
-                                                    "script-src 'self' "
-                                                    "'sha256-/wvEleeS5MQ7yyfJEOR4qpa8+JUfhOSb/nL6ABAsJ8s=' "
-                                                    "'sha256-S7aCyzLyXJK5s4JHzbN5gslKO2OjyLe1PK4tB4Bnu4U='; "
-                                                    "style-src 'self'; "
-                                                    "connect-src 'self'; img-src 'self' data:; object-src 'none'; "
-                                                    "base-uri 'none'; form-action 'self'; frame-ancestors 'none'"));
 }
 
 void webRedirect(AsyncWebServerRequest *req, const __FlashStringHelper *location) {

@@ -19,7 +19,3 @@ class ThemeView {
 }
 
 export const themeView = new ThemeView();
-
-export function useTheme(): Theme {
-  return themeView.theme;
-}

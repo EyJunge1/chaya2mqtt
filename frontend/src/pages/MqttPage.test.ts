@@ -17,7 +17,6 @@ vi.mock("../api/client", () => ({
 
 vi.mock("../i18n/i18n.svelte.ts", () => ({
   i18n: { t: (key: string) => key, language: "en", setLanguage: () => undefined },
-  useI18n: () => ({ t: (key: string) => key }),
 }));
 
 function cfg(partial: Partial<MqttConfigView> = {}): MqttConfigView {

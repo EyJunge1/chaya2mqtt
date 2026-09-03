@@ -94,7 +94,7 @@ Namespaces stay separate (`wifi` / `mqtt` / `cfg` / `chaya`). Do not fold MQTT/W
 ```cpp
 enum class NetCmd : uint8_t {
     MqttSettingsChanged, MqttKillClient, WifiGotIp, WifiReconnect,
-    ChayaSendRequested, FactoryResetRequested,
+    ChayaPublish, FactoryResetRequested,
 };
 
 struct DisplayMsg {

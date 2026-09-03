@@ -21,7 +21,3 @@ class I18n {
 }
 
 export const i18n = new I18n();
-
-export function useI18n() {
-  return i18n;
-}

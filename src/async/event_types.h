@@ -8,7 +8,6 @@ enum class NetCmd : uint8_t {
     MqttKillClient,
     WifiGotIp,
     WifiReconnect,
-    ChayaSendRequested,
     ChayaPublish,
     FactoryResetRequested,
 };

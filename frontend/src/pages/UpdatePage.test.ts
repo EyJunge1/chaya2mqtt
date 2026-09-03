@@ -34,7 +34,6 @@ vi.mock("../i18n/i18n.svelte.ts", () => ({
     language: "en",
     setLanguage: () => undefined,
   },
-  useI18n: () => ({ t: (key: string) => key }),
 }));
 
 function status(partial: Partial<OtaStatus> = {}): OtaStatus {

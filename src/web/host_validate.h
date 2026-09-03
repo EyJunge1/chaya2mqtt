@@ -38,7 +38,7 @@ inline bool hostPrefixIgnoreCaseThenPortOrEnd(const char *host, const char *pref
 /**
  * Host allow-list (pure logic).
  * @param host request host (may include :port)
- * @param apMode captive portal: allow any host
+ * @param apMode captive portal: setup IP and hostname allowlist only
  * @param deviceHostname current station hostname (without .local)
  * @param staIp optional STA IPv4 string; nullptr/empty skips IP match
  */
