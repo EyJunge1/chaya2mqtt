@@ -37,7 +37,10 @@ function cfg(partial: Partial<MqttConfigView> = {}): MqttConfigView {
 describe("MqttPage", () => {
   afterEach(() => {
     cleanup();
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
     vi.clearAllMocks();
+    Reflect.deleteProperty(document, "execCommand");
   });
 
   beforeEach(() => {
@@ -178,6 +181,38 @@ describe("MqttPage", () => {
     await screen.findByDisplayValue("mqtt.example.com");
     expect(screen.getByText("mqtts://mqtt.example.com:8883")).toBeTruthy();
     expect(screen.getAllByText("-").length).toBeGreaterThan(0);
+  });
+
+  it("copies the device ID without a toast when the clipboard helper succeeds", async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    vi.stubGlobal("isSecureContext", true);
+    vi.stubGlobal("navigator", { ...navigator, clipboard: { writeText } });
+    const onToast = vi.fn();
+    render(MqttPage, { props: { mqtt: { connected: false }, onToast } });
+
+    fireEvent.click(await screen.findByRole("button", { name: "mqtt.copy-device-id" }));
+
+    await waitFor(() => {
+      expect(writeText).toHaveBeenCalledWith("a1b2c3");
+    });
+    expect(onToast).not.toHaveBeenCalled();
+  });
+
+  it("toasts when copying the device ID fails", async () => {
+    vi.stubGlobal("isSecureContext", false);
+    vi.stubGlobal("navigator", { ...navigator, clipboard: undefined });
+    Object.defineProperty(document, "execCommand", {
+      configurable: true,
+      value: vi.fn().mockReturnValue(false),
+    });
+    const onToast = vi.fn();
+    render(MqttPage, { props: { mqtt: { connected: false }, onToast } });
+
+    fireEvent.click(await screen.findByRole("button", { name: "mqtt.copy-device-id" }));
+
+    await waitFor(() => {
+      expect(onToast).toHaveBeenCalledWith("toast.device-id-copy-failed", "error");
+    });
   });
 
   it("shows RadioOff when no broker is configured", async () => {

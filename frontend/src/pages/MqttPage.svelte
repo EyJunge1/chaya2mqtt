@@ -16,6 +16,7 @@
   import TextInput from "../components/TextInput.svelte";
   import type { ShowToast } from "../components/toastStack.ts";
   import { i18n } from "../i18n/i18n.svelte.ts";
+  import { copyText } from "../ui/clipboard.ts";
   import { cn } from "../ui/cn.ts";
   import { dash, HOVER_SURFACE } from "../ui/styles.ts";
 
@@ -169,16 +170,15 @@
   async function copyDeviceId() {
     const id = cfg?.deviceId?.trim();
     if (!id) return;
-    try {
-      await navigator.clipboard.writeText(id);
+    if (await copyText(id)) {
       copied = true;
       clearTimeout(copiedReset);
       copiedReset = setTimeout(() => {
         copied = false;
       }, 1500);
-    } catch {
-      onToast(i18n.t("toast.device-id-copy-failed"), "error");
+      return;
     }
+    onToast(i18n.t("toast.device-id-copy-failed"), "error");
   }
 
   const brokerConfigured = $derived(Boolean(cfg?.server.trim()));
