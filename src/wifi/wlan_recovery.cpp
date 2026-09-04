@@ -72,7 +72,9 @@ void wlanRecoveryServiceLoop() {
     const WlanRecoveryAction action = wlanRecoveryDecide(apMode, connected, otaBlock, hasCreds, nowMs, nowMs, s_recovery,
                                                          restartsUsed, kWlanRecoveryMaxRestartsPerDay);
 
+#if defined(CORE_DEBUG_LEVEL) && CORE_DEBUG_LEVEL >= 2
     const unsigned long downFor = (s_recovery.linkDownSinceMs != 0UL) ? (nowMs - s_recovery.linkDownSinceMs) : 0UL;
+#endif
 
     switch (action) {
     case WlanRecoveryAction::None:
