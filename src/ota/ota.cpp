@@ -161,7 +161,9 @@ bool isBusyPhase(OtaPhase p) {
 void runGithubCheck(bool manual) {
     loadChannelIfNeeded();
     const OtaChannel channel = s_channel.load(std::memory_order_acquire);
+#if defined(CORE_DEBUG_LEVEL) && CORE_DEBUG_LEVEL >= 3
     const unsigned long startedMs = millis();
+#endif
     ESP_LOGI(TAG, "%s update check started (channel=%s)", manual ? "Manual" : "Automatic", channelName(channel));
 
     portENTER_CRITICAL(&s_otaMux);

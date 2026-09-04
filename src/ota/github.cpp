@@ -138,7 +138,9 @@ bool httpGetGithubJson(const char *url, JsonDocument &doc, bool list, bool *outH
         ESP_LOGE(TAG, "GitHub API: CA bundle install failed");
         return false;
     }
+#if defined(CORE_DEBUG_LEVEL) && CORE_DEBUG_LEVEL >= 3
     const unsigned long requestStartedMs = millis();
+#endif
     ESP_LOGI(TAG, "GitHub API request started");
 
     WiFiClientSecure tls;

@@ -62,7 +62,9 @@ void wlanHandleStaReconnectNetCmd() {
     }
 
     const uint32_t fails = s_wifiReconnectFailCount.load(std::memory_order_relaxed);
+#if defined(CORE_DEBUG_LEVEL) && CORE_DEBUG_LEVEL >= 2
     const uint8_t reason = s_lastStaDisconnectReason.load(std::memory_order_relaxed);
+#endif
 
     if (wlanSoftReconnectShouldForce(fails, kWifiSoftReconnectAttemptsBeforeForce)) {
         ESP_LOGW(TAG, "WLAN soft reconnect exhausted (fails=%u reason=%u) — force reassoc", static_cast<unsigned>(fails),
@@ -106,7 +108,9 @@ void wifiStationEvent(arduino_event_id_t event, arduino_event_info_t info) {
         sseMarkDirty(kSseWifi);
         const uint8_t reason = info.wifi_sta_disconnected.reason;
         s_lastStaDisconnectReason.store(reason, std::memory_order_relaxed);
+#if defined(CORE_DEBUG_LEVEL) && CORE_DEBUG_LEVEL >= 2
         const uint8_t *bssid = info.wifi_sta_disconnected.bssid;
+#endif
         ESP_LOGW(TAG,
                  "STA_DISCONNECTED reason=%u ssid='%.32s' rssi=%d "
                  "bssid=%02x:%02x:%02x:%02x:%02x:%02x",
