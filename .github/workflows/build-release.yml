@@ -86,11 +86,14 @@ jobs:
             --build-dir .pio/build/esp32s3-release \
             --github-output "$GITHUB_OUTPUT"
 
+      # Immutable releases lock assets after publish. Prereleases publish immediately,
+      # so attach files to a draft first, then publish (stable already uploads first).
       - name: Upload release artifact
         uses: softprops/action-gh-release@3d0d9888cb7fd7b750713d6e236d1fcb99157228 # v3.0.2
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           generate_release_notes: true
+          draft: ${{ contains(github.ref_name, '-rc.') }}
           prerelease: ${{ contains(github.ref_name, '-rc.') }}
           make_latest: ${{ !contains(github.ref_name, '-rc.') }}
           body: |
@@ -108,3 +111,11 @@ jobs:
             .pio/build/esp32s3-release/firmware.sha256
             .pio/build/esp32s3-release/firmware.factory.bin
             .pio/build/esp32s3-release/firmware.factory.sha256
+
+      - name: Publish beta after assets
+        if: contains(github.ref_name, '-rc.')
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          gh release edit "${GITHUB_REF_NAME}" --draft=false --prerelease
