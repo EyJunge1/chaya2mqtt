@@ -33,6 +33,9 @@ Run its checks and generate a release-aware preview as described in
 - Pin every GitHub Action `uses:` entry to a verified 40-character release commit SHA and keep
   the semantic release version as an inline comment; Dependabot updates these pins.
 - Run `make check` successfully in full before pushing.
+- The required status check is `check`. A green result stays valid if `main` moves
+  and the pull request has no conflicts; updating the branch is optional and
+  re-runs CI.
 
 The complete quality gates and manual hardware checks are documented in [docs/TESTING.md](docs/TESTING.md). Target hardware is only the Waveshare ESP32-S3-ePaper-1.54G (SKU 34586); see [docs/HARDWARE.md](docs/HARDWARE.md).
 
