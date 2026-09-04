@@ -77,7 +77,10 @@ Frontend linting and formatting, coverage thresholds, frontend build, SPA embedd
 
 For pull requests, the `Quality gate` workflow selects the affected frontend, flasher, and firmware
 jobs from the changed paths and runs them in parallel. Documentation-only changes finish without
-starting build jobs. Pushes to `main` still run the complete gate in parallel.
+starting build jobs. The `main` ruleset requires `check` but does not require the branch to be up
+to date: merging another conflict-free pull request does not invalidate existing checks or restart
+Quality gate. Updating the branch still starts a new run. Pushes to `main` still run the complete
+gate in parallel.
 The tag-based release workflow also runs the complete gate before publishing artifacts.
 The Pages deploy workflow publishes the browser flasher to
 [`eyjunge1.github.io/chaya2mqtt`](https://eyjunge1.github.io/chaya2mqtt/).
