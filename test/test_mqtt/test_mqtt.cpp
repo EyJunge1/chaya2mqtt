@@ -192,7 +192,7 @@ void test_mqtt_pack_roundtrip() {
     cfg.port = 1883;
     cfg.tls = false;
     std::strncpy(cfg.username, "user", sizeof(cfg.username));
-    std::strncpy(cfg.password, "s3cret", sizeof(cfg.password));
+    std::strncpy(cfg.password, "roundtrip", sizeof(cfg.password));
     std::strncpy(cfg.partnerDeviceId, "f5e6d7", sizeof(cfg.partnerDeviceId));
     std::strncpy(cfg.topicPub, "chaya2mqtt/a1b2c3", sizeof(cfg.topicPub));
     std::strncpy(cfg.topicSub, "chaya2mqtt/f5e6d7", sizeof(cfg.topicSub));
@@ -207,7 +207,7 @@ void test_mqtt_pack_roundtrip() {
     TEST_ASSERT_EQUAL_UINT16(1883, out.port);
     TEST_ASSERT_FALSE(out.tls);
     TEST_ASSERT_EQUAL_STRING("user", out.username);
-    TEST_ASSERT_EQUAL_STRING("s3cret", out.password);
+    TEST_ASSERT_EQUAL_STRING("roundtrip", out.password);
     TEST_ASSERT_EQUAL_STRING("f5e6d7", out.partnerDeviceId);
     TEST_ASSERT_EQUAL_STRING("", out.topicPub);
     TEST_ASSERT_EQUAL_STRING("", out.topicSub);
