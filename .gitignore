@@ -26,3 +26,5 @@ flasher/_site/
 src/web/assets/web_ui.bin
 src/web/assets/web_ui_blob.S
 src/web/assets/web_ui_manifest.h
+out/
+baseline/
