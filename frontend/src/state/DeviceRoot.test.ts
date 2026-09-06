@@ -106,11 +106,39 @@ describe("DeviceRoot", () => {
     });
   });
 
-  it("reopens SSE after a simulator reboot refresh", async () => {
+  it("reopens SSE after a device identity change", async () => {
     renderApp(DeviceRootHarness);
     await waitFor(() => expect(connectEvents).toHaveBeenCalledTimes(1));
 
-    device.refreshSeq += 1;
+    device.device = { ...device.device!, deviceId: "ffffff" };
     await waitFor(() => expect(connectEvents).toHaveBeenCalledTimes(2));
+  });
+
+  it("does not overlay a later bootstrap onto SSE live fields", async () => {
+    let handlers: { chaya?: (d: ChayaStatus) => void } = {};
+    connectEvents.mockImplementation((next: { chaya?: (d: ChayaStatus) => void }) => {
+      handlers = next;
+      return () => undefined;
+    });
+
+    renderApp(DeviceRootHarness);
+    expect(await screen.findByTestId("device-id")).toHaveTextContent("a1b2c3");
+    await waitFor(() => expect(connectEvents).toHaveBeenCalled());
+
+    handlers.chaya?.({ rx: 9, tx: 1, connected: true, configured: true, paired: true });
+    await waitFor(() => {
+      expect(screen.getByTestId("live")).toHaveTextContent("live");
+      expect(screen.getByTestId("rx")).toHaveTextContent("9");
+    });
+
+    getBootstrap.mockResolvedValue({
+      ...staBootstrap(),
+      chaya: { rx: 1, tx: 0, connected: false, configured: true, paired: true },
+    });
+    await device.refreshDevice();
+
+    expect(screen.getByTestId("device-id")).toHaveTextContent("a1b2c3");
+    expect(screen.getByTestId("rx")).toHaveTextContent("9");
+    expect(connectEvents).toHaveBeenCalledTimes(1);
   });
 });

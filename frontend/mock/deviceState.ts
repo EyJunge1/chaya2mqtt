@@ -104,6 +104,7 @@ export interface MockState {
   wifiDns2: string;
   wifiRssi: number;
   wifiConfig: {
+    ssid: string;
     mode: "dhcp" | "static";
     ip: string;
     gateway: string;
@@ -157,6 +158,8 @@ export interface MockState {
   /** Transient true after settings POST until next GET clears it. */
   settingsApplyPending: boolean;
   mqttNvsOk: boolean;
+  /** Transient true after MQTT POST until simulated apply finishes. */
+  mqttApplyPending: boolean;
   batteryMv: number;
   batteryPct: number;
   heartBusy: boolean;
@@ -231,10 +234,25 @@ function defaultMqtt(deviceId: string) {
   };
 }
 
+function defaultWifiConfig(ssid = ""): MockState["wifiConfig"] {
+  return {
+    ssid,
+    mode: "dhcp",
+    ip: "",
+    gateway: "",
+    netmask: "255.255.255.0",
+    dns1: "",
+    dns2: "",
+    ntp1: "",
+    ntp2: "",
+  };
+}
+
 function applyStaOnlineDefaults(target: MockState): void {
   target.mode = "sta";
   target.wifiConnected = true;
   target.wifiSsid = "MockNet";
+  target.wifiConfig.ssid = "MockNet";
   target.wifiIp = "192.168.1.42";
   target.wifiGateway = "192.168.1.1";
   target.wifiNetmask = "255.255.255.0";
@@ -314,7 +332,7 @@ function resetBaselineSettings(target: MockState): void {
   target.settingsNvsOk = true;
   target.settingsApplyPending = false;
   target.mqttNvsOk = true;
-  target.mqttNvsOk = true;
+  target.mqttApplyPending = false;
 }
 
 export function createInitialState(scenario: MockScenario = "sta-connected"): MockState {
@@ -336,16 +354,7 @@ export function createInitialState(scenario: MockScenario = "sta-connected"): Mo
     wifiDns1: "1.1.1.1",
     wifiDns2: "1.0.0.1",
     wifiRssi: -55,
-    wifiConfig: {
-      mode: "dhcp",
-      ip: "",
-      gateway: "",
-      netmask: "255.255.255.0",
-      dns1: "",
-      dns2: "",
-      ntp1: "",
-      ntp2: "",
-    },
+    wifiConfig: defaultWifiConfig("MockNet"),
     mqtt: defaultMqtt(deviceId),
     resetDays: 7,
     lang: "en",
@@ -364,6 +373,7 @@ export function createInitialState(scenario: MockScenario = "sta-connected"): Mo
     settingsNvsOk: true,
     settingsApplyPending: false,
     mqttNvsOk: true,
+    mqttApplyPending: false,
     batteryMv: 3900,
     batteryPct: 55,
     heartBusy: false,
@@ -389,16 +399,7 @@ export function createInitialState(scenario: MockScenario = "sta-connected"): Mo
 export function applyScenario(state: MockState, scenario: MockScenario): void {
   state.scenario = scenario;
   state.mqtt = defaultMqtt(state.deviceId);
-  state.wifiConfig = {
-    mode: "dhcp",
-    ip: "",
-    gateway: "",
-    netmask: "255.255.255.0",
-    dns1: "",
-    dns2: "",
-    ntp1: "",
-    ntp2: "",
-  };
+  state.wifiConfig = defaultWifiConfig();
   state.wifiConnect = idleWifiConnect();
   clearSimulatorControls(state);
   resetBaselineSettings(state);
@@ -590,6 +591,7 @@ export function applyScenario(state: MockState, scenario: MockScenario): void {
       applyStaOnlineDefaults(state);
       state.mqttConnected = true;
       state.wifiConfig = {
+        ssid: "MockNet",
         mode: "static",
         ip: "192.168.1.42",
         gateway: "192.168.1.1",
@@ -744,6 +746,10 @@ let state = createInitialState("sta-connected");
 
 /** Bumped on every reset so async OTA sim timers stop mutating a new state. */
 let otaSimEpoch = 0;
+/** Bumped on every reset so delayed heart ACK timers stop mutating a new state. */
+let heartAckEpoch = 0;
+let mqttApplyEpoch = 0;
+let settingsApplyEpoch = 0;
 
 export function getOtaSimEpoch(): number {
   return otaSimEpoch;
@@ -753,8 +759,33 @@ export function getState(): MockState {
   return state;
 }
 
+export function getHeartAckEpoch(): number {
+  return heartAckEpoch;
+}
+
+export function nextMqttApplyEpoch(): number {
+  mqttApplyEpoch += 1;
+  return mqttApplyEpoch;
+}
+
+export function getMqttApplyEpoch(): number {
+  return mqttApplyEpoch;
+}
+
+export function nextSettingsApplyEpoch(): number {
+  settingsApplyEpoch += 1;
+  return settingsApplyEpoch;
+}
+
+export function getSettingsApplyEpoch(): number {
+  return settingsApplyEpoch;
+}
+
 export function resetState(scenario?: MockScenario): MockState {
   otaSimEpoch += 1;
+  heartAckEpoch += 1;
+  mqttApplyEpoch += 1;
+  settingsApplyEpoch += 1;
   state = createInitialState(scenario ?? state.scenario);
   broadcastAll();
   return state;
@@ -860,7 +891,7 @@ export function wifiPayload() {
 
 export function wifiConfigPayload() {
   return {
-    ssid: state.wifiSsid,
+    ssid: state.wifiConfig.ssid,
     mode: state.wifiConfig.mode,
     ip: state.wifiConfig.ip,
     gateway: state.wifiConfig.gateway,

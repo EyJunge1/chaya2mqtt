@@ -30,8 +30,9 @@ auto ledIsTxSendBusy() -> bool;
 /**
  * Arm the MQTT TX LED sequence; publish runs in the button/LED task.
  * Safe from any task (wakes the LED task). Prefer chayaRequestSend() for guarded entry.
+ * Returns false if CAS cannot take Idle/Refresh/Pattern → PreOn1 (caller should treat as Busy).
  */
-void ledStartChayaSendSequence();
+auto ledStartChayaSendSequence() -> bool;
 
 /** Pulse GPIO3 during E-Ink refresh / RX ack. Safe from any task. */
 void ledRefreshPulseBegin();

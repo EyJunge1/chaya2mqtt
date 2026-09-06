@@ -9,6 +9,7 @@
 #include "display/display.h"
 #include "mqtt/config.h"
 #include "mqtt/mqtt.h"
+#include "mqtt/mqtt_apply_pure.h"
 #include "wifi/wlan.h"
 
 #include "diag/stack_monitor.h"
@@ -31,7 +32,11 @@ static bool s_mqttSettingsChangedDeferred = false;
 
 static void mqttFinishSettingsApply() {
     mqttEndSettingsApply();
-    mqttCfgSetApplyPending(false);
+    if (mqttSettingsApplyShouldClearPending(mqttCfgHasUnappliedPending())) {
+        mqttCfgSetApplyPending(false);
+    } else {
+        s_mqttSettingsChangedDeferred = true;
+    }
 }
 
 static void handleNetCommand(NetCmd cmd) {
@@ -73,8 +78,7 @@ static void handleNetCommand(NetCmd cmd) {
             break;
         }
         if (!saveMQTTConfig()) {
-            ESP_LOGW(TAG, "MQTT settings: NVS save failed — reloading from flash");
-            loadMQTTConfig();
+            ESP_LOGW(TAG, "MQTT settings: NVS save failed — keeping RAM config");
             mqttCfgSetNvsWriteFailed(true);
         } else {
             mqttCfgSetNvsWriteFailed(false);
@@ -142,6 +146,9 @@ static void networkTaskFn(void *) {
 
         if (!configIsApMode()) {
             mqttLoop();
+        }
+        if (mqttChayaPublishAsyncIsPending()) {
+            mqttRunChayaPublishOnNetworkTask();
         }
         chayaTaskWatchdogReset();
         logTaskStackHighWaterPeriodic(TAG, s_stackLogCounter, 120);

@@ -33,6 +33,7 @@ static std::atomic<bool> s_mqttPublishBlocked{false};
 static portMUX_TYPE s_publishAckMux = portMUX_INITIALIZER_UNLOCKED;
 static MqttPublishAckState s_publishAckState{};
 static std::atomic<unsigned long> s_publishAckStartedMs{0};
+static std::atomic<bool> s_ackTimerArmed{false};
 
 namespace {
 
@@ -56,7 +57,7 @@ void failPendingPublishAck(uint32_t clientGeneration) {
     const bool failed = mqttPublishAckFail(&s_publishAckState, clientGeneration);
     portEXIT_CRITICAL(&s_publishAckMux);
     if (failed) {
-        s_publishAckStartedMs.store(0UL, std::memory_order_release);
+        s_ackTimerArmed.store(false, std::memory_order_release);
         completePublishAsync(PublishAsyncState::Fail);
     }
 }
@@ -71,35 +72,49 @@ void mqttHandlePublishedAck(int messageId, uint32_t clientGeneration) {
         return;
     }
 
-    s_publishAckStartedMs.store(0UL, std::memory_order_release);
+    s_ackTimerArmed.store(false, std::memory_order_release);
     heartSentCounterApplyAfterSuccessfulPublish();
-    maybeSaveHeartSentCounter();
+    completePublishAsync(PublishAsyncState::Ok);
     audioRequest(AudioMsg::Kind::Tx);
     (void)displayRequest(DisplayMsg::Cmd::DrawHeart, DisplayRequestMode::Content);
-    completePublishAsync(PublishAsyncState::Ok);
 }
 
 void mqttAbortPendingPublish(uint32_t clientGeneration) { failPendingPublishAck(clientGeneration); }
 
+void mqttAbortPendingPublish() {
+    uint32_t generation = 0;
+    bool ackPending = false;
+    portENTER_CRITICAL(&s_publishAckMux);
+    ackPending = mqttPublishAckIsPending(s_publishAckState);
+    if (ackPending) {
+        generation = s_publishAckState.clientGeneration;
+    }
+    portEXIT_CRITICAL(&s_publishAckMux);
+    if (ackPending) {
+        failPendingPublishAck(generation);
+    }
+    uint8_t expected = static_cast<uint8_t>(PublishAsyncState::Pending);
+    (void)s_publishAsync.compare_exchange_strong(expected, static_cast<uint8_t>(PublishAsyncState::Fail),
+                                                 std::memory_order_acq_rel);
+}
+
 void mqttServicePublishAckTimeout() {
-    if (!publishAckPending()) {
-        return;
-    }
+    const bool pendingFast = publishAckPending();
+    const bool armed = s_ackTimerArmed.load(std::memory_order_acquire);
     const unsigned long started = s_publishAckStartedMs.load(std::memory_order_acquire);
-    if (started == 0UL) {
-        return;
-    }
-    if ((millis() - started) < kMqttPublishAckWaitMs) {
+    if (!mqttPublishAckTimeoutDue(pendingFast, armed, started, millis(), kMqttPublishAckWaitMs)) {
         return;
     }
 
     uint32_t generation = 0;
+    bool pending = false;
     portENTER_CRITICAL(&s_publishAckMux);
-    if (mqttPublishAckIsPending(s_publishAckState)) {
+    pending = mqttPublishAckIsPending(s_publishAckState);
+    if (pending) {
         generation = s_publishAckState.clientGeneration;
     }
     portEXIT_CRITICAL(&s_publishAckMux);
-    if (generation == 0) {
+    if (!pending) {
         return;
     }
     ESP_LOGW(TAG, "QoS 1 PUBACK timeout (wait_ms=%lu)", static_cast<unsigned long>(kMqttPublishAckWaitMs));
@@ -108,6 +123,10 @@ void mqttServicePublishAckTimeout() {
 
 /** Start QoS-1 publish; does not block the network task on PUBACK (STAB-04 / PERF-01). */
 static bool mqttPublishChayaLocked() {
+    if (g_systemShutdownInProgress.load(std::memory_order_acquire)) {
+        ESP_LOGW(TAG, "Publish skipped: shutdown in progress");
+        return false;
+    }
     if (s_mqttPublishBlocked.load(std::memory_order_acquire)) {
         ESP_LOGW(TAG, "Publish skipped: broker settings changing");
         return false;
@@ -161,6 +180,7 @@ static bool mqttPublishChayaLocked() {
         return false;
     }
     s_publishAckStartedMs.store(millis(), std::memory_order_release);
+    s_ackTimerArmed.store(true, std::memory_order_release);
     ESP_LOGD(TAG, "Published chaya QoS 1 → %s payload=%s (msg_id=%d)", topicPub, buf, pid);
     return true;
 }
@@ -179,13 +199,16 @@ bool mqttPublishChayaAndApplySentCounters() {
 }
 
 MqttChayaPublishAsync mqttRequestChayaPublishAsync() {
+    if (g_systemShutdownInProgress.load(std::memory_order_acquire)) {
+        mqttAbortPendingPublish();
+        return MqttChayaPublishAsync::Fail;
+    }
     uint8_t expected = static_cast<uint8_t>(PublishAsyncState::Idle);
     if (s_publishAsync.compare_exchange_strong(expected, static_cast<uint8_t>(PublishAsyncState::Pending),
                                                std::memory_order_acq_rel)) {
         if (!netCmdTrySend(NetCmd::ChayaPublish)) {
-            s_publishAsync.store(static_cast<uint8_t>(PublishAsyncState::Fail), std::memory_order_release);
-            ESP_LOGW(TAG, "ChayaPublish netCmd queue full");
-            return MqttChayaPublishAsync::Fail;
+            ESP_LOGW(TAG, "ChayaPublish netCmd queue full — keeping pending for retry");
+            return MqttChayaPublishAsync::Pending;
         }
     }
     return mqttPollChayaPublishAsync();
@@ -206,13 +229,24 @@ MqttChayaPublishAsync mqttPollChayaPublishAsync() {
 }
 
 void mqttRunChayaPublishOnNetworkTask() {
+    if (g_systemShutdownInProgress.load(std::memory_order_acquire)) {
+        mqttAbortPendingPublish();
+        return;
+    }
     if (s_publishAsync.load(std::memory_order_acquire) != static_cast<uint8_t>(PublishAsyncState::Pending)) {
+        return;
+    }
+    if (publishAckPending()) {
         return;
     }
     // Start only — PUBACK / timeout complete Ok/Fail asynchronously (STAB-04 / PERF-01).
     if (!mqttPublishChayaAndApplySentCounters()) {
         s_publishAsync.store(static_cast<uint8_t>(PublishAsyncState::Fail), std::memory_order_release);
     }
+}
+
+bool mqttChayaPublishAsyncIsPending() {
+    return s_publishAsync.load(std::memory_order_acquire) == static_cast<uint8_t>(PublishAsyncState::Pending);
 }
 
 void mqttClearChayaPublishAsync() {
@@ -232,6 +266,8 @@ ChayaSendResult chayaRequestSend() {
     if (mqttPublishBlocked() || ledIsTxSendBusy()) {
         return ChayaSendResult::Busy;
     }
-    ledStartChayaSendSequence();
+    if (!ledStartChayaSendSequence()) {
+        return ChayaSendResult::Busy;
+    }
     return ChayaSendResult::Started;
 }

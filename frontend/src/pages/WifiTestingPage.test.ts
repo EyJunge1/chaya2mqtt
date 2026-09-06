@@ -21,6 +21,7 @@ vi.mock("../api/client", () => ({
 afterEach(() => {
   cleanup();
   router.replace("/");
+  vi.restoreAllMocks();
   vi.clearAllMocks();
 });
 
@@ -163,6 +164,42 @@ describe("WifiTestingPage", () => {
       expect(onToast).toHaveBeenCalledWith("Connection failed", "error");
     });
     expect(onToast).toHaveBeenCalledOnce();
+  });
+
+  it("ignores a stale poll after a newer tick", async () => {
+    const intervalFns: Array<() => void> = [];
+    vi.spyOn(window, "setInterval").mockImplementation((fn) => {
+      intervalFns.push(fn as () => void);
+      return 1 as unknown as ReturnType<typeof setInterval>;
+    });
+    vi.spyOn(window, "clearInterval").mockImplementation(() => {});
+
+    let resolveOlder!: (value: { state: string; ssid: string }) => void;
+    getWifiConnectStatus
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            resolveOlder = resolve;
+          }),
+      )
+      .mockResolvedValue({ state: "ok", ssid: "HomeNet" });
+
+    const onToast = vi.fn();
+    render(WifiTestingPage, { props: { onToast } });
+
+    await waitFor(() => expect(getWifiConnectStatus).toHaveBeenCalledTimes(1));
+    expect(intervalFns[0]).toBeTruthy();
+    intervalFns[0]!();
+    await waitFor(() => {
+      expect(onToast).toHaveBeenCalledWith("Connection successful", "success");
+    });
+    expect(await screen.findByRole("button", { name: "Save & reboot" })).toBeTruthy();
+
+    resolveOlder({ state: "fail", ssid: "HomeNet" });
+    await waitFor(() => expect(getWifiConnectStatus).toHaveBeenCalledTimes(2));
+
+    expect(onToast).not.toHaveBeenCalledWith("Connection failed", "error");
+    expect(screen.getByRole("button", { name: "Save & reboot" })).toBeTruthy();
   });
 
   it("toasts connection successful when the test transitions to ok", async () => {

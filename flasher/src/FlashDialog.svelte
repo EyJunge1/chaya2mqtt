@@ -159,6 +159,7 @@
   }
 
   onDestroy(() => {
+    if (busy) return;
     void releasePort();
   });
 </script>

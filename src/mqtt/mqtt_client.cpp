@@ -166,6 +166,7 @@ bool mqttEnsureClientAllocated() {
         mqttClientUnlock();
         return false;
     }
+    s_clientGeneration.fetch_add(1U, std::memory_order_acq_rel);
 
     const esp_err_t regErr = esp_mqtt_client_register_event(s_client, MQTT_EVENT_ANY, mqttEventHandler, nullptr);
     if (regErr != ESP_OK) {

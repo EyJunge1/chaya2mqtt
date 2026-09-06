@@ -42,7 +42,7 @@ void fillWifiConfigJson(JsonObject obj, const WlanConfig &cfg) {
 
 void handleApiWifiConfigGet(AsyncWebServerRequest *req) {
     WlanConfig cfg{};
-    if (!wlanLoadConfigFromNvs(&cfg)) {
+    if (!wlanCopyCachedConfig(&cfg)) {
         wlanConfigClear(&cfg);
     }
     JsonDocument doc;
@@ -133,16 +133,13 @@ void handleApiWifiScanGet(AsyncWebServerRequest *req) {
     JsonDocument doc;
     doc["status"] = "ready";
     JsonArray aps = doc["aps"].to<JsonArray>();
-    const size_t n = wlanWifiScanCachedCount();
+    WlanScanRow rows[kWlanWifiScanCacheMaxRows];
+    const size_t n = wlanWifiScanCopySnapshot(rows, kWlanWifiScanCacheMaxRows);
     for (size_t i = 0; i < n; ++i) {
-        WlanScanRow row{};
-        if (!wlanWifiScanCopyRowAt(i, &row)) {
-            break;
-        }
         JsonObject ap = aps.add<JsonObject>();
-        ap["ssid"] = row.ssid;
-        ap["rssi"] = row.rssi;
-        ap["open"] = row.open;
+        ap["ssid"] = rows[i].ssid;
+        ap["rssi"] = rows[i].rssi;
+        ap["open"] = rows[i].open;
     }
     webSendJsonDoc(req, 200, doc);
 }

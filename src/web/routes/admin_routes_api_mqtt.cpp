@@ -79,12 +79,19 @@ void handleApiMqttPost(AsyncWebServerRequest *req, JsonVariant &json) {
         sendErr(req, 503, "battery_low");
         return;
     }
-    mqttCfgSetNvsWriteFailed(false);
-    MqttConfig pending{};
-    if (!mqttCfgSnapshotTimed(&pending, 2000U)) {
+    // BUG-WEB-03: do not clear nvsOk on POST accept (unchanged POST would paint success).
+    // Track A clears the flag only after a successful saveMQTTConfig.
+    MqttConfig base{};
+    if (mqttCfgApplyPending()) {
+        if (!mqttCfgPendingSnapshotTimed(&base, 2000U)) {
+            sendErr(req, 503, "busy");
+            return;
+        }
+    } else if (!mqttCfgSnapshotTimed(&base, 2000U)) {
         sendErr(req, 503, "busy");
         return;
     }
+    MqttConfig pending = base;
     if (!adminApplyOptionalString(json, "mqtt_server", pending.server, sizeof(pending.server))) {
         sendErr(req, 400, "broker");
         return;
@@ -153,12 +160,7 @@ void handleApiMqttPost(AsyncWebServerRequest *req, JsonVariant &json) {
     } else {
         pending.topicSub[0] = '\0';
     }
-    MqttConfig active{};
-    if (!mqttCfgSnapshotTimed(&active, 2000U)) {
-        sendErr(req, 503, "busy");
-        return;
-    }
-    if (!mqttCfgEquals(&pending, &active)) {
+    if (!mqttCfgEquals(&pending, &base)) {
         mqttCfgStorePending(&pending);
         mqttCfgSetApplyPending(true);
         g_webAdminMqttApplyVersion.fetch_add(1U, std::memory_order_acq_rel);

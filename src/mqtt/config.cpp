@@ -1,5 +1,6 @@
 #include "config.h"
 
+#include "mqtt_pack.h"
 #include "pairing.h"
 
 #include "async/sse_dirty.h"
@@ -69,10 +70,6 @@ void mqttCfgSanitizeAfterNvsLoad(MqttConfig &cfg) {
     }
 }
 
-bool mqttCfgPutStringOrEmpty(Preferences &prefs, const char *key, const char *value) {
-    return app_nvs::putStringOk(prefs, key, value);
-}
-
 void mqttCfgRefreshFlagsLocked() {
     s_brokerConfigured.store(mqttCfg.server[0] != '\0', std::memory_order_release);
     s_paired.store(mqttCfg.partnerDeviceId[0] != '\0', std::memory_order_release);
@@ -119,6 +116,19 @@ bool mqttCfgSnapshotTimed(MqttConfig *out, uint32_t timeoutMs) {
         return false;
     }
     *out = mqttCfg;
+    xSemaphoreGive(s_mqttCfgMutex);
+    return true;
+}
+
+bool mqttCfgPendingSnapshotTimed(MqttConfig *out, uint32_t timeoutMs) {
+    if (out == nullptr) {
+        return false;
+    }
+    mqttCfgMutexEnsureCreated();
+    if (xSemaphoreTake(s_mqttCfgMutex, pdMS_TO_TICKS(timeoutMs)) != pdTRUE) {
+        return false;
+    }
+    *out = s_mqttPendingCfg;
     xSemaphoreGive(s_mqttCfgMutex);
     return true;
 }
@@ -191,6 +201,33 @@ static void mqttCfgReadFromPrefs(Preferences &prefs, MqttConfig &out) {
     prefs.getString(kNvsKeyMqttPartnerId, out.partnerDeviceId, sizeof(out.partnerDeviceId));
 }
 
+static bool mqttCfgTryReadBlob(Preferences &prefs, MqttConfig &out) {
+    if (prefs.getBytesLength(kNvsKeyMqttCfgV1) != sizeof(PackedMqttConfigV1)) {
+        return false;
+    }
+    PackedMqttConfigV1 pk{};
+    if (prefs.getBytes(kNvsKeyMqttCfgV1, &pk, sizeof(pk)) != sizeof(pk)) {
+        return false;
+    }
+    return mqttUnpackConfigV1(pk, &out);
+}
+
+static bool mqttCfgLegacyKeysPresent(Preferences &prefs) {
+    return prefs.isKey(kNvsKeyMqttServer) || prefs.isKey(kNvsKeyMqttPort) || prefs.isKey(kNvsKeyMqttTls) ||
+           prefs.isKey(kNvsKeyMqttUser) || prefs.isKey(kNvsKeyMqttPass) || prefs.isKey(kNvsKeyMqttPartnerId);
+}
+
+static void mqttCfgRemoveLegacyKeys(Preferences &prefs) {
+    static_cast<void>(prefs.remove(kNvsKeyMqttServer));
+    static_cast<void>(prefs.remove(kNvsKeyMqttPort));
+    static_cast<void>(prefs.remove(kNvsKeyMqttTls));
+    static_cast<void>(prefs.remove(kNvsKeyMqttUser));
+    static_cast<void>(prefs.remove(kNvsKeyMqttPass));
+    static_cast<void>(prefs.remove(kNvsKeyMqttTopicPub));
+    static_cast<void>(prefs.remove(kNvsKeyMqttTopicSub));
+    static_cast<void>(prefs.remove(kNvsKeyMqttPartnerId));
+}
+
 bool mqttCfgMatchesNvs() {
     MqttConfig active{};
     mqttCfgSnapshot(&active);
@@ -204,7 +241,10 @@ bool mqttCfgMatchesNvs() {
             return active.server[0] == '\0';
         }
         nvsPresent = true;
-        mqttCfgReadFromPrefs(prefs, stored);
+        if (!mqttCfgTryReadBlob(prefs, stored)) {
+            mqttCfgReadFromPrefs(prefs, stored);
+            stored.port = normalizeMqttPort(static_cast<int>(stored.port));
+        }
         prefs.end();
     }
 
@@ -217,6 +257,7 @@ bool mqttCfgMatchesNvs() {
 
 void loadMQTTConfig() {
     MqttConfig loaded{};
+    bool migrateLegacy = false;
 
     {
         app_nvs::ScopedNvsLock lock;
@@ -228,14 +269,19 @@ void loadMQTTConfig() {
             loaded.password[0] = '\0';
             loaded.port = kMqttDefaultTlsPort;
             loaded.tls = true;
-        } else if (!prefs.isKey(kNvsKeyMqttServer)) {
+        } else if (mqttCfgTryReadBlob(prefs, loaded)) {
+            ESP_LOGD(TAG, "MQTT NVS: cfg_v1 loaded");
+            prefs.end();
+        } else if (mqttCfgLegacyKeysPresent(prefs)) {
+            ESP_LOGI(TAG, "MQTT NVS: migrating legacy keys to cfg_v1");
+            mqttCfgReadFromPrefs(prefs, loaded);
+            loaded.port = normalizeMqttPort(static_cast<int>(loaded.port));
+            migrateLegacy = true;
+            prefs.end();
+        } else {
             ESP_LOGI(TAG, "MQTT not configured yet in NVS, using defaults");
             loaded.server[0] = '\0';
             loaded.tls = true;
-            prefs.end();
-        } else {
-            mqttCfgReadFromPrefs(prefs, loaded);
-            loaded.port = normalizeMqttPort(static_cast<int>(loaded.port));
             prefs.end();
         }
     }
@@ -247,13 +293,22 @@ void loadMQTTConfig() {
     s_mqttPendingCfg = loaded;
     mqttCfgRefreshFlagsLocked();
     mqttCfgUnlock();
+    if (migrateLegacy && !saveMQTTConfig()) {
+        ESP_LOGW(TAG, "MQTT NVS: cfg_v1 migrate write failed");
+    }
     mqttCfgMarkDirty();
 }
 
-// User/password are stored as plain Preferences strings in NVS.
 bool saveMQTTConfig() {
+    if (app_nvs::writesBlocked(kNvsNsMqtt)) {
+        ESP_LOGW(TAG, "NVS mqtt: save blocked during shutdown");
+        return false;
+    }
     MqttConfig snap{};
     mqttCfgSnapshot(&snap);
+
+    PackedMqttConfigV1 pk{};
+    mqttPackConfigV1(snap, &pk);
 
     app_nvs::ScopedNvsLock lock;
     Preferences prefs;
@@ -261,43 +316,13 @@ bool saveMQTTConfig() {
         ESP_LOGE(TAG, "NVS mqtt: begin failed");
         return false;
     }
-    bool ok = mqttCfgPutStringOrEmpty(prefs, kNvsKeyMqttServer, snap.server);
-    if (!ok) {
+    const size_t w = prefs.putBytes(kNvsKeyMqttCfgV1, &pk, sizeof(pk));
+    if (w != sizeof(pk)) {
         prefs.end();
+        ESP_LOGE(TAG, "NVS mqtt: cfg_v1 persist failed");
         return false;
     }
-    ok = (prefs.putInt(kNvsKeyMqttPort, static_cast<int>(snap.port)) > 0);
-    if (!ok) {
-        prefs.end();
-        return false;
-    }
-    ok = (prefs.putUChar(kNvsKeyMqttTls, snap.tls ? 1U : 0U) > 0);
-    if (!ok) {
-        prefs.end();
-        return false;
-    }
-    ok = mqttCfgPutStringOrEmpty(prefs, kNvsKeyMqttUser, snap.username);
-    if (!ok) {
-        prefs.end();
-        return false;
-    }
-    ok = mqttCfgPutStringOrEmpty(prefs, kNvsKeyMqttPass, snap.password);
-    if (!ok) {
-        prefs.end();
-        return false;
-    }
-    // Topics are derived from device/partner IDs — remove legacy NVS keys if present.
-    if (prefs.isKey(kNvsKeyMqttTopicPub)) {
-        static_cast<void>(prefs.remove(kNvsKeyMqttTopicPub));
-    }
-    if (prefs.isKey(kNvsKeyMqttTopicSub)) {
-        static_cast<void>(prefs.remove(kNvsKeyMqttTopicSub));
-    }
-    ok = mqttCfgPutStringOrEmpty(prefs, kNvsKeyMqttPartnerId, snap.partnerDeviceId);
+    mqttCfgRemoveLegacyKeys(prefs);
     prefs.end();
-    if (!ok) {
-        ESP_LOGE(TAG, "NVS mqtt: persist failed");
-        return false;
-    }
     return true;
 }

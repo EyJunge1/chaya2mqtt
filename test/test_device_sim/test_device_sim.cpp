@@ -1,6 +1,8 @@
 #include <unity.h>
 
 #include "device_runtime.h"
+#include "mqtt/mqtt_apply_pure.h"
+#include "mqtt/mqtt_pack.h"
 
 void test_sim_first_connect_and_pair() {
     DeviceRuntime dev("a1b2c3");
@@ -211,6 +213,30 @@ void test_sim_nvs_wifi_mqtt_fault_injection() {
     TEST_ASSERT_EQUAL_STRING("f5e6d7", mqtt.partnerDeviceId);
 }
 
+void test_sim_mqtt_pack_and_apply_finish() {
+    MqttConfig cfg{};
+    std::strncpy(cfg.server, "broker.example.com", sizeof(cfg.server) - 1U);
+    cfg.port = 8883;
+    cfg.tls = true;
+    std::strncpy(cfg.username, "u", sizeof(cfg.username) - 1U);
+    std::strncpy(cfg.password, "p", sizeof(cfg.password) - 1U);
+    std::strncpy(cfg.partnerDeviceId, "f5e6d7", sizeof(cfg.partnerDeviceId) - 1U);
+
+    PackedMqttConfigV1 pk{};
+    mqttPackConfigV1(cfg, &pk);
+    TEST_ASSERT_EQUAL_UINT32(kMqttCfgPackedMagic, pk.magic);
+
+    MqttConfig loaded{};
+    TEST_ASSERT_TRUE(mqttUnpackConfigV1(pk, &loaded));
+    TEST_ASSERT_EQUAL_STRING("broker.example.com", loaded.server);
+    TEST_ASSERT_EQUAL_STRING("f5e6d7", loaded.partnerDeviceId);
+    pk.magic = 0xDEADBEEFU;
+    TEST_ASSERT_FALSE(mqttUnpackConfigV1(pk, &loaded));
+
+    TEST_ASSERT_TRUE(mqttSettingsApplyShouldClearPending(false));
+    TEST_ASSERT_FALSE(mqttSettingsApplyShouldClearPending(true));
+}
+
 void test_sim_disconnect_aborts_pending_publish() {
     DeviceRuntime dev("a1b2c3");
     dev.configureBroker("broker.example.com", 8883, "", "");
@@ -239,6 +265,7 @@ int main(int, char **) {
     RUN_TEST(test_sim_ntp_not_ready_defers);
     RUN_TEST(test_sim_nvs_save_failure_and_counter_path);
     RUN_TEST(test_sim_nvs_wifi_mqtt_fault_injection);
+    RUN_TEST(test_sim_mqtt_pack_and_apply_finish);
     RUN_TEST(test_sim_disconnect_aborts_pending_publish);
     return UNITY_END();
 }

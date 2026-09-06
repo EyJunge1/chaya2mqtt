@@ -217,7 +217,6 @@ void mqttEventHandler(void * /*handler_args*/, esp_event_base_t /*base*/, int32_
         if (!mqttEventGenerationStillValid(handlerGeneration)) {
             break;
         }
-        s_connectPending.store(false, std::memory_order_release);
 
         MqttConfig cfg{};
         if (!mqttCfgSnapshotTimed(&cfg, 2000U)) {
@@ -266,6 +265,7 @@ void mqttEventHandler(void * /*handler_args*/, esp_event_base_t /*base*/, int32_
                 return;
             }
             s_connected.store(true, std::memory_order_release);
+            s_connectPending.store(false, std::memory_order_release);
             sseMarkDirty(kSseChaya | kSseMqtt);
         });
         if (!live) {
@@ -277,7 +277,8 @@ void mqttEventHandler(void * /*handler_args*/, esp_event_base_t /*base*/, int32_
             break;
         }
         if (publishFailed) {
-            ESP_LOGW(TAG, "MQTT publish retained online failed");
+            ESP_LOGW(TAG, "MQTT publish retained online failed — disconnecting for retry");
+            (void)mqttEventDisconnectIfLive(ev->client, handlerGeneration);
             break;
         }
 

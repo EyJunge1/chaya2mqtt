@@ -35,8 +35,8 @@ void otaLoop();
 /** Queue GitHub version check for the currently selected channel. */
 void otaQueueGithubCheck();
 
-/** Persist channel and queue a GitHub version check. Returns false on NVS failure. */
-auto otaQueueGithubCheck(OtaChannel channel) -> bool;
+/** Queue a GitHub check for `channel`. Persisted by the OTA task (not the HTTP caller). */
+void otaQueueGithubCheck(OtaChannel channel);
 
 /** Queue install of a previously discovered release (no-op if none available). */
 void otaQueueInstall();

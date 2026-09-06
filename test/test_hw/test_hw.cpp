@@ -1,6 +1,8 @@
 #include <unity.h>
 
+#include "async/event_types.h"
 #include "async/queue_coalesce_pure.h"
+#include "audio/audio_drain_pure.h"
 #include "audio/audio_pure.h"
 #include "battery/battery_pure.h"
 #include "button/button_debounce_pure.h"
@@ -10,6 +12,7 @@
 #include "display/display_refresh_pure.h"
 #include "display/draw_pure.h"
 #include "display/view_state.h"
+#include "led/led_internal.h"
 #include "led/led_pattern_pure.h"
 
 void test_battery_pct_curve() {
@@ -122,6 +125,16 @@ void test_display_heart_redraw_leading_trailing() {
 
     TEST_ASSERT_EQUAL_INT(static_cast<int>(DisplayHeartRedrawDecision::QueueNow),
                           static_cast<int>(displayHeartRedrawDecide(5, 1, 3, 1, false, false, 32000, 1000, kMin)));
+
+    // Baseline roll / cap reset: raw unchanged, shown delta dropped → must redraw.
+    TEST_ASSERT_EQUAL_INT(static_cast<int>(DisplayHeartRedrawDecision::QueueNow),
+                          static_cast<int>(displayHeartRedrawDecide(3, 1, 3, 1, false, false, 1000, 0, kMin, 0, 0, 999, 1)));
+
+    TEST_ASSERT_EQUAL_INT(static_cast<int>(DisplayHeartRedrawDecision::DeferPending),
+                          static_cast<int>(displayHeartRedrawDecide(3, 1, 3, 1, false, false, 10000, 1000, kMin, 0, 0, 999, 1)));
+
+    TEST_ASSERT_EQUAL_INT(static_cast<int>(DisplayHeartRedrawDecision::SkipUnchanged),
+                          static_cast<int>(displayHeartRedrawDecide(3, 1, 3, 1, false, false, 1000, 0, kMin, 2, 1, 2, 1)));
 }
 
 void test_display_heart_redraw_wait_and_follow_up() {
@@ -138,6 +151,34 @@ void test_display_heart_redraw_wait_and_follow_up() {
     TEST_ASSERT_TRUE(displayHeartNeedsFollowUpRedraw(6, 2, 6, 2, true, false, false));
     TEST_ASSERT_TRUE(displayHeartNeedsFollowUpRedraw(6, 2, 6, 2, false, true, false));
     TEST_ASSERT_FALSE(displayHeartNeedsFollowUpRedraw(6, 2, 6, 2, false, false, false));
+    TEST_ASSERT_TRUE(displayHeartNeedsFollowUpRedraw(6, 2, 6, 2, false, false, false, 999, 2, 0, 2));
+    TEST_ASSERT_FALSE(displayHeartNeedsFollowUpRedraw(6, 2, 6, 2, false, false, false, 3, 2, 3, 2));
+}
+
+void test_led_tx_phase_allows_send_start() {
+    TEST_ASSERT_TRUE(ledTxPhaseAllowsSendStart(LedTxPhase::Idle));
+    TEST_ASSERT_TRUE(ledTxPhaseAllowsSendStart(LedTxPhase::RefreshOn));
+    TEST_ASSERT_TRUE(ledTxPhaseAllowsSendStart(LedTxPhase::RefreshOff));
+    TEST_ASSERT_TRUE(ledTxPhaseAllowsSendStart(LedTxPhase::PatternOn));
+    TEST_ASSERT_TRUE(ledTxPhaseAllowsSendStart(LedTxPhase::PatternOff));
+    TEST_ASSERT_FALSE(ledTxPhaseAllowsSendStart(LedTxPhase::PreOn1));
+    TEST_ASSERT_FALSE(ledTxPhaseAllowsSendStart(LedTxPhase::PublishTry));
+    TEST_ASSERT_FALSE(ledTxPhaseAllowsSendStart(LedTxPhase::PostWait));
+}
+
+void test_led_tx_phase_can_finish_to_background() {
+    TEST_ASSERT_TRUE(ledTxPhaseCanFinishToBackground(LedTxPhase::Idle));
+    TEST_ASSERT_TRUE(ledTxPhaseCanFinishToBackground(LedTxPhase::RefreshOn));
+    TEST_ASSERT_TRUE(ledTxPhaseCanFinishToBackground(LedTxPhase::PostOff2));
+    TEST_ASSERT_TRUE(ledTxPhaseCanFinishToBackground(LedTxPhase::FailOff3));
+    TEST_ASSERT_FALSE(ledTxPhaseCanFinishToBackground(LedTxPhase::PreOn1));
+    TEST_ASSERT_FALSE(ledTxPhaseCanFinishToBackground(LedTxPhase::PublishTry));
+}
+
+void test_audio_overflow_drain_skips_same_kind() {
+    TEST_ASSERT_FALSE(audioShouldPlayOverflowPending(true, AudioMsg::Kind::Tx, AudioMsg::Kind::Tx));
+    TEST_ASSERT_TRUE(audioShouldPlayOverflowPending(true, AudioMsg::Kind::Tx, AudioMsg::Kind::Rx));
+    TEST_ASSERT_TRUE(audioShouldPlayOverflowPending(false, AudioMsg::Kind::Tx, AudioMsg::Kind::Tx));
 }
 
 void test_display_link_offline_grace() {
@@ -314,6 +355,9 @@ int main(int, char **) {
     RUN_TEST(test_queue_drop_coalescing);
     RUN_TEST(test_display_heart_redraw_leading_trailing);
     RUN_TEST(test_display_heart_redraw_wait_and_follow_up);
+    RUN_TEST(test_led_tx_phase_allows_send_start);
+    RUN_TEST(test_led_tx_phase_can_finish_to_background);
+    RUN_TEST(test_audio_overflow_drain_skips_same_kind);
     RUN_TEST(test_display_link_offline_grace);
     RUN_TEST(test_display_link_millis_wrap);
     RUN_TEST(test_led_pattern_three_blinks);

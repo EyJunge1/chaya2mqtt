@@ -14,6 +14,7 @@
   let busy = $state(false);
   let prevState = $state<WifiConnectStatus["state"] | null>(null);
   let redirectTimerId: number | undefined;
+  let pollSeq = 0;
 
   const IPV4_HOST = /^(?:(?:25[0-5]|2[0-4]\d|[01]?\d{1,2})\.){3}(?:25[0-5]|2[0-4]\d|[01]?\d{1,2})$/;
 
@@ -44,9 +45,10 @@
   $effect(() => {
     let alive = true;
     const tick = async () => {
+      const seq = ++pollSeq;
       try {
         const s = await api.getWifiConnectStatus();
-        if (!alive) return;
+        if (!alive || seq !== pollSeq) return;
         if (s.state === "fail" && prevState !== "fail") {
           onToast(i18n.t("toast.wifi-connect-failed"), "error");
         } else if (s.state === "ok" && prevState !== "ok") {
@@ -62,6 +64,7 @@
     const id = window.setInterval(() => void tick(), 700);
     return () => {
       alive = false;
+      pollSeq += 1;
       window.clearInterval(id);
       if (redirectTimerId !== undefined) {
         window.clearTimeout(redirectTimerId);

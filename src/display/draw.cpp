@@ -97,9 +97,8 @@ static bool splashApSetupSnapshot(char *ssid, size_t ssidLen, char *ip, size_t i
 }
 
 // Same top-right placement as the RX/TX heart counter view.
-static void drawBatteryTopRight() {
+static void drawBatteryTopRight(int batPct) {
     auto &epd = displayPanel();
-    const int batPct = batteryPercent();
     uint16_t batColor = displayFgColor();
     switch (displayBatteryColor(batPct)) {
     case DisplayBatteryColor::Red:
@@ -153,7 +152,7 @@ void drawCenteredTextScreen(const char *text, uint8_t startSize, uint8_t minSize
         epd.setCursor(static_cast<int16_t>(cursorX), static_cast<int16_t>(cursorY));
         epd.print(text);
         if (showBattery) {
-            drawBatteryTopRight();
+            drawBatteryTopRight(batteryPercent());
         }
     } while (epd.nextPage());
 }
@@ -182,6 +181,8 @@ HeartCounterDrawSnapshot drawHeartWithNumber(DisplayHeartIcon icon) {
 
     HeartCounterDrawSnapshot snap{};
     heartCounterFillDrawSnapshot(&snap);
+    snap.batteryPercent = batteryPercent();
+    snap.batteryIcon = static_cast<uint8_t>(displayBatteryIcon(snap.batteryPercent));
 
     char recvBuf[16]{};
     char sentBuf[16]{};
@@ -264,7 +265,7 @@ HeartCounterDrawSnapshot drawHeartWithNumber(DisplayHeartIcon icon) {
             epd.print(sentBuf);
         }
 
-        drawBatteryTopRight();
+        drawBatteryTopRight(snap.batteryPercent);
 
     } while (epd.nextPage());
 

@@ -54,6 +54,9 @@ bool hadPriorSetupConfig(Preferences &prefs) {
 }
 
 bool persistDeviceId(Preferences &prefs, const char *id) {
+    if (app_nvs::writesBlocked(kNvsNsCfg)) {
+        return false;
+    }
     if (!prefs.begin(kNvsNsCfg, false)) {
         return false;
     }

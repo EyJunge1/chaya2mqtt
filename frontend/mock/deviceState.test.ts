@@ -473,6 +473,7 @@ describe("applyScenario", () => {
 
     const staticIp = createInitialState("wifi-static");
     expect(staticIp.wifiConfig.mode).toBe("static");
+    expect(staticIp.wifiConfig.ssid).toBe("MockNet");
     expect(staticIp.wifiConfig.ip).toBe("192.168.1.42");
 
     const noAuth = createInitialState("mqtt-no-auth");

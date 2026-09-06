@@ -305,6 +305,53 @@ describe("WifiSetup", () => {
     expect(screen.getAllByTestId("wifi-dns-preview").length).toBeGreaterThan(0);
   });
 
+  it("does not overwrite user edits when config hydrates late", async () => {
+    let resolveConfig!: (cfg: WifiConfig) => void;
+    getWifiConfig.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveConfig = resolve;
+        }),
+    );
+
+    render(WifiSetup, {
+      props: {
+        device: {
+          hostname: "chaya2mqtt",
+          version: "dev",
+          mode: "ap",
+          deviceId: "a1b2c3",
+          batteryMv: 3900,
+          batteryPct: 55,
+        },
+        wifi: { connected: false },
+        onToast: vi.fn(),
+        showStatus: false,
+      },
+    });
+
+    const ssidInput = await screen.findByTestId("wifi-ssid");
+    fireEvent.input(ssidInput, { target: { value: "UserNet" } });
+    fireEvent.click(screen.getByTestId("wifi-mode-static"));
+
+    resolveConfig({
+      ssid: "HomeNet",
+      mode: "dhcp",
+      ip: "",
+      gateway: "",
+      netmask: "255.255.255.0",
+      dns1: "",
+      dns2: "",
+      ntp1: "",
+      ntp2: "",
+    });
+
+    await waitFor(() => expect(getWifiConfig).toHaveBeenCalled());
+    expect(screen.getByDisplayValue("UserNet")).toBeTruthy();
+    expect(screen.getByTestId("wifi-ip")).toBeTruthy();
+    expect(screen.queryByDisplayValue("HomeNet")).toBeNull();
+  });
+
   it("disables submit while static required fields are incomplete", async () => {
     const onToast = vi.fn();
     render(WifiSetup, {

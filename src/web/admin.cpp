@@ -15,6 +15,7 @@
 #include "events.h"
 #include "heart/counter.h"
 #include "led/led.h"
+#include "mqtt/mqtt.h"
 #include "ota/ota.h"
 #include "wifi/wlan.h"
 
@@ -83,6 +84,7 @@ void webAdminLoop() {
         uint16_t txMsApply;
         uint16_t rxHzApply;
         uint16_t rxMsApply;
+        uint32_t applyVersion;
         portENTER_CRITICAL(&g_webAdminSettingsPendingMux);
         daysApply = g_webAdminPendingResetDays;
         strlcpy(langApply, g_webAdminPendingUiLang, sizeof(langApply));
@@ -98,6 +100,7 @@ void webAdminLoop() {
         txMsApply = g_webAdminPendingTxMs;
         rxHzApply = g_webAdminPendingRxHz;
         rxMsApply = g_webAdminPendingRxMs;
+        applyVersion = g_webAdminSettingsApplyVersion.load(std::memory_order_acquire);
         portEXIT_CRITICAL(&g_webAdminSettingsPendingMux);
         // Attempt every write (no && short-circuit) so a mid-chain NVS fail does not
         // leave later fields unapplied (QUAL-04). Pending stays set until all succeed.
@@ -114,16 +117,22 @@ void webAdminLoop() {
         ok &= configSetAudioTones(txHzApply, txMsApply, rxHzApply, rxMsApply);
         g_webAdminSettingsNvsWriteFailed.store(!ok, std::memory_order_release);
         if (ok) {
-            g_webAdminSettingsApplyPending.store(false, std::memory_order_release);
+            if (g_webAdminSettingsApplyVersion.load(std::memory_order_acquire) == applyVersion) {
+                g_webAdminSettingsApplyPending.store(false, std::memory_order_release);
+                if (g_webAdminSettingsApplyVersion.load(std::memory_order_acquire) != applyVersion) {
+                    g_webAdminSettingsApplyPending.store(true, std::memory_order_release);
+                }
+            }
             ledApplyEnabled();
         }
         // On failure keep pending so a later loop can retry (QUAL-04).
     }
 
-    if (g_webAdminMqttApplyVersion.load(std::memory_order_acquire) > s_webAdminMqttApplyQueuedVersion &&
-        !g_systemShutdownInProgress.load(std::memory_order_acquire)) {
+    // RC-WEB-01: snapshot version before send; do not re-read after enqueue.
+    const uint32_t v = g_webAdminMqttApplyVersion.load(std::memory_order_acquire);
+    if (v > s_webAdminMqttApplyQueuedVersion && !g_systemShutdownInProgress.load(std::memory_order_acquire)) {
         if (netCmdTrySend(NetCmd::MqttSettingsChanged, pdMS_TO_TICKS(500))) {
-            s_webAdminMqttApplyQueuedVersion = g_webAdminMqttApplyVersion.load(std::memory_order_acquire);
+            s_webAdminMqttApplyQueuedVersion = v;
         } else {
             ESP_LOGW(TAG, "netCmd queue full (MqttSettingsChanged)");
             appTaskNotify();
@@ -140,8 +149,10 @@ void webAdminLoop() {
         ESP_LOGW(TAG, "Admin restart (reboot=%d wifiReconnect=%d)", rebootReq ? 1 : 0, wifiReconnectReq ? 1 : 0);
         g_webAdminRebootRequested.store(false, std::memory_order_release);
         g_webAdminWifiReconnectRequested.store(false, std::memory_order_release);
+        mqttAbortPendingPublish();
         flushAllHeartCountersIfDirty();
         delay(200);
+        flushAllHeartCountersIfDirty();
         ESP.restart();
     }
 }

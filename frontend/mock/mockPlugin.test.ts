@@ -132,6 +132,49 @@ describe("mock API parity", () => {
     expect(res.body).toEqual({ ok: false, error: "unavailable" });
   });
 
+  it("increments tx only after a simulated ACK", async () => {
+    const before = getState().tx;
+    const res = await callJson("POST", "/api/chaya/send");
+    expect(res.status).toBe(202);
+    expect(res.body).toEqual({ ok: true, queued: true });
+    expect(getState().tx).toBe(before);
+    await vi.waitFor(() => expect(getState().tx).toBe(before + 1));
+  });
+
+  it("keeps settings applyPending across GET until the apply timer clears", async () => {
+    const post = await callJson("POST", "/api/settings", { lang: "de" });
+    expect(post.status).toBe(200);
+    const pending = await callApi("GET", "/api/settings");
+    expect(pending.status).toBe(200);
+    expect(pending.body.applyPending).toBe(true);
+    const pendingAgain = await callApi("GET", "/api/settings");
+    expect(pendingAgain.body.applyPending).toBe(true);
+    await vi.waitFor(async () => {
+      const idle = await callApi("GET", "/api/settings");
+      expect(idle.body.applyPending).toBe(false);
+    });
+  });
+
+  it("sets MQTT applyPending true after POST then clears it", async () => {
+    const post = await callJson("POST", "/api/mqtt", { mqtt_server: "broker.example.com" });
+    expect(post.status).toBe(200);
+    const pending = await callApi("GET", "/api/mqtt");
+    expect(pending.status).toBe(200);
+    expect(pending.body.applyPending).toBe(true);
+    await vi.waitFor(async () => {
+      const idle = await callApi("GET", "/api/mqtt");
+      expect(idle.body.applyPending).toBe(false);
+    });
+  });
+
+  it("returns stored wifi config SSID when the link SSID differs", async () => {
+    getState().wifiSsid = "LinkNet";
+    getState().wifiConfig.ssid = "SavedNet";
+    const res = await callApi("GET", "/api/wifi/config");
+    expect(res.status).toBe(200);
+    expect(res.body.ssid).toBe("SavedNet");
+  });
+
   it("returns busy when sending a heart in heart-busy scenario", async () => {
     await callMock("/api/_mock/scenario", { scenario: "heart-busy" });
     const res = await callJson("POST", "/api/chaya/send");

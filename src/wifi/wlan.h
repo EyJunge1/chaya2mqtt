@@ -20,6 +20,12 @@ auto wlanSaveConfigToNvs(const WlanConfig &cfg) -> bool;
 /** Load config; migrates legacy cred_v1 / ssid+pass to DHCP + default NTP. */
 auto wlanLoadConfigFromNvs(WlanConfig *cfg) -> bool;
 
+/**
+ * Last successful NVS load/save (including AP-mode stored creds).
+ * No g_nvsMutex. False if never loaded/saved (caller clears).
+ */
+auto wlanCopyCachedConfig(WlanConfig *out) -> bool;
+
 /** @deprecated Prefer wlanSaveConfigToNvs; saves DHCP-only config. */
 auto configSaveWiFiCredentials(const char *ssid, const char *password) -> bool;
 
@@ -84,6 +90,9 @@ auto wlanWifiApiLockTimed(uint32_t timeoutMs) -> bool;
 
 auto wlanReadStaLocalIpForCommit(char *outIp, size_t ipLen) -> bool;
 
+/** Copy cached STA IPv4 (GOT_IP / disconnect). No WiFi API lock. */
+auto wlanCopyCachedStaIp(char *out, size_t len) -> bool;
+
 /** Apply DHCP or static IPv4 under the WiFi API lock (caller must hold lock). */
 auto wlanApplyStaIpConfigLocked(const WlanConfig &cfg) -> bool;
 
@@ -115,6 +124,9 @@ auto wlanApSetupPassSnapshot(char *outPass, size_t passLen) -> bool;
 
 /** Load or create the SoftAP PSK in NVS and cache it in RAM. */
 auto wlanEnsureSetupApPass() -> bool;
+
+/** True when Ensure must mint a new setup PSK (RAM and NVS both invalid). */
+inline auto setupApPassShouldGenerate(bool ramSyntaxOk, bool nvsSyntaxOk) -> bool { return !ramSyntaxOk && !nvsSyntaxOk; }
 
 /** Cache setup PSK and mark AP mode so the WIFI QR can be painted before RF. */
 auto wlanArmSetupApMode() -> bool;

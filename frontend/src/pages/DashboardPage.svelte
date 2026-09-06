@@ -38,6 +38,8 @@
 
   let busy = $state(false);
   let sendCooldownTimer: ReturnType<typeof setTimeout> | undefined;
+  let awaitingHeartAck = $state(false);
+  let queuedFromTx = $state(0);
 
   /** Matches device LED TX single-flight (~1–2s + PUBACK). */
   /** Match firmware PUBACK wait (5s) so UI does not re-enable while device is busy. */
@@ -70,6 +72,7 @@
       return;
     }
     busy = true;
+    const txBefore = chaya.tx;
     try {
       const res = await api.sendChaya();
       if (!res.ok) {
@@ -82,11 +85,17 @@
         }
         return;
       }
-      onToast(i18n.t("toast.heart-sent"), "success");
+      queuedFromTx = txBefore;
+      awaitingHeartAck = true;
+      onToast(i18n.t("toast.heart-queued"), "info");
       // Keep the button disabled while the device finishes the TX sequence.
       await new Promise<void>((resolve) => {
         sendCooldownTimer = setTimeout(resolve, kHeartSendCooldownMs);
       });
+      if (awaitingHeartAck) {
+        awaitingHeartAck = false;
+        onToast(i18n.t("toast.heart-failed"), "error");
+      }
     } catch {
       onToast(i18n.t("toast.heart-failed"), "error");
     } finally {
@@ -94,6 +103,13 @@
       busy = false;
     }
   }
+
+  $effect(() => {
+    if (awaitingHeartAck && chaya.tx > queuedFromTx) {
+      awaitingHeartAck = false;
+      onToast(i18n.t("toast.heart-sent"), "success");
+    }
+  });
 
   $effect(() => {
     return () => {

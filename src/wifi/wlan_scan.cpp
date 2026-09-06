@@ -1,6 +1,7 @@
 #include "wlan.h"
 
 #include "wlan_config.h"
+#include "wlan_event_pure.h"
 #include "wlan_internal.h"
 
 #include "util/log_tag.h"
@@ -93,7 +94,7 @@ void wifiScanServiceOnMainTask() {
     if (s_wifiScanKick.exchange(false, std::memory_order_acq_rel)) {
         const unsigned long nowMs = millis();
         const unsigned long nextAllowed = s_wifiScanNextAllowedMs.load(std::memory_order_relaxed);
-        if (nextAllowed != 0UL && nowMs < nextAllowed) {
+        if (wlanMsBeforeDeadline(nowMs, nextAllowed)) {
             s_wifiScanKick.store(true, std::memory_order_release);
             wlanWifiApiUnlock();
             return;

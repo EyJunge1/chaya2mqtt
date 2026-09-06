@@ -16,6 +16,32 @@
 
 DEFINE_LOG_TAG("WIFI");
 
+// BUG-WEB-05: last successful NVS snapshot for GET without g_nvsMutex (not s_activeWlanConfig).
+static WlanConfig s_nvsWlanConfigCache{};
+static bool s_nvsWlanConfigCacheValid = false;
+static portMUX_TYPE s_nvsWlanConfigCacheMux = portMUX_INITIALIZER_UNLOCKED;
+
+static void wlanCacheNvsConfig(const WlanConfig &cfg) {
+    portENTER_CRITICAL(&s_nvsWlanConfigCacheMux);
+    s_nvsWlanConfigCache = cfg;
+    s_nvsWlanConfigCacheValid = true;
+    portEXIT_CRITICAL(&s_nvsWlanConfigCacheMux);
+}
+
+bool wlanCopyCachedConfig(WlanConfig *out) {
+    if (out == nullptr) {
+        return false;
+    }
+    portENTER_CRITICAL(&s_nvsWlanConfigCacheMux);
+    if (!s_nvsWlanConfigCacheValid) {
+        portEXIT_CRITICAL(&s_nvsWlanConfigCacheMux);
+        return false;
+    }
+    *out = s_nvsWlanConfigCache;
+    portEXIT_CRITICAL(&s_nvsWlanConfigCacheMux);
+    return true;
+}
+
 bool wlanLoadConfigFromNvs(WlanConfig *cfg) {
     if (cfg == nullptr) {
         return false;
@@ -79,8 +105,10 @@ bool wlanLoadConfigFromNvs(WlanConfig *cfg) {
 
     if (!loaded) {
         ESP_LOGD(TAG, "WiFi NVS: no SSID stored");
+        return false;
     }
-    return loaded;
+    wlanCacheNvsConfig(*cfg);
+    return true;
 }
 
 void wifiLoadCredentialsFromNvs(char *ssid, size_t ssidLen, char *pass, size_t passLen) {
@@ -98,6 +126,10 @@ void wifiLoadCredentialsFromNvs(char *ssid, size_t ssidLen, char *pass, size_t p
 }
 
 bool wlanSaveConfigToNvs(const WlanConfig &cfg) {
+    if (app_nvs::writesBlocked(kNvsNsWifi)) {
+        ESP_LOGW(TAG, "NVS wifi: save blocked during shutdown");
+        return false;
+    }
     if (wlanConfigValidate(&cfg) != nullptr) {
         ESP_LOGE(TAG, "NVS wifi: refuse save (invalid config)");
         return false;
@@ -122,6 +154,7 @@ bool wlanSaveConfigToNvs(const WlanConfig &cfg) {
         return false;
     }
     ESP_LOGI(TAG, "WiFi NVS saved ssid=%s mode=%s", cfg.ssid, cfg.mode == WlanIpMode::Static ? "static" : "dhcp");
+    wlanCacheNvsConfig(cfg);
     return true;
 }
 

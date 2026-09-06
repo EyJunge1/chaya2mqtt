@@ -6,6 +6,7 @@
 #include "ota_task.h"
 
 #include "async/sse_dirty.h"
+#include "async/system_lifecycle.h"
 #include "battery/battery.h"
 #include "battery/battery_config.h"
 #include "config/nvs_keys.h"
@@ -48,6 +49,9 @@ uint32_t s_cachedNvUpdateDay = UINT32_MAX;
 bool s_nvUpdateDayCacheValid = false;
 std::atomic<bool> s_channelLoaded{false};
 std::atomic<OtaChannel> s_channel{OtaChannel::Stable};
+// HTTP-queued channel; 0xFF = none. Persisted in the OTA task (BUG-WEB-04).
+constexpr uint8_t kOtaNoPendingHttpChannel = 0xFF;
+std::atomic<uint8_t> s_pendingHttpChannel{kOtaNoPendingHttpChannel};
 
 const char *phaseName(OtaPhase p) {
     switch (p) {
@@ -93,6 +97,22 @@ void setErrorLocked(const char *code) {
 void ensureLocalVersionLocked() {
     if (s_status.localVersion[0] == '\0') {
         strlcpy(s_status.localVersion, kAppVersion, sizeof(s_status.localVersion));
+    }
+}
+
+void applyPendingHttpChannelIfAny() {
+    const uint8_t raw = s_pendingHttpChannel.exchange(kOtaNoPendingHttpChannel, std::memory_order_acq_rel);
+    if (raw == kOtaNoPendingHttpChannel) {
+        return;
+    }
+    const OtaChannel channel = (raw == static_cast<uint8_t>(OtaChannel::Beta)) ? OtaChannel::Beta : OtaChannel::Stable;
+    if (!otaSetChannel(channel)) {
+        portENTER_CRITICAL(&s_otaMux);
+        s_channel.store(channel, std::memory_order_relaxed);
+        s_status.channel = channel;
+        bumpLocked();
+        s_channelLoaded.store(true, std::memory_order_release);
+        portEXIT_CRITICAL(&s_otaMux);
     }
 }
 
@@ -158,7 +178,30 @@ bool isBusyPhase(OtaPhase p) {
     return p == OtaPhase::Checking || p == OtaPhase::Downloading || p == OtaPhase::Verifying || p == OtaPhase::Rebooting;
 }
 
+void clearOtaQueuedWorkForShutdown() {
+    g_otaCheckRequested.store(false, std::memory_order_release);
+    g_otaInstallRequested.store(false, std::memory_order_release);
+    s_pendingHttpChannel.store(kOtaNoPendingHttpChannel, std::memory_order_release);
+    g_otaCheckInProgress.store(false, std::memory_order_release);
+    if (g_otaFlashInProgress.load(std::memory_order_acquire)) {
+        return;
+    }
+    portENTER_CRITICAL(&s_otaMux);
+    if (s_status.phase == OtaPhase::Checking || s_status.phase == OtaPhase::Downloading ||
+        s_status.phase == OtaPhase::Verifying) {
+        s_status.phase = OtaPhase::Idle;
+        bumpLocked();
+    }
+    portEXIT_CRITICAL(&s_otaMux);
+}
+
 void runGithubCheck(bool manual) {
+    if (g_systemShutdownInProgress.load(std::memory_order_acquire)) {
+        clearOtaQueuedWorkForShutdown();
+        ESP_LOGW(TAG, "OTA check skipped — shutdown");
+        return;
+    }
+    applyPendingHttpChannelIfAny();
     loadChannelIfNeeded();
     const OtaChannel channel = s_channel.load(std::memory_order_acquire);
 #if defined(CORE_DEBUG_LEVEL) && CORE_DEBUG_LEVEL >= 3
@@ -169,6 +212,7 @@ void runGithubCheck(bool manual) {
     portENTER_CRITICAL(&s_otaMux);
     if (isBusyPhase(s_status.phase) && s_status.phase != OtaPhase::Checking) {
         portEXIT_CRITICAL(&s_otaMux);
+        g_otaCheckInProgress.store(false, std::memory_order_release);
         ESP_LOGW(TAG, "OTA check skipped — busy");
         return;
     }
@@ -183,6 +227,12 @@ void runGithubCheck(bool manual) {
     setPhaseLocked(OtaPhase::Checking);
     g_otaCheckInProgress.store(true, std::memory_order_release);
     portEXIT_CRITICAL(&s_otaMux);
+
+    if (g_systemShutdownInProgress.load(std::memory_order_acquire)) {
+        clearOtaQueuedWorkForShutdown();
+        ESP_LOGW(TAG, "OTA check skipped — shutdown");
+        return;
+    }
 
     OtaReleaseInfo info{};
     const GithubCheckResult gr = otaGithubEvaluateChannel(channel, &info);
@@ -218,15 +268,29 @@ void runGithubCheck(bool manual) {
 }
 
 void runInstall() {
+    if (g_systemShutdownInProgress.load(std::memory_order_acquire)) {
+        g_otaFlashInProgress.store(false, std::memory_order_release);
+        clearOtaQueuedWorkForShutdown();
+        ESP_LOGW(TAG, "OTA install ignored — shutdown");
+        return;
+    }
     OtaReleaseInfo release{};
     portENTER_CRITICAL(&s_otaMux);
     if (!s_havePendingRelease || (s_status.phase != OtaPhase::Available && s_status.phase != OtaPhase::Error)) {
         portEXIT_CRITICAL(&s_otaMux);
+        g_otaFlashInProgress.store(false, std::memory_order_release);
         ESP_LOGW(TAG, "OTA install ignored — no pending release");
         return;
     }
     release = s_pendingRelease;
     portEXIT_CRITICAL(&s_otaMux);
+
+    if (g_systemShutdownInProgress.load(std::memory_order_acquire)) {
+        g_otaFlashInProgress.store(false, std::memory_order_release);
+        clearOtaQueuedWorkForShutdown();
+        ESP_LOGW(TAG, "OTA install ignored — shutdown");
+        return;
+    }
 
     batteryPoll();
     if (batteryPercent() < kBatteryOtaMinPct) {
@@ -241,6 +305,13 @@ void runInstall() {
         return;
     }
 
+    if (g_systemShutdownInProgress.load(std::memory_order_acquire)) {
+        g_otaFlashInProgress.store(false, std::memory_order_release);
+        clearOtaQueuedWorkForShutdown();
+        ESP_LOGW(TAG, "OTA install ignored — shutdown");
+        return;
+    }
+
     portENTER_CRITICAL(&s_otaMux);
     s_status.error[0] = '\0';
     s_status.bytesDone = 0;
@@ -251,6 +322,13 @@ void runInstall() {
     ESP_LOGI(TAG, "Installing %s", release.version);
 
     flushAllHeartCountersIfDirty();
+
+    if (g_systemShutdownInProgress.load(std::memory_order_acquire)) {
+        g_otaFlashInProgress.store(false, std::memory_order_release);
+        clearOtaQueuedWorkForShutdown();
+        ESP_LOGW(TAG, "OTA install ignored — shutdown");
+        return;
+    }
 
     const bool installed = otaFlashVerifiedInstall(release.binUrl, release.sha256Url);
 
@@ -303,7 +381,8 @@ void maybeDailyCheck() {
         return;
     }
 
-    // Daily check only — never auto-install.
+    // Daily check only — never auto-install. Arm the guard before HTTP.
+    g_otaCheckInProgress.store(true, std::memory_order_release);
     runGithubCheck(false);
     portENTER_CRITICAL(&s_otaMux);
     const bool ok = s_status.phase != OtaPhase::Error;
@@ -353,8 +432,14 @@ void otaTryMarkValidAfterHealthCheck() {
 bool otaFlashInProgress() { return g_otaFlashInProgress.load(std::memory_order_acquire); }
 
 bool otaBlocksDestructiveAction() {
-    return otaFlashInProgress() || g_otaCheckInProgress.load(std::memory_order_acquire) ||
-           g_otaCheckRequested.load(std::memory_order_acquire) || g_otaInstallRequested.load(std::memory_order_acquire);
+    if (otaFlashInProgress() || g_otaCheckInProgress.load(std::memory_order_acquire) ||
+        g_otaCheckRequested.load(std::memory_order_acquire) || g_otaInstallRequested.load(std::memory_order_acquire)) {
+        return true;
+    }
+    portENTER_CRITICAL(&s_otaMux);
+    const bool busy = isBusyPhase(s_status.phase);
+    portEXIT_CRITICAL(&s_otaMux);
+    return busy;
 }
 
 bool otaSetChannel(OtaChannel channel) {
@@ -407,7 +492,8 @@ void otaFillStatusJson(JsonObject obj) {
 }
 
 void otaQueueGithubCheck() {
-    loadChannelIfNeeded();
+    g_otaCheckRequested.store(true, std::memory_order_release);
+    otaTaskWake();
     portENTER_CRITICAL(&s_otaMux);
     s_havePendingRelease = false;
     s_pendingRelease = OtaReleaseInfo{};
@@ -417,16 +503,11 @@ void otaQueueGithubCheck() {
     s_status.bytesTotal = 0;
     setPhaseLocked(OtaPhase::Checking);
     portEXIT_CRITICAL(&s_otaMux);
-    g_otaCheckRequested.store(true, std::memory_order_release);
-    otaTaskWake();
 }
 
-bool otaQueueGithubCheck(OtaChannel channel) {
-    if (!otaSetChannel(channel)) {
-        return false;
-    }
+void otaQueueGithubCheck(OtaChannel channel) {
+    s_pendingHttpChannel.store(static_cast<uint8_t>(channel), std::memory_order_release);
     otaQueueGithubCheck();
-    return true;
 }
 
 void otaQueueInstall() {
@@ -435,28 +516,41 @@ void otaQueueInstall() {
 }
 
 void otaLoop() {
-    if (g_otaCheckRequested.exchange(false, std::memory_order_acq_rel)) {
-        const time_t utcNow = time(nullptr);
-        const bool ntpOk = ntpTimeLooksSynced(utcNow);
-        if (!ntpOk) {
-            ESP_LOGW(TAG, "Manual update check: wall-clock not plausible (NTP?) — checking GitHub "
-                          "anyway");
-        }
-        runGithubCheck(true);
-        if (ntpOk && wlanStaConnectedOk() && !configIsApMode()) {
-            portENTER_CRITICAL(&s_otaMux);
-            const bool ok = s_status.phase != OtaPhase::Error;
-            portEXIT_CRITICAL(&s_otaMux);
-            if (ok) {
-                const uint32_t todayUtcDay = calendarDaySinceEpochUtc(utcNow > 0 ? utcNow : 0);
-                nvSaveLastUpdateCalendarDay(todayUtcDay);
+    if (g_systemShutdownInProgress.load(std::memory_order_acquire)) {
+        clearOtaQueuedWorkForShutdown();
+        return;
+    }
+
+    if (g_otaCheckRequested.load(std::memory_order_acquire)) {
+        g_otaCheckInProgress.store(true, std::memory_order_release);
+        if (g_otaCheckRequested.exchange(false, std::memory_order_acq_rel)) {
+            const time_t utcNow = time(nullptr);
+            const bool ntpOk = ntpTimeLooksSynced(utcNow);
+            if (!ntpOk) {
+                ESP_LOGW(TAG, "OTA check: wall-clock not plausible (NTP?) — checking GitHub anyway");
             }
+            runGithubCheck(true);
+            if (ntpOk && wlanStaConnectedOk() && !configIsApMode()) {
+                portENTER_CRITICAL(&s_otaMux);
+                const bool ok = s_status.phase != OtaPhase::Error;
+                portEXIT_CRITICAL(&s_otaMux);
+                if (ok) {
+                    const uint32_t todayUtcDay = calendarDaySinceEpochUtc(utcNow > 0 ? utcNow : 0);
+                    nvSaveLastUpdateCalendarDay(todayUtcDay);
+                }
+            }
+        } else {
+            g_otaCheckInProgress.store(false, std::memory_order_release);
         }
     }
 
-    if (g_otaInstallRequested.exchange(false, std::memory_order_acq_rel)) {
-        runInstall();
-        return;
+    if (g_otaInstallRequested.load(std::memory_order_acquire)) {
+        g_otaFlashInProgress.store(true, std::memory_order_release);
+        if (g_otaInstallRequested.exchange(false, std::memory_order_acq_rel)) {
+            runInstall();
+            return;
+        }
+        g_otaFlashInProgress.store(false, std::memory_order_release);
     }
 
     maybeDailyCheck();

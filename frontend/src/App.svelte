@@ -13,16 +13,23 @@
   import { device } from "./state/device.svelte.ts";
   import DeviceRoot from "./state/DeviceRoot.svelte";
 
-  const renderedPath = $derived(
-    device.device?.mode === "ap" && router.pathname !== "/wifi-testing" ? "/" : router.pathname,
-  );
+  const renderedPath = $derived.by(() => {
+    const mode = device.device?.mode;
+    const path = router.pathname;
+    if (mode === "ap") {
+      return path === "/wifi-testing" ? "/wifi-testing" : "/";
+    }
+    if (mode === "sta" && path === "/wifi-testing") {
+      return "/";
+    }
+    return path;
+  });
 
   $effect(() => {
-    if (
-      device.device?.mode === "ap" &&
-      router.pathname !== "/" &&
-      router.pathname !== "/wifi-testing"
-    ) {
+    const mode = device.device?.mode;
+    if (mode === "ap" && router.pathname !== "/" && router.pathname !== "/wifi-testing") {
+      router.replace("/");
+    } else if (mode === "sta" && router.pathname === "/wifi-testing") {
       router.replace("/");
     } else if (!isKnownRoute(router.pathname)) {
       router.replace("/");

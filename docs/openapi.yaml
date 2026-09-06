@@ -5,7 +5,7 @@ info:
   description: |
     HTTP JSON API for the device web admin.
     Every operation may return 403 when the Host header is not on the device allowlist
-    (`Host rejected`). Per-operation access is in `x-protection`
+    (`Host rejected`): JSON `{ok:false, error:"host"}` (`ApiError`). Per-operation access is in `x-protection`
     (`Host`, `Host + STA`, `AP + Host`).
   contact:
     name: Chaya2MQTT
@@ -757,8 +757,14 @@ components:
         generation: { type: integer }
   responses:
     ApiError:
-      description: Request failed
+      description: Request failed. HTTP 403 host-allowlist is `{ ok: false, error: "host" }`.
       content:
         application/json:
           schema:
             $ref: "#/components/schemas/ApiErr"
+          examples:
+            hostRejected:
+              summary: Host rejected
+              value:
+                ok: false
+                error: host

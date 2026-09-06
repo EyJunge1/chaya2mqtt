@@ -45,7 +45,7 @@ void webRedirect(AsyncWebServerRequest *req, const char *location) {
 static bool webHostAllowedForRequest(const char *host) {
     const bool apMode = configIsApMode();
     char ip[16]{};
-    const bool hasIp = !apMode && wlanStaConnectedOk() && wlanReadStaLocalIpForCommit(ip, sizeof(ip)) && ip[0] != '\0';
+    const bool hasIp = !apMode && wlanStaConnectedOk() && wlanCopyCachedStaIp(ip, sizeof(ip)) && ip[0] != '\0';
     char hostname[kDeviceStaHostnameBufLen]{};
     if (apMode || !buildDeviceStaHostname(hostname, sizeof(hostname))) {
         strlcpy(hostname, kDeviceHostname, sizeof(hostname));
