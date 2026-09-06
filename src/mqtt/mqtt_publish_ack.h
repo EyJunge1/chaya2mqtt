@@ -16,8 +16,8 @@ struct MqttPublishAckState {
     int expectedCounter = 0;
 };
 
-inline auto mqttPublishAckBegin(MqttPublishAckState *state, int messageId, uint32_t clientGeneration, int expectedCounter)
-    -> bool {
+inline auto mqttPublishAckBegin(MqttPublishAckState *state, int messageId, uint32_t clientGeneration,
+                                int expectedCounter) -> bool {
     if (state == nullptr || messageId < 0 || state->status == MqttPublishAckStatus::Pending) {
         return false;
     }

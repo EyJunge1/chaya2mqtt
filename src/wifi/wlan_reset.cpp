@@ -53,8 +53,7 @@ void wlanForceStaReassoc(const char *reasonTag) {
     }
     // RC-NET-02: never disconnect+begin while OTA is running.
     if (otaBlocksDestructiveAction()) {
-        ESP_LOGW(TAG, "WLAN force reassoc (%s) blocked by OTA — soft connect only",
-                 reasonTag != nullptr ? reasonTag : "n/a");
+        ESP_LOGW(TAG, "WLAN force reassoc (%s) blocked by OTA — soft connect only", reasonTag != nullptr ? reasonTag : "n/a");
         wlanWifiApiLock();
         const wifi_mode_t mode = WiFi.getMode();
         if (mode == WIFI_STA || mode == WIFI_AP_STA) {

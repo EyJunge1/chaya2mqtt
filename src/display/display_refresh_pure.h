@@ -56,8 +56,8 @@ inline auto displayHeartRedrawWaitMs(unsigned long nowMs, unsigned long lastEnqu
 
 /** True when a follow-up redraw is needed after a completed heart paint. */
 inline auto displayHeartNeedsFollowUpRedraw(int drawnRx, int drawnTx, int currentRx, int currentTx, bool iconChanged,
-                                            bool batteryIconChanged, bool hadPending, int drawnShownRx = 0,
-                                            int drawnShownTx = 0, int currentShownRx = 0, int currentShownTx = 0) -> bool {
+                                            bool batteryIconChanged, bool hadPending, int drawnShownRx = 0, int drawnShownTx = 0,
+                                            int currentShownRx = 0, int currentShownTx = 0) -> bool {
     return hadPending || iconChanged || batteryIconChanged || currentRx != drawnRx || currentTx != drawnTx ||
            currentShownRx != drawnShownRx || currentShownTx != drawnShownTx;
 }

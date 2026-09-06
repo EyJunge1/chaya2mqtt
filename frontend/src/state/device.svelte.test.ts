@@ -151,6 +151,45 @@ describe("DeviceStore", () => {
     expect(store.sseKey).toBe("ffffff:sta");
   });
 
+  it("replaces live fields when bootstrap mode changes", async () => {
+    const store = new DeviceStore();
+    await store.boot();
+    store.live = "live";
+    store.chaya = { rx: 9, tx: 1, connected: true, configured: true, paired: true };
+    store.wifi = {
+      connected: true,
+      ssid: "home",
+      ip: "1.2.3.4",
+      gateway: "1.2.3.1",
+      netmask: "255.255.255.0",
+      dns1: "1.1.1.1",
+      dns2: "",
+      rssi: -40,
+    };
+
+    getBootstrap.mockResolvedValueOnce(
+      bootstrap({
+        device: {
+          ...bootstrap().device,
+          mode: "ap",
+          hostname: "chaya2mqtt",
+          apSsid: "Chaya2MQTT",
+          apIp: "4.3.2.1",
+        },
+        wifi: { connected: false },
+        chaya: { rx: 0, tx: 0, connected: false, configured: false, paired: false },
+        mqtt: { connected: false },
+      }),
+    );
+    await store.refreshDevice();
+
+    expect(store.device?.mode).toBe("ap");
+    expect(store.wifi).toEqual({ connected: false });
+    expect(store.chaya.rx).toBe(0);
+    expect(store.mqtt.connected).toBe(false);
+    expect(store.sseKey).toBe("a1b2c3:ap");
+  });
+
   it("does not reconnect SSE when refreshSeq bumps", async () => {
     const store = new DeviceStore();
     await store.boot();

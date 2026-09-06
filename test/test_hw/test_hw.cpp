@@ -1,7 +1,7 @@
 #include <unity.h>
 
-#include "async/queue_coalesce_pure.h"
 #include "async/event_types.h"
+#include "async/queue_coalesce_pure.h"
 #include "audio/audio_drain_pure.h"
 #include "audio/audio_pure.h"
 #include "battery/battery_pure.h"

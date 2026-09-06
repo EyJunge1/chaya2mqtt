@@ -61,7 +61,9 @@ export class DeviceStore {
   };
 
   private applyBootstrap(boot: BootstrapPayload): void {
-    const keepSse = this.live === "live" || this.live === "reconnecting";
+    const keepSse =
+      (this.live === "live" || this.live === "reconnecting") &&
+      this.device?.mode === boot.device.mode;
     if (keepSse && this.device) {
       this.device = {
         ...this.device,

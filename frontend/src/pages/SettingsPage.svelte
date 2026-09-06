@@ -170,6 +170,11 @@
       );
       if (res.ok) {
         confirmFactory = false;
+        try {
+          await onDeviceRefresh();
+        } catch {
+          // STA session may already be gone while the device comes back as AP.
+        }
       }
     } catch {
       onToast(i18n.t("toast.reset-factory-failed"), "error");

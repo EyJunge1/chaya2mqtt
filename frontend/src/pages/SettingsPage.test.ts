@@ -207,7 +207,7 @@ describe("SettingsPage", () => {
     expect(screen.getByDisplayValue("7")).toBeInTheDocument();
   });
 
-  it("does not refresh the device after a queued factory reset", async () => {
+  it("refreshes after factory reset and ignores a failed refresh", async () => {
     factoryReset.mockResolvedValue({ ok: true, message: "factory_reset" });
     const onToast = vi.fn();
     const onDeviceRefresh = vi.fn().mockRejectedValue(new Error("offline"));
@@ -220,10 +220,10 @@ describe("SettingsPage", () => {
     fireEvent.click(confirms[confirms.length - 1]!);
 
     await waitFor(() => expect(factoryReset).toHaveBeenCalled());
+    await waitFor(() => expect(onDeviceRefresh).toHaveBeenCalled());
     await waitFor(() =>
       expect(onToast).toHaveBeenCalledWith(expect.stringMatching(/Factory reset started/), "info"),
     );
-    expect(onDeviceRefresh).not.toHaveBeenCalled();
     expect(onToast).not.toHaveBeenCalledWith("Factory reset could not be started", "error");
   });
 });

@@ -53,8 +53,7 @@ static void waitForPwrRelease() {
             if (otaFlashInProgress()) {
                 ESP_LOGE(TAG, "PWR soft-off: release timeout — skip latch cut, OTA flash in progress");
             } else {
-                ESP_LOGW(TAG, "PWR soft-off: release timeout (%lu ms) — cutting latch, still waiting",
-                         kSoftOffReleaseTimeoutMs);
+                ESP_LOGW(TAG, "PWR soft-off: release timeout (%lu ms) — cutting latch, still waiting", kSoftOffReleaseTimeoutMs);
                 batteryCutLatch();
             }
             cutLatchOnTimeout = true;

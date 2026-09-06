@@ -347,8 +347,7 @@ void wlanLoop() {
         }
         constexpr unsigned long kApDnsPollLockBusyMs = 250UL;
         const unsigned long idleIntervalMs = haveStationNum ? kApDnsPollIntervalMs : kApDnsPollLockBusyMs;
-        if ((haveStationNum && apClients > 0) || s_lastApDnsPollMs == 0UL ||
-            (nowMs - s_lastApDnsPollMs) >= idleIntervalMs) {
+        if ((haveStationNum && apClients > 0) || s_lastApDnsPollMs == 0UL || (nowMs - s_lastApDnsPollMs) >= idleIntervalMs) {
             g_dnsServer.processNextRequest();
             s_lastApDnsPollMs = nowMs;
         }

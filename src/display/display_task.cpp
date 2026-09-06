@@ -266,8 +266,8 @@ static void displayTaskFn(void *) {
             const bool batteryIconChanged = static_cast<uint8_t>(displayBatteryIcon(batteryPercent())) != paintedBatteryIcon;
             if (displayHeartNeedsFollowUpRedraw(
                     drawn.heartCounterRaw, drawn.heartSentCounterRaw, heartCounter.load(std::memory_order_relaxed),
-                    heartSentCounter.load(std::memory_order_relaxed), iconChanged, batteryIconChanged, hadPending,
-                    paintedShownRx, paintedShownTx, heartDisplayRxDelta(), heartDisplayTxDelta())) {
+                    heartSentCounter.load(std::memory_order_relaxed), iconChanged, batteryIconChanged, hadPending, paintedShownRx,
+                    paintedShownTx, heartDisplayRxDelta(), heartDisplayTxDelta())) {
                 (void)displayPostHeartRedraw(0);
             }
             break;

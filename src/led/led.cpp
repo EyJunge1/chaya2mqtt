@@ -253,8 +253,7 @@ static void finishToIdleOrBackground() {
         }
         return;
     }
-    (void)ledTxPhase.compare_exchange_strong(expected, LedTxPhase::Idle, std::memory_order_acq_rel,
-                                             std::memory_order_relaxed);
+    (void)ledTxPhase.compare_exchange_strong(expected, LedTxPhase::Idle, std::memory_order_acq_rel, std::memory_order_relaxed);
 }
 
 void advanceLedSequence() {
