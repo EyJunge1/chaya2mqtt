@@ -24,14 +24,25 @@ class Sizes:
     ram: int | None = None
 
 
+def size_tool_from_packages(packages: Path) -> str | None:
+    """Prefer pioarduino's unified toolchain, then the classic ESP32-S3 package."""
+    for relative in (
+        "toolchain-xtensa-esp-elf/bin/xtensa-esp32s3-elf-size",
+        "toolchain-xtensa-esp32s3/bin/xtensa-esp32s3-elf-size",
+    ):
+        path = packages / relative
+        if path.is_file():
+            return str(path)
+    return None
+
+
 def find_size_tool() -> str | None:
-    """Find xtensa-esp32s3-elf-size on PATH or in PlatformIO packages."""
-    found = which("xtensa-esp32s3-elf-size")
-    if found:
-        return found
-    packages = Path.home() / ".platformio" / "packages"
-    matches = sorted(packages.glob("toolchain-xtensa-esp32s3*/bin/xtensa-esp32s3-elf-size"))
-    return str(matches[0]) if matches else None
+    """Find the Xtensa size tool on PATH or in PlatformIO packages."""
+    for name in ("xtensa-esp32s3-elf-size", "xtensa-esp-elf-size"):
+        found = which(name)
+        if found:
+            return found
+    return size_tool_from_packages(Path.home() / ".platformio" / "packages")
 
 
 def parse_elf_size(text: str) -> tuple[int, int] | None:
