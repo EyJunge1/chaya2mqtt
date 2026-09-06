@@ -1,8 +1,8 @@
 #pragma once
 
-inline bool queueCoalescePendingAfterPost(bool wasPending, bool queued) { return wasPending || !queued; }
+inline auto queueCoalescePendingAfterPost(bool wasPending, bool queued) -> bool { return wasPending || !queued; }
 
-inline bool queueCoalesceConsume(bool *pending) {
+inline auto queueCoalesceConsume(bool *pending) -> bool {
     if (pending == nullptr || !*pending) {
         return false;
     }

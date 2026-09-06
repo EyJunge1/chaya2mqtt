@@ -4,7 +4,7 @@
  * EXT1 ANY_LOW is level-triggered. Arm only when PWR is not already LOW
  * (Arduino digitalRead / rtc_gpio_get_level: LOW = 0).
  */
-inline bool softOffMayArmExt1Wake(int pwrLevel) { return pwrLevel != 0; }
+inline auto softOffMayArmExt1Wake(int pwrLevel) -> bool { return pwrLevel != 0; }
 
 /** Continuous HIGH timer for the pre-EXT1 bounce settle. */
 struct SoftOffReleaseSettle {
@@ -12,7 +12,7 @@ struct SoftOffReleaseSettle {
 };
 
 /** True once `pwrLevel` has been inactive (not LOW) for `settleMs`. Resets on LOW. */
-inline bool softOffReleaseSettled(SoftOffReleaseSettle &st, int pwrLevel, unsigned long nowMs, unsigned long settleMs) {
+inline auto softOffReleaseSettled(SoftOffReleaseSettle &st, int pwrLevel, unsigned long nowMs, unsigned long settleMs) -> bool {
     if (!softOffMayArmExt1Wake(pwrLevel)) {
         st.highSinceMs = 0;
         return false;

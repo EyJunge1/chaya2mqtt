@@ -59,7 +59,7 @@ The pinned Arduino-ESP32 framework includes [arduino-esp32#12824](https://github
 
 Schema: **`YYYY.M.PATCH`** (month without a leading zero). Git tags have a `v` prefix.
 
-| Type | Git tag | `APP_VERSION` in the firmware |
+| Type | Git tag | `kAppVersion` in `src/config/version.h` |
 |------|---------|-------------------------------|
 | Stable | `v2026.8.1` | `2026.8.1` |
 | Beta | `v2026.8.1-rc.1` | `2026.8.1-rc.1` |
@@ -80,14 +80,14 @@ git tag -a v2026.8.1 -m "Release 2026.8.1"
 git push origin v2026.8.1
 ```
 
-Before tagging, run locally: `make check`.
+Before tagging, set `kAppVersion` in `src/config/version.h` to the tag without `v` (e.g. `2026.8.1-rc.1`), commit that, then run `make check`.
 
 ## Version comparison
 
-- `APP_VERSION` from `config/version.h` (CI sets it from the tag **without** the leading `v`, e.g. `2026.8.1`)
+- `kAppVersion` in `config/version.h` (set by hand **without** the leading `v`, e.g. `2026.8.1`). Release CI checks it matches the tag.
 - GitHub `tag_name` is compared component by component as CalVer (`YYYY`, month, patch, beta `-rc.N` number); stable sorts above beta with the same base version
 - An upgrade is available if the remote version > local version
-- `APP_VERSION == "dev"`: **no automatic check** (manual only)
+- `kAppVersion == "dev"`: **no automatic check** (manual only)
 
 ## Automatic check (daily)
 
@@ -96,7 +96,7 @@ Before tagging, run locally: `make check`.
 | Mode | STA mode only (not AP) |
 | WiFi | STA connected |
 | NTP | Time synchronized (`> 1700000000` UTC) |
-| Version | `APP_VERSION != "dev"` |
+| Version | `kAppVersion != "dev"` |
 | Interval | At most once per UTC calendar day |
 | NVS key | `cfg/upd_day` (last check day) |
 
@@ -164,7 +164,7 @@ GitHub Actions (`.github/workflows/build-release.yml`):
 
 1. Trigger: push of tag `vYYYY.M.PATCH` or `vYYYY.M.PATCH-rc.N`
 2. Validate tag format; commit must be an ancestor of `origin/main`
-3. Set `APP_VERSION` from the tag (without `v`)
+3. Check `kAppVersion` in `src/config/version.h` equals the tag (without `v`)
 4. Run the complete `make check` quality gate, including frontend/flasher checks, tests, static analysis, and the release firmware build
 5. Validate and package the built images via `scripts/prepare_release_artifacts.py`
 6. Publish GitHub Release assets:

@@ -92,7 +92,7 @@ void setErrorLocked(const char *code) {
 
 void ensureLocalVersionLocked() {
     if (s_status.localVersion[0] == '\0') {
-        strlcpy(s_status.localVersion, APP_VERSION, sizeof(s_status.localVersion));
+        strlcpy(s_status.localVersion, kAppVersion, sizeof(s_status.localVersion));
     }
 }
 
@@ -279,7 +279,7 @@ void maybeDailyCheck() {
     if (configIsApMode() || !wlanStaConnectedOk()) {
         return;
     }
-    if (strcmp(APP_VERSION, "dev") == 0) {
+    if (strcmp(kAppVersion, "dev") == 0) {
         return;
     }
     const time_t utcNow = time(nullptr);

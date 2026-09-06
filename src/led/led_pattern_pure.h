@@ -27,7 +27,7 @@ inline void ledPatternNormalize(uint8_t &count, uint16_t &onMs, uint16_t & /*off
 }
 
 /** Arm a pattern; returns false if count/onMs normalize to unusable (should not happen). */
-inline bool ledPatternBegin(LedPatternRuntime &rt, uint8_t count, uint16_t onMs, uint16_t offMs) {
+inline auto ledPatternBegin(LedPatternRuntime &rt, uint8_t count, uint16_t onMs, uint16_t offMs) -> bool {
     ledPatternNormalize(count, onMs, offMs);
     rt.onPulsesLeft = count;
     rt.onPhase = true;
@@ -40,7 +40,7 @@ inline bool ledPatternBegin(LedPatternRuntime &rt, uint8_t count, uint16_t onMs,
  * Advance after the current phase duration has elapsed.
  * Ends dark. Trailing off after the last pulse is skipped when offMs == 0.
  */
-inline LedPatternAdvanceResult ledPatternAdvance(LedPatternRuntime &rt) {
+inline auto ledPatternAdvance(LedPatternRuntime &rt) -> LedPatternAdvanceResult {
     if (rt.onPhase) {
         rt.onPulsesLeft = static_cast<uint8_t>(rt.onPulsesLeft - 1U);
         if (rt.onPulsesLeft == 0) {

@@ -42,7 +42,8 @@ check-firmware-tests:
 	"$(PIO)" test -e native-asan
 	"$(PIO)" pkg install -g -t tool-cppcheck
 	"$(PIO)" check -e esp32s3 --fail-on-defect=high -f "-<*>" -f "+<src/>"
-	bash scripts/check_pure_clang_tidy.sh
+	bash scripts/check_clang_tidy.sh
+	bash scripts/check_firmware_format.sh
 
 check-firmware-build:
 	CHAYA_SKIP_FRONTEND_BUILD=1 "$(PIO)" run -e esp32s3-release

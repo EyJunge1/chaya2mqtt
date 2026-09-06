@@ -22,10 +22,10 @@ void ledInit();
 void ledApplyEnabled();
 
 /** True while TX sequence, pattern, or refresh pulse is active. */
-bool ledIsActivityActive();
+auto ledIsActivityActive() -> bool;
 
 /** True while the MQTT TX send sequence is running (blocks a second send). */
-bool ledIsTxSendBusy();
+auto ledIsTxSendBusy() -> bool;
 
 /**
  * Arm the MQTT TX LED sequence; publish runs in the button/LED task.

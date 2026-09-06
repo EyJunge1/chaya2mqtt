@@ -35,16 +35,22 @@ jobs:
           echo "Expected: vYYYY.M.PATCH or vYYYY.M.PATCH-rc.N (e.g. v2026.8.1 or v2026.8.1-rc.1)"
           exit 1
 
-      - name: Set APP_VERSION from tag
+      - name: Check kAppVersion matches release tag
         shell: bash
         run: |
           set -euo pipefail
           version="${GITHUB_REF_NAME#v}"
-          cat > src/config/version.h <<EOF
-          #pragma once
-          #define APP_VERSION "${version}"
-          EOF
-          echo "APP_VERSION=${version}"
+          file_ver="$(sed -n 's/^inline constexpr const char kAppVersion\[\] = "\([^"]*\)";.*/\1/p' src/config/version.h)"
+          if [[ -z "$file_ver" ]]; then
+            echo "Could not parse kAppVersion from src/config/version.h (must stay one line)." >&2
+            exit 1
+          fi
+          if [[ "$file_ver" != "$version" ]]; then
+            echo "src/config/version.h kAppVersion=\"$file_ver\" does not match tag v$version." >&2
+            echo "Bump kAppVersion by hand, commit, then tag." >&2
+            exit 1
+          fi
+          echo "kAppVersion=$file_ver"
 
       - name: Cache PlatformIO
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
@@ -67,8 +73,8 @@ jobs:
       - name: Install PlatformIO
         run: pip install platformio==6.1.19
 
-      - name: Install clang-tidy
-        run: sudo apt-get update && sudo apt-get install -y clang-tidy
+      - name: Install clang-tidy and clang-format
+        run: sudo apt-get update && sudo apt-get install -y clang-tidy clang-format
 
       - name: Install Playwright browser
         run: |

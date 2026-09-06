@@ -11,7 +11,7 @@ struct MqttBackoffState {
 };
 
 /** Compute next wait after a disconnect failure; updates currentBackoffMs. */
-inline unsigned long mqttNextFailureBackoffMs(MqttBackoffState &st, bool wifiSuspect) {
+inline auto mqttNextFailureBackoffMs(MqttBackoffState &st, bool wifiSuspect) -> unsigned long {
     unsigned long waitMs = st.currentBackoffMs;
     if (wifiSuspect) {
         waitMs = std::max(waitMs, kMqttWifiLostDuringTlsBackoffMs);
@@ -29,7 +29,7 @@ inline void mqttBackoffResetOnConnect(MqttBackoffState &st) {
 }
 
 /** True when enough time has elapsed since lastAttemptAtMs for backoffPeriodMs. */
-inline bool mqttBackoffElapsed(const MqttBackoffState &st, unsigned long nowMs) {
+inline auto mqttBackoffElapsed(const MqttBackoffState &st, unsigned long nowMs) -> bool {
     if (st.backoffPeriodMs == 0UL) {
         return true;
     }
@@ -40,7 +40,8 @@ inline bool mqttBackoffElapsed(const MqttBackoffState &st, unsigned long nowMs) 
  * Precheck deferral before starting a connect attempt.
  * Returns 0 when connect may proceed; otherwise a deferral period in ms.
  */
-inline unsigned long mqttConnectPrecheckDeferMsPure(bool brokerConfigured, bool wifiConnected, bool wifiStable, bool ntpSynced) {
+inline auto mqttConnectPrecheckDeferMsPure(bool brokerConfigured, bool wifiConnected, bool wifiStable, bool ntpSynced)
+    -> unsigned long {
     if (!brokerConfigured) {
         return kMqttBrokerMissingBackoffMs;
     }

@@ -3,7 +3,7 @@
 #include "battery_config.h"
 
 /** Piecewise-linear LiPo estimate from pack millivolts (0–100). */
-inline int batteryPctFromMilliVolts(int mv) {
+inline auto batteryPctFromMilliVolts(int mv) -> int {
     struct Point {
         int mv;
         int pct;
@@ -29,6 +29,6 @@ inline int batteryPctFromMilliVolts(int mv) {
     return 100;
 }
 
-inline bool batteryWarnLow(int pct) { return pct < kBatteryWarnPct; }
+inline auto batteryWarnLow(int pct) -> bool { return pct < kBatteryWarnPct; }
 
-inline bool batteryCriticalLow(int pct) { return pct < kBatteryCriticalPct; }
+inline auto batteryCriticalLow(int pct) -> bool { return pct < kBatteryCriticalPct; }

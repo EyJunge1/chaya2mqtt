@@ -7,13 +7,13 @@
 #include "display/display_config.h"
 
 /** Non-negative display delta: max(0, raw - baseline). */
-inline int heartCounterDeltaPure(int raw, int baseline) { return (raw > baseline) ? (raw - baseline) : 0; }
+inline auto heartCounterDeltaPure(int raw, int baseline) -> int { return (raw > baseline) ? (raw - baseline) : 0; }
 
 /**
  * Format-side capped delta used by the E-Ink footer.
  * Intermediate clamp matches draw.cpp (0..9999), then "999+" when above kDisplayCounterMax.
  */
-inline int heartCounterShownDeltaPure(int raw, int baseline) {
+inline auto heartCounterShownDeltaPure(int raw, int baseline) -> int {
     const int64_t delta64 = static_cast<int64_t>(raw) - static_cast<int64_t>(baseline);
     const int64_t shown64 = std::max<int64_t>(0, std::min<int64_t>(delta64, 9999));
     if (shown64 > static_cast<int64_t>(kDisplayCounterMax)) {
@@ -22,12 +22,12 @@ inline int heartCounterShownDeltaPure(int raw, int baseline) {
     return static_cast<int>(shown64);
 }
 
-inline bool heartCounterShouldShowPlusPure(int raw, int baseline) {
+inline auto heartCounterShouldShowPlusPure(int raw, int baseline) -> bool {
     return heartCounterShownDeltaPure(raw, baseline) > kDisplayCounterMax;
 }
 
 /** Saturating TX increment after a successful publish. */
-inline int heartSentCounterNextPure(int current) {
+inline auto heartSentCounterNextPure(int current) -> int {
     if (current >= INT_MAX) {
         return INT_MAX;
     }

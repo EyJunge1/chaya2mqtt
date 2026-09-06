@@ -36,8 +36,7 @@ static void mqttFinishSettingsApply() {
 
 static void handleNetCommand(NetCmd cmd) {
     static const char *const kNetCmdNames[] = {
-        "MqttSettingsChanged", "MqttKillClient", "WifiGotIp", "WifiReconnect", "ChayaPublish",
-        "FactoryResetRequested",
+        "MqttSettingsChanged", "MqttKillClient", "WifiGotIp", "WifiReconnect", "ChayaPublish", "FactoryResetRequested",
     };
     const unsigned idx = static_cast<unsigned>(cmd);
     ESP_LOGI(TAG, "netCmd=%s", idx < (sizeof(kNetCmdNames) / sizeof(kNetCmdNames[0])) ? kNetCmdNames[idx] : "?");

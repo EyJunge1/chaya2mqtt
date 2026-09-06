@@ -8,8 +8,8 @@
  * Decide which SSE domains to gather this tick (PERF-03).
  * @return bits to gather; 0 means skip gather entirely.
  */
-inline uint32_t sseTickSelectBits(uint32_t pendingBits, uint32_t nowMs, uint32_t lastWorkMs, uint32_t keepaliveMs,
-                                  bool *outKeepalive) {
+inline auto sseTickSelectBits(uint32_t pendingBits, uint32_t nowMs, uint32_t lastWorkMs, uint32_t keepaliveMs, bool *outKeepalive)
+    -> uint32_t {
     if (outKeepalive != nullptr) {
         *outKeepalive = false;
     }

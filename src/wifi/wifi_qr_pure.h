@@ -13,7 +13,7 @@ constexpr size_t kWifiQrPayloadMaxLen = 13U + (kWifiSsidMaxLen - 1U) * 2U + 3U +
  * Escape a WIFI MeCard field (backslash before \\ ; , " :).
  * @return bytes written excluding NUL, or 0 on overflow / bad args.
  */
-inline size_t wifiQrEscapeField(const char *in, char *out, size_t outLen) {
+inline auto wifiQrEscapeField(const char *in, char *out, size_t outLen) -> size_t {
     if (in == nullptr || out == nullptr || outLen == 0U) {
         return 0;
     }
@@ -39,7 +39,7 @@ inline size_t wifiQrEscapeField(const char *in, char *out, size_t outLen) {
  * Build native camera WIFI QR payload: WIFI:T:WPA;S:<ssid>;P:<pass>;;
  * Compatible with iOS/Android camera join prompts (T:WPA, not SAE-only).
  */
-inline bool wifiQrBuildWpaPayload(const char *ssid, const char *pass, char *out, size_t outLen) {
+inline auto wifiQrBuildWpaPayload(const char *ssid, const char *pass, char *out, size_t outLen) -> bool {
     if (ssid == nullptr || ssid[0] == '\0' || pass == nullptr || out == nullptr || outLen == 0U) {
         return false;
     }

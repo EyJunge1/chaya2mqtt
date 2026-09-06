@@ -15,13 +15,13 @@ constexpr size_t kWifiNtpHostMaxLen = 64U;
 constexpr size_t kSetupApPassLen = 24U;
 constexpr size_t kSetupApPassBufLen = kSetupApPassLen + 1U;
 
-inline bool setupApPassCharOk(unsigned char c) {
+inline auto setupApPassCharOk(unsigned char c) -> bool {
     return (c >= static_cast<unsigned char>('0') && c <= static_cast<unsigned char>('9')) ||
            (c >= static_cast<unsigned char>('A') && c <= static_cast<unsigned char>('Z')) ||
            (c >= static_cast<unsigned char>('a') && c <= static_cast<unsigned char>('z'));
 }
 
-inline bool setupApPassSyntaxOk(const char *pass) {
+inline auto setupApPassSyntaxOk(const char *pass) -> bool {
     if (pass == nullptr) {
         return false;
     }
@@ -37,7 +37,7 @@ inline bool setupApPassSyntaxOk(const char *pass) {
  * Fill a SoftAP PSK from raw CSPRNG bytes (maps each byte into [0-9A-Za-z]).
  * @param rnd must provide at least kSetupApPassLen bytes
  */
-inline bool formatSetupApPassFromRandom(const uint8_t *rnd, size_t rndLen, char *out, size_t outLen) {
+inline auto formatSetupApPassFromRandom(const uint8_t *rnd, size_t rndLen, char *out, size_t outLen) -> bool {
     if (rnd == nullptr || rndLen < kSetupApPassLen || out == nullptr || outLen < kSetupApPassBufLen) {
         return false;
     }
@@ -67,7 +67,7 @@ constexpr int kWifiEpdRssiMediumMinDbm = -64;
  * Choose the EPD TX power cap from STA RSSI. Never raises the current max.
  * `rssi <= 0` from WiFi.RSSI() when associated; 0 or positive is treated as unknown.
  */
-inline int8_t wlanEpdTxPowerQuarterDbmFromRssi(int rssi, int8_t currentMaxQdbm) {
+inline auto wlanEpdTxPowerQuarterDbmFromRssi(int rssi, int8_t currentMaxQdbm) -> int8_t {
     int8_t target = kWifiEpdTxPowerWeakQdbm;
     if (rssi < 0) {
         if (rssi >= kWifiEpdRssiStrongMinDbm) {
@@ -90,7 +90,7 @@ enum class WlanBootAction : uint8_t {
  * Pure boot decision for unit tests.
  * Once STA credentials exist, a timeout must never expose the setup AP again.
  */
-inline WlanBootAction wlanBootDecide(bool hasStaCredentials, bool staConnected, bool staConnectTimedOut) {
+inline auto wlanBootDecide(bool hasStaCredentials, bool staConnected, bool staConnectTimedOut) -> WlanBootAction {
     if (!hasStaCredentials) {
         return WlanBootAction::StartSetupAp;
     }
@@ -186,7 +186,7 @@ inline void wlanConfigSetNtpDefaults(WlanConfig *cfg) {
  * Static: requires IP, netmask, gateway; same-subnet + contiguous mask.
  * Returns nullptr on success, else a short error token for the API.
  */
-inline const char *wlanConfigValidate(const WlanConfig *cfg) {
+inline auto wlanConfigValidate(const WlanConfig *cfg) -> const char * {
     if (cfg == nullptr || cfg->ssid[0] == '\0') {
         return "ssid";
     }

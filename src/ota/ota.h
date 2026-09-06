@@ -36,30 +36,30 @@ void otaLoop();
 void otaQueueGithubCheck();
 
 /** Persist channel and queue a GitHub version check. Returns false on NVS failure. */
-bool otaQueueGithubCheck(OtaChannel channel);
+auto otaQueueGithubCheck(OtaChannel channel) -> bool;
 
 /** Queue install of a previously discovered release (no-op if none available). */
 void otaQueueInstall();
 
 /** Persist update channel preference. */
-bool otaSetChannel(OtaChannel channel);
+auto otaSetChannel(OtaChannel channel) -> bool;
 
-OtaChannel otaGetChannel();
+auto otaGetChannel() -> OtaChannel;
 
 /** Thread-safe status snapshot for API / SSE. */
 void otaCopyStatus(OtaStatus *out);
 
-const char *otaPhaseName(OtaPhase phase);
-const char *otaChannelName(OtaChannel channel);
+auto otaPhaseName(OtaPhase phase) -> const char *;
+auto otaChannelName(OtaChannel channel) -> const char *;
 
 /** Mark pending-verify OTA image valid after boot health checks (call once from app task). */
 void otaTryMarkValidAfterHealthCheck();
 
 /** True while verified OTA download/flash is in progress. */
-bool otaFlashInProgress();
+auto otaFlashInProgress() -> bool;
 
 /** True if factory reset / reboot should be deferred (OTA active). */
-bool otaBlocksDestructiveAction();
+auto otaBlocksDestructiveAction() -> bool;
 
 /** Progress hook used by flash adapter (OTA task). */
 void otaNotifyFlashProgress(uint32_t done, uint32_t total);

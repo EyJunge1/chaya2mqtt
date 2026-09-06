@@ -29,10 +29,9 @@ struct WlanRecoveryState {
  * Tracks continuous STA-down time; never reboots during OTA or without credentials.
  * @param restartsUsedToday when at/above max, prefer ForcedReassoc over Restart.
  */
-inline WlanRecoveryAction wlanRecoveryDecide(bool apMode, bool staConnectedOk, bool otaBlocking, bool hasStaCredentials,
-                                             unsigned long nowMs, unsigned long uptimeMs, WlanRecoveryState &st,
-                                             uint8_t restartsUsedToday = 0,
-                                             uint8_t maxRestartsPerDay = kWlanRecoveryMaxRestartsPerDay) {
+inline auto wlanRecoveryDecide(bool apMode, bool staConnectedOk, bool otaBlocking, bool hasStaCredentials, unsigned long nowMs,
+                               unsigned long uptimeMs, WlanRecoveryState &st, uint8_t restartsUsedToday = 0,
+                               uint8_t maxRestartsPerDay = kWlanRecoveryMaxRestartsPerDay) -> WlanRecoveryAction {
     if (apMode || !hasStaCredentials) {
         st.linkDownSinceMs = 0UL;
         return WlanRecoveryAction::None;

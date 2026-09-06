@@ -16,7 +16,7 @@ enum class DisplayBatteryIcon : uint8_t {
     Empty = 3,  // < 15%
 };
 
-inline DisplayBatteryIcon displayBatteryIcon(int batteryPct) {
+inline auto displayBatteryIcon(int batteryPct) -> DisplayBatteryIcon {
     if (batteryPct >= 80) {
         return DisplayBatteryIcon::Full;
     }
@@ -32,7 +32,7 @@ inline DisplayBatteryIcon displayBatteryIcon(int batteryPct) {
 /**
  * E-Ink battery tint: Full/Medium black, Low yellow, Empty red.
  */
-inline DisplayBatteryColor displayBatteryColor(int batteryPct) {
+inline auto displayBatteryColor(int batteryPct) -> DisplayBatteryColor {
     switch (displayBatteryIcon(batteryPct)) {
     case DisplayBatteryIcon::Empty:
         return DisplayBatteryColor::Red;

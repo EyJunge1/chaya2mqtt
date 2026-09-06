@@ -496,7 +496,7 @@ Thread-safe `Preferences` wrapper with `g_nvsMutex`:
 | `display/display_config.h` | Display limits (`kDisplayCounterMax`) |
 | `led/led_config.h` | LED timing |
 | `button/button_config.h` | Button debounce / soft-off timing |
-| `config/version.h` | `APP_VERSION` (release workflow sets it from the Git tag) |
+| `config/version.h` | `kAppVersion` (bump by hand before tagging; release CI checks it matches the tag) |
 | `util/log_tag.h` | `DEFINE_LOG_TAG` macro |
 | `util/ip_format.h` | IP address formatting |
 | `util/time_helpers.h` | Wrap-safe time helpers (`elapsedMs`, `deadlineReached`, `remainingMs`) |

@@ -16,12 +16,12 @@ enum class DeviceIdCreateMode : uint8_t {
  * Prefer MAC seed when prior WiFi/MQTT setup exists (OTA upgrade path);
  * otherwise create a fresh random ID (factory reset / erase / first boot).
  */
-inline DeviceIdCreateMode deviceIdCreateMode(bool hadPriorSetupConfig) {
+inline auto deviceIdCreateMode(bool hadPriorSetupConfig) -> DeviceIdCreateMode {
     return hadPriorSetupConfig ? DeviceIdCreateMode::FromMacMigrate : DeviceIdCreateMode::FromRandom;
 }
 
 /** Format 3 bytes as 6 lowercase hex chars; false if buffer too small or syntax fails. */
-inline bool deviceIdFormatFromBytes(const uint8_t bytes[3], char *out, size_t outLen) {
+inline auto deviceIdFormatFromBytes(const uint8_t bytes[3], char *out, size_t outLen) -> bool {
     if (bytes == nullptr || out == nullptr || outLen < kDeviceIdBufLen) {
         if (out != nullptr && outLen > 0U) {
             out[0] = '\0';

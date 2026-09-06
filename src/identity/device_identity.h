@@ -13,7 +13,7 @@
 void buildDeviceId(char *out, size_t outLen);
 
 /** Format the unique station / mDNS hostname from a validated device ID. */
-inline bool formatDeviceStaHostname(const char *deviceId, char *out, size_t outLen) {
+inline auto formatDeviceStaHostname(const char *deviceId, char *out, size_t outLen) -> bool {
     if (out == nullptr || outLen == 0U) {
         return false;
     }
@@ -26,7 +26,7 @@ inline bool formatDeviceStaHostname(const char *deviceId, char *out, size_t outL
 }
 
 /** Build this device's unique station / mDNS hostname. */
-inline bool buildDeviceStaHostname(char *out, size_t outLen) {
+inline auto buildDeviceStaHostname(char *out, size_t outLen) -> bool {
     char deviceId[kDeviceIdBufLen]{};
     buildDeviceId(deviceId, sizeof(deviceId));
     return formatDeviceStaHostname(deviceId, out, outLen);

@@ -4,8 +4,8 @@ void batteryInit();
 /** Average GPIO4 ADC; call from the app task (~30 s). */
 void batteryPoll();
 
-int batteryMilliVolts();
-int batteryPercent();
+auto batteryMilliVolts() -> int;
+auto batteryPercent() -> int;
 
 /** Drive BAT_Control LOW (cut LiPo latch). Safe to call more than once. */
 void batteryCutLatch();

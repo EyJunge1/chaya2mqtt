@@ -206,9 +206,9 @@ GithubCheckResult evaluateTag(const char *tag, bool isPrerelease, OtaChannel cha
     out->channel = channel;
     out->isPrerelease = isPrerelease;
 
-    ESP_LOGI(TAG, "GitHub channel=%s tag=%s local=%s", channel == OtaChannel::Beta ? "beta" : "stable", tag, APP_VERSION);
+    ESP_LOGI(TAG, "GitHub channel=%s tag=%s local=%s", channel == OtaChannel::Beta ? "beta" : "stable", tag, kAppVersion);
 
-    if (!otaVersionIsNewer(tag, APP_VERSION)) {
+    if (!otaVersionIsNewer(tag, kAppVersion)) {
         return GithubCheckResult::ParsedNoUpgrade;
     }
     return GithubCheckResult::ParsedUpgradeAvail;

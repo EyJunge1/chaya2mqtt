@@ -1,0 +1,37 @@
+# Host-pure header lint (clangd + scripts/check_clang_tidy.sh).
+# Skip Arduino/ESP translation units; those stay on cppcheck + compiler warnings.
+#
+# modernize-* / cppcoreguidelines-* are on as groups. The minus lines are not
+# "style we skipped" — they ban C buffers, snprintf, pointer walks, and numeric
+# literals (ports, shifts, timeouts) that this firmware uses on purpose.
+---
+Checks: >
+  clang-diagnostic-*,
+  clang-analyzer-*,
+  bugprone-*,
+  -bugprone-easily-swappable-parameters,
+  -bugprone-narrowing-conversions,
+  cert-*,
+  performance-*,
+  modernize-*,
+  -modernize-avoid-c-arrays,
+  cppcoreguidelines-*,
+  -cppcoreguidelines-avoid-c-arrays,
+  -cppcoreguidelines-avoid-magic-numbers,
+  -cppcoreguidelines-avoid-non-const-global-variables,
+  -cppcoreguidelines-macro-usage,
+  -cppcoreguidelines-pro-bounds-array-to-pointer-decay,
+  -cppcoreguidelines-pro-bounds-avoid-unchecked-container-access,
+  -cppcoreguidelines-pro-bounds-constant-array-index,
+  -cppcoreguidelines-pro-bounds-pointer-arithmetic,
+  -cppcoreguidelines-pro-type-vararg,
+  misc-redundant-expression,
+  misc-misplaced-const,
+  misc-unused-using-decls,
+  readability-misleading-indentation,
+  readability-redundant-control-flow,
+  readability-simplify-boolean-expr
+WarningsAsErrors: '*'
+HeaderFilterRegex: 'chaya2mqtt/src/'
+FormatStyle: file
+...

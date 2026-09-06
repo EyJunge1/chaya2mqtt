@@ -38,6 +38,6 @@ void ledOutputForced(int level);
 
 void advanceLedSequence();
 void startMqttSendLedSequence();
-bool ledSendSequenceActive();
-bool ledTxBusy();
-bool ledActivityActive();
+auto ledSendSequenceActive() -> bool;
+auto ledTxBusy() -> bool;
+auto ledActivityActive() -> bool;

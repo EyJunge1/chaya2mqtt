@@ -26,39 +26,39 @@ void mqttCfgApplyPairingTopics(MqttConfig *cfg);
  *  mqttCfgApplyPendingToActive / mqttCfgTopicPubLockedCopy only (FreeRTOS mutex, not ISR-safe).
  */
 void loadMQTTConfig();
-bool saveMQTTConfig();
+auto saveMQTTConfig() -> bool;
 
 void mqttCfgSnapshot(MqttConfig *out);
-bool mqttCfgIsBrokerConfigured();
+auto mqttCfgIsBrokerConfigured() -> bool;
 /** True when a partner device ID is set (non-empty after sanitization). */
-bool mqttCfgIsPaired();
+auto mqttCfgIsPaired() -> bool;
 /** True when broker and partner are set — ready for the operational heart view. */
-bool mqttCfgIsHeartReady();
+auto mqttCfgIsHeartReady() -> bool;
 void mqttCfgTopicPubLockedCopy(char *out, size_t outLen);
 
 void mqttCfgStorePending(const MqttConfig *pending);
 void mqttCfgApplyPendingToActive();
-bool mqttCfgConsumeDirtySnapshotNeeded();
+auto mqttCfgConsumeDirtySnapshotNeeded() -> bool;
 
 /** Pending form snapshot (web POST before network task applies). */
 void mqttCfgPendingSnapshot(MqttConfig *out);
 
 /** True when pending differs from active (saved banner still applying). */
-bool mqttCfgHasUnappliedPending();
+auto mqttCfgHasUnappliedPending() -> bool;
 
 /** True when active in-RAM config matches persisted NVS (no write needed). */
-bool mqttCfgMatchesNvs();
+auto mqttCfgMatchesNvs() -> bool;
 
 /** True when two config snapshots are identical. */
-bool mqttCfgEquals(const MqttConfig *a, const MqttConfig *b);
+auto mqttCfgEquals(const MqttConfig *a, const MqttConfig *b) -> bool;
 
 /** Snapshot with bounded wait; false if cfg mutex unavailable. */
-bool mqttCfgSnapshotTimed(MqttConfig *out, uint32_t timeoutMs);
+auto mqttCfgSnapshotTimed(MqttConfig *out, uint32_t timeoutMs) -> bool;
 
 /** Last MQTT NVS save failed (web MQTT page status). Owner: mqtt/config (QUAL-06). */
 void mqttCfgSetNvsWriteFailed(bool failed);
-bool mqttCfgNvsWriteFailed();
+auto mqttCfgNvsWriteFailed() -> bool;
 
 /** True from a changing POST /api/mqtt until network-task apply finishes (including NVS). */
 void mqttCfgSetApplyPending(bool pending);
-bool mqttCfgApplyPending();
+auto mqttCfgApplyPending() -> bool;

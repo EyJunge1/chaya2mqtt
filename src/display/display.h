@@ -14,17 +14,17 @@ void displayInit();
 void displayStartTask();
 
 /** Paint heart, battery, and counters; returns painted counters. */
-HeartCounterDrawSnapshot drawHeartWithNumber(DisplayHeartIcon icon);
+auto drawHeartWithNumber(DisplayHeartIcon icon) -> HeartCounterDrawSnapshot;
 /** Setup splash: full-screen WIFI QR in SoftAP mode (phone camera join). */
-DisplayView drawSplashScreen();
+auto drawSplashScreen() -> DisplayView;
 /** View variant that drawSplashScreen will normally produce for the current network mode. */
-DisplayView displaySplashTargetView();
+auto displaySplashTargetView() -> DisplayView;
 /** Power-off screen: centered red Lucide heart-off. */
 void drawPowerOffScreen();
 
 /** Desired Lucide heart glyph for the next STA heart paint (filled vs crack). */
 void displaySetDesiredHeartIcon(DisplayHeartIcon icon);
-DisplayHeartIcon displayDesiredHeartIcon();
+auto displayDesiredHeartIcon() -> DisplayHeartIcon;
 
 /**
  * How to queue a display command (LED-style single entry for callers).
@@ -44,11 +44,11 @@ enum class DisplayRequestMode : uint8_t {
  * or (PowerOffWait) the refresh timed out. Content Heart is a no-op until
  * displaySetContentAllowed(true) (policy owned by Network/App).
  */
-bool displayRequest(DisplayMsg::Cmd cmd, DisplayRequestMode mode, uint32_t waitMs = 100U);
+auto displayRequest(DisplayMsg::Cmd cmd, DisplayRequestMode mode, uint32_t waitMs = 100U) -> bool;
 
 /** Policy gate for heart content paints (QUAL-05). SoftAP / unpaired → false. */
 void displaySetContentAllowed(bool allowed);
-bool displayContentAllowed();
+auto displayContentAllowed() -> bool;
 
 /** Wait until the display task finishes the next queued draw (or times out). */
-bool displayWaitDrawIdle(uint32_t timeoutMs);
+auto displayWaitDrawIdle(uint32_t timeoutMs) -> bool;

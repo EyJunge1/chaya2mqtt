@@ -17,7 +17,7 @@ struct DisplayLinkState {
 };
 
 /** STA is "online" only when Wi-Fi and MQTT are both up. AP/setup ignores link health. */
-inline bool displayLinkIsOnline(bool apMode, bool wifiOk, bool mqttOk) {
+inline auto displayLinkIsOnline(bool apMode, bool wifiOk, bool mqttOk) -> bool {
     if (apMode) {
         return true;
     }
@@ -30,8 +30,8 @@ inline bool displayLinkIsOnline(bool apMode, bool wifiOk, bool mqttOk) {
  * graceMs of continuous outage; returns to filled immediately when healthy again.
  * Millis wrap is handled via unsigned subtraction.
  */
-inline DisplayHeartIcon displayHeartIconDecide(bool apMode, bool wifiOk, bool mqttOk, unsigned long nowMs, unsigned long graceMs,
-                                               DisplayLinkState &st) {
+inline auto displayHeartIconDecide(bool apMode, bool wifiOk, bool mqttOk, unsigned long nowMs, unsigned long graceMs,
+                                   DisplayLinkState &st) -> DisplayHeartIcon {
     if (displayLinkIsOnline(apMode, wifiOk, mqttOk)) {
         st.outageSinceMs = 0UL;
         return DisplayHeartIcon::Filled;
@@ -49,6 +49,6 @@ inline DisplayHeartIcon displayHeartIconDecide(bool apMode, bool wifiOk, bool mq
     return DisplayHeartIcon::Filled;
 }
 
-inline DisplayView displayViewForHeartIcon(DisplayHeartIcon icon) {
+inline auto displayViewForHeartIcon(DisplayHeartIcon icon) -> DisplayView {
     return icon == DisplayHeartIcon::Crack ? DisplayView::HeartCrack : DisplayView::Heart;
 }
