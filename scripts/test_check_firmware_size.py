@@ -15,6 +15,7 @@ from check_firmware_size import (
     measure,
     parse_elf_size,
     render,
+    size_tool_from_packages,
 )
 
 
@@ -55,6 +56,28 @@ class MarkdownTests(unittest.TestCase):
         self.assertIn("+100", text)
         self.assertIn("esp32s3-release", text)
         self.assertIn("0", text)
+
+
+class SizeToolTests(unittest.TestCase):
+    """Locate the GNU size binary in PlatformIO package layouts."""
+
+    def test_prefers_pioarduino_toolchain(self) -> None:
+        """Use toolchain-xtensa-esp-elf when that is what the build installed."""
+        with tempfile.TemporaryDirectory() as tmp:
+            packages = Path(tmp)
+            tool = packages / "toolchain-xtensa-esp-elf" / "bin" / "xtensa-esp32s3-elf-size"
+            tool.parent.mkdir(parents=True)
+            tool.write_text("", encoding="utf-8")
+            self.assertEqual(size_tool_from_packages(packages), str(tool))
+
+    def test_falls_back_to_classic_s3_toolchain(self) -> None:
+        """Accept toolchain-xtensa-esp32s3 when the unified package is absent."""
+        with tempfile.TemporaryDirectory() as tmp:
+            packages = Path(tmp)
+            tool = packages / "toolchain-xtensa-esp32s3" / "bin" / "xtensa-esp32s3-elf-size"
+            tool.parent.mkdir(parents=True)
+            tool.write_text("", encoding="utf-8")
+            self.assertEqual(size_tool_from_packages(packages), str(tool))
 
 
 class MeasureTests(unittest.TestCase):
