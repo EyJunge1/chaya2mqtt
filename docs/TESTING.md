@@ -68,16 +68,20 @@ Generated artifacts (`frontend/coverage/`, `frontend/test-results/`, `playwright
 | `python3 scripts/simulator.py --smoke` | Automated broker/ESP reachability plus simulator QoS-1 PUBACK |
 | `python3 scripts/simulator.py --hardware-smoke` | Manual SKU 34586 counter/PUBACK acceptance |
 | `python3 scripts/test_flasher_site.py` | Web-flasher site / release artifact unit tests |
+| `python3 scripts/test_check_firmware_size.py` | FLASH/RAM size-report unit tests |
+| `python3 scripts/check_firmware_size.py` | Print FLASH/RAM for `.pio/build/esp32s3-release` (after a release build) |
 | `make flasher RELEASES_DIR=...` | Generate `flasher/_site` for local preview |
 
 ## Gates
 
 ### `make check` (complete)
 
-Frontend linting and formatting, coverage thresholds, frontend build, SPA embedding + Python embedding tests, flasher/release artifact tests, native Unity, ASan/UBSan, cppcheck (`--enable=all` on `src/`), clang-tidy on host-pure headers, clang-format on firmware C/C++, Playwright E2E, the ESP32-S3 release build, and `prepare_release_artifacts.py` validation.
+Frontend linting and formatting, coverage thresholds, frontend build, SPA embedding + Python embedding tests, flasher/release artifact tests, native Unity, ASan/UBSan, cppcheck (`--enable=all` on `src/`), clang-tidy on host-pure headers, clang-format on firmware C/C++, Playwright E2E, the ESP32-S3 release build, `prepare_release_artifacts.py` validation, and the FLASH/RAM size report.
 
 For pull requests, the `Quality gate` workflow selects the affected frontend, flasher, and firmware
-jobs from the changed paths and runs them in parallel. Documentation-only changes finish without
+jobs from the changed paths and runs them in parallel. The firmware release-build job comments
+FLASH/RAM versus the last successful `main` baseline (informational; growth does not fail the gate).
+Documentation-only changes finish without
 starting build jobs. The `main` ruleset requires `check` but does not require the branch to be up
 to date: merging another conflict-free pull request does not invalidate existing checks or restart
 Quality gate. Updating the branch still starts a new run. Pushes to `main` still run the complete

@@ -44,11 +44,13 @@ check-firmware-tests:
 	"$(PIO)" check -e esp32s3 --fail-on-defect=high -f "-<*>" -f "+<src/>"
 	bash scripts/check_clang_tidy.sh
 	bash scripts/check_firmware_format.sh
+	python3 scripts/test_check_firmware_size.py
 
 check-firmware-build:
 	CHAYA_SKIP_FRONTEND_BUILD=1 "$(PIO)" run -e esp32s3-release
 	python3 scripts/test_embed_web_assets.py
 	python3 scripts/prepare_release_artifacts.py --build-dir .pio/build/esp32s3-release
+	python3 scripts/check_firmware_size.py
 
 # Example: make flasher RELEASES_DIR=/tmp/chaya-releases
 flasher:

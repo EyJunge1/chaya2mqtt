@@ -73,6 +73,13 @@ jobs:
                 scripts/embed_web_assets.py|scripts/test_embed_web_assets.py|scripts/pio_pre_frontend.py|scripts/prepare_release_artifacts.py)
                   firmware_build=true
                   ;;
+                scripts/test_check_firmware_size.py)
+                  firmware_tests=true
+                  ;;
+                scripts/check_firmware_size.py)
+                  firmware_tests=true
+                  firmware_build=true
+                  ;;
                 scripts/fetch_flasher_releases.py|scripts/generate_flasher_site.py|scripts/test_flasher_site.py)
                   flasher=true
                   ;;
@@ -193,6 +200,10 @@ jobs:
     needs: changes
     if: needs.changes.outputs.firmware_build == 'true'
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: read
+      pull-requests: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
@@ -232,6 +243,94 @@ jobs:
             .pio/build/esp32s3-release/firmware.factory.sha256
           retention-days: 7
           if-no-files-found: error
+
+      - name: Fetch main size baseline
+        id: baseline
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          mkdir -p baseline
+          run_id="$(
+            gh run list \
+              --repo "$GITHUB_REPOSITORY" \
+              --workflow quality.yml \
+              --branch main \
+              --status success \
+              --limit 20 \
+              --json databaseId,event \
+              --jq '[.[] | select(.event == "push")][0].databaseId' \
+            || true
+          )"
+          if [[ -z "${run_id}" || "${run_id}" == "null" ]]; then
+            echo "No main baseline run found"
+            echo "path=" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if gh run download "$run_id" --repo "$GITHUB_REPOSITORY" --name firmware-sizes --dir baseline; then
+            if [[ -f baseline/sizes.json ]]; then
+              echo "path=baseline/sizes.json" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+          fi
+          echo "path=" >> "$GITHUB_OUTPUT"
+
+      - name: Measure firmware sizes
+        env:
+          BASELINE_PATH: ${{ steps.baseline.outputs.path }}
+        run: |
+          set -euo pipefail
+          extra=()
+          if [[ -n "${BASELINE_PATH}" ]]; then
+            extra+=(--baseline)
+          fi
+          python3 scripts/check_firmware_size.py \
+            --json \
+            --markdown \
+            --commit "${GITHUB_SHA}" \
+            "${extra[@]}"
+
+      - name: Upload main size baseline
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: firmware-sizes
+          path: out/sizes.json
+          retention-days: 90
+          if-no-files-found: error
+
+      - name: Write size job summary
+        if: always()
+        run: |
+          if [[ -f out/sizes.md ]]; then
+            cat out/sizes.md >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Upsert firmware size PR comment
+        if: always() && github.event_name == 'pull_request'
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          set -euo pipefail
+          if [[ ! -f out/sizes.md ]]; then
+            echo "No size report to comment"
+            exit 0
+          fi
+          set +o pipefail
+          comment_id="$(
+            gh api --paginate "repos/${GITHUB_REPOSITORY}/issues/${PR_NUMBER}/comments" \
+              --jq '.[] | select(.body | contains("<!-- chaya2mqtt-firmware-size -->")) | .id' \
+            | awk 'NF { print; exit }'
+          )"
+          set -o pipefail
+          jq -n --rawfile body out/sizes.md '{body: $body}' > /tmp/size-comment.json
+          if [[ -n "${comment_id}" ]]; then
+            gh api --method PATCH "repos/${GITHUB_REPOSITORY}/issues/comments/${comment_id}" --input /tmp/size-comment.json
+          else
+            gh api --method POST "repos/${GITHUB_REPOSITORY}/issues/${PR_NUMBER}/comments" --input /tmp/size-comment.json
+          fi
 
   check:
     name: check
