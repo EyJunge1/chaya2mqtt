@@ -1,4 +1,5 @@
 #include "wlan_config.h"
+#include "wlan_event_pure.h"
 #include "wlan_internal.h"
 #include "wlan_soft_reconnect.h"
 
@@ -18,17 +19,22 @@
 DEFINE_LOG_TAG("WIFI");
 
 static void queueWifiReconnect() {
-    s_staReconnectWorkPending.store(true, std::memory_order_release);
+    // RC-NET-01: enqueue only on false→true. Failed send keeps the flag; wlanLoop drains.
+    const bool wasPending = s_staReconnectWorkPending.exchange(true, std::memory_order_acq_rel);
+    if (!wlanNetCmdShouldEnqueue(wasPending)) {
+        return;
+    }
     if (!netCmdTrySend(NetCmd::WifiReconnect)) {
-        // wlanLoop() consumes s_staReconnectWorkPending even if this wake-up is lost.
         ESP_LOGD(TAG, "netCmd queue full (WifiReconnect) — coalesced");
     }
 }
 
 static void queueWifiGotIp() {
-    s_staGotIpWorkPending.store(true, std::memory_order_release);
+    const bool wasPending = s_staGotIpWorkPending.exchange(true, std::memory_order_acq_rel);
+    if (!wlanNetCmdShouldEnqueue(wasPending)) {
+        return;
+    }
     if (!netCmdTrySend(NetCmd::WifiGotIp)) {
-        // wlanLoop() consumes s_staGotIpWorkPending even if this wake-up is lost.
         ESP_LOGD(TAG, "netCmd queue full (WifiGotIp) — coalesced");
     }
 }
@@ -54,7 +60,7 @@ void wlanHandleStaReconnectNetCmd() {
     }
     const unsigned long nowMs = millis();
     const unsigned long nextAllowed = s_wifiReconnectNextAllowedMs.load(std::memory_order_relaxed);
-    if (nextAllowed != 0UL && static_cast<std::int32_t>(nowMs - nextAllowed) < 0) {
+    if (wlanMsBeforeDeadline(nowMs, nextAllowed)) {
         // Keep the coalesced request alive; wlanLoop() retries when the backoff expires.
         s_staReconnectWorkPending.store(true, std::memory_order_release);
         ESP_LOGD(TAG, "WLAN reconnect skipped (backoff)");
@@ -98,14 +104,14 @@ void wlanHandleStaReconnectNetCmd() {
 }
 
 void wifiStationEvent(arduino_event_id_t event, arduino_event_info_t info) {
-    if (g_apMode.load(std::memory_order_relaxed)) {
-        return;
-    }
     switch (event) {
     case ARDUINO_EVENT_WIFI_STA_DISCONNECTED: {
         s_staLastGotIpWallMs.store(0UL, std::memory_order_relaxed);
-        s_staLinkOk.store(false, std::memory_order_release);
+        wlanNoteStaLinkDown();
         sseMarkDirty(kSseWifi);
+        if (g_apMode.load(std::memory_order_relaxed)) {
+            return;
+        }
         const uint8_t reason = info.wifi_sta_disconnected.reason;
         s_lastStaDisconnectReason.store(reason, std::memory_order_relaxed);
 #if defined(CORE_DEBUG_LEVEL) && CORE_DEBUG_LEVEL >= 2
@@ -124,8 +130,11 @@ void wifiStationEvent(arduino_event_id_t event, arduino_event_info_t info) {
     }
     case ARDUINO_EVENT_WIFI_STA_LOST_IP: {
         s_staLastGotIpWallMs.store(0UL, std::memory_order_relaxed);
-        s_staLinkOk.store(false, std::memory_order_release);
+        wlanNoteStaLinkDown();
         sseMarkDirty(kSseWifi);
+        if (g_apMode.load(std::memory_order_relaxed)) {
+            return;
+        }
         // Synthetic reason: treat like disconnect for recovery / escalate path.
         s_lastStaDisconnectReason.store(200U, std::memory_order_relaxed);
         ESP_LOGW(TAG, "STA_LOST_IP — queue reconnect");
@@ -138,8 +147,11 @@ void wifiStationEvent(arduino_event_id_t event, arduino_event_info_t info) {
     case ARDUINO_EVENT_WIFI_STA_GOT_IP: {
         ESP_LOGD(TAG, "GOT_IP callback core=%d", static_cast<int>(xPortGetCoreID()));
         s_staLastGotIpWallMs.store(millis(), std::memory_order_relaxed);
-        s_staLinkOk.store(true, std::memory_order_release);
+        wlanNoteStaGotIpv4(info.got_ip.ip_info.ip.addr);
         sseMarkDirty(kSseWifi);
+        if (g_apMode.load(std::memory_order_relaxed)) {
+            return;
+        }
         s_wifiReconnectFailCount.store(0U, std::memory_order_relaxed);
         s_wifiReconnectNextAllowedMs.store(0UL, std::memory_order_relaxed);
         s_lastStaDisconnectReason.store(0U, std::memory_order_relaxed);

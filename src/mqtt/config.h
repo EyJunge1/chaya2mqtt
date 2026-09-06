@@ -54,6 +54,8 @@ auto mqttCfgEquals(const MqttConfig *a, const MqttConfig *b) -> bool;
 
 /** Snapshot with bounded wait; false if cfg mutex unavailable. */
 auto mqttCfgSnapshotTimed(MqttConfig *out, uint32_t timeoutMs) -> bool;
+/** Pending snapshot with bounded wait; false if cfg mutex unavailable. */
+auto mqttCfgPendingSnapshotTimed(MqttConfig *out, uint32_t timeoutMs) -> bool;
 
 /** Last MQTT NVS save failed (web MQTT page status). Owner: mqtt/config (QUAL-06). */
 void mqttCfgSetNvsWriteFailed(bool failed);

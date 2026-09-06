@@ -53,3 +53,12 @@ inline auto mqttPublishAckWasConfirmed(const MqttPublishAckState &state, int mes
     return state.status == MqttPublishAckStatus::Acked && state.messageId == messageId &&
            state.clientGeneration == clientGeneration;
 }
+
+/** Pending + armed timer; startMs==0 is a valid millis() snapshot (not a sentinel). */
+inline bool mqttPublishAckTimeoutDue(bool pending, bool timerArmed, unsigned long startedMs, unsigned long nowMs,
+                                     unsigned long waitMs) {
+    if (!pending || !timerArmed) {
+        return false;
+    }
+    return (nowMs - startedMs) >= waitMs;
+}

@@ -3,6 +3,7 @@
 #include "../admin_globals.h"
 #include "admin_routes_api_internal.h"
 
+#include "async/app_task.h"
 #include "battery/battery.h"
 #include "battery/battery_pure.h"
 #include "config/app_config.h"
@@ -53,22 +54,54 @@ void handleApiSettingsPost(AsyncWebServerRequest *req, JsonVariant &json) {
         sendErr(req, 503, "battery_low");
         return;
     }
-    uint8_t days = configGetResetPeriodDays();
+    // RC-FE-01: overlay on pending while apply is in flight; live only when !applyPending.
+    uint8_t days;
     char lang[3];
     char theme[8];
-    bool ledEnabled = configGetLedEnabled();
-    bool audioTxEnabled = configGetAudioTxEnabled();
-    bool audioRxEnabled = configGetAudioRxEnabled();
-    uint8_t audioTxVol = configGetAudioTxVolume();
-    uint8_t audioRxVol = configGetAudioRxVolume();
-    uint8_t quiet0 = configGetAudioQuietStart();
-    uint8_t quiet1 = configGetAudioQuietEnd();
-    uint16_t txHz = configGetAudioTxHz();
-    uint16_t txMs = configGetAudioTxMs();
-    uint16_t rxHz = configGetAudioRxHz();
-    uint16_t rxMs = configGetAudioRxMs();
-    configCopyUiLang(lang, sizeof(lang));
-    configCopyUiTheme(theme, sizeof(theme));
+    bool ledEnabled;
+    bool audioTxEnabled;
+    bool audioRxEnabled;
+    uint8_t audioTxVol;
+    uint8_t audioRxVol;
+    uint8_t quiet0;
+    uint8_t quiet1;
+    uint16_t txHz;
+    uint16_t txMs;
+    uint16_t rxHz;
+    uint16_t rxMs;
+    if (g_webAdminSettingsApplyPending.load(std::memory_order_acquire)) {
+        portENTER_CRITICAL(&g_webAdminSettingsPendingMux);
+        days = g_webAdminPendingResetDays;
+        strlcpy(lang, g_webAdminPendingUiLang, sizeof(lang));
+        strlcpy(theme, g_webAdminPendingUiTheme, sizeof(theme));
+        ledEnabled = g_webAdminPendingLedEnabled;
+        audioTxEnabled = g_webAdminPendingAudioTxEnabled;
+        audioRxEnabled = g_webAdminPendingAudioRxEnabled;
+        audioTxVol = g_webAdminPendingAudioTxVolume;
+        audioRxVol = g_webAdminPendingAudioRxVolume;
+        quiet0 = g_webAdminPendingQuiet0;
+        quiet1 = g_webAdminPendingQuiet1;
+        txHz = g_webAdminPendingTxHz;
+        txMs = g_webAdminPendingTxMs;
+        rxHz = g_webAdminPendingRxHz;
+        rxMs = g_webAdminPendingRxMs;
+        portEXIT_CRITICAL(&g_webAdminSettingsPendingMux);
+    } else {
+        days = configGetResetPeriodDays();
+        ledEnabled = configGetLedEnabled();
+        audioTxEnabled = configGetAudioTxEnabled();
+        audioRxEnabled = configGetAudioRxEnabled();
+        audioTxVol = configGetAudioTxVolume();
+        audioRxVol = configGetAudioRxVolume();
+        quiet0 = configGetAudioQuietStart();
+        quiet1 = configGetAudioQuietEnd();
+        txHz = configGetAudioTxHz();
+        txMs = configGetAudioTxMs();
+        rxHz = configGetAudioRxHz();
+        rxMs = configGetAudioRxMs();
+        configCopyUiLang(lang, sizeof(lang));
+        configCopyUiTheme(theme, sizeof(theme));
+    }
 
     if (!adminApplyOptionalU8(json, "reset_days", resetPeriodDaysInRange, &days)) {
         sendErr(req, 400, "reset_days");
@@ -142,9 +175,11 @@ void handleApiSettingsPost(AsyncWebServerRequest *req, JsonVariant &json) {
     g_webAdminPendingTxMs = txMs;
     g_webAdminPendingRxHz = rxHz;
     g_webAdminPendingRxMs = rxMs;
+    g_webAdminSettingsApplyVersion.fetch_add(1U, std::memory_order_relaxed);
     portEXIT_CRITICAL(&g_webAdminSettingsPendingMux);
     g_webAdminSettingsApplyPending.store(true, std::memory_order_release);
-    g_webAdminSettingsNvsWriteFailed.store(false, std::memory_order_release);
+    // BUG-WEB-03: leave nvsOk until webAdminLoop records the apply result.
+    appTaskNotify();
     sendOk(req, 200, "accepted");
 }
 

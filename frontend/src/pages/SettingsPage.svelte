@@ -14,7 +14,9 @@
   import TextInput from "../components/TextInput.svelte";
   import type { ShowToast } from "../components/toastStack.ts";
   import { i18n } from "../i18n/i18n.svelte.ts";
-  import { applyDeviceUiPrefs } from "../prefs/uiPrefs.ts";
+  import { getLanguage } from "../i18n/store.ts";
+  import { applyDeviceUiPrefs, cancelUiPrefsPersist, enqueueSettingsWrite } from "../prefs/uiPrefs.ts";
+  import { getThemePreference } from "../theme/store.ts";
   import {
     AUDIO_TONE_HZ_MAX,
     AUDIO_TONE_HZ_MIN,
@@ -49,7 +51,9 @@
       if (seq !== loadSeq) return;
       settings = s;
       quietHoursEnabled = s.quietHourStart !== s.quietHourEnd;
-      applyDeviceUiPrefs(s.lang, s.theme);
+      if (!s.applyPending) {
+        applyDeviceUiPrefs(s.lang, s.theme);
+      }
     } catch {
       if (seq !== loadSeq) return;
       loadError = true;
@@ -57,18 +61,20 @@
   }
 
   /** Wait for deferred apply; surface NVS failure via nvsOk (QUAL-01). */
-  async function waitForSettingsPersist(seq: number): Promise<SettingsInfo | null> {
+  async function waitForSettingsPersist(seq: number): Promise<SettingsInfo | "aborted" | "timeout"> {
     for (let i = 0; i < 25; i++) {
-      if (seq !== loadSeq) return null;
+      if (seq !== loadSeq) return "aborted";
       const s = await api.getSettings();
-      if (seq !== loadSeq) return null;
+      if (seq !== loadSeq) return "aborted";
       if (!s.applyPending) {
         return s;
       }
       await new Promise((r) => setTimeout(r, 80));
     }
-    if (seq !== loadSeq) return null;
-    return api.getSettings();
+    if (seq !== loadSeq) return "aborted";
+    const last = await api.getSettings();
+    if (seq !== loadSeq) return "aborted";
+    return last.applyPending ? "timeout" : last;
   }
 
   $effect(() => {
@@ -86,8 +92,10 @@
     const seq = loadSeq;
     busy = true;
     try {
-      const res = await api.saveSettings({
+      const payload = {
         reset_days: settings.resetDays,
+        lang: getLanguage(),
+        theme: getThemePreference(),
         led_enabled: settings.ledEnabled,
         audio_tx_enabled: settings.audioTxEnabled,
         audio_rx_enabled: settings.audioRxEnabled,
@@ -99,19 +107,24 @@
         tx_ms: settings.txMs,
         rx_hz: settings.rxHz,
         rx_ms: settings.rxMs,
-      });
+      };
+      cancelUiPrefsPersist();
+      if (seq !== loadSeq) return;
+      const res = await enqueueSettingsWrite(() => api.saveSettings(payload));
       if (seq !== loadSeq) return;
       if (!res.ok) {
         onToast(i18n.t("toast.save-failed"), "error");
         return;
       }
       const applied = await waitForSettingsPersist(seq);
-      if (seq !== loadSeq) return;
-      if (applied) {
-        settings = applied;
-        quietHoursEnabled = applied.quietHourStart !== applied.quietHourEnd;
+      if (seq !== loadSeq || applied === "aborted") return;
+      if (applied === "timeout") {
+        onToast(i18n.t("toast.save-failed"), "error");
+        return;
       }
-      if (applied?.nvsOk === false) {
+      settings = applied;
+      quietHoursEnabled = applied.quietHourStart !== applied.quietHourEnd;
+      if (applied.nvsOk === false) {
         onToast(i18n.t("toast.save-failed"), "error");
         return;
       }
@@ -151,7 +164,6 @@
       );
       if (res.ok) {
         confirmFactory = false;
-        await onDeviceRefresh();
       }
     } catch {
       onToast(i18n.t("toast.reset-factory-failed"), "error");

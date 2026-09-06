@@ -6,7 +6,9 @@
 #include "identity/device_identity_pure.h"
 #include "mqtt/backoff.h"
 #include "mqtt/counter_payload.h"
+#include "mqtt/mqtt_apply_pure.h"
 #include "mqtt/mqtt_config.h"
+#include "mqtt/mqtt_pack.h"
 #include "mqtt/mqtt_publish_ack.h"
 #include "mqtt/pairing.h"
 
@@ -176,6 +178,72 @@ void test_publish_ack_state() {
     TEST_ASSERT_TRUE(mqttPublishAckFail(&state, 4U));
     TEST_ASSERT_FALSE(mqttPublishAckIsPending(state));
     TEST_ASSERT_FALSE(mqttPublishAckWasConfirmed(state, 9, 4U));
+
+    TEST_ASSERT_TRUE(mqttPublishAckBegin(&state, 1, 0U, 10));
+    TEST_ASSERT_TRUE(mqttPublishAckIsPending(state));
+    TEST_ASSERT_EQUAL_UINT32(0U, state.clientGeneration);
+    TEST_ASSERT_TRUE(mqttPublishAckFail(&state, 0U));
+    TEST_ASSERT_FALSE(mqttPublishAckIsPending(state));
+}
+
+void test_mqtt_pack_roundtrip() {
+    MqttConfig cfg{};
+    std::strncpy(cfg.server, "broker.example.com", sizeof(cfg.server));
+    cfg.port = 1883;
+    cfg.tls = false;
+    std::strncpy(cfg.username, "user", sizeof(cfg.username));
+    std::strncpy(cfg.password, "s3cret", sizeof(cfg.password));
+    std::strncpy(cfg.partnerDeviceId, "f5e6d7", sizeof(cfg.partnerDeviceId));
+    std::strncpy(cfg.topicPub, "chaya2mqtt/a1b2c3", sizeof(cfg.topicPub));
+    std::strncpy(cfg.topicSub, "chaya2mqtt/f5e6d7", sizeof(cfg.topicSub));
+
+    PackedMqttConfigV1 pk{};
+    mqttPackConfigV1(cfg, &pk);
+    TEST_ASSERT_EQUAL_UINT32(kMqttCfgPackedMagic, pk.magic);
+
+    MqttConfig out{};
+    TEST_ASSERT_TRUE(mqttUnpackConfigV1(pk, &out));
+    TEST_ASSERT_EQUAL_STRING("broker.example.com", out.server);
+    TEST_ASSERT_EQUAL_UINT16(1883, out.port);
+    TEST_ASSERT_FALSE(out.tls);
+    TEST_ASSERT_EQUAL_STRING("user", out.username);
+    TEST_ASSERT_EQUAL_STRING("s3cret", out.password);
+    TEST_ASSERT_EQUAL_STRING("f5e6d7", out.partnerDeviceId);
+    TEST_ASSERT_EQUAL_STRING("", out.topicPub);
+    TEST_ASSERT_EQUAL_STRING("", out.topicSub);
+}
+
+void test_mqtt_pack_reject_bad_magic() {
+    MqttConfig cfg{};
+    std::strncpy(cfg.server, "broker.example.com", sizeof(cfg.server));
+    PackedMqttConfigV1 pk{};
+    mqttPackConfigV1(cfg, &pk);
+    pk.magic = 0;
+    MqttConfig out{};
+    TEST_ASSERT_FALSE(mqttUnpackConfigV1(pk, &out));
+
+    PackedMqttConfigV1 unterminated{};
+    unterminated.magic = kMqttCfgPackedMagic;
+    std::memset(unterminated.server, 'a', sizeof(unterminated.server));
+    TEST_ASSERT_FALSE(mqttUnpackConfigV1(unterminated, &out));
+}
+
+void test_mqtt_settings_apply_clear_pending() {
+    TEST_ASSERT_TRUE(mqttSettingsApplyShouldClearPending(false));
+    TEST_ASSERT_FALSE(mqttSettingsApplyShouldClearPending(true));
+}
+
+void test_publish_ack_timeout_gen0() {
+    MqttPublishAckState state{};
+    TEST_ASSERT_TRUE(mqttPublishAckBegin(&state, 11, 0U, 7));
+    TEST_ASSERT_TRUE(mqttPublishAckIsPending(state));
+    TEST_ASSERT_FALSE(mqttPublishAckTimeoutDue(true, false, 0UL, 5000UL, 5000UL));
+    TEST_ASSERT_FALSE(mqttPublishAckTimeoutDue(false, true, 0UL, 5000UL, 5000UL));
+    TEST_ASSERT_FALSE(mqttPublishAckTimeoutDue(true, true, 0UL, 4999UL, 5000UL));
+    TEST_ASSERT_TRUE(mqttPublishAckTimeoutDue(true, true, 0UL, 5000UL, 5000UL));
+    TEST_ASSERT_TRUE(mqttPublishAckFail(&state, 0U));
+    TEST_ASSERT_FALSE(mqttPublishAckIsPending(state));
+    TEST_ASSERT_FALSE(mqttPublishAckTimeoutDue(mqttPublishAckIsPending(state), true, 0UL, 5000UL, 5000UL));
 }
 
 int main(int, char **) {
@@ -194,5 +262,9 @@ int main(int, char **) {
     RUN_TEST(test_counter_payload_parse);
     RUN_TEST(test_backoff_helpers);
     RUN_TEST(test_publish_ack_state);
+    RUN_TEST(test_mqtt_pack_roundtrip);
+    RUN_TEST(test_mqtt_pack_reject_bad_magic);
+    RUN_TEST(test_mqtt_settings_apply_clear_pending);
+    RUN_TEST(test_publish_ack_timeout_gen0);
     return UNITY_END();
 }

@@ -101,6 +101,14 @@ static size_t buildDeviceBatteryPayload(int mv, int pct, char *buf, size_t bufLe
     return webSerializeJson(doc, buf, bufLen);
 }
 
+/** Serialize must fit; send must enqueue. DISCARDED (0) is a failed send (RC-WEB-04). */
+static bool sseSendEvent(const char *event, const char *buf, size_t n, size_t bufLen) {
+    if (event == nullptr || buf == nullptr || n == 0U || n >= bufLen) {
+        return false;
+    }
+    return s_events.send(buf, event) != AsyncEventSource::DISCARDED;
+}
+
 } // namespace
 
 void webEventsRegister(AsyncWebServer &ws) {
@@ -200,6 +208,7 @@ void webEventsTick() {
         batteryPct = batteryPercent();
     }
 
+    // Compare only — last-sent cache is written after a successful send (RC-WEB-04).
     bool chayaDirty = false;
     bool wifiDirty = false;
     bool mqttStatusDirty = force;
@@ -209,40 +218,17 @@ void webEventsTick() {
     if (wantChaya) {
         chayaDirty = force || !s_haveLastChaya || s_lastRx != rx || s_lastTx != tx || s_lastMqttConn != mqttLineOk ||
                      s_lastMqttConfigured != mqttPageRelevant || s_lastMqttPaired != mqttPaired;
-        if (chayaDirty) {
-            s_haveLastChaya = true;
-            s_lastRx = rx;
-            s_lastTx = tx;
-            s_lastMqttConn = mqttLineOk;
-            s_lastMqttConfigured = mqttPageRelevant;
-            s_lastMqttPaired = mqttPaired;
-        }
     }
     if (wantWifi) {
         wifiDirty = force || keepalive || !s_haveLastWifi || s_lastWifiConnected != wifiConn || s_lastWifiRssi != rssi ||
                     strcmp(s_lastWifiSsid, curSsid) != 0 || strcmp(s_lastWifiIp, curIp) != 0 ||
                     strcmp(s_lastWifiGateway, curGateway) != 0 || strcmp(s_lastWifiNetmask, curNetmask) != 0 ||
                     strcmp(s_lastWifiDns1, curDns1) != 0 || strcmp(s_lastWifiDns2, curDns2) != 0;
-        if (wifiDirty) {
-            s_haveLastWifi = true;
-            s_lastWifiConnected = wifiConn;
-            strlcpy(s_lastWifiSsid, curSsid, sizeof(s_lastWifiSsid));
-            strlcpy(s_lastWifiIp, curIp, sizeof(s_lastWifiIp));
-            strlcpy(s_lastWifiGateway, curGateway, sizeof(s_lastWifiGateway));
-            strlcpy(s_lastWifiNetmask, curNetmask, sizeof(s_lastWifiNetmask));
-            strlcpy(s_lastWifiDns1, curDns1, sizeof(s_lastWifiDns1));
-            strlcpy(s_lastWifiDns2, curDns2, sizeof(s_lastWifiDns2));
-            s_lastWifiRssi = rssi;
-        }
     }
     if (wantMqtt) {
         if (mqttPageRelevant) {
             if (!s_haveLastMqttStatus || s_lastMqttPageConn != mqttConnNow) {
                 mqttStatusDirty = true;
-            }
-            if (mqttStatusDirty) {
-                s_haveLastMqttStatus = true;
-                s_lastMqttPageConn = mqttConnNow;
             }
         } else {
             s_haveLastMqttStatus = false;
@@ -253,18 +239,10 @@ void webEventsTick() {
         if (!s_haveLastOta || s_lastOtaGeneration != otaSt.generation) {
             otaDirty = true;
         }
-        if (otaDirty) {
-            s_haveLastOta = true;
-            s_lastOtaGeneration = otaSt.generation;
-        }
     }
     if (wantDevice) {
         if (!s_haveLastDevice || s_lastBatteryPct != batteryPct) {
             deviceDirty = true;
-        }
-        if (deviceDirty) {
-            s_haveLastDevice = true;
-            s_lastBatteryPct = batteryPct;
         }
     }
     portEXIT_CRITICAL(&s_esCacheMux);
@@ -273,8 +251,17 @@ void webEventsTick() {
 
     if (chayaDirty) {
         const size_t n = buildChayaPayload(rx, tx, mqttLineOk, mqttPageRelevant, mqttPaired, buf, sizeof(buf));
-        if (n > 0U && n < sizeof(buf)) {
-            s_events.send(buf, "chaya");
+        if (sseSendEvent("chaya", buf, n, sizeof(buf))) {
+            portENTER_CRITICAL(&s_esCacheMux);
+            s_haveLastChaya = true;
+            s_lastRx = rx;
+            s_lastTx = tx;
+            s_lastMqttConn = mqttLineOk;
+            s_lastMqttConfigured = mqttPageRelevant;
+            s_lastMqttPaired = mqttPaired;
+            portEXIT_CRITICAL(&s_esCacheMux);
+        } else {
+            sseMarkDirty(kSseChaya);
         }
     }
 
@@ -285,15 +272,32 @@ void webEventsTick() {
         } else {
             plen = buildWifiStatusPayload(false, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, 0, buf, sizeof(buf));
         }
-        if (plen > 0U && plen < sizeof(buf)) {
-            s_events.send(buf, "wifi");
+        if (sseSendEvent("wifi", buf, plen, sizeof(buf))) {
+            portENTER_CRITICAL(&s_esCacheMux);
+            s_haveLastWifi = true;
+            s_lastWifiConnected = wifiConn;
+            strlcpy(s_lastWifiSsid, curSsid, sizeof(s_lastWifiSsid));
+            strlcpy(s_lastWifiIp, curIp, sizeof(s_lastWifiIp));
+            strlcpy(s_lastWifiGateway, curGateway, sizeof(s_lastWifiGateway));
+            strlcpy(s_lastWifiNetmask, curNetmask, sizeof(s_lastWifiNetmask));
+            strlcpy(s_lastWifiDns1, curDns1, sizeof(s_lastWifiDns1));
+            strlcpy(s_lastWifiDns2, curDns2, sizeof(s_lastWifiDns2));
+            s_lastWifiRssi = rssi;
+            portEXIT_CRITICAL(&s_esCacheMux);
+        } else {
+            sseMarkDirty(kSseWifi);
         }
     }
 
     if (mqttStatusDirty && mqttPageRelevant) {
         const size_t plen = buildMqttStatusPayload(mqttConnNow, buf, sizeof(buf));
-        if (plen > 0U && plen < sizeof(buf)) {
-            s_events.send(buf, "mqtt");
+        if (sseSendEvent("mqtt", buf, plen, sizeof(buf))) {
+            portENTER_CRITICAL(&s_esCacheMux);
+            s_haveLastMqttStatus = true;
+            s_lastMqttPageConn = mqttConnNow;
+            portEXIT_CRITICAL(&s_esCacheMux);
+        } else {
+            sseMarkDirty(kSseMqtt);
         }
     }
 
@@ -301,15 +305,25 @@ void webEventsTick() {
         JsonDocument doc;
         otaFillStatusJson(doc.to<JsonObject>(), otaSt);
         const size_t plen = webSerializeJson(doc, buf, sizeof(buf));
-        if (plen > 0U && plen < sizeof(buf)) {
-            s_events.send(buf, "ota");
+        if (sseSendEvent("ota", buf, plen, sizeof(buf))) {
+            portENTER_CRITICAL(&s_esCacheMux);
+            s_haveLastOta = true;
+            s_lastOtaGeneration = otaSt.generation;
+            portEXIT_CRITICAL(&s_esCacheMux);
+        } else {
+            sseMarkDirty(kSseOta);
         }
     }
 
     if (deviceDirty) {
         const size_t plen = buildDeviceBatteryPayload(batteryMv, batteryPct, buf, sizeof(buf));
-        if (plen > 0U && plen < sizeof(buf)) {
-            s_events.send(buf, "device");
+        if (sseSendEvent("device", buf, plen, sizeof(buf))) {
+            portENTER_CRITICAL(&s_esCacheMux);
+            s_haveLastDevice = true;
+            s_lastBatteryPct = batteryPct;
+            portEXIT_CRITICAL(&s_esCacheMux);
+        } else {
+            sseMarkDirty(kSseDevice);
         }
     }
 }

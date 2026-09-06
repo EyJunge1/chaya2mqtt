@@ -223,6 +223,35 @@ describe("api client", () => {
     expect(body.mqtt_tls).toBe(false);
   });
 
+  it("treats an empty GET 403 as a host error", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: false,
+        status: 403,
+        text: async () => "",
+      }),
+    );
+    await expect(api.getBootstrap()).rejects.toThrow("host");
+    await expect(api.getSettings()).rejects.toThrow("host");
+  });
+
+  it("treats an empty 403 as a host ApiResult", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: false,
+        status: 403,
+        text: async () => "",
+      }),
+    );
+    await expect(api.sendChaya()).resolves.toEqual({ ok: false, error: "host" });
+    await expect(api.saveSettings({ lang: "de" })).resolves.toEqual({
+      ok: false,
+      error: "host",
+    });
+  });
+
   it("returns ApiResult on HTTP error without throwing", async () => {
     vi.stubGlobal(
       "fetch",

@@ -43,6 +43,7 @@ const chaya: ChayaStatus = { connected: true, configured: true, paired: true, rx
 afterEach(() => {
   cleanup();
   vi.clearAllMocks();
+  vi.useRealTimers();
 });
 
 describe("DashboardPage", () => {
@@ -135,6 +136,50 @@ describe("DashboardPage", () => {
     expect(screen.getByRole("button", { name: /Send heart/i })).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: /Send heart/i }));
+    await waitFor(() => {
+      expect(onToast).toHaveBeenCalledWith("Heart queued", "info");
+    });
+    expect(onToast).not.toHaveBeenCalledWith("Heart sent", "success");
+  });
+
+  it("toasts error if a queued heart never gets a tx bump", async () => {
+    vi.useFakeTimers();
+    try {
+      sendChaya.mockResolvedValue({ ok: true, queued: true });
+      const onToast = vi.fn();
+
+      render(DashboardPage, {
+        props: { device, chaya, wifi, onToast },
+      });
+
+      fireEvent.click(screen.getByRole("button", { name: /Send heart/i }));
+      await Promise.resolve();
+      await Promise.resolve();
+      expect(onToast).toHaveBeenCalledWith("Heart queued", "info");
+
+      await vi.advanceTimersByTimeAsync(5000);
+      expect(onToast).toHaveBeenCalledWith("Send failed", "error");
+      expect(onToast).not.toHaveBeenCalledWith("Heart sent", "success");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("shows success when SSE tx increases after a queued send", async () => {
+    setLanguage("en");
+    sendChaya.mockResolvedValue({ ok: true, queued: true });
+    const onToast = vi.fn();
+
+    const { rerender } = render(DashboardPage, {
+      props: { device, chaya, wifi, onToast },
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: /Send heart/i }));
+    await waitFor(() => {
+      expect(onToast).toHaveBeenCalledWith("Heart queued", "info");
+    });
+
+    await rerender({ device, chaya: { ...chaya, tx: chaya.tx + 1 }, wifi, onToast });
     await waitFor(() => {
       expect(onToast).toHaveBeenCalledWith("Heart sent", "success");
     });

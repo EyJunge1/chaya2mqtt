@@ -28,10 +28,12 @@ constexpr const char kNvsKeyCfgSndTxVol[] = "snd_tx_vol";
 constexpr const char kNvsKeyCfgSndRxVol[] = "snd_rx_vol";
 constexpr const char kNvsKeyCfgSndQ0[] = "snd_q0";
 constexpr const char kNvsKeyCfgSndQ1[] = "snd_q1";
+constexpr const char kNvsKeyCfgSndQuietBlob[] = "snd_qB";
 constexpr const char kNvsKeyCfgSndTxHz[] = "snd_tx_hz";
 constexpr const char kNvsKeyCfgSndTxMs[] = "snd_tx_ms";
 constexpr const char kNvsKeyCfgSndRxHz[] = "snd_rx_hz";
 constexpr const char kNvsKeyCfgSndRxMs[] = "snd_rx_ms";
+constexpr const char kNvsKeyCfgSndToneBlob[] = "snd_tB";
 constexpr const char kNvsKeyCfgUpdDay[] = "upd_day";
 constexpr const char kNvsKeyCfgUpdChan[] = "upd_chan";
 
@@ -50,3 +52,5 @@ constexpr const char kNvsKeyMqttPass[] = "pass";
 constexpr const char kNvsKeyMqttTopicPub[] = "topic_pub";
 constexpr const char kNvsKeyMqttTopicSub[] = "topic_sub";
 constexpr const char kNvsKeyMqttPartnerId[] = "partner_id";
+/** Atomic MQTT broker+partner blob (PackedMqttConfigV1). */
+constexpr const char kNvsKeyMqttCfgV1[] = "cfg_v1";

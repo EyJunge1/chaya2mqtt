@@ -26,6 +26,10 @@ void handleApiUpdateCheckPost(AsyncWebServerRequest *req, JsonVariant &json) {
     if (!adminJsonRequireObject(req, json)) {
         return;
     }
+    if (g_systemShutdownInProgress.load(std::memory_order_acquire)) {
+        sendErr(req, 503, "shutdown");
+        return;
+    }
     if (batteryCriticalLow(batteryPercent())) {
         sendErr(req, 503, "battery_low");
         return;
@@ -54,10 +58,7 @@ void handleApiUpdateCheckPost(AsyncWebServerRequest *req, JsonVariant &json) {
         sendErr(req, 400, "channel");
         return;
     }
-    if (!otaQueueGithubCheck(channel)) {
-        sendErr(req, 500, "save");
-        return;
-    }
+    otaQueueGithubCheck(channel);
     ESP_LOGI(TAG, "API OTA check queued");
     sendOk(req, 200, "checking");
 }
@@ -66,11 +67,15 @@ void handleApiUpdateInstallPost(AsyncWebServerRequest *req, JsonVariant &json) {
     if (!adminJsonRequireObject(req, json)) {
         return;
     }
+    if (g_systemShutdownInProgress.load(std::memory_order_acquire)) {
+        sendErr(req, 503, "shutdown");
+        return;
+    }
     if (batteryCriticalLow(batteryPercent())) {
         sendErr(req, 503, "battery_low");
         return;
     }
-    if (otaFlashInProgress()) {
+    if (otaBlocksDestructiveAction()) {
         sendErr(req, 503, "busy");
         return;
     }

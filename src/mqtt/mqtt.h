@@ -5,8 +5,7 @@
 /** ESP-IDF MQTT client + heart publish.
  *  Lock order when acquiring multiple mutexes (never reverse):
  *   1. g_chayaPublishMutex (`mqttPublishChaya*`),
- *   2. g_mqttClientMutex (allocate client / esp_mqtt_*),
- *   3. optional g_heartDebounceMutex (persist after a successful publish).
+ *   2. g_mqttClientMutex (allocate client / esp_mqtt_*).
  *  Access broker configuration only through mqtt/config.h APIs (mqttCfgSnapshot,
  *  mqttCfgStorePending, …).
  */
@@ -43,6 +42,10 @@ auto mqttRequestChayaPublishAsync() -> MqttChayaPublishAsync;
 auto mqttPollChayaPublishAsync() -> MqttChayaPublishAsync;
 void mqttRunChayaPublishOnNetworkTask();
 void mqttClearChayaPublishAsync();
+/** True while a heart publish is queued or waiting for PUBACK. */
+bool mqttChayaPublishAsyncIsPending();
+/** Fail queued / in-flight heart publish (disconnect or shutdown). Safe from any task. */
+void mqttAbortPendingPublish();
 
 /** True while broker settings are being torn down/reapplied (blocks publish). */
 auto mqttPublishBlocked() -> bool;

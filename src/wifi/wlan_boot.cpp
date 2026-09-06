@@ -159,7 +159,7 @@ static bool wlanBringUpSetupSoftApLocked(const char *apPass, const char **outAut
 
 static bool wlanFinishSetupSoftAp(const char *apAuth) {
     g_apMode.store(true, std::memory_order_relaxed);
-    s_staLinkOk.store(false, std::memory_order_release);
+    wlanNoteStaLinkDown();
     delay(50);
     wlanWifiApiLock();
     WiFi.persistent(false);

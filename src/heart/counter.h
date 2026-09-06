@@ -26,6 +26,8 @@ struct HeartCounterDrawSnapshot {
     int counterBaselineRaw{};
     int heartSentCounterRaw{};
     int sentCountBaselineRaw{};
+    int batteryPercent{};
+    uint8_t batteryIcon{};
 };
 void heartCounterFillDrawSnapshot(HeartCounterDrawSnapshot *out);
 

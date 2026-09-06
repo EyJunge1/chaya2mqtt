@@ -37,7 +37,18 @@ void ledOutput(int level);
 void ledOutputForced(int level);
 
 void advanceLedSequence();
-void startMqttSendLedSequence();
+auto startMqttSendLedSequence() -> bool;
 auto ledSendSequenceActive() -> bool;
 auto ledTxBusy() -> bool;
 auto ledActivityActive() -> bool;
+
+/** TX send may CAS-steal these phases (priority: TX > pattern > refresh). */
+inline auto ledTxPhaseAllowsSendStart(LedTxPhase phase) -> bool {
+    return phase == LedTxPhase::Idle || phase == LedTxPhase::RefreshOn || phase == LedTxPhase::RefreshOff ||
+           phase == LedTxPhase::PatternOn || phase == LedTxPhase::PatternOff;
+}
+
+/** finishToIdleOrBackground may CAS only from these phases (RC-UI-01). */
+inline auto ledTxPhaseCanFinishToBackground(LedTxPhase phase) -> bool {
+    return ledTxPhaseAllowsSendStart(phase) || phase == LedTxPhase::PostOff2 || phase == LedTxPhase::FailOff3;
+}

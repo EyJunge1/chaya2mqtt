@@ -3,10 +3,13 @@
 #include <Preferences.h>
 #include <cstddef>
 #include <cstdint>
+#include <cstring>
 #include <freertos/FreeRTOS.h>
 #include <freertos/semphr.h>
 
+#include "async/system_lifecycle.h"
 #include "async/task_handles.h"
+#include "nvs_keys.h"
 
 namespace app_nvs {
 
@@ -21,7 +24,17 @@ inline void unlock() {
     if (g_nvsMutex)
         xSemaphoreGive(g_nvsMutex);
 }
+
+/** Block cfg/wifi/mqtt writes during shutdown; chaya flush may still persist (RC-LIFE-02 / RC-MQTT-2). */
+inline bool writesBlocked(const char *ns) {
+    if (!g_systemShutdownInProgress.load(std::memory_order_acquire)) {
+        return false;
+    }
+    return ns == nullptr || strcmp(ns, kNvsNsChaya) != 0;
+}
 } // namespace detail
+
+inline bool writesBlocked(const char *ns) { return detail::writesBlocked(ns); }
 
 /** RAII lock for one Preferences session (pair with app_nvs::* calls if mixing raw Preferences). */
 class ScopedNvsLock {
@@ -72,6 +85,9 @@ inline uint8_t readUChar(const char *ns, const char *key, uint8_t defaultVal) {
 }
 
 inline bool writeUChar(const char *ns, const char *key, uint8_t value) {
+    if (detail::writesBlocked(ns)) {
+        return false;
+    }
     detail::lock();
     Preferences prefs;
     if (!prefs.begin(ns, false)) {
@@ -98,6 +114,9 @@ inline uint32_t readUInt(const char *ns, const char *key, uint32_t defaultVal) {
 }
 
 inline bool writeUInt(const char *ns, const char *key, uint32_t value) {
+    if (detail::writesBlocked(ns)) {
+        return false;
+    }
     detail::lock();
     Preferences prefs;
     if (!prefs.begin(ns, false)) {
@@ -124,6 +143,9 @@ inline int readInt(const char *ns, const char *key, int defaultVal) {
 }
 
 inline bool writeInt(const char *ns, const char *key, int value) {
+    if (detail::writesBlocked(ns)) {
+        return false;
+    }
     detail::lock();
     Preferences prefs;
     if (!prefs.begin(ns, false)) {
@@ -164,6 +186,9 @@ inline bool putStringOk(Preferences &prefs, const char *key, const char *value) 
 }
 
 inline bool writeString(const char *ns, const char *key, const char *value) {
+    if (detail::writesBlocked(ns)) {
+        return false;
+    }
     detail::lock();
     Preferences prefs;
     if (!prefs.begin(ns, false)) {
@@ -171,6 +196,38 @@ inline bool writeString(const char *ns, const char *key, const char *value) {
         return false;
     }
     const bool ok = putStringOk(prefs, key, value);
+    prefs.end();
+    detail::unlock();
+    return ok;
+}
+
+inline bool writeBytes(const char *ns, const char *key, const void *data, size_t len) {
+    if (detail::writesBlocked(ns) || data == nullptr || len == 0U) {
+        return false;
+    }
+    detail::lock();
+    Preferences prefs;
+    if (!prefs.begin(ns, false)) {
+        detail::unlock();
+        return false;
+    }
+    const size_t w = prefs.putBytes(key, data, len);
+    prefs.end();
+    detail::unlock();
+    return w == len;
+}
+
+inline bool readBytes(const char *ns, const char *key, void *out, size_t len) {
+    if (out == nullptr || len == 0U) {
+        return false;
+    }
+    detail::lock();
+    Preferences prefs;
+    if (!prefs.begin(ns, true)) {
+        detail::unlock();
+        return false;
+    }
+    const bool ok = prefs.getBytesLength(key) == len && prefs.getBytes(key, out, len) == len;
     prefs.end();
     detail::unlock();
     return ok;

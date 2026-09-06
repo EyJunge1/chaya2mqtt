@@ -1,6 +1,7 @@
 #include "audio.h"
 
 #include "audio_config.h"
+#include "audio_drain_pure.h"
 #include "audio_pure.h"
 
 #include "async/task_config.h"
@@ -262,13 +263,16 @@ void audioTaskFn(void *) {
     chayaTaskWatchdogSubscribe(TAG);
     for (;;) {
         AudioMsg msg{};
-        if (xQueueReceive(g_audioCmdQueue, &msg, pdMS_TO_TICKS(500)) == pdTRUE) {
+        const bool hadQueuePlay = xQueueReceive(g_audioCmdQueue, &msg, pdMS_TO_TICKS(500)) == pdTRUE;
+        if (hadQueuePlay) {
             playKind(msg.kind);
         }
-        if (s_txPending.exchange(false, std::memory_order_acq_rel)) {
+        if (s_txPending.exchange(false, std::memory_order_acq_rel) &&
+            audioShouldPlayOverflowPending(hadQueuePlay, msg.kind, AudioMsg::Kind::Tx)) {
             playKind(AudioMsg::Kind::Tx);
         }
-        if (s_rxPending.exchange(false, std::memory_order_acq_rel)) {
+        if (s_rxPending.exchange(false, std::memory_order_acq_rel) &&
+            audioShouldPlayOverflowPending(hadQueuePlay, msg.kind, AudioMsg::Kind::Rx)) {
             playKind(AudioMsg::Kind::Rx);
         }
         chayaTaskWatchdogReset();

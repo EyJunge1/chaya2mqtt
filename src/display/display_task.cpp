@@ -12,6 +12,7 @@
 #include "display_refresh_pure.h"
 #include "draw_pure.h"
 #include "heart/counter.h"
+#include "heart/counter_pure.h"
 #include "led/led.h"
 #include "util/log_tag.h"
 #include "wifi/wlan.h"
@@ -34,6 +35,8 @@ static std::atomic<bool> s_heartDrawPending{false};
 static std::atomic<bool> s_splashDrawPending{false};
 static std::atomic<int> s_lastDrawnRx{INT32_MIN};
 static std::atomic<int> s_lastDrawnTx{INT32_MIN};
+static std::atomic<int> s_lastDrawnShownRx{INT32_MIN};
+static std::atomic<int> s_lastDrawnShownTx{INT32_MIN};
 static std::atomic<unsigned long> s_lastHeartRedrawEnqueueMs{0};
 static std::atomic<uint8_t> s_desiredHeartIcon{static_cast<uint8_t>(DisplayHeartIcon::Filled)};
 static std::atomic<uint8_t> s_lastDrawnHeartIcon{static_cast<uint8_t>(DisplayHeartIcon::Filled)};
@@ -84,6 +87,8 @@ bool displayPostHeartRedraw(TickType_t waitTicks) {
     }
     const int rx = heartCounter.load(std::memory_order_relaxed);
     const int tx = heartSentCounter.load(std::memory_order_relaxed);
+    const int shownRx = heartDisplayRxDelta();
+    const int shownTx = heartDisplayTxDelta();
     const unsigned long nowMs = millis();
     const unsigned long lastMs = s_lastHeartRedrawEnqueueMs.load(std::memory_order_relaxed);
     const bool iconChanged =
@@ -92,7 +97,8 @@ bool displayPostHeartRedraw(TickType_t waitTicks) {
     const bool batteryIconChanged = batteryIcon != s_lastDrawnBatteryIcon.load(std::memory_order_acquire);
     const DisplayHeartRedrawDecision decision = displayHeartRedrawDecide(
         rx, tx, s_lastDrawnRx.load(std::memory_order_relaxed), s_lastDrawnTx.load(std::memory_order_relaxed), iconChanged,
-        batteryIconChanged, nowMs, lastMs, kHeartRedrawMinIntervalMs);
+        batteryIconChanged, nowMs, lastMs, kHeartRedrawMinIntervalMs, shownRx, shownTx,
+        s_lastDrawnShownRx.load(std::memory_order_relaxed), s_lastDrawnShownTx.load(std::memory_order_relaxed));
     if (decision == DisplayHeartRedrawDecision::SkipUnchanged) {
         return true;
     }
@@ -154,13 +160,16 @@ static void displaySignalDrawIdle() {
     }
 }
 
-static bool displayBeginPersistentRefresh() {
+static bool displayBeginPersistentRefresh(bool persistRequired) {
     // Two-phase panel state: persist Unknown before the first waveform. Any
     // reset or power loss from here until configSetDisplayView() forces the
     // next boot to repaint instead of trusting a partially refreshed panel.
     if (!configInvalidateDisplayView()) {
-        ESP_LOGE(TAG, "EPD refresh cancelled: failed to persist unknown view");
-        return false;
+        if (persistRequired) {
+            ESP_LOGE(TAG, "EPD refresh cancelled: failed to persist unknown view");
+            return false;
+        }
+        ESP_LOGW(TAG, "EPD refresh: persist unknown view failed — continuing");
     }
     constexpr uint8_t kPrepareAttempts = 3;
     for (uint8_t attempt = 0; attempt < kPrepareAttempts; ++attempt) {
@@ -177,8 +186,9 @@ static bool displayBeginPersistentRefresh() {
  * Shared EPD refresh pipeline: low-interference prep, LED pulse, draw, WiFi restore,
  * persist view. DrawFn returns the view to store in NVS (may differ from logView).
  */
-template <typename DrawFn> static bool runEpdRefresh(DisplayView logView, const char *label, DrawFn &&draw) {
-    if (!displayBeginPersistentRefresh()) {
+template <typename DrawFn>
+static bool runEpdRefresh(DisplayView logView, const char *label, DrawFn &&draw, bool persistRequired = true) {
+    if (!displayBeginPersistentRefresh(persistRequired)) {
         return false;
     }
     ESP_LOGI(TAG, "EPD refresh start view=%d (%s)", static_cast<int>(logView), label);
@@ -241,10 +251,14 @@ static void displayTaskFn(void *) {
                 s_heartDrawPending.store(true, std::memory_order_release);
                 break;
             }
+            const int paintedShownRx = heartCounterDeltaPure(drawn.heartCounterRaw, drawn.counterBaselineRaw);
+            const int paintedShownTx = heartCounterDeltaPure(drawn.heartSentCounterRaw, drawn.sentCountBaselineRaw);
             s_lastDrawnRx.store(drawn.heartCounterRaw, std::memory_order_relaxed);
             s_lastDrawnTx.store(drawn.heartSentCounterRaw, std::memory_order_relaxed);
+            s_lastDrawnShownRx.store(paintedShownRx, std::memory_order_relaxed);
+            s_lastDrawnShownTx.store(paintedShownTx, std::memory_order_relaxed);
             s_lastDrawnHeartIcon.store(static_cast<uint8_t>(icon), std::memory_order_release);
-            const uint8_t paintedBatteryIcon = static_cast<uint8_t>(displayBatteryIcon(batteryPercent()));
+            const uint8_t paintedBatteryIcon = drawn.batteryIcon;
             s_lastDrawnBatteryIcon.store(paintedBatteryIcon, std::memory_order_release);
             s_heartDrawQueued.store(false, std::memory_order_release);
             const bool hadPending = s_heartDrawPending.exchange(false, std::memory_order_acq_rel);
@@ -252,7 +266,8 @@ static void displayTaskFn(void *) {
             const bool batteryIconChanged = static_cast<uint8_t>(displayBatteryIcon(batteryPercent())) != paintedBatteryIcon;
             if (displayHeartNeedsFollowUpRedraw(
                     drawn.heartCounterRaw, drawn.heartSentCounterRaw, heartCounter.load(std::memory_order_relaxed),
-                    heartSentCounter.load(std::memory_order_relaxed), iconChanged, batteryIconChanged, hadPending)) {
+                    heartSentCounter.load(std::memory_order_relaxed), iconChanged, batteryIconChanged, hadPending,
+                    paintedShownRx, paintedShownTx, heartDisplayRxDelta(), heartDisplayTxDelta())) {
                 (void)displayPostHeartRedraw(0);
             }
             break;
@@ -287,10 +302,13 @@ static void displayTaskFn(void *) {
                 }
                 break;
             }
-            if (!runEpdRefresh(DisplayView::PowerOff, "power-off", []() {
-                    drawPowerOffScreen();
-                    return DisplayView::PowerOff;
-                })) {
+            if (!runEpdRefresh(
+                    DisplayView::PowerOff, "power-off",
+                    []() {
+                        drawPowerOffScreen();
+                        return DisplayView::PowerOff;
+                    },
+                    false)) {
                 s_powerOffDrawSucceeded.store(false, std::memory_order_release);
                 s_heartDrawPending.store(false, std::memory_order_release);
                 if (s_powerOffDoneSem != nullptr) {

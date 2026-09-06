@@ -1,5 +1,12 @@
 import { api } from "../api/client.ts";
-import type { ChayaStatus, DeviceInfo, MqttStatus, OtaStatus, WifiStatus } from "../api/types.ts";
+import type {
+  BootstrapPayload,
+  ChayaStatus,
+  DeviceInfo,
+  MqttStatus,
+  OtaStatus,
+  WifiStatus,
+} from "../api/types.ts";
 import { pushToast } from "../components/toastStack.ts";
 import type { ShowToast, ToastItem, ToastVariant } from "../components/toastStack.ts";
 import { applyDeviceUiPrefs } from "../prefs/uiPrefs.ts";
@@ -29,9 +36,7 @@ export class DeviceStore {
   refreshSeq = $state(0);
   private refreshGeneration = 0;
 
-  readonly sseKey = $derived(
-    this.device ? `${this.device.deviceId}:${this.device.mode}:${this.refreshSeq}` : "",
-  );
+  readonly sseKey = $derived(this.device ? `${this.device.deviceId}:${this.device.mode}` : "");
 
   showToast: ShowToast = (text, variant: ToastVariant = "success") => {
     this.toasts = pushToast(this.toasts, text, variant);
@@ -55,33 +60,57 @@ export class DeviceStore {
     this.refreshSeq = 0;
   };
 
-  refreshDevice = async () => {
-    const gen = ++this.refreshGeneration;
-    const boot = await api.getBootstrap();
-    if (gen !== this.refreshGeneration) return;
-    this.device = boot.device;
-    this.wifi = boot.wifi;
-    this.chaya = boot.chaya ?? emptyChaya();
-    this.mqtt = boot.mqtt ?? emptyMqtt();
-    this.ota = boot.update;
-    if (boot.settings) {
+  private applyBootstrap(boot: BootstrapPayload): void {
+    const keepSse = this.live === "live" || this.live === "reconnecting";
+    if (keepSse && this.device) {
+      this.device = {
+        ...this.device,
+        deviceId: boot.device.deviceId,
+        mode: boot.device.mode,
+        version: boot.device.version,
+        hostname: boot.device.hostname,
+      };
+    } else {
+      this.device = boot.device;
+      this.wifi = boot.wifi;
+      this.chaya = boot.chaya ?? emptyChaya();
+      this.mqtt = boot.mqtt ?? emptyMqtt();
+      this.ota = boot.update;
+    }
+    if (boot.settings && !boot.settings.applyPending) {
       applyDeviceUiPrefs(boot.settings.lang, boot.settings.theme);
     }
     this.bootError = false;
     this.refreshSeq += 1;
+  }
+
+  private async pullBootstrap(gen: number): Promise<void> {
+    const boot = await api.getBootstrap();
+    if (gen !== this.refreshGeneration) return;
+    this.applyBootstrap(boot);
+  }
+
+  refreshDevice = async () => {
+    const gen = ++this.refreshGeneration;
+    await this.pullBootstrap(gen);
   };
 
   boot = async () => {
     this.booting = true;
     this.bootError = false;
     this.live = "connecting";
+    const gen = ++this.refreshGeneration;
     try {
-      await this.refreshDevice();
+      await this.pullBootstrap(gen);
     } catch {
-      this.bootError = true;
-      this.device = null;
+      if (gen === this.refreshGeneration) {
+        this.bootError = true;
+        this.device = null;
+      }
     } finally {
-      this.booting = false;
+      if (gen === this.refreshGeneration) {
+        this.booting = false;
+      }
     }
   };
 
@@ -90,11 +119,14 @@ export class DeviceStore {
       await this.boot();
       return;
     }
+    const gen = ++this.refreshGeneration;
     try {
-      await this.refreshDevice();
+      await this.pullBootstrap(gen);
     } catch {
-      this.bootError = true;
-      this.device = null;
+      if (gen === this.refreshGeneration) {
+        this.bootError = true;
+        this.device = null;
+      }
     }
   };
 }

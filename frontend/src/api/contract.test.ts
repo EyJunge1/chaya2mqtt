@@ -227,6 +227,7 @@ describe("api contract", () => {
 
   it("documents Host allowlist rejection in OpenAPI", () => {
     expect(openapi).toContain("Host rejected");
+    expect(openapi).toContain('error: "host"');
   });
 
   it("applies Host once on the server and mode gates via ApiGuard", () => {

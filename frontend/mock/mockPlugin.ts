@@ -8,7 +8,12 @@ import {
   deviceBatteryPayload,
   devicePayload,
   getState,
+  getHeartAckEpoch,
+  getMqttApplyEpoch,
   getOtaSimEpoch,
+  getSettingsApplyEpoch,
+  nextMqttApplyEpoch,
+  nextSettingsApplyEpoch,
   hasFault,
   mockControlPayload,
   mqttPayload,
@@ -194,8 +199,13 @@ export async function handleApi(req: IncomingMessage, res: ServerResponse): Prom
       sendJson(res, 503, { ok: false, error: "busy" });
       return true;
     }
-    state.tx += 1;
-    broadcastAll();
+    const ackEpoch = getHeartAckEpoch();
+    setTimeout(() => {
+      if (ackEpoch !== getHeartAckEpoch()) return;
+      const st = getState();
+      st.tx += 1;
+      broadcastAll();
+    }, 180);
     sendJson(res, 202, { ok: true, queued: true });
     return true;
   }
@@ -267,6 +277,7 @@ export async function handleApi(req: IncomingMessage, res: ServerResponse): Prom
       return true;
     }
     state.wifiConfig = {
+      ssid,
       mode,
       ip: mode === "static" ? ip : "",
       gateway: mode === "static" ? gateway : "",
@@ -337,6 +348,7 @@ export async function handleApi(req: IncomingMessage, res: ServerResponse): Prom
     state.wifiConnected = true;
     state.wifiSsid = state.wifiConnect.ssid;
     state.wifiConfig = {
+      ssid: state.wifiConnect.ssid,
       mode: state.wifiConnect.mode,
       ip: state.wifiConnect.mode === "static" ? state.wifiConnect.ip : "",
       gateway: state.wifiConnect.mode === "static" ? state.wifiConnect.gateway : "",
@@ -418,7 +430,7 @@ export async function handleApi(req: IncomingMessage, res: ServerResponse): Prom
       topicSub: state.mqtt.topicSub,
       partnerId: state.mqtt.partnerId,
       nvsOk: state.mqttNvsOk !== false,
-      applyPending: false,
+      applyPending: state.mqttApplyPending === true,
     });
     return true;
   }
@@ -454,6 +466,14 @@ export async function handleApi(req: IncomingMessage, res: ServerResponse): Prom
     }
     state.mqtt.topicPub = `chaya2mqtt/${state.deviceId}`;
     state.mqttConnected = Boolean(state.mqtt.server);
+    state.mqttApplyPending = true;
+    const mqttEpoch = nextMqttApplyEpoch();
+    setTimeout(() => {
+      if (mqttEpoch !== getMqttApplyEpoch()) return;
+      const st = getState();
+      st.mqttApplyPending = false;
+      broadcastAll();
+    }, 120);
     broadcastAll();
     sendJson(res, 200, { ok: true, message: "saved" });
     return true;
@@ -480,9 +500,6 @@ export async function handleApi(req: IncomingMessage, res: ServerResponse): Prom
       nvsOk: state.settingsNvsOk !== false,
       applyPending: state.settingsApplyPending === true,
     });
-    if (state.settingsApplyPending) {
-      state.settingsApplyPending = false;
-    }
     return true;
   }
 
@@ -545,8 +562,12 @@ export async function handleApi(req: IncomingMessage, res: ServerResponse): Prom
     if (!applyInt("rx_hz", 40, 2000, (v) => (state.rxHz = v))) return true;
     if (!applyInt("rx_ms", 20, 500, (v) => (state.rxMs = v))) return true;
     state.settingsApplyPending = true;
+    const settingsEpoch = nextSettingsApplyEpoch();
     setTimeout(() => {
-      state.settingsApplyPending = false;
+      if (settingsEpoch !== getSettingsApplyEpoch()) return;
+      const st = getState();
+      st.settingsApplyPending = false;
+      broadcastAll();
     }, 120);
     sendJson(res, 200, { ok: true, message: "accepted" });
     return true;

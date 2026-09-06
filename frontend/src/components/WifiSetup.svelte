@@ -72,6 +72,7 @@
   let scanning = $state(false);
   let busy = $state(false);
   let configLoaded = $state(false);
+  let dirty = $state(false);
   let scanSeq = 0;
 
   const SCAN_POLL_MS = 500;
@@ -149,7 +150,12 @@
     }
   }
 
+  function markDirty() {
+    dirty = true;
+  }
+
   $effect(() => {
+    if (dirty || configLoaded) return;
     if (!ssid && wifi.connected) ssid = wifi.ssid;
   });
 
@@ -168,6 +174,7 @@
       try {
         const cfg = await api.getWifiConfig();
         if (cancelled) return;
+        if (dirty) return;
         if (cfg.ssid) ssid = cfg.ssid;
         mode = cfg.mode === "static" ? "static" : "dhcp";
         ip = cfg.ip || "";
@@ -301,7 +308,10 @@
         {#each aps as ap, index (`${ap.ssid}-${ap.rssi}-${index}`)}
           <button
             type="button"
-            onclick={() => (ssid = ap.ssid)}
+            onclick={() => {
+              ssid = ap.ssid;
+              markDirty();
+            }}
             class={cn(
               "flex w-full items-center justify-between rounded-lg border border-border bg-bg px-3 py-2.5 text-left transition focus-ring",
               HOVER_ROW,
@@ -324,7 +334,14 @@
   <Panel>
     <form class="space-y-3" onsubmit={(e) => void connect(e)}>
       <Field label={i18n.t("wifi.ssid")} hint={i18n.t("wifi.ssid-hint")}>
-        <TextInput bind:value={ssid} required maxlength={32} />
+        <TextInput
+          bind:value={ssid}
+          required
+          maxlength={32}
+          data-testid="wifi-ssid"
+          oninput={markDirty}
+          onchange={markDirty}
+        />
       </Field>
       <Field label={i18n.t("wifi.password")} hint={i18n.t("wifi.password-hint")}>
         <TextInput
@@ -342,7 +359,10 @@
         <SegmentedControl
           label={i18n.t("wifi.ip-settings")}
           value={mode}
-          onChange={(next) => (mode = next)}
+          onChange={(next) => {
+            mode = next;
+            markDirty();
+          }}
           options={[
             { value: "dhcp", label: i18n.t("wifi.mode-dhcp"), testId: "wifi-mode-dhcp" },
             { value: "static", label: i18n.t("wifi.mode-manual"), testId: "wifi-mode-static" },
@@ -359,6 +379,7 @@
                 inputmode="decimal"
                 placeholder="192.168.1.50"
                 data-testid="wifi-ip"
+                oninput={markDirty}
               />
             </Field>
             <Field label={i18n.t("wifi.netmask")} hint={i18n.t("wifi.netmask-hint")}>
@@ -368,6 +389,7 @@
                 inputmode="decimal"
                 placeholder="255.255.255.0"
                 data-testid="wifi-netmask"
+                oninput={markDirty}
               />
             </Field>
             <Field label={i18n.t("wifi.gateway")} hint={i18n.t("wifi.gateway-hint")}>
@@ -377,6 +399,7 @@
                 inputmode="decimal"
                 placeholder="192.168.1.1"
                 data-testid="wifi-gateway"
+                oninput={markDirty}
               />
             </Field>
           </div>
@@ -386,7 +409,10 @@
       <ServerChipList
         label={i18n.t("wifi.dns")}
         values={dnsServers}
-        onChange={(next) => (dnsServers = next)}
+        onChange={(next) => {
+          dnsServers = next;
+          markDirty();
+        }}
         placeholder={DEFAULT_DNS1}
         validate={isIpv4}
         hint={i18n.t("wifi.servers-auto-dns")}
@@ -400,7 +426,10 @@
       <ServerChipList
         label={i18n.t("wifi.ntp")}
         values={ntpServers}
-        onChange={(next) => (ntpServers = next)}
+        onChange={(next) => {
+          ntpServers = next;
+          markDirty();
+        }}
         placeholder={DEFAULT_NTP}
         validate={isNtpHost}
         hint={i18n.t("wifi.servers-auto-ntp")}

@@ -8,6 +8,7 @@
 
 #include <atomic>
 #include <cstddef>
+#include <cstdint>
 
 #include <DNSServer.h>
 #include <freertos/portmacro.h>
@@ -37,6 +38,11 @@ extern unsigned long s_bootStaConnectStartMs;
 extern std::atomic<unsigned long> s_staLastGotIpWallMs;
 /** Cached STA link OK (GOT_IP / disconnect events); avoids WiFi mutex on hot paths. */
 extern std::atomic<bool> s_staLinkOk;
+/** Cached STA IPv4 in lwIP byte order; 0 if none. Pair with s_staLinkOk. */
+extern std::atomic<uint32_t> s_staCachedIpv4;
+
+void wlanNoteStaLinkDown();
+void wlanNoteStaGotIpv4(uint32_t lwipAddr);
 
 extern WlanScanRow s_wifiScanCache[kWlanWifiScanCacheMaxRows];
 extern WlanScanRow s_wifiScanRowWork[kWlanWifiScanCacheMaxRows];

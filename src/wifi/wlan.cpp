@@ -52,6 +52,7 @@ unsigned long s_bootStaConnectStartMs = 0;
 
 std::atomic<unsigned long> s_staLastGotIpWallMs{0};
 std::atomic<bool> s_staLinkOk{false};
+std::atomic<uint32_t> s_staCachedIpv4{0};
 
 WlanScanRow s_wifiScanCache[kWlanWifiScanCacheMaxRows]{};
 WlanScanRow s_wifiScanRowWork[kWlanWifiScanCacheMaxRows]{};
@@ -67,9 +68,13 @@ std::atomic<unsigned long> s_wifiScanNextAllowedMs{0};
 static char s_setupApPass[kSetupApPassBufLen]{};
 
 bool wlanEnsureSetupApPass() {
+    // BUG-NET-01: keep a valid RAM PSK if NVS is missing/invalid (no second random).
+    if (setupApPassSyntaxOk(s_setupApPass)) {
+        return true;
+    }
     char stored[kSetupApPassBufLen]{};
     (void)app_nvs::readString(kNvsNsWifi, kNvsKeyWifiApPin, stored, sizeof(stored));
-    if (setupApPassSyntaxOk(stored)) {
+    if (!setupApPassShouldGenerate(false, setupApPassSyntaxOk(stored))) {
         strlcpy(s_setupApPass, stored, sizeof(s_setupApPass));
         return true;
     }
@@ -134,8 +139,37 @@ bool wlanArmSetupApMode() {
         return false;
     }
     g_apMode.store(true, std::memory_order_relaxed);
-    s_staLinkOk.store(false, std::memory_order_release);
+    wlanNoteStaLinkDown();
     return true;
+}
+
+void wlanNoteStaLinkDown() {
+    s_staCachedIpv4.store(0U, std::memory_order_release);
+    s_staLinkOk.store(false, std::memory_order_release);
+}
+
+void wlanNoteStaGotIpv4(uint32_t lwipAddr) {
+    s_staCachedIpv4.store(lwipAddr, std::memory_order_release);
+    s_staLinkOk.store(true, std::memory_order_release);
+}
+
+bool wlanCopyCachedStaIp(char *out, size_t len) {
+    if (out == nullptr || len == 0U) {
+        return false;
+    }
+    const uint32_t addr = s_staCachedIpv4.load(std::memory_order_acquire);
+    if (addr == 0U) {
+        out[0] = '\0';
+        return false;
+    }
+    const uint8_t oct[4]{
+        static_cast<uint8_t>(addr),
+        static_cast<uint8_t>(addr >> 8),
+        static_cast<uint8_t>(addr >> 16),
+        static_cast<uint8_t>(addr >> 24),
+    };
+    formatIpv4Octets(oct, out, len);
+    return out[0] != '\0';
 }
 
 void wlanWifiApiLock() {
@@ -266,7 +300,13 @@ bool wlanReadStaLocalIpForCommit(char *outIp, size_t ipLen) {
     if (outIp == nullptr || ipLen == 0U) {
         return false;
     }
-    wlanWifiApiLock();
+    if (wlanStaConnectedOk() && wlanCopyCachedStaIp(outIp, ipLen) && outIp[0] != '\0') {
+        return true;
+    }
+    if (!wlanWifiApiLockTimed(500U)) {
+        outIp[0] = '\0';
+        return false;
+    }
     const bool ok = WiFi.status() == WL_CONNECTED && WiFi.localIP()[0] != 0;
     if (ok) {
         formatIpv4ToBuf(WiFi.localIP(), outIp, ipLen);
@@ -297,8 +337,18 @@ void wlanLoop() {
     if (s_captiveDnsStarted.load(std::memory_order_acquire)) {
         static unsigned long s_lastApDnsPollMs = 0UL;
         const unsigned long nowMs = millis();
-        const int apClients = WiFi.softAPgetStationNum();
-        if (apClients > 0 || s_lastApDnsPollMs == 0UL || (nowMs - s_lastApDnsPollMs) >= kApDnsPollIntervalMs) {
+        // RC-NET-03: station-num is a WiFi API call; skip the optimization if the lock is busy.
+        int apClients = 0;
+        bool haveStationNum = false;
+        if (wlanWifiApiLockTimed(100U)) {
+            apClients = static_cast<int>(WiFi.softAPgetStationNum());
+            haveStationNum = true;
+            wlanWifiApiUnlock();
+        }
+        constexpr unsigned long kApDnsPollLockBusyMs = 250UL;
+        const unsigned long idleIntervalMs = haveStationNum ? kApDnsPollIntervalMs : kApDnsPollLockBusyMs;
+        if ((haveStationNum && apClients > 0) || s_lastApDnsPollMs == 0UL ||
+            (nowMs - s_lastApDnsPollMs) >= idleIntervalMs) {
             g_dnsServer.processNextRequest();
             s_lastApDnsPollMs = nowMs;
         }

@@ -51,6 +51,20 @@ void wlanForceStaReassoc(const char *reasonTag) {
     if (g_apMode.load(std::memory_order_relaxed) || s_activeWlanConfig.ssid[0] == '\0') {
         return;
     }
+    // RC-NET-02: never disconnect+begin while OTA is running.
+    if (otaBlocksDestructiveAction()) {
+        ESP_LOGW(TAG, "WLAN force reassoc (%s) blocked by OTA — soft connect only",
+                 reasonTag != nullptr ? reasonTag : "n/a");
+        wlanWifiApiLock();
+        const wifi_mode_t mode = WiFi.getMode();
+        if (mode == WIFI_STA || mode == WIFI_AP_STA) {
+            if (!WiFi.STA.connect()) {
+                ESP_LOGD(TAG, "WiFi.STA.connect() failed");
+            }
+        }
+        wlanWifiApiUnlock();
+        return;
+    }
     wlanWifiApiLock();
     if (WiFi.status() == WL_CONNECTED && WiFi.localIP()[0] != 0) {
         wlanWifiApiUnlock();
@@ -98,6 +112,15 @@ void resetAllSettings() {
     }
     ESP_LOGW(TAG, "Factory reset: erasing all settings...");
     counterSuspendNvsSavesForFactoryReset();
+    const unsigned long waitStartMs = millis();
+    while (wlanEpdRefreshActive()) {
+        if ((millis() - waitStartMs) >= 90000UL) {
+            ESP_LOGW(TAG, "Factory reset: EPD still active — wiping anyway");
+            break;
+        }
+        chayaTaskWatchdogReset();
+        vTaskDelay(pdMS_TO_TICKS(50));
+    }
     prepareForResetAndRestart();
 
     bool cleared = app_nvs::clearNamespace(kNvsNsWifi);

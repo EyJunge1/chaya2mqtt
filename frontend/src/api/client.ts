@@ -14,6 +14,9 @@ import { parseOtaStatus, parseWifiScanSnapshot } from "./validate";
 async function parseJson<T>(res: Response): Promise<T> {
   const text = await res.text();
   if (!text) {
+    if (res.status === 403) {
+      return { ok: false, error: "host" } as T;
+    }
     throw new Error(`Empty response (${res.status})`);
   }
   return JSON.parse(text) as T;
@@ -30,10 +33,19 @@ function jsonBody(fields: Record<string, string | number | boolean | undefined>)
 
 async function apiGet<T>(path: string): Promise<T> {
   const res = await fetch(path);
+  const data = await parseJson<T>(res);
   if (!res.ok) {
+    if (
+      data &&
+      typeof data === "object" &&
+      "error" in data &&
+      (data as { error?: unknown }).error === "host"
+    ) {
+      throw new Error("host");
+    }
     throw new Error(`${path} failed (${res.status})`);
   }
-  return parseJson<T>(res);
+  return data;
 }
 
 async function apiPost(
@@ -70,8 +82,19 @@ export const api = {
   startWifiScan: () => apiPost("/api/wifi/scan"),
   scanWifi: async (): Promise<WifiScanSnapshot> => {
     const res = await fetch("/api/wifi/scan");
-    if (!res.ok) throw new Error(`wifi scan failed (${res.status})`);
-    return parseWifiScanSnapshot(await parseJson<unknown>(res));
+    const snap = await parseJson<unknown>(res);
+    if (!res.ok) {
+      if (
+        snap &&
+        typeof snap === "object" &&
+        "error" in snap &&
+        (snap as { error?: unknown }).error === "host"
+      ) {
+        throw new Error("host");
+      }
+      throw new Error(`wifi scan failed (${res.status})`);
+    }
+    return parseWifiScanSnapshot(snap);
   },
   connectWifi: (fields: WifiConnectFields) =>
     apiPost("/api/wifi/connect", {

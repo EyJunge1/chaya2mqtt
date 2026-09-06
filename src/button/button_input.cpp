@@ -7,12 +7,16 @@
 
 #include "async/system_lifecycle.h"
 #include "async/task_config.h"
+#include "async/web_server_hooks.h"
 #include "battery/battery.h"
+#include "config/app_config.h"
 #include "display/display.h"
 #include "heart/counter.h"
 #include "hw/pins.h"
 #include "led/led.h"
 #include "led/led_internal.h"
+#include "mqtt/mqtt.h"
+#include "ota/ota.h"
 
 #include "diag/stack_monitor.h"
 #include "diag/task_watchdog.h"
@@ -46,8 +50,13 @@ static void waitForPwrRelease() {
     for (;;) {
         const unsigned long nowMs = millis();
         if (!cutLatchOnTimeout && nowMs - startedMs >= kSoftOffReleaseTimeoutMs) {
-            ESP_LOGW(TAG, "PWR soft-off: release timeout (%lu ms) — cutting latch, still waiting", kSoftOffReleaseTimeoutMs);
-            batteryCutLatch();
+            if (otaFlashInProgress()) {
+                ESP_LOGE(TAG, "PWR soft-off: release timeout — skip latch cut, OTA flash in progress");
+            } else {
+                ESP_LOGW(TAG, "PWR soft-off: release timeout (%lu ms) — cutting latch, still waiting",
+                         kSoftOffReleaseTimeoutMs);
+                batteryCutLatch();
+            }
             cutLatchOnTimeout = true;
         }
         if (softOffReleaseSettled(settle, digitalRead(pins::kPwrButton), nowMs, kSoftOffReleaseSettleMs)) {
@@ -75,8 +84,17 @@ static bool processPowerOff() {
 
     ESP_LOGI(TAG, "PWR long press released: soft-off");
 
-    g_systemShutdownInProgress.store(true, std::memory_order_release);
+    mqttAbortPendingPublish();
     flushAllHeartCountersIfDirty();
+    // Persist Unknown before the shutdown NVS gate so the power-off EPD can run (STAB-01).
+    (void)configInvalidateDisplayView();
+    g_systemShutdownInProgress.store(true, std::memory_order_release);
+    if (otaFlashInProgress() || otaBlocksDestructiveAction()) {
+        g_systemShutdownInProgress.store(false, std::memory_order_release);
+        ESP_LOGW(TAG, "PWR soft-off aborted: OTA in progress");
+        return false;
+    }
+    webServerEnd();
 
     // Already released (edge-on-release). EPD may take tens of seconds.
     chayaTaskWatchdogUnsubscribe(TAG);
@@ -87,6 +105,14 @@ static bool processPowerOff() {
     // Settle before EXT1 in case of bounce / re-press during the EPD refresh.
     ESP_LOGI(TAG, "PWR soft-off — stable release settle (%lu ms) then deep sleep", kSoftOffReleaseSettleMs);
     waitForPwrRelease();
+    flushAllHeartCountersIfDirty();
+    if (otaFlashInProgress() || otaBlocksDestructiveAction()) {
+        ESP_LOGE(TAG, "OTA during power-off screen — skip latch cut, restore HTTP");
+        g_systemShutdownInProgress.store(false, std::memory_order_release);
+        webServerBegin();
+        chayaTaskWatchdogSubscribe(TAG);
+        return false;
+    }
     ESP_LOGI(TAG, "PWR soft-off — entering deep sleep (mv=%d pct=%d)", batteryMilliVolts(), batteryPercent());
     if (hooks.performSoftOff != nullptr) {
         hooks.performSoftOff();

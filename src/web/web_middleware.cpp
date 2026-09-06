@@ -8,7 +8,7 @@
 ArMiddlewareCallback mwRequireAllowedHost() {
     return [](AsyncWebServerRequest *req, ArMiddlewareNext next) {
         if (!webRequestHostAllowed(req)) {
-            webSendEmpty(req, 403);
+            webSendJsonError(req, 403, "host");
             return;
         }
         next();

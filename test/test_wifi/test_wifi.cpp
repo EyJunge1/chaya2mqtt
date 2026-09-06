@@ -4,7 +4,9 @@
 #include "constants.h"
 #include "util/net_validate.h"
 #include "wifi/wifi_qr_pure.h"
+#include "wifi/wlan.h"
 #include "wifi/wlan_config.h"
+#include "wifi/wlan_event_pure.h"
 #include "wifi/wlan_pack.h"
 #include "wifi/wlan_recovery.h"
 #include "wifi/wlan_soft_reconnect.h"
@@ -29,6 +31,14 @@ void test_setup_ap_pass_syntax_and_format() {
     TEST_ASSERT_TRUE(setupApPassSyntaxOk(psk));
     TEST_ASSERT_FALSE(formatSetupApPassFromRandom(rnd, 4U, psk, sizeof(psk)));
     TEST_ASSERT_FALSE(formatSetupApPassFromRandom(rnd, sizeof(rnd), psk, 8U));
+}
+
+void test_setup_ap_pass_ensure_idempotent() {
+    // Second Ensure after a RAM-only PSK must not generate again (BUG-NET-01).
+    TEST_ASSERT_FALSE(setupApPassShouldGenerate(true, false));
+    TEST_ASSERT_FALSE(setupApPassShouldGenerate(true, true));
+    TEST_ASSERT_FALSE(setupApPassShouldGenerate(false, true));
+    TEST_ASSERT_TRUE(setupApPassShouldGenerate(false, false));
 }
 
 void test_wlan_boot_decision_keeps_configured_device_out_of_setup_ap() {
@@ -258,6 +268,29 @@ void test_wlan_epd_tx_power_from_rssi() {
     TEST_ASSERT_EQUAL_INT8(8, wlanEpdTxPowerQuarterDbmFromRssi(-40, 8));
 }
 
+void test_wlan_net_cmd_coalesce_enqueue() {
+    TEST_ASSERT_TRUE(wlanNetCmdShouldEnqueue(false));
+    TEST_ASSERT_FALSE(wlanNetCmdShouldEnqueue(true));
+}
+
+void test_wlan_scan_deadline_wrap() {
+    TEST_ASSERT_FALSE(wlanMsBeforeDeadline(1000UL, 0UL));
+    TEST_ASSERT_TRUE(wlanMsBeforeDeadline(1000UL, 1500UL));
+    TEST_ASSERT_FALSE(wlanMsBeforeDeadline(1500UL, 1500UL));
+    TEST_ASSERT_FALSE(wlanMsBeforeDeadline(1600UL, 1500UL));
+
+    // Unsigned nowMs < nextAllowed stays true for ~49 days after millis wrap.
+    const unsigned long nowAfterWrap = 10UL;
+    const unsigned long nextNearMax = 0xFFFFFF00UL;
+    TEST_ASSERT_FALSE(wlanMsBeforeDeadline(nowAfterWrap, nextNearMax));
+    TEST_ASSERT_TRUE(nowAfterWrap < nextNearMax);
+
+    // Cooldown that itself wraps: still pending until nextAllowed.
+    const unsigned long nowNearMax = 0xFFFFFFF0UL;
+    const unsigned long nextAfterWrap = 0x00000020UL;
+    TEST_ASSERT_TRUE(wlanMsBeforeDeadline(nowNearMax, nextAfterWrap));
+}
+
 void test_wlan_unpack_invalid_static_falls_back_dhcp() {
     WlanConfig cfg{};
     wlanConfigClear(&cfg);
@@ -278,6 +311,7 @@ void test_wlan_unpack_invalid_static_falls_back_dhcp() {
 int main(int, char **) {
     UNITY_BEGIN();
     RUN_TEST(test_setup_ap_pass_syntax_and_format);
+    RUN_TEST(test_setup_ap_pass_ensure_idempotent);
     RUN_TEST(test_wlan_boot_decision_keeps_configured_device_out_of_setup_ap);
     RUN_TEST(test_wifi_qr_payload);
     RUN_TEST(test_wifi_ssid_syntax);
@@ -287,6 +321,8 @@ int main(int, char **) {
     RUN_TEST(test_wlan_recovery_decide);
     RUN_TEST(test_wifi_soft_reconnect_escalation_threshold);
     RUN_TEST(test_wlan_epd_tx_power_from_rssi);
+    RUN_TEST(test_wlan_net_cmd_coalesce_enqueue);
+    RUN_TEST(test_wlan_scan_deadline_wrap);
     RUN_TEST(test_wlan_unpack_invalid_static_falls_back_dhcp);
     return UNITY_END();
 }

@@ -10,6 +10,7 @@
 std::atomic<bool> g_webAdminRebootRequested{false};
 std::atomic<bool> g_webAdminWifiReconnectRequested{false};
 std::atomic<uint32_t> g_webAdminMqttApplyVersion{0};
+std::atomic<uint32_t> g_webAdminSettingsApplyVersion{0};
 std::atomic<bool> g_webAdminSettingsApplyPending{false};
 std::atomic<bool> g_webAdminSettingsNvsWriteFailed{false};
 
