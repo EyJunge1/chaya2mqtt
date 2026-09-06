@@ -15,7 +15,11 @@
   import type { ShowToast } from "../components/toastStack.ts";
   import { i18n } from "../i18n/i18n.svelte.ts";
   import { getLanguage } from "../i18n/store.ts";
-  import { applyDeviceUiPrefs, cancelUiPrefsPersist, enqueueSettingsWrite } from "../prefs/uiPrefs.ts";
+  import {
+    applyDeviceUiPrefs,
+    cancelUiPrefsPersist,
+    enqueueSettingsWrite,
+  } from "../prefs/uiPrefs.ts";
   import { getThemePreference } from "../theme/store.ts";
   import {
     AUDIO_TONE_HZ_MAX,
@@ -61,7 +65,9 @@
   }
 
   /** Wait for deferred apply; surface NVS failure via nvsOk (QUAL-01). */
-  async function waitForSettingsPersist(seq: number): Promise<SettingsInfo | "aborted" | "timeout"> {
+  async function waitForSettingsPersist(
+    seq: number,
+  ): Promise<SettingsInfo | "aborted" | "timeout"> {
     for (let i = 0; i < 25; i++) {
       if (seq !== loadSeq) return "aborted";
       const s = await api.getSettings();

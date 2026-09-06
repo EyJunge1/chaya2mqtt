@@ -32,7 +32,7 @@ auto ledIsTxSendBusy() -> bool;
  * Safe from any task (wakes the LED task). Prefer chayaRequestSend() for guarded entry.
  * Returns false if CAS cannot take Idle/Refresh/Pattern → PreOn1 (caller should treat as Busy).
  */
-bool ledStartChayaSendSequence();
+auto ledStartChayaSendSequence() -> bool;
 
 /** Pulse GPIO3 during E-Ink refresh / RX ack. Safe from any task. */
 void ledRefreshPulseBegin();

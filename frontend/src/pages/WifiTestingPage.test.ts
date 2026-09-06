@@ -170,7 +170,7 @@ describe("WifiTestingPage", () => {
     const intervalFns: Array<() => void> = [];
     vi.spyOn(window, "setInterval").mockImplementation((fn) => {
       intervalFns.push(fn as () => void);
-      return 1 as unknown as number;
+      return 1 as unknown as ReturnType<typeof setInterval>;
     });
     vi.spyOn(window, "clearInterval").mockImplementation(() => {});
 

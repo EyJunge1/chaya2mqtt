@@ -43,7 +43,7 @@ auto mqttPollChayaPublishAsync() -> MqttChayaPublishAsync;
 void mqttRunChayaPublishOnNetworkTask();
 void mqttClearChayaPublishAsync();
 /** True while a heart publish is queued or waiting for PUBACK. */
-bool mqttChayaPublishAsyncIsPending();
+auto mqttChayaPublishAsyncIsPending() -> bool;
 /** Fail queued / in-flight heart publish (disconnect or shutdown). Safe from any task. */
 void mqttAbortPendingPublish();
 

@@ -55,9 +55,12 @@ describe("uiPrefs", () => {
     expect(saveSettings).not.toHaveBeenCalled();
 
     getSettings.mockResolvedValue({ applyPending: false });
-    await vi.waitFor(() => expect(saveSettings).toHaveBeenCalledWith({ lang: "en", theme: "light" }), {
-      timeout: 2000,
-    });
+    await vi.waitFor(
+      () => expect(saveSettings).toHaveBeenCalledWith({ lang: "en", theme: "light" }),
+      {
+        timeout: 2000,
+      },
+    );
   });
 
   it("waits until applyPending is false before prefs POST", async () => {
@@ -65,7 +68,9 @@ describe("uiPrefs", () => {
       .mockResolvedValueOnce({ applyPending: true })
       .mockResolvedValueOnce({ applyPending: false });
     persistUiPrefsDebounced(0);
-    await vi.waitFor(() => expect(saveSettings).toHaveBeenCalledWith({ lang: "en", theme: "light" }));
+    await vi.waitFor(() =>
+      expect(saveSettings).toHaveBeenCalledWith({ lang: "en", theme: "light" }),
+    );
     expect(getSettings).toHaveBeenCalledTimes(2);
   });
 

@@ -221,10 +221,7 @@ describe("SettingsPage", () => {
 
     await waitFor(() => expect(factoryReset).toHaveBeenCalled());
     await waitFor(() =>
-      expect(onToast).toHaveBeenCalledWith(
-        expect.stringMatching(/Factory reset started/),
-        "info",
-      ),
+      expect(onToast).toHaveBeenCalledWith(expect.stringMatching(/Factory reset started/), "info"),
     );
     expect(onDeviceRefresh).not.toHaveBeenCalled();
     expect(onToast).not.toHaveBeenCalledWith("Factory reset could not be started", "error");

@@ -36,7 +36,7 @@ inline void mqttPackConfigV1(const MqttConfig &cfg, PackedMqttConfigV1 *out) {
  * Unpack cfg_v1 into MqttConfig persistable fields (topics left empty).
  * @return false when magic is wrong or a string is not NUL-terminated.
  */
-inline bool mqttUnpackConfigV1(const PackedMqttConfigV1 &pk, MqttConfig *cfg) {
+inline auto mqttUnpackConfigV1(const PackedMqttConfigV1 &pk, MqttConfig *cfg) -> bool {
     if (cfg == nullptr || pk.magic != kMqttCfgPackedMagic) {
         return false;
     }
