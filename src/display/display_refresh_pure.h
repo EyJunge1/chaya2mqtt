@@ -17,9 +17,9 @@ enum class DisplayHeartRedrawDecision : uint8_t {
  * (trailing edge), or skip because counters, heart icon, and battery icon
  * already match the last painted frame.
  */
-inline DisplayHeartRedrawDecision displayHeartRedrawDecide(int currentRx, int currentTx, int lastDrawnRx, int lastDrawnTx,
-                                                           bool iconChanged, bool batteryIconChanged, unsigned long nowMs,
-                                                           unsigned long lastEnqueueMs, unsigned long minIntervalMs) {
+inline auto displayHeartRedrawDecide(int currentRx, int currentTx, int lastDrawnRx, int lastDrawnTx, bool iconChanged,
+                                     bool batteryIconChanged, unsigned long nowMs, unsigned long lastEnqueueMs,
+                                     unsigned long minIntervalMs) -> DisplayHeartRedrawDecision {
     if (currentRx == lastDrawnRx && currentTx == lastDrawnTx && !iconChanged && !batteryIconChanged) {
         return DisplayHeartRedrawDecision::SkipUnchanged;
     }
@@ -33,8 +33,8 @@ inline DisplayHeartRedrawDecision displayHeartRedrawDecide(int currentRx, int cu
  * How long the display task should wait for the next command when a deferred
  * heart redraw is pending. ULONG_MAX means wait forever (no pending work).
  */
-inline unsigned long displayHeartRedrawWaitMs(unsigned long nowMs, unsigned long lastEnqueueMs, unsigned long minIntervalMs,
-                                              bool pending) {
+inline auto displayHeartRedrawWaitMs(unsigned long nowMs, unsigned long lastEnqueueMs, unsigned long minIntervalMs,
+                                     bool pending) -> unsigned long {
     if (!pending) {
         return ULONG_MAX;
     }
@@ -49,7 +49,7 @@ inline unsigned long displayHeartRedrawWaitMs(unsigned long nowMs, unsigned long
 }
 
 /** True when a follow-up redraw is needed after a completed heart paint. */
-inline bool displayHeartNeedsFollowUpRedraw(int drawnRx, int drawnTx, int currentRx, int currentTx, bool iconChanged,
-                                            bool batteryIconChanged, bool hadPending) {
+inline auto displayHeartNeedsFollowUpRedraw(int drawnRx, int drawnTx, int currentRx, int currentTx, bool iconChanged,
+                                            bool batteryIconChanged, bool hadPending) -> bool {
     return hadPending || iconChanged || batteryIconChanged || currentRx != drawnRx || currentTx != drawnTx;
 }

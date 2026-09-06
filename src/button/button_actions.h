@@ -15,4 +15,4 @@ struct ButtonActionHooks {
 };
 
 void buttonSetActionHooks(const ButtonActionHooks &hooks);
-const ButtonActionHooks &buttonActionHooks();
+auto buttonActionHooks() -> const ButtonActionHooks &;

@@ -12,9 +12,9 @@ constexpr int kMqttKeepAliveSeconds = 60;
 constexpr int kMqttOutboxLimitBytes = 4096;
 
 /** Clamp MQTT port from integer form (e.g. HTML/API); invalid uses TLS default. */
-inline constexpr uint16_t normalizeMqttPort(int p) {
+inline constexpr auto normalizeMqttPort(int p) -> uint16_t {
     return (p > 0 && p <= 65535) ? static_cast<uint16_t>(p) : kMqttDefaultTlsPort;
 }
 
 /** Standard port for the given transport (mqtt vs mqtts). */
-inline constexpr uint16_t mqttDefaultPortForTls(bool tls) { return tls ? kMqttDefaultTlsPort : kMqttDefaultPlainPort; }
+inline constexpr auto mqttDefaultPortForTls(bool tls) -> uint16_t { return tls ? kMqttDefaultTlsPort : kMqttDefaultPlainPort; }

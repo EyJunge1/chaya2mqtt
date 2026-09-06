@@ -5,7 +5,7 @@
 #include <cstdint>
 
 /** Quiet window in local hours. Equal endpoints disable quiet hours. Wraps midnight. */
-inline bool audioQuietHoursActive(uint8_t hour, uint8_t quietStart, uint8_t quietEnd) {
+inline auto audioQuietHoursActive(uint8_t hour, uint8_t quietStart, uint8_t quietEnd) -> bool {
     if (quietStart > kAudioHourMax || quietEnd > kAudioHourMax) {
         return false;
     }
@@ -18,8 +18,8 @@ inline bool audioQuietHoursActive(uint8_t hour, uint8_t quietStart, uint8_t quie
     return hour >= quietStart || hour < quietEnd;
 }
 
-inline bool audioPlaybackAllowed(bool kindEnabled, uint8_t volume, bool timeSynced, uint8_t hour, uint8_t quietStart,
-                                 uint8_t quietEnd) {
+inline auto audioPlaybackAllowed(bool kindEnabled, uint8_t volume, bool timeSynced, uint8_t hour, uint8_t quietStart,
+                                 uint8_t quietEnd) -> bool {
     if (!kindEnabled || volume == 0U) {
         return false;
     }

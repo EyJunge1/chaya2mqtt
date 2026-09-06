@@ -9,7 +9,7 @@
  * Parse a decimal counter payload (digits only, length 1..10).
  * @return true and sets *out when valid; false leaves *out unchanged.
  */
-inline bool mqttParseCounterPayload(const char *payload, unsigned int length, long *out) {
+inline auto mqttParseCounterPayload(const char *payload, unsigned int length, long *out) -> bool {
     if (out == nullptr || payload == nullptr || length == 0U || length > 10U) {
         return false;
     }

@@ -6,17 +6,18 @@
 
 #include <cstddef>
 #include <cstring>
+#include <utility>
 
 /** GitHub release JSON helpers (ArduinoJson, header-only, native-testable). */
 
-inline bool otaDeserializeJson(const char *json, JsonDocument &doc) {
+inline auto otaDeserializeJson(const char *json, JsonDocument &doc) -> bool {
     if (json == nullptr) {
         return false;
     }
     return deserializeJson(doc, json) == DeserializationError::Ok && !doc.overflowed();
 }
 
-inline bool otaGithubJsonRootIsArray(const char *json) {
+inline auto otaGithubJsonRootIsArray(const char *json) -> bool {
     if (json == nullptr) {
         return false;
     }
@@ -39,20 +40,21 @@ inline void otaFillGithubReleaseFilter(JsonDocument &filter, bool list) {
     rel["assets"][0]["name"] = true;
 }
 
-template <typename TInput> inline bool otaDeserializeGithubReleaseJson(TInput &&input, JsonDocument &doc, bool list) {
+template <typename TInput> inline auto otaDeserializeGithubReleaseJson(TInput &&input, JsonDocument &doc, bool list) -> bool {
     JsonDocument filter;
     otaFillGithubReleaseFilter(filter, list);
-    return deserializeJson(doc, input, DeserializationOption::Filter(filter)) == DeserializationError::Ok && !doc.overflowed();
+    return deserializeJson(doc, std::forward<TInput>(input), DeserializationOption::Filter(filter)) == DeserializationError::Ok &&
+           !doc.overflowed();
 }
 
-inline bool otaDeserializeGithubReleaseJson(const char *json, JsonDocument &doc) {
+inline auto otaDeserializeGithubReleaseJson(const char *json, JsonDocument &doc) -> bool {
     if (json == nullptr) {
         return false;
     }
     return otaDeserializeGithubReleaseJson(json, doc, otaGithubJsonRootIsArray(json));
 }
 
-inline bool otaCopyJsonString(JsonVariantConst v, char *out, size_t outLen) {
+inline auto otaCopyJsonString(JsonVariantConst v, char *out, size_t outLen) -> bool {
     if (out == nullptr || outLen == 0U) {
         return false;
     }
@@ -68,7 +70,7 @@ inline bool otaCopyJsonString(JsonVariantConst v, char *out, size_t outLen) {
     return true;
 }
 
-inline bool otaParseJsonStringField(const char *json, const char *key, char *out, size_t outLen) {
+inline auto otaParseJsonStringField(const char *json, const char *key, char *out, size_t outLen) -> bool {
     if (json == nullptr || key == nullptr || out == nullptr || outLen == 0U) {
         return false;
     }
@@ -80,7 +82,7 @@ inline bool otaParseJsonStringField(const char *json, const char *key, char *out
     return otaCopyJsonString(doc[key], out, outLen);
 }
 
-inline bool otaParseJsonBoolField(JsonVariantConst obj, const char *key, bool *out) {
+inline auto otaParseJsonBoolField(JsonVariantConst obj, const char *key, bool *out) -> bool {
     if (key == nullptr || out == nullptr) {
         return false;
     }
@@ -92,7 +94,7 @@ inline bool otaParseJsonBoolField(JsonVariantConst obj, const char *key, bool *o
     return true;
 }
 
-inline bool otaParseJsonBoolField(const char *json, const char *key, bool *out) {
+inline auto otaParseJsonBoolField(const char *json, const char *key, bool *out) -> bool {
     if (json == nullptr || key == nullptr || out == nullptr) {
         return false;
     }
@@ -103,7 +105,7 @@ inline bool otaParseJsonBoolField(const char *json, const char *key, bool *out) 
     return otaParseJsonBoolField(doc.as<JsonVariantConst>(), key, out);
 }
 
-inline bool otaJsonArrayHasAssetName(JsonArrayConst assets, const char *assetName) {
+inline auto otaJsonArrayHasAssetName(JsonArrayConst assets, const char *assetName) -> bool {
     if (assets.isNull() || assetName == nullptr) {
         return false;
     }
@@ -116,7 +118,7 @@ inline bool otaJsonArrayHasAssetName(JsonArrayConst assets, const char *assetNam
     return false;
 }
 
-inline bool otaJsonHasAssetName(JsonVariantConst root, const char *assetName) {
+inline auto otaJsonHasAssetName(JsonVariantConst root, const char *assetName) -> bool {
     if (assetName == nullptr || assetName[0] == '\0') {
         return false;
     }
@@ -134,7 +136,7 @@ inline bool otaJsonHasAssetName(JsonVariantConst root, const char *assetName) {
     return false;
 }
 
-inline bool otaJsonHasAssetName(const char *json, const char *assetName) {
+inline auto otaJsonHasAssetName(const char *json, const char *assetName) -> bool {
     if (json == nullptr || assetName == nullptr || assetName[0] == '\0') {
         return false;
     }
@@ -145,7 +147,7 @@ inline bool otaJsonHasAssetName(const char *json, const char *assetName) {
     return otaJsonHasAssetName(doc.as<JsonVariantConst>(), assetName);
 }
 
-inline bool otaReleaseHasRequiredAssets(JsonVariantConst root) {
+inline auto otaReleaseHasRequiredAssets(JsonVariantConst root) -> bool {
     if (!root.is<JsonObjectConst>()) {
         return false;
     }
@@ -174,8 +176,8 @@ inline bool otaReleaseHasRequiredAssets(JsonVariantConst root) {
  * preferPrerelease=false: newest non-draft stable.
  * requireAssets: skip releases that lack firmware.bin + firmware.sha256.
  */
-inline bool otaSelectReleaseFromListJson(JsonVariantConst root, bool preferPrerelease, char *tagOut, size_t tagLen,
-                                         bool *outIsPrerelease, bool requireAssets = false) {
+inline auto otaSelectReleaseFromListJson(JsonVariantConst root, bool preferPrerelease, char *tagOut, size_t tagLen,
+                                         bool *outIsPrerelease, bool requireAssets = false) -> bool {
     if (tagOut == nullptr || tagLen == 0U) {
         return false;
     }
@@ -221,8 +223,8 @@ inline bool otaSelectReleaseFromListJson(JsonVariantConst root, bool preferPrere
     return true;
 }
 
-inline bool otaSelectReleaseFromListJson(const char *json, bool preferPrerelease, char *tagOut, size_t tagLen,
-                                         bool *outIsPrerelease, bool requireAssets = false) {
+inline auto otaSelectReleaseFromListJson(const char *json, bool preferPrerelease, char *tagOut, size_t tagLen,
+                                         bool *outIsPrerelease, bool requireAssets = false) -> bool {
     if (json == nullptr || tagOut == nullptr || tagLen == 0U) {
         return false;
     }

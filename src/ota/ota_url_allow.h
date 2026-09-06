@@ -3,14 +3,15 @@
 #include "version_cmp.h"
 
 #include <cstddef>
+#include <cstdint>
 #include <cstring>
 
-enum class OtaDownloadAsset {
+enum class OtaDownloadAsset : uint8_t {
     Firmware,
     Sha256,
 };
 
-inline bool otaReleaseDownloadUrlAllowed(const char *url, OtaDownloadAsset asset) {
+inline auto otaReleaseDownloadUrlAllowed(const char *url, OtaDownloadAsset asset) -> bool {
     constexpr const char kPrefix[] = "https://github.com/EyJunge1/chaya2mqtt/releases/download/";
     if (url == nullptr || strncmp(url, kPrefix, sizeof(kPrefix) - 1U) != 0) {
         return false;
@@ -20,7 +21,7 @@ inline bool otaReleaseDownloadUrlAllowed(const char *url, OtaDownloadAsset asset
     if (slash == nullptr || slash == tagStart) {
         return false;
     }
-    const size_t tagLen = static_cast<size_t>(slash - tagStart);
+    const auto tagLen = static_cast<size_t>(slash - tagStart);
     if (tagLen >= 64U) {
         return false;
     }
@@ -38,7 +39,7 @@ inline bool otaReleaseDownloadUrlAllowed(const char *url, OtaDownloadAsset asset
  * Allowlist for OTA HTTP redirect targets after the initial GitHub release URL.
  * GitHub serves assets via short-lived signed CDN URLs; re-check each hop (SEC-11).
  */
-inline bool otaReleaseDownloadRedirectUrlAllowed(const char *url) {
+inline auto otaReleaseDownloadRedirectUrlAllowed(const char *url) -> bool {
     if (url == nullptr || url[0] == '\0') {
         return false;
     }

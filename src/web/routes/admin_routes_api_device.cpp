@@ -28,7 +28,7 @@ void fillDeviceJson(JsonObject obj) {
     }
 
     obj["hostname"] = hostname;
-    obj["version"] = APP_VERSION;
+    obj["version"] = kAppVersion;
     obj["mode"] = ap ? "ap" : "sta";
     obj["deviceId"] = deviceId;
     if (ap) {

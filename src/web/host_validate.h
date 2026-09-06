@@ -6,7 +6,7 @@
 #include <cstring>
 
 /** Case-insensitive full-string host equality. */
-inline bool hostEqualsIgnoreCase(const char *host, const char *ref) {
+inline auto hostEqualsIgnoreCase(const char *host, const char *ref) -> bool {
     if (host == nullptr || ref == nullptr) {
         return false;
     }
@@ -21,7 +21,7 @@ inline bool hostEqualsIgnoreCase(const char *host, const char *ref) {
 }
 
 /** True when host equals prefix (case-insensitive) or prefix followed by ':port'. */
-inline bool hostPrefixIgnoreCaseThenPortOrEnd(const char *host, const char *prefix) {
+inline auto hostPrefixIgnoreCaseThenPortOrEnd(const char *host, const char *prefix) -> bool {
     if (host == nullptr || prefix == nullptr) {
         return false;
     }
@@ -42,7 +42,7 @@ inline bool hostPrefixIgnoreCaseThenPortOrEnd(const char *host, const char *pref
  * @param deviceHostname current station hostname (without .local)
  * @param staIp optional STA IPv4 string; nullptr/empty skips IP match
  */
-inline bool webHostCStringAllowed(const char *host, bool apMode, const char *deviceHostname, const char *staIp) {
+inline auto webHostCStringAllowed(const char *host, bool apMode, const char *deviceHostname, const char *staIp) -> bool {
     if (host == nullptr || host[0] == '\0') {
         // HTTP/1.1 requires Host. Keep hostless HTTP/1.0 captive probes working only in AP mode.
         return apMode;

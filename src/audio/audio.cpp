@@ -212,7 +212,7 @@ bool playbackAllowedNow(AudioMsg::Kind kind) {
     const bool synced = wlanNtpSynced();
     if (synced) {
         const time_t now = time(nullptr);
-        struct tm t{};
+        struct tm t {};
         if (localtime_r(&now, &t) != nullptr) {
             hour = static_cast<uint8_t>(t.tm_hour);
         }

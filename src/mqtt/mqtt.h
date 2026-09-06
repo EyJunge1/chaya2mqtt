@@ -23,9 +23,9 @@ void mqttPostponeConnect(unsigned long delayMs);
 void mqttBeginSettingsApply();
 void mqttEndSettingsApply();
 
-bool mqttIsConnected();
+auto mqttIsConnected() -> bool;
 
-bool mqttPublishChayaAndApplySentCounters();
+auto mqttPublishChayaAndApplySentCounters() -> bool;
 
 /**
  * Non-blocking heart publish for the LED TX sequence.
@@ -39,13 +39,13 @@ enum class MqttChayaPublishAsync : uint8_t {
 };
 
 /** Arm network-task publish if idle; returns current async state after arming. */
-MqttChayaPublishAsync mqttRequestChayaPublishAsync();
-MqttChayaPublishAsync mqttPollChayaPublishAsync();
+auto mqttRequestChayaPublishAsync() -> MqttChayaPublishAsync;
+auto mqttPollChayaPublishAsync() -> MqttChayaPublishAsync;
 void mqttRunChayaPublishOnNetworkTask();
 void mqttClearChayaPublishAsync();
 
 /** True while broker settings are being torn down/reapplied (blocks publish). */
-bool mqttPublishBlocked();
+auto mqttPublishBlocked() -> bool;
 
 /** Result of requesting a heart/Chaya TX (button and web share this entry). */
 enum class ChayaSendResult : uint8_t {
@@ -58,4 +58,4 @@ enum class ChayaSendResult : uint8_t {
  * Single entry for Chaya send: same LED TX sequence + publish path for button and web.
  * Safe from any task.
  */
-ChayaSendResult chayaRequestSend();
+auto chayaRequestSend() -> ChayaSendResult;

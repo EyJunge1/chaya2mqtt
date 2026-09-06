@@ -72,7 +72,7 @@ inline void wlanPackConfigV2(const WlanConfig &cfg, PackedWifiConfigV2 *out) {
  * Invalid static fields fall back to DHCP (same as firmware NVS path).
  * @return false when magic/SSID invalid.
  */
-inline bool wlanUnpackConfigV2(const PackedWifiConfigV2 &pk, WlanConfig *cfg) {
+inline auto wlanUnpackConfigV2(const PackedWifiConfigV2 &pk, WlanConfig *cfg) -> bool {
     if (cfg == nullptr || pk.magic != kWifiCfgPackedMagic) {
         return false;
     }

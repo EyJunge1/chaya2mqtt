@@ -11,17 +11,19 @@ enum class DisplayView : uint8_t {
     PowerOff = 5,
 };
 
-inline bool displayViewIsValid(DisplayView view) {
+inline auto displayViewIsValid(DisplayView view) -> bool {
     return view == DisplayView::Unknown || view == DisplayView::Heart || view == DisplayView::SetupQr ||
            view == DisplayView::ProductTitle || view == DisplayView::HeartCrack || view == DisplayView::PowerOff;
 }
 
-inline bool displayViewNeedsRefresh(DisplayView current, DisplayView target) {
+inline auto displayViewNeedsRefresh(DisplayView current, DisplayView target) -> bool {
     return current == DisplayView::Unknown || current != target;
 }
 
-inline bool displayRefreshRequired(DisplayView current, DisplayView target, bool onlyIfViewChanged) {
+inline auto displayRefreshRequired(DisplayView current, DisplayView target, bool onlyIfViewChanged) -> bool {
     return !onlyIfViewChanged || displayViewNeedsRefresh(current, target);
 }
 
-inline bool displayViewIsHeartFamily(DisplayView view) { return view == DisplayView::Heart || view == DisplayView::HeartCrack; }
+inline auto displayViewIsHeartFamily(DisplayView view) -> bool {
+    return view == DisplayView::Heart || view == DisplayView::HeartCrack;
+}

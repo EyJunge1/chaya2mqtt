@@ -14,8 +14,8 @@ extern std::atomic<int> heartSentCounter;
 extern std::atomic<int> counterBaseline;
 extern std::atomic<int> sentCountBaseline;
 
-int heartDisplayRxDelta();
-int heartDisplayTxDelta();
+auto heartDisplayRxDelta() -> int;
+auto heartDisplayTxDelta() -> int;
 
 /** Update remote counter and apply publish-side TX increment under display mux. */
 void heartCounterStoreFromRemote(int value);

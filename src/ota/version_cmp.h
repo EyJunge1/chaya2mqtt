@@ -1,6 +1,7 @@
 #pragma once
 
-#include <cstdio>
+#include <cerrno>
+#include <cstdlib>
 #include <cstring>
 
 /** Pure CalVer / beta (`-rc.N`) helpers for OTA (header-only, native-testable). */
@@ -13,7 +14,22 @@ struct OtaParsedVersion {
     bool isRc = false;
 };
 
-inline bool otaVersionParse(const char *tag, OtaParsedVersion *out) {
+inline auto otaParseUintToken(const char *p, unsigned maxVal, unsigned *out, const char **endOut) -> bool {
+    if (p == nullptr || out == nullptr || endOut == nullptr || *p < '0' || *p > '9') {
+        return false;
+    }
+    errno = 0;
+    char *end = nullptr;
+    const unsigned long v = std::strtoul(p, &end, 10);
+    if (end == p || errno == ERANGE || v > static_cast<unsigned long>(maxVal)) {
+        return false;
+    }
+    *out = static_cast<unsigned>(v);
+    *endOut = end;
+    return true;
+}
+
+inline auto otaVersionParse(const char *tag, OtaParsedVersion *out) -> bool {
     if (out == nullptr) {
         return false;
     }
@@ -25,35 +41,39 @@ inline bool otaVersionParse(const char *tag, OtaParsedVersion *out) {
     if (p[0] == 'v' || p[0] == 'V') {
         ++p;
     }
-    int consumed = 0;
-    if (sscanf(p, "%u.%u.%u%n", &out->major, &out->minor, &out->patch, &consumed) != 3) {
+    const char *end = nullptr;
+    if (!otaParseUintToken(p, 9999U, &out->major, &end) || *end != '.') {
         return false;
     }
-    if (out->major > 9999U || out->minor > 999U || out->patch > 999U) {
+    p = end + 1;
+    if (!otaParseUintToken(p, 999U, &out->minor, &end) || *end != '.') {
         return false;
     }
-    const char *suffix = p + consumed;
-    if (*suffix == '\0') {
+    p = end + 1;
+    if (!otaParseUintToken(p, 999U, &out->patch, &end)) {
+        return false;
+    }
+    if (*end == '\0') {
         return true;
     }
-    int rcConsumed = 0;
-    if (sscanf(suffix, "-rc.%u%n", &out->rc, &rcConsumed) != 1 && sscanf(suffix, "-RC.%u%n", &out->rc, &rcConsumed) != 1) {
+    if (strncmp(end, "-rc.", 4) != 0 && strncmp(end, "-RC.", 4) != 0) {
         return false;
     }
-    if (out->rc == 0U || suffix[rcConsumed] != '\0') {
+    p = end + 4;
+    if (!otaParseUintToken(p, 9999U, &out->rc, &end) || *end != '\0' || out->rc == 0U) {
         return false;
     }
     out->isRc = true;
     return true;
 }
 
-inline bool otaVersionIsRc(const char *tag) {
+inline auto otaVersionIsRc(const char *tag) -> bool {
     OtaParsedVersion parsed{};
     return otaVersionParse(tag, &parsed) && parsed.isRc;
 }
 
 /** Strict release-tag format shared with CI: vYYYY.M.PATCH[-rc.N]. */
-inline bool otaReleaseTagIsAllowed(const char *tag) {
+inline auto otaReleaseTagIsAllowed(const char *tag) -> bool {
     if (tag == nullptr || tag[0] != 'v') {
         return false;
     }
@@ -98,7 +118,7 @@ inline bool otaReleaseTagIsAllowed(const char *tag) {
 }
 
 /** True if remote is a usable newer version than local (no downgrade). */
-inline bool otaVersionIsNewer(const char *remoteTag, const char *localVersion) {
+inline auto otaVersionIsNewer(const char *remoteTag, const char *localVersion) -> bool {
     OtaParsedVersion remote{};
     if (!otaVersionParse(remoteTag, &remote)) {
         return false;

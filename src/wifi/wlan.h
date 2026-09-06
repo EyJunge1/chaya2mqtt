@@ -9,21 +9,21 @@ void setupWiFi();
 void resetAllSettings();
 
 /** True after setupWiFi() finished (STA or AP path). */
-bool wlanIsSetupComplete();
+auto wlanIsSetupComplete() -> bool;
 
 /** True after boot STA connect attempt finished (connected or AP fallback). */
-bool wlanIsBootWifiSettled();
+auto wlanIsBootWifiSettled() -> bool;
 
 /** Persist full WLAN config (SSID/pass + IP mode + NTP). */
-bool wlanSaveConfigToNvs(const WlanConfig &cfg);
+auto wlanSaveConfigToNvs(const WlanConfig &cfg) -> bool;
 
 /** Load config; migrates legacy cred_v1 / ssid+pass to DHCP + default NTP. */
-bool wlanLoadConfigFromNvs(WlanConfig *cfg);
+auto wlanLoadConfigFromNvs(WlanConfig *cfg) -> bool;
 
 /** @deprecated Prefer wlanSaveConfigToNvs; saves DHCP-only config. */
-bool configSaveWiFiCredentials(const char *ssid, const char *password);
+auto configSaveWiFiCredentials(const char *ssid, const char *password) -> bool;
 
-bool configIsApMode();
+auto configIsApMode() -> bool;
 
 /** Captive DNS + mDNS; call from main loop. */
 void wlanLoop();
@@ -37,12 +37,12 @@ struct WlanScanRow {
 /** Max rows returned by wlanWifiScanCopySnapshot (UI + driver work buffers sized to this). */
 constexpr size_t kWlanWifiScanCacheMaxRows = 40;
 
-bool wlanStaConnectedOk();
+auto wlanStaConnectedOk() -> bool;
 
 /** STA up long enough after GOT_IP (MQTT/TLS guard). */
-bool wlanStaStableForMqtt();
+auto wlanStaStableForMqtt() -> bool;
 
-bool wlanNtpSynced();
+auto wlanNtpSynced() -> bool;
 
 /** Modem PS: true when MQTT session up; false helps reconnect after drop. */
 void wlanSetStaPowerSaveMqttActive(bool mqttSessionActive);
@@ -57,35 +57,35 @@ enum class WlanWifiScanStatus : uint8_t {
     Failed,
 };
 
-WlanWifiScanStatus wlanWifiScanStatus();
+auto wlanWifiScanStatus() -> WlanWifiScanStatus;
 
-bool wlanWifiScanCacheReady();
+auto wlanWifiScanCacheReady() -> bool;
 
-size_t wlanWifiScanCopySnapshot(WlanScanRow *out, size_t maxRows);
+auto wlanWifiScanCopySnapshot(WlanScanRow *out, size_t maxRows) -> size_t;
 
-size_t wlanWifiScanCachedCount();
+auto wlanWifiScanCachedCount() -> size_t;
 
-bool wlanWifiScanCopyRowAt(size_t index, WlanScanRow *out);
+auto wlanWifiScanCopyRowAt(size_t index, WlanScanRow *out) -> bool;
 
-bool wlanFillStaLinkSnapshot(bool *outConnected, char *ipStr, size_t ipLen, char *ssidBuf, size_t ssidLen, int *outRssi);
+auto wlanFillStaLinkSnapshot(bool *outConnected, char *ipStr, size_t ipLen, char *ssidBuf, size_t ssidLen, int *outRssi) -> bool;
 
 /** Extended STA link snapshot including DHCP-assigned topology. */
-bool wlanFillStaNetSnapshot(bool *outConnected, char *ssidBuf, size_t ssidLen, char *ipStr, size_t ipLen, char *gatewayStr,
+auto wlanFillStaNetSnapshot(bool *outConnected, char *ssidBuf, size_t ssidLen, char *ipStr, size_t ipLen, char *gatewayStr,
                             size_t gatewayLen, char *netmaskStr, size_t netmaskLen, char *dns1Str, size_t dns1Len, char *dns2Str,
-                            size_t dns2Len, int *outRssi);
+                            size_t dns2Len, int *outRssi) -> bool;
 
-bool wlanLastStaBootFailureSsidSnapshot(char *outSsid, size_t maxLen);
+auto wlanLastStaBootFailureSsidSnapshot(char *outSsid, size_t maxLen) -> bool;
 
 void wlanWifiApiLock();
 void wlanWifiApiUnlock();
 
 /** Try WiFi API mutex with timeout; false if unavailable. */
-bool wlanWifiApiLockTimed(uint32_t timeoutMs);
+auto wlanWifiApiLockTimed(uint32_t timeoutMs) -> bool;
 
-bool wlanReadStaLocalIpForCommit(char *outIp, size_t ipLen);
+auto wlanReadStaLocalIpForCommit(char *outIp, size_t ipLen) -> bool;
 
 /** Apply DHCP or static IPv4 under the WiFi API lock (caller must hold lock). */
-bool wlanApplyStaIpConfigLocked(const WlanConfig &cfg);
+auto wlanApplyStaIpConfigLocked(const WlanConfig &cfg) -> bool;
 
 /** Queued from WiFi event; run reconnect/backoff under network task. */
 void wlanHandleStaReconnectNetCmd();
@@ -108,23 +108,23 @@ void wlanControlledRestart(const char *reasonTag);
 /**
  * Snapshot of SoftAP setup connection data (SSID and IP).
  */
-bool wlanApSetupSnapshot(char *outSsid, size_t ssidLen, char *outIp, size_t ipLen);
+auto wlanApSetupSnapshot(char *outSsid, size_t ssidLen, char *outIp, size_t ipLen) -> bool;
 
 /** SoftAP WPA PSK for WIFI QR (alphanumeric ≥20; not exposed on the HTTP API). */
-bool wlanApSetupPassSnapshot(char *outPass, size_t passLen);
+auto wlanApSetupPassSnapshot(char *outPass, size_t passLen) -> bool;
 
 /** Load or create the SoftAP PSK in NVS and cache it in RAM. */
-bool wlanEnsureSetupApPass();
+auto wlanEnsureSetupApPass() -> bool;
 
 /** Cache setup PSK and mark AP mode so the WIFI QR can be painted before RF. */
-bool wlanArmSetupApMode();
+auto wlanArmSetupApMode() -> bool;
 
 /** Briefly drop WiFi TX while the E-Ink panel refreshes (~15–20 s). */
-bool wlanBeginLowInterferenceForEpd();
+auto wlanBeginLowInterferenceForEpd() -> bool;
 void wlanEndLowInterferenceForEpd();
 
 /** True while an E-Ink full refresh holds the low-interference window. */
-bool wlanEpdRefreshActive();
+auto wlanEpdRefreshActive() -> bool;
 
 /** Wall-clock ms when boot WiFi first settled (0 if not yet). */
-unsigned long wlanBootSettledAtMs();
+auto wlanBootSettledAtMs() -> unsigned long;

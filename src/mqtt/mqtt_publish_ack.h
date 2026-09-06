@@ -16,7 +16,8 @@ struct MqttPublishAckState {
     int expectedCounter = 0;
 };
 
-inline bool mqttPublishAckBegin(MqttPublishAckState *state, int messageId, uint32_t clientGeneration, int expectedCounter) {
+inline auto mqttPublishAckBegin(MqttPublishAckState *state, int messageId, uint32_t clientGeneration,
+                                int expectedCounter) -> bool {
     if (state == nullptr || messageId < 0 || state->status == MqttPublishAckStatus::Pending) {
         return false;
     }
@@ -27,7 +28,7 @@ inline bool mqttPublishAckBegin(MqttPublishAckState *state, int messageId, uint3
     return true;
 }
 
-inline bool mqttPublishAckConfirm(MqttPublishAckState *state, int messageId, uint32_t clientGeneration) {
+inline auto mqttPublishAckConfirm(MqttPublishAckState *state, int messageId, uint32_t clientGeneration) -> bool {
     if (state == nullptr || state->status != MqttPublishAckStatus::Pending || state->messageId != messageId ||
         state->clientGeneration != clientGeneration) {
         return false;
@@ -36,7 +37,7 @@ inline bool mqttPublishAckConfirm(MqttPublishAckState *state, int messageId, uin
     return true;
 }
 
-inline bool mqttPublishAckFail(MqttPublishAckState *state, uint32_t clientGeneration) {
+inline auto mqttPublishAckFail(MqttPublishAckState *state, uint32_t clientGeneration) -> bool {
     if (state == nullptr || state->status != MqttPublishAckStatus::Pending || state->clientGeneration != clientGeneration) {
         return false;
     }
@@ -44,9 +45,11 @@ inline bool mqttPublishAckFail(MqttPublishAckState *state, uint32_t clientGenera
     return true;
 }
 
-inline bool mqttPublishAckIsPending(const MqttPublishAckState &state) { return state.status == MqttPublishAckStatus::Pending; }
+inline auto mqttPublishAckIsPending(const MqttPublishAckState &state) -> bool {
+    return state.status == MqttPublishAckStatus::Pending;
+}
 
-inline bool mqttPublishAckWasConfirmed(const MqttPublishAckState &state, int messageId, uint32_t clientGeneration) {
+inline auto mqttPublishAckWasConfirmed(const MqttPublishAckState &state, int messageId, uint32_t clientGeneration) -> bool {
     return state.status == MqttPublishAckStatus::Acked && state.messageId == messageId &&
            state.clientGeneration == clientGeneration;
 }

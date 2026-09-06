@@ -16,18 +16,18 @@ enum class WlanWifiConnectionTestState : uint8_t {
 void wifiConnectionTestServiceLoop();
 
 /** Start STA join test while softAP stays up (AP mode only). */
-bool wlanStartWifiConnectionTest(const WlanConfig &cfg);
+auto wlanStartWifiConnectionTest(const WlanConfig &cfg) -> bool;
 
 /** Re-run STA join with RAM credentials from a Fail state (AP mode only). */
-bool wlanRetryWifiConnectionTest();
+auto wlanRetryWifiConnectionTest() -> bool;
 
 /** Stop test, disconnect STA interface, reset to Idle. */
 void wlanAbortWifiConnectionTest();
 
-WlanWifiConnectionTestState wlanGetWifiConnectionTestState();
+auto wlanGetWifiConnectionTestState() -> WlanWifiConnectionTestState;
 
 /** SSID currently being tested or last result context; false if Idle. */
-bool wlanWifiConnectionTestSsidSnapshot(char *outSsid, size_t maxLen);
+auto wlanWifiConnectionTestSsidSnapshot(char *outSsid, size_t maxLen) -> bool;
 
 /** If state Ok and STA still has IPv4: write NVS, schedule reboot. */
-bool wlanCommitWifiConnectionTestAndScheduleReboot();
+auto wlanCommitWifiConnectionTestAndScheduleReboot() -> bool;

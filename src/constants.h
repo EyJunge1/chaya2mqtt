@@ -27,12 +27,12 @@ constexpr const char kSetupApIp[] = "4.3.2.1";
 /** Absolute captive-portal landing URL (Android/Windows prefer absolute). */
 constexpr const char kSetupApCaptiveRedirect[] = "http://4.3.2.1/";
 
-inline bool ntpTimeLooksSynced(time_t utcNow) { return utcNow > static_cast<time_t>(kNtpMinValidUtcEpoch); }
+inline auto ntpTimeLooksSynced(time_t utcNow) -> bool { return utcNow > static_cast<time_t>(kNtpMinValidUtcEpoch); }
 
 /**
  * Basic MQTT topic rules: non-empty, within maxLen (including NUL), no spaces or wildcards.
  */
-inline bool mqttTopicSyntaxOk(const char *topic, size_t maxLen) {
+inline auto mqttTopicSyntaxOk(const char *topic, size_t maxLen) -> bool {
     if (topic == nullptr || topic[0] == '\0' || maxLen == 0U) {
         return false;
     }
@@ -42,7 +42,7 @@ inline bool mqttTopicSyntaxOk(const char *topic, size_t maxLen) {
         if (len >= maxLen) {
             return false;
         }
-        const unsigned char c = static_cast<unsigned char>(*p);
+        const auto c = static_cast<unsigned char>(*p);
         if (c < 0x20U || c > 0x7EU || c == ' ' || c == '#' || c == '+') {
             return false;
         }
@@ -54,13 +54,13 @@ inline bool mqttTopicSyntaxOk(const char *topic, size_t maxLen) {
  * MQTT broker host field (hostname or IP literal): fits in buffer with NUL, no control chars/spaces/wildcards.
  * Not the same rules as MQTT topics (still rejects '#' / '+').
  */
-inline bool mqttServerSyntaxOk(const char *host, size_t maxLen) { return hostFieldSyntaxOk(host, maxLen); }
+inline auto mqttServerSyntaxOk(const char *host, size_t maxLen) -> bool { return hostFieldSyntaxOk(host, maxLen); }
 
 /**
  * MQTT username: empty OK (anonymous); otherwise no control chars (< 0x20), fits in maxLen.
  * UTF-8 broker users are allowed; same control-char rule as the password. SEC-09.
  */
-inline bool mqttUsernameSyntaxOk(const char *user, size_t maxLen) {
+inline auto mqttUsernameSyntaxOk(const char *user, size_t maxLen) -> bool {
     if (user == nullptr || maxLen == 0U) {
         return false;
     }
@@ -84,7 +84,7 @@ inline bool mqttUsernameSyntaxOk(const char *user, size_t maxLen) {
  * MQTT password: empty OK; no control chars (< 0x20); fits in maxLen.
  * Allows high-bit / punctuation for strong secrets; blocks embedded-NUL truncation class. SEC-09.
  */
-inline bool mqttPasswordSyntaxOk(const char *pass, size_t maxLen) {
+inline auto mqttPasswordSyntaxOk(const char *pass, size_t maxLen) -> bool {
     if (pass == nullptr || maxLen == 0U) {
         return false;
     }
@@ -105,31 +105,37 @@ inline bool mqttPasswordSyntaxOk(const char *pass, size_t maxLen) {
 }
 
 /** UI language preference: "de" or "en". */
-inline bool uiLangSyntaxOk(const char *lang) { return lang != nullptr && (strcmp(lang, "de") == 0 || strcmp(lang, "en") == 0); }
+inline auto uiLangSyntaxOk(const char *lang) -> bool {
+    return lang != nullptr && (strcmp(lang, "de") == 0 || strcmp(lang, "en") == 0);
+}
 
 /** UI theme preference: "system", "dark", or "light". */
-inline bool uiThemeSyntaxOk(const char *theme) {
+inline auto uiThemeSyntaxOk(const char *theme) -> bool {
     return theme != nullptr && (strcmp(theme, "system") == 0 || strcmp(theme, "dark") == 0 || strcmp(theme, "light") == 0);
 }
 
-inline bool audioVolumeInRange(int v) { return v >= 0 && v <= static_cast<int>(kAudioVolumeMax); }
+inline auto audioVolumeInRange(int v) -> bool { return v >= 0 && v <= static_cast<int>(kAudioVolumeMax); }
 
-inline bool quietHourInRange(int v) { return v >= 0 && v <= static_cast<int>(kAudioHourMax); }
+inline auto quietHourInRange(int v) -> bool { return v >= 0 && v <= static_cast<int>(kAudioHourMax); }
 
-inline bool audioToneHzInRange(int v) { return v >= static_cast<int>(kAudioToneHzMin) && v <= static_cast<int>(kAudioToneHzMax); }
+inline auto audioToneHzInRange(int v) -> bool {
+    return v >= static_cast<int>(kAudioToneHzMin) && v <= static_cast<int>(kAudioToneHzMax);
+}
 
-inline bool audioToneMsInRange(int v) { return v >= static_cast<int>(kAudioToneMsMin) && v <= static_cast<int>(kAudioToneMsMax); }
+inline auto audioToneMsInRange(int v) -> bool {
+    return v >= static_cast<int>(kAudioToneMsMin) && v <= static_cast<int>(kAudioToneMsMax);
+}
 
 /** Display reset period days: 0 = off, otherwise 1–30. */
-inline bool resetPeriodDaysInRange(int v) { return v >= 0 && v <= 30; }
+inline auto resetPeriodDaysInRange(int v) -> bool { return v >= 0 && v <= 30; }
 
 /** Six lowercase hex digits (a-f0-9), e.g. a1b2c3. */
-inline bool deviceIdSyntaxOk(const char *id) {
+inline auto deviceIdSyntaxOk(const char *id) -> bool {
     if (id == nullptr) {
         return false;
     }
     for (size_t i = 0; i < kDeviceIdHexLen; ++i) {
-        const unsigned char c = static_cast<unsigned char>(id[i]);
+        const auto c = static_cast<unsigned char>(id[i]);
         if (c == '\0') {
             return false;
         }
@@ -141,7 +147,7 @@ inline bool deviceIdSyntaxOk(const char *id) {
     return id[kDeviceIdHexLen] == '\0';
 }
 
-inline bool wifiSsidSyntaxOk(const char *ssid, size_t maxLen) {
+inline auto wifiSsidSyntaxOk(const char *ssid, size_t maxLen) -> bool {
     if (ssid == nullptr || ssid[0] == '\0' || maxLen == 0U) {
         return false;
     }
@@ -151,7 +157,7 @@ inline bool wifiSsidSyntaxOk(const char *ssid, size_t maxLen) {
         if (len >= maxLen) {
             return false;
         }
-        const unsigned char c = static_cast<unsigned char>(*p);
+        const auto c = static_cast<unsigned char>(*p);
         if (c < 0x20U || c > 0x7EU) {
             return false;
         }

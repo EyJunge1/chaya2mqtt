@@ -2,6 +2,8 @@
 
 #include "ota.h"
 
+#include <cstdint>
+
 struct OtaReleaseInfo {
     char tag[64]{};
     char version[64]{}; // tag without leading 'v'
@@ -11,11 +13,11 @@ struct OtaReleaseInfo {
     bool isPrerelease = false;
 };
 
-enum class GithubCheckResult {
+enum class GithubCheckResult : uint8_t {
     ApiError = 0,
     ParsedNoUpgrade = 1,
     ParsedUpgradeAvail = 2,
 };
 
-/** Resolve the newest release for `channel` and compare against APP_VERSION. */
-GithubCheckResult otaGithubEvaluateChannel(OtaChannel channel, OtaReleaseInfo *out);
+/** Resolve the newest release for `channel` and compare against kAppVersion. */
+auto otaGithubEvaluateChannel(OtaChannel channel, OtaReleaseInfo *out) -> GithubCheckResult;

@@ -67,6 +67,9 @@ jobs:
                   firmware_tests=true
                   firmware_build=true
                   ;;
+                .clang-tidy|.clang-format|.clangd)
+                  firmware_tests=true
+                  ;;
                 scripts/embed_web_assets.py|scripts/test_embed_web_assets.py|scripts/pio_pre_frontend.py|scripts/prepare_release_artifacts.py)
                   firmware_build=true
                   ;;
@@ -83,6 +86,9 @@ jobs:
                 scripts/pio_native_asan.py)
                   firmware_tests=true
                   firmware_build=true
+                  ;;
+                scripts/check_clang_tidy.sh|scripts/check_firmware_format.sh|scripts/format.sh)
+                  firmware_tests=true
                   ;;
                 *)
                   echo "Central or unknown path; enabling the complete gate: $path"
@@ -181,11 +187,13 @@ jobs:
       - name: Install PlatformIO
         run: pip install platformio==6.1.19
 
-      - name: Install clang-tidy
-        run: sudo apt-get update && sudo apt-get install -y clang-tidy
+      - name: Install clang-tidy and clang-format
+        run: sudo apt-get update && sudo apt-get install -y clang-tidy clang-format-18
 
       - name: Run native and static firmware checks
         run: make check-firmware-tests PIO=pio
+        env:
+          CLANG_FORMAT: clang-format-18
 
   firmware_build:
     name: Firmware release build
