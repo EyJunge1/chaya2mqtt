@@ -126,9 +126,7 @@ auto wlanApSetupPassSnapshot(char *outPass, size_t passLen) -> bool;
 auto wlanEnsureSetupApPass() -> bool;
 
 /** True when Ensure must mint a new setup PSK (RAM and NVS both invalid). */
-inline auto setupApPassShouldGenerate(bool ramSyntaxOk, bool nvsSyntaxOk) -> bool {
-    return !ramSyntaxOk && !nvsSyntaxOk;
-}
+inline auto setupApPassShouldGenerate(bool ramSyntaxOk, bool nvsSyntaxOk) -> bool { return !ramSyntaxOk && !nvsSyntaxOk; }
 
 /** Cache setup PSK and mark AP mode so the WIFI QR can be painted before RF. */
 auto wlanArmSetupApMode() -> bool;
