@@ -74,7 +74,7 @@ jobs:
         run: pip install platformio==6.1.19
 
       - name: Install clang-tidy and clang-format
-        run: sudo apt-get update && sudo apt-get install -y clang-tidy clang-format
+        run: sudo apt-get update && sudo apt-get install -y clang-tidy clang-format-18
 
       - name: Install Playwright browser
         run: |
@@ -84,6 +84,8 @@ jobs:
 
       - name: Run quality gate and build release firmware
         run: "make check PIO=pio FRONTEND_NPM_CI=:"
+        env:
+          CLANG_FORMAT: clang-format-18
 
       - name: Prepare release artifacts
         id: hashes

@@ -4,8 +4,15 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
-if ! command -v clang-format >/dev/null 2>&1; then
-  echo "clang-format is required (install it or set PATH). Homebrew: llvm on PATH." >&2
+if [[ -z "${CLANG_FORMAT:-}" ]]; then
+  if command -v clang-format-18 >/dev/null 2>&1; then
+    CLANG_FORMAT=clang-format-18
+  elif command -v clang-format >/dev/null 2>&1; then
+    CLANG_FORMAT=clang-format
+  fi
+fi
+if [[ -z "${CLANG_FORMAT:-}" ]] || ! command -v "$CLANG_FORMAT" >/dev/null 2>&1; then
+  echo "clang-format is required (install clang-format-18 or set CLANG_FORMAT)." >&2
   exit 1
 fi
 
@@ -20,5 +27,5 @@ if [[ "${#files[@]}" -eq 0 ]]; then
   exit 1
 fi
 
-clang-format -i "${files[@]}"
-echo "clang-format: ${#files[@]} files"
+"$CLANG_FORMAT" -i "${files[@]}"
+echo "clang-format ($CLANG_FORMAT): ${#files[@]} files"

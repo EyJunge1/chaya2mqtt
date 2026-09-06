@@ -50,7 +50,7 @@ Generated artifacts (`frontend/coverage/`, `frontend/test-results/`, `playwright
 - Install the Playwright browser once: `cd frontend && npx playwright install chromium`
 - For ASan: host Clang/GCC with AddressSanitizer/UBSan (macOS Xcode CLT is sufficient)
 - clang-tidy: required in CI (`scripts/check_clang_tidy.sh`, `.clang-tidy`: bugprone/cert/performance/`modernize-*`/`cppcoreguidelines-*`; C-buffer/snprintf/magic-number checks off). Locally optional; without it `make check-firmware-tests` skips TEST-05. Homebrew: `llvm` on `PATH`.
-- clang-format: required in CI (`scripts/check_firmware_format.sh`). Locally optional (TEST-06 skip if missing). Apply with `scripts/format.sh`. Homebrew: `llvm` on `PATH`.
+- clang-format **18**: required in CI (`scripts/check_firmware_format.sh`, `CLANG_FORMAT=clang-format-18`). Locally optional (TEST-06 skip if missing). Apply with `scripts/format.sh`. Prefer `clang-format-18` over newer LLVM (wrap style differs).
 
 ## Quick commands
 

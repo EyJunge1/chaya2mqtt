@@ -40,8 +40,8 @@ inline auto mqttBackoffElapsed(const MqttBackoffState &st, unsigned long nowMs) 
  * Precheck deferral before starting a connect attempt.
  * Returns 0 when connect may proceed; otherwise a deferral period in ms.
  */
-inline auto mqttConnectPrecheckDeferMsPure(bool brokerConfigured, bool wifiConnected, bool wifiStable, bool ntpSynced)
-    -> unsigned long {
+inline auto mqttConnectPrecheckDeferMsPure(bool brokerConfigured, bool wifiConnected, bool wifiStable,
+                                           bool ntpSynced) -> unsigned long {
     if (!brokerConfigured) {
         return kMqttBrokerMissingBackoffMs;
     }

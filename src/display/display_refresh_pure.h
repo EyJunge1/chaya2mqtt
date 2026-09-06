@@ -33,8 +33,8 @@ inline auto displayHeartRedrawDecide(int currentRx, int currentTx, int lastDrawn
  * How long the display task should wait for the next command when a deferred
  * heart redraw is pending. ULONG_MAX means wait forever (no pending work).
  */
-inline auto displayHeartRedrawWaitMs(unsigned long nowMs, unsigned long lastEnqueueMs, unsigned long minIntervalMs, bool pending)
-    -> unsigned long {
+inline auto displayHeartRedrawWaitMs(unsigned long nowMs, unsigned long lastEnqueueMs, unsigned long minIntervalMs,
+                                     bool pending) -> unsigned long {
     if (!pending) {
         return ULONG_MAX;
     }

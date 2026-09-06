@@ -5,9 +5,17 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
-if ! command -v clang-format >/dev/null 2>&1; then
+# Prefer clang-format-18 (Ubuntu CI). LLVM 19+ wraps some signatures differently.
+if [[ -z "${CLANG_FORMAT:-}" ]]; then
+  if command -v clang-format-18 >/dev/null 2>&1; then
+    CLANG_FORMAT=clang-format-18
+  elif command -v clang-format >/dev/null 2>&1; then
+    CLANG_FORMAT=clang-format
+  fi
+fi
+if [[ -z "${CLANG_FORMAT:-}" ]] || ! command -v "$CLANG_FORMAT" >/dev/null 2>&1; then
   if [[ "${CI:-}" == "true" || "${CHAYA_REQUIRE_CLANG_FORMAT:-}" == "1" ]]; then
-    echo "clang-format is required (install it or set PATH). CI must not skip TEST-06." >&2
+    echo "clang-format is required (install clang-format-18 or set CLANG_FORMAT). CI must not skip TEST-06." >&2
     exit 1
   fi
   echo "clang-format not installed — skipping firmware format check (TEST-06)"
@@ -25,5 +33,5 @@ if [[ "${#files[@]}" -eq 0 ]]; then
   exit 1
 fi
 
-clang-format --dry-run -Werror "${files[@]}"
-echo "clang-format dry-run: ${#files[@]} ok"
+"$CLANG_FORMAT" --dry-run -Werror "${files[@]}"
+echo "clang-format dry-run ($CLANG_FORMAT): ${#files[@]} ok"
