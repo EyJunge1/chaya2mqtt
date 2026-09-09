@@ -99,15 +99,20 @@ class DeviceRuntime {
         if (!transport_.connected || mqtt_.topicPub[0] == '\0') {
             return false;
         }
-        if (mqttPublishAckIsPending(publishAck_)) {
+        if (mqttPublishAckBlocksNewPublish(publishAck_)) {
+            return false;
+        }
+        const int nextVal = heartSentCounterNextPure(localTxCounter_);
+        if (!mqttPublishAckReserve(&publishAck_, clientGeneration_, nextVal)) {
             return false;
         }
         const std::string payload = std::to_string(value);
         const int messageId = transport_.publish(mqtt_.topicPub, payload.c_str());
         if (messageId < 0) {
+            static_cast<void>(mqttPublishAckFail(&publishAck_, clientGeneration_));
             return false;
         }
-        return mqttPublishAckBegin(&publishAck_, messageId, clientGeneration_, heartSentCounterNextPure(localTxCounter_));
+        return mqttPublishAckAttach(&publishAck_, messageId, clientGeneration_);
     }
 
     bool confirmPublish(int messageId) {
@@ -121,6 +126,10 @@ class DeviceRuntime {
     bool confirmPendingPublish() { return confirmPublish(publishAck_.messageId); }
 
     bool publishPending() const { return mqttPublishAckIsPending(publishAck_); }
+
+    uint32_t clientGeneration() const { return clientGeneration_; }
+
+    int pendingMessageId() const { return publishAck_.messageId; }
 
     bool injectRemoteCounter(const char *payload) {
         if (payload == nullptr) {
@@ -136,7 +145,6 @@ class DeviceRuntime {
 
     void forceDisconnect(bool wifiSuspect) {
         static_cast<void>(mqttPublishAckFail(&publishAck_, clientGeneration_));
-        clientGeneration_++;
         transport_.disconnect();
         const unsigned long wait = mqttNextFailureBackoffMs(backoff_, wifiSuspect);
         backoff_.backoffPeriodMs = wait;

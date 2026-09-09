@@ -115,11 +115,11 @@ describe("mock API parity", () => {
     expect(commit.body).toEqual({ ok: false, error: "not_ap" });
   });
 
-  it("returns unavailable when sending a heart without MQTT", async () => {
+  it("queues a heart when MQTT is configured and paired but offline", async () => {
     await callMock("/api/_mock/scenario", { scenario: "sta-mqtt-offline" });
     const res = await callJson("POST", "/api/chaya/send");
-    expect(res.status).toBe(503);
-    expect(res.body).toEqual({ ok: false, error: "unavailable" });
+    expect(res.status).toBe(202);
+    expect(res.body).toEqual({ ok: true, queued: true });
   });
 
   it("returns unavailable when sending a heart while unpaired", async () => {
@@ -138,7 +138,17 @@ describe("mock API parity", () => {
     expect(res.status).toBe(202);
     expect(res.body).toEqual({ ok: true, queued: true });
     expect(getState().tx).toBe(before);
+    expect(getState().heartBusy).toBe(true);
     await vi.waitFor(() => expect(getState().tx).toBe(before + 1));
+    expect(getState().heartBusy).toBe(false);
+  });
+
+  it("returns busy for a second heart send before ACK", async () => {
+    const first = await callJson("POST", "/api/chaya/send");
+    expect(first.status).toBe(202);
+    const second = await callJson("POST", "/api/chaya/send");
+    expect(second.status).toBe(503);
+    expect(second.body).toEqual({ ok: false, error: "busy" });
   });
 
   it("keeps settings applyPending across GET until the apply timer clears", async () => {
@@ -147,23 +157,33 @@ describe("mock API parity", () => {
     const pending = await callApi("GET", "/api/settings");
     expect(pending.status).toBe(200);
     expect(pending.body.applyPending).toBe(true);
+    expect(pending.body.lang).toBe("en");
     const pendingAgain = await callApi("GET", "/api/settings");
     expect(pendingAgain.body.applyPending).toBe(true);
+    expect(pendingAgain.body.lang).toBe("en");
     await vi.waitFor(async () => {
       const idle = await callApi("GET", "/api/settings");
       expect(idle.body.applyPending).toBe(false);
+      expect(idle.body.lang).toBe("de");
     });
   });
 
   it("sets MQTT applyPending true after POST then clears it", async () => {
-    const post = await callJson("POST", "/api/mqtt", { mqtt_server: "broker.example.com" });
+    const post = await callJson("POST", "/api/mqtt", {
+      mqtt_server: "broker.example.com",
+      partner_id: "abcdef",
+    });
     expect(post.status).toBe(200);
     const pending = await callApi("GET", "/api/mqtt");
     expect(pending.status).toBe(200);
     expect(pending.body.applyPending).toBe(true);
+    expect(pending.body.server).toBe("mqtt.example.com");
+    expect(pending.body.partnerId).toBe("f5e6d7");
     await vi.waitFor(async () => {
       const idle = await callApi("GET", "/api/mqtt");
       expect(idle.body.applyPending).toBe(false);
+      expect(idle.body.server).toBe("broker.example.com");
+      expect(idle.body.partnerId).toBe("abcdef");
     });
   });
 
@@ -197,9 +217,63 @@ describe("mock API parity", () => {
     expect(factory.status).toBe(503);
     expect(factory.body).toEqual({ ok: false, error: "busy" });
 
+    const reboot = await callJson("POST", "/api/reboot");
+    expect(reboot.status).toBe(503);
+    expect(reboot.body).toEqual({ ok: false, error: "busy" });
+
     const check = await callJson("POST", "/api/update/check", { channel: "stable" });
     expect(check.status).toBe(503);
     expect(check.body).toEqual({ ok: false, error: "busy" });
+  });
+
+  it("rejects settings, MQTT apply, and Wi-Fi scan while update is busy", async () => {
+    await callMock("/api/_mock/scenario", { scenario: "update-busy" });
+    const settings = await callJson("POST", "/api/settings", { lang: "de" });
+    expect(settings.status).toBe(503);
+    expect(settings.body).toEqual({ ok: false, error: "busy" });
+
+    const mqtt = await callJson("POST", "/api/mqtt", { mqtt_server: "broker.example" });
+    expect(mqtt.status).toBe(503);
+    expect(mqtt.body).toEqual({ ok: false, error: "busy" });
+
+    const scan = await callJson("POST", "/api/wifi/scan");
+    expect(scan.status).toBe(503);
+    expect(scan.body).toEqual({ ok: false, error: "busy" });
+
+    const connect = await callJson("POST", "/api/wifi/connect", { ssid: "MockNet", password: "secret" });
+    expect(connect.status).toBe(503);
+    expect(connect.body).toEqual({ ok: false, error: "busy" });
+  });
+
+  it("rejects reboot while MQTT apply is pending", async () => {
+    getState().mqttApplyPending = true;
+    const res = await callJson("POST", "/api/reboot");
+    expect(res.status).toBe(503);
+    expect(res.body).toEqual({ ok: false, error: "busy" });
+  });
+
+  it("rejects OTA check and install while MQTT apply is pending", async () => {
+    getState().mqttApplyPending = true;
+    const check = await callJson("POST", "/api/update/check", { channel: "stable" });
+    expect(check.status).toBe(503);
+    expect(check.body).toEqual({ ok: false, error: "busy" });
+
+    const install = await callJson("POST", "/api/update/install");
+    expect(install.status).toBe(503);
+    expect(install.body).toEqual({ ok: false, error: "busy" });
+  });
+
+  it("rejects factory reset while MQTT or settings apply is pending", async () => {
+    getState().mqttApplyPending = true;
+    const mqtt = await callJson("POST", "/api/factory-reset");
+    expect(mqtt.status).toBe(503);
+    expect(mqtt.body).toEqual({ ok: false, error: "busy" });
+
+    getState().mqttApplyPending = false;
+    getState().settingsApplyPending = true;
+    const settings = await callJson("POST", "/api/factory-reset");
+    expect(settings.status).toBe(503);
+    expect(settings.body).toEqual({ ok: false, error: "busy" });
   });
 
   it("serves ap-test-failed connect status", async () => {
@@ -275,10 +349,17 @@ describe("mock API parity", () => {
       mqtt_pass: "example-mock-credential",
     });
     expect(res.status).toBe(200);
+    expect(getState().mqtt.password).toBe("");
+    const pending = await callApi("GET", "/api/mqtt");
+    expect(pending.status).toBe(200);
+    expect(pending.body.applyPending).toBe(true);
+    expect(pending.body.hasPassword).toBe(false);
+    await vi.waitFor(async () => {
+      const view = await callApi("GET", "/api/mqtt");
+      expect(view.body.applyPending).toBe(false);
+      expect(view.body.hasPassword).toBe(true);
+    });
     expect(getState().mqtt.password).toBe("example-mock-credential");
-    const view = await callApi("GET", "/api/mqtt");
-    expect(view.status).toBe(200);
-    expect(view.body.hasPassword).toBe(true);
   });
 
   it("injects mqtt-save faults without mutating config", async () => {

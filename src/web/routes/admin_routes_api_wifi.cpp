@@ -3,8 +3,10 @@
 #include "../admin_globals.h"
 #include "admin_routes_api_internal.h"
 
+#include "async/system_lifecycle.h"
 #include "config/app_config.h"
 #include "constants.h"
+#include "ota/ota.h"
 #include "util/log_tag.h"
 #include "web/deferred_reboot.h"
 #include "web/web_utils.h"
@@ -144,8 +146,30 @@ void handleApiWifiScanGet(AsyncWebServerRequest *req) {
     webSendJsonDoc(req, 200, doc);
 }
 
+namespace {
+bool wifiDestructivePathBlocked(AsyncWebServerRequest *req) {
+    if (g_systemShutdownInProgress.load(std::memory_order_acquire) ||
+        g_factoryResetQueued.load(std::memory_order_acquire)) {
+        sendErr(req, 503, "shutdown");
+        return true;
+    }
+    if (adminApplyBlockedByOta(otaBlocksDestructiveAction())) {
+        sendErr(req, 503, "busy");
+        return true;
+    }
+    return false;
+}
+} // namespace
+
 void handleApiWifiScanPost(AsyncWebServerRequest *req, JsonVariant &json) {
     if (!adminJsonRequireObject(req, json)) {
+        return;
+    }
+    if (wifiDestructivePathBlocked(req)) {
+        return;
+    }
+    if (wlanWifiConnectionTestOwnsRadio()) {
+        sendErr(req, 503, "busy");
         return;
     }
     wlanRequestWifiScanRefresh();
@@ -163,12 +187,27 @@ void handleApiWifiConnectPost(AsyncWebServerRequest *req, JsonVariant &json) {
         return;
     }
     if (configIsApMode()) {
+        if (wifiDestructivePathBlocked(req)) {
+            return;
+        }
         if (!wlanStartWifiConnectionTest(cfg)) {
             sendErr(req, 503, "test_start");
             return;
         }
         ESP_LOGI(TAG, "WiFi connect test started ssid=%s", cfg.ssid);
         sendOk(req, 200, nullptr, "/wifi-testing");
+        return;
+    }
+    if (wifiDestructivePathBlocked(req)) {
+        return;
+    }
+    const ScopedWebAdminApplyInFlight applyInFlight;
+    if (!applyInFlight) {
+        sendErr(req, 503, "shutdown");
+        return;
+    }
+    if (!applyInFlight.commitAllowed()) {
+        sendErr(req, 503, "shutdown");
         return;
     }
     if (!wlanSaveConfigToNvs(cfg)) {
@@ -198,15 +237,28 @@ void handleApiWifiConnectCommitPost(AsyncWebServerRequest *req, JsonVariant &jso
     if (!adminJsonRequireObject(req, json)) {
         return;
     }
+    if (wifiDestructivePathBlocked(req)) {
+        return;
+    }
+    const ScopedWebAdminApplyInFlight applyInFlight;
+    if (!applyInFlight) {
+        sendErr(req, 503, "shutdown");
+        return;
+    }
     char staIp[16]{};
     if (!wlanReadStaLocalIpForCommit(staIp, sizeof(staIp))) {
         sendErr(req, 400, "not_connected");
         return;
     }
-    if (!wlanCommitWifiConnectionTestAndScheduleReboot()) {
+    if (!applyInFlight.commitAllowed()) {
+        sendErr(req, 503, "shutdown");
+        return;
+    }
+    if (!wlanCommitWifiConnectionTest()) {
         sendErr(req, 400, "not_ok");
         return;
     }
+    deferredRebootAfterWifiSave();
     char next[32]{};
     const int n = snprintf(next, sizeof(next), "http://%s/", staIp);
     if (n < 0 || static_cast<size_t>(n) >= sizeof(next)) {

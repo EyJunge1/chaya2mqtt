@@ -1,5 +1,6 @@
 import { ESPLoader, Transport } from "esptool-js";
 import type { FlashManifest, FlashProgress } from "./types";
+import { firmwareFetchInit } from "./flashFetch";
 import {
   isSha256Hex,
   parseSha256SidecarText,
@@ -9,6 +10,19 @@ import {
 
 const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 
+/** BUG-FE-05: emit a terminal progress event only after transport cleanup. */
+export async function emitAfterFlashCleanup(
+  cleanup: () => Promise<void>,
+  emit: () => void,
+): Promise<void> {
+  try {
+    await cleanup();
+  } catch {
+    // Best-effort reset / disconnect.
+  }
+  emit();
+}
+
 async function hardReset(transport: Transport, esploader: ESPLoader): Promise<void> {
   await transport.setRTS(true);
   await sleep(100);
@@ -17,7 +31,7 @@ async function hardReset(transport: Transport, esploader: ESPLoader): Promise<vo
 
 async function loadManifest(manifestPath: string): Promise<FlashManifest> {
   const url = new URL(manifestPath, window.location.href).href;
-  const response = await fetch(url, { cache: "no-store" });
+  const response = await fetch(url, firmwareFetchInit());
   if (!response.ok) {
     throw new Error(`HTTP ${response.status}`);
   }
@@ -25,7 +39,7 @@ async function loadManifest(manifestPath: string): Promise<FlashManifest> {
 }
 
 async function fetchPart(url: string): Promise<Uint8Array> {
-  const response = await fetch(url);
+  const response = await fetch(url, firmwareFetchInit());
   if (!response.ok) {
     throw new Error(`Downloading firmware failed: ${response.status}`);
   }
@@ -45,7 +59,7 @@ async function loadExpectedSha256(
     return manifestSha256!.toLowerCase();
   }
   const sidecarUrl = sidecarUrlForPart(partUrl);
-  const response = await fetch(sidecarUrl, { cache: "no-store" });
+  const response = await fetch(sidecarUrl, firmwareFetchInit());
   if (!response.ok) {
     throw new Error(`Missing firmware SHA-256 sidecar (${response.status})`);
   }
@@ -79,17 +93,19 @@ export async function flashFirmware(options: {
   let chipFamily = "Unknown";
 
   const fail = async (message: string) => {
-    emit({ phase: "error", message, percentage: null, chipFamily });
-    try {
-      await hardReset(transport, esploader);
-    } catch {
-      // Best-effort reset after failure.
-    }
-    try {
-      await transport.disconnect();
-    } catch {
-      // Port may already be closed.
-    }
+    await emitAfterFlashCleanup(
+      async () => {
+        try {
+          await hardReset(transport, esploader);
+        } catch {
+          // Best-effort reset after failure.
+        }
+        await transport.disconnect();
+      },
+      () => {
+        emit({ phase: "error", message, percentage: null, chipFamily });
+      },
+    );
   };
 
   emit({
@@ -248,19 +264,20 @@ export async function flashFirmware(options: {
     chipFamily,
   });
 
-  try {
-    await hardReset(transport, esploader);
-    await transport.disconnect();
-  } catch (err) {
-    console.error(err);
-  }
-
-  emit({
-    phase: "finished",
-    message: "finished",
-    percentage: 100,
-    chipFamily,
-  });
+  await emitAfterFlashCleanup(
+    async () => {
+      await hardReset(transport, esploader);
+      await transport.disconnect();
+    },
+    () => {
+      emit({
+        phase: "finished",
+        message: "finished",
+        percentage: 100,
+        chipFamily,
+      });
+    },
+  );
 }
 
 export async function closeSerialPort(port: SerialPort | null | undefined): Promise<void> {

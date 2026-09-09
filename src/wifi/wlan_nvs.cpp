@@ -4,6 +4,7 @@
 #include "wlan_internal.h"
 #include "wlan_pack.h"
 
+#include "config/nvs_blob_load_pure.h"
 #include "config/nvs_keys.h"
 #include "config/nvs_utils.h"
 #include "util/net_validate.h"
@@ -55,7 +56,9 @@ bool wlanLoadConfigFromNvs(WlanConfig *cfg) {
     }
 
     bool loaded = false;
-    if (prefs.getBytesLength(kNvsKeyWifiCfgV2) == sizeof(PackedWifiConfigV2)) {
+    const size_t v2Len = prefs.getBytesLength(kNvsKeyWifiCfgV2);
+    switch (nvsBlobLoadDecide(v2Len, sizeof(PackedWifiConfigV2))) {
+    case NvsBlobLoad::UseBlob: {
         PackedWifiConfigV2 pk{};
         if (prefs.getBytes(kNvsKeyWifiCfgV2, &pk, sizeof(pk)) == sizeof(pk)) {
             loaded = wlanUnpackConfigV2(pk, cfg);
@@ -63,43 +66,48 @@ bool wlanLoadConfigFromNvs(WlanConfig *cfg) {
                 ESP_LOGD(TAG, "WiFi NVS: cfg_v2 loaded (ssid=%s, mode=%s)", cfg->ssid,
                          cfg->mode == WlanIpMode::Static ? "static" : "dhcp");
             } else {
-                ESP_LOGW(TAG, "WiFi NVS: cfg_v2 rejected");
+                ESP_LOGW(TAG, "WiFi NVS: cfg_v2 rejected — ignoring legacy keys");
             }
         }
+        break;
     }
-
-    if (!loaded && prefs.getBytesLength(kNvsKeyWifiCredV1) == sizeof(PackedWifiCredentials)) {
-        PackedWifiCredentials pk{};
-        if (prefs.getBytes(kNvsKeyWifiCredV1, &pk, sizeof(pk)) == sizeof(pk) && pk.magic == kWifiCredPackedMagic) {
-            pk.ssid[sizeof(pk.ssid) - 1U] = '\0';
-            pk.pass[sizeof(pk.pass) - 1U] = '\0';
-            if (pk.ssid[0] != '\0' && strnlen(pk.ssid, sizeof(pk.ssid)) < sizeof(pk.ssid) &&
-                strnlen(pk.pass, sizeof(pk.pass)) < sizeof(pk.pass)) {
+    case NvsBlobLoad::UseDefaults:
+        ESP_LOGW(TAG, "WiFi NVS: cfg_v2 present but invalid size — ignoring legacy keys");
+        break;
+    case NvsBlobLoad::UseLegacy:
+        if (prefs.getBytesLength(kNvsKeyWifiCredV1) == sizeof(PackedWifiCredentials)) {
+            PackedWifiCredentials pk{};
+            if (prefs.getBytes(kNvsKeyWifiCredV1, &pk, sizeof(pk)) == sizeof(pk) && pk.magic == kWifiCredPackedMagic) {
+                pk.ssid[sizeof(pk.ssid) - 1U] = '\0';
+                pk.pass[sizeof(pk.pass) - 1U] = '\0';
+                if (pk.ssid[0] != '\0' && strnlen(pk.ssid, sizeof(pk.ssid)) < sizeof(pk.ssid) &&
+                    strnlen(pk.pass, sizeof(pk.pass)) < sizeof(pk.pass)) {
+                    wlanConfigClear(cfg);
+                    strlcpy(cfg->ssid, pk.ssid, sizeof(cfg->ssid));
+                    strlcpy(cfg->pass, pk.pass, sizeof(cfg->pass));
+                    cfg->mode = WlanIpMode::Dhcp;
+                    loaded = true;
+                    ESP_LOGD(TAG, "WiFi NVS: migrated cred_v1 → DHCP (ssid=%s)", cfg->ssid);
+                }
+            }
+        }
+        if (!loaded) {
+            char ssid[kWifiSsidMaxLen]{};
+            char pass[kWifiPassMaxLen]{};
+            prefs.getString(kNvsKeyWifiSsid, ssid, sizeof(ssid));
+            prefs.getString(kNvsKeyWifiPass, pass, sizeof(pass));
+            ssid[sizeof(ssid) - 1U] = '\0';
+            pass[sizeof(pass) - 1U] = '\0';
+            if (ssid[0] != '\0') {
                 wlanConfigClear(cfg);
-                strlcpy(cfg->ssid, pk.ssid, sizeof(cfg->ssid));
-                strlcpy(cfg->pass, pk.pass, sizeof(cfg->pass));
+                strlcpy(cfg->ssid, ssid, sizeof(cfg->ssid));
+                strlcpy(cfg->pass, pass, sizeof(cfg->pass));
                 cfg->mode = WlanIpMode::Dhcp;
                 loaded = true;
-                ESP_LOGD(TAG, "WiFi NVS: migrated cred_v1 → DHCP (ssid=%s)", cfg->ssid);
+                ESP_LOGD(TAG, "WiFi NVS: migrated legacy ssid/pass → DHCP (ssid=%s)", cfg->ssid);
             }
         }
-    }
-
-    if (!loaded) {
-        char ssid[kWifiSsidMaxLen]{};
-        char pass[kWifiPassMaxLen]{};
-        prefs.getString(kNvsKeyWifiSsid, ssid, sizeof(ssid));
-        prefs.getString(kNvsKeyWifiPass, pass, sizeof(pass));
-        ssid[sizeof(ssid) - 1U] = '\0';
-        pass[sizeof(pass) - 1U] = '\0';
-        if (ssid[0] != '\0') {
-            wlanConfigClear(cfg);
-            strlcpy(cfg->ssid, ssid, sizeof(cfg->ssid));
-            strlcpy(cfg->pass, pass, sizeof(cfg->pass));
-            cfg->mode = WlanIpMode::Dhcp;
-            loaded = true;
-            ESP_LOGD(TAG, "WiFi NVS: migrated legacy ssid/pass → DHCP (ssid=%s)", cfg->ssid);
-        }
+        break;
     }
     prefs.end();
 
@@ -138,7 +146,11 @@ bool wlanSaveConfigToNvs(const WlanConfig &cfg) {
     PackedWifiConfigV2 pk{};
     wlanPackConfigV2(cfg, &pk);
 
-    app_nvs::ScopedNvsLock lock;
+    app_nvs::ScopedNvsWriteLock lock(kNvsNsWifi);
+    if (!lock) {
+        ESP_LOGW(TAG, "NVS wifi: save blocked during shutdown");
+        return false;
+    }
     Preferences prefs;
     if (!prefs.begin(kNvsNsWifi, false)) {
         ESP_LOGE(TAG, "NVS wifi: begin(write) failed");
@@ -156,6 +168,14 @@ bool wlanSaveConfigToNvs(const WlanConfig &cfg) {
     ESP_LOGI(TAG, "WiFi NVS saved ssid=%s mode=%s", cfg.ssid, cfg.mode == WlanIpMode::Static ? "static" : "dhcp");
     wlanCacheNvsConfig(cfg);
     return true;
+}
+
+void wlanResetRamAfterFactoryClear() {
+    portENTER_CRITICAL(&s_nvsWlanConfigCacheMux);
+    s_nvsWlanConfigCacheValid = false;
+    wlanConfigClear(&s_nvsWlanConfigCache);
+    portEXIT_CRITICAL(&s_nvsWlanConfigCacheMux);
+    wlanConfigClear(&s_activeWlanConfig);
 }
 
 bool configSaveWiFiCredentials(const char *ssid, const char *password) {

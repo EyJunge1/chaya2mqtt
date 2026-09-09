@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { setLanguage } from "../i18n/store.ts";
-import { setTheme } from "../theme/store.ts";
+import { getLanguage, setLanguage } from "../i18n/store.ts";
+import { getThemePreference, setTheme } from "../theme/store.ts";
 
 const { getSettings, saveSettings } = vi.hoisted(() => ({
   getSettings: vi.fn(),
@@ -14,7 +14,12 @@ vi.mock("../api/client.ts", () => ({
   },
 }));
 
-import { enqueueSettingsWrite, flushUiPrefsPersist, persistUiPrefsDebounced } from "./uiPrefs.ts";
+import {
+  applyDeviceUiPrefs,
+  enqueueSettingsWrite,
+  flushUiPrefsPersist,
+  persistUiPrefsDebounced,
+} from "./uiPrefs.ts";
 
 describe("uiPrefs", () => {
   afterEach(async () => {
@@ -72,6 +77,31 @@ describe("uiPrefs", () => {
       expect(saveSettings).toHaveBeenCalledWith({ lang: "en", theme: "light" }),
     );
     expect(getSettings).toHaveBeenCalledTimes(2);
+  });
+
+  it("keeps a pending user debounce instead of applying device prefs", async () => {
+    persistUiPrefsDebounced(10_000);
+    applyDeviceUiPrefs("de", "dark");
+    expect(getLanguage()).toBe("en");
+    expect(getThemePreference()).toBe("light");
+    await flushUiPrefsPersist();
+    expect(saveSettings).toHaveBeenCalledWith({ lang: "en", theme: "light" });
+  });
+
+  it("applies device prefs when no user debounce is pending", () => {
+    applyDeviceUiPrefs("de", "dark");
+    expect(getLanguage()).toBe("de");
+    expect(getThemePreference()).toBe("dark");
+  });
+
+  it("POSTs lang/theme snapshotted at debounce schedule, not fire time", async () => {
+    setLanguage("de");
+    setTheme("dark");
+    persistUiPrefsDebounced(10_000);
+    setLanguage("en");
+    setTheme("light");
+    await flushUiPrefsPersist();
+    expect(saveSettings).toHaveBeenCalledWith({ lang: "de", theme: "dark" });
   });
 
   it("does not run prefs persist and another settings write in parallel", async () => {

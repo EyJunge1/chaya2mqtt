@@ -9,6 +9,7 @@
 #include "ota/ota.h"
 #include "ota/ota_json.h"
 #include "sse_dirty_pure.h"
+#include "sse_send_pure.h"
 #include "web_utils.h"
 #include "wifi/wlan.h"
 
@@ -30,6 +31,7 @@ DEFINE_LOG_TAG("SSE");
 
 // /events SSE hub for dashboard scripts.
 // s_esCacheMux protects last-sent caches; webEventsTick() is the sole writer.
+// s_wifiNetCacheMux protects the last-good STA snapshot (HTTP bootstrap + SSE).
 // PERF-03: producers mark dirty bits; idle clients skip gather until keepalive.
 
 namespace {
@@ -67,6 +69,8 @@ bool s_haveLastDevice = false;
 int s_lastBatteryPct = INT_MIN;
 
 portMUX_TYPE s_esCacheMux = portMUX_INITIALIZER_UNLOCKED;
+WifiStaNetCache s_wifiNetCache{};
+portMUX_TYPE s_wifiNetCacheMux = portMUX_INITIALIZER_UNLOCKED;
 
 static void onEsConnect(AsyncEventSourceClient *) {
     if (!s_loggedFirstSseClient.exchange(true, std::memory_order_acq_rel)) {
@@ -101,15 +105,33 @@ static size_t buildDeviceBatteryPayload(int mv, int pct, char *buf, size_t bufLe
     return webSerializeJson(doc, buf, bufLen);
 }
 
-/** Serialize must fit; send must enqueue. DISCARDED (0) is a failed send (RC-WEB-04). */
+/** Serialize must fit; send must enqueue. RC-WEB-13: only ENQUEUED is success; PARTIALLY_ENQUEUED must redirty. */
 static bool sseSendEvent(const char *event, const char *buf, size_t n, size_t bufLen) {
     if (event == nullptr || buf == nullptr || n == 0U || n >= bufLen) {
         return false;
     }
-    return s_events.send(buf, event) != AsyncEventSource::DISCARDED;
+    return s_events.send(buf, event) == AsyncEventSource::ENQUEUED;
 }
 
 } // namespace
+
+bool webWifiStaNetSnapshotOrCached(WifiStaNetFields *out) {
+    if (out == nullptr) {
+        return false;
+    }
+    WifiStaNetFields live{};
+    const bool snapOk = wlanFillStaNetSnapshot(&live.connected, live.ssid, sizeof(live.ssid), live.ip, sizeof(live.ip),
+                                               live.gateway, sizeof(live.gateway), live.netmask, sizeof(live.netmask), live.dns1,
+                                               sizeof(live.dns1), live.dns2, sizeof(live.dns2), &live.rssi);
+    portENTER_CRITICAL(&s_wifiNetCacheMux);
+    const WifiStaNetResolve resolved = wifiStaNetResolveSnapshot(snapOk, &s_wifiNetCache, &live);
+    portEXIT_CRITICAL(&s_wifiNetCacheMux);
+    if (resolved == WifiStaNetResolve::None) {
+        return false;
+    }
+    *out = live;
+    return true;
+}
 
 void webEventsRegister(AsyncWebServer &ws) {
     s_events.addMiddleware(&s_sseConnectGate);
@@ -123,19 +145,13 @@ void webEventsTick() {
     }
 
     static uint32_t s_lastWorkMs = 0U;
-    static bool s_cachedWifiConn = false;
-    static char s_cachedCurSsid[kWifiSsidMaxLen]{};
-    static char s_cachedCurIp[16]{};
-    static char s_cachedGateway[16]{};
-    static char s_cachedNetmask[16]{};
-    static char s_cachedDns1[16]{};
-    static char s_cachedDns2[16]{};
-    static int s_cachedRssi = 0;
 
     const uint32_t nowMs = millis();
     const uint32_t pending = sseConsumeDirty();
     bool keepalive = false;
-    const uint32_t workBits = sseTickSelectBits(pending, nowMs, s_lastWorkMs, kSseKeepaliveMs, &keepalive);
+    const uint32_t selected = sseTickSelectBits(pending, nowMs, s_lastWorkMs, kSseKeepaliveMs, &keepalive);
+    const bool force = sseTickForceSnapshot(selected);
+    const uint32_t workBits = sseTickMaskForApMode(selected, configIsApMode());
     if (workBits == 0U) {
         return;
     }
@@ -146,7 +162,6 @@ void webEventsTick() {
     const bool wantMqtt = (workBits & kSseMqtt) != 0U;
     const bool wantOta = (workBits & kSseOta) != 0U;
     const bool wantDevice = (workBits & kSseDevice) != 0U;
-    const bool force = (workBits & kSseAll) == kSseAll;
 
     int rx = 0;
     int tx = 0;
@@ -159,42 +174,15 @@ void webEventsTick() {
         mqttPaired = mqttCfgIsPaired();
     }
     if (wantChaya) {
-        rx = heartDisplayRxDelta();
-        tx = heartDisplayTxDelta();
+        heartCounterFillChayaDeltas(&rx, &tx);
     }
 
-    bool wifiConn = false;
-    char curSsid[kWifiSsidMaxLen]{};
-    char curIp[16]{};
-    char curGateway[16]{};
-    char curNetmask[16]{};
-    char curDns1[16]{};
-    char curDns2[16]{};
-    int rssi = 0;
+    WifiStaNetFields wifi{};
     if (wantWifi) {
-        if (wlanFillStaNetSnapshot(&wifiConn, curSsid, sizeof(curSsid), curIp, sizeof(curIp), curGateway, sizeof(curGateway),
-                                   curNetmask, sizeof(curNetmask), curDns1, sizeof(curDns1), curDns2, sizeof(curDns2), &rssi)) {
-            s_cachedWifiConn = wifiConn;
-            strlcpy(s_cachedCurSsid, curSsid, sizeof(s_cachedCurSsid));
-            strlcpy(s_cachedCurIp, curIp, sizeof(s_cachedCurIp));
-            strlcpy(s_cachedGateway, curGateway, sizeof(s_cachedGateway));
-            strlcpy(s_cachedNetmask, curNetmask, sizeof(s_cachedNetmask));
-            strlcpy(s_cachedDns1, curDns1, sizeof(s_cachedDns1));
-            strlcpy(s_cachedDns2, curDns2, sizeof(s_cachedDns2));
-            s_cachedRssi = rssi;
-        } else {
-            wifiConn = s_cachedWifiConn;
-            strlcpy(curSsid, s_cachedCurSsid, sizeof(curSsid));
-            strlcpy(curIp, s_cachedCurIp, sizeof(curIp));
-            strlcpy(curGateway, s_cachedGateway, sizeof(curGateway));
-            strlcpy(curNetmask, s_cachedNetmask, sizeof(curNetmask));
-            strlcpy(curDns1, s_cachedDns1, sizeof(curDns1));
-            strlcpy(curDns2, s_cachedDns2, sizeof(curDns2));
-            rssi = s_cachedRssi;
-        }
+        (void)webWifiStaNetSnapshotOrCached(&wifi);
     }
 
-    const bool mqttConnNow = mqttPageRelevant ? mqttIsConnected() : false;
+    const bool mqttConnNow = mqttPageConn(mqttPageRelevant, mqttLineOk);
 
     OtaStatus otaSt{};
     if (wantOta) {
@@ -220,10 +208,10 @@ void webEventsTick() {
                      s_lastMqttConfigured != mqttPageRelevant || s_lastMqttPaired != mqttPaired;
     }
     if (wantWifi) {
-        wifiDirty = force || keepalive || !s_haveLastWifi || s_lastWifiConnected != wifiConn || s_lastWifiRssi != rssi ||
-                    strcmp(s_lastWifiSsid, curSsid) != 0 || strcmp(s_lastWifiIp, curIp) != 0 ||
-                    strcmp(s_lastWifiGateway, curGateway) != 0 || strcmp(s_lastWifiNetmask, curNetmask) != 0 ||
-                    strcmp(s_lastWifiDns1, curDns1) != 0 || strcmp(s_lastWifiDns2, curDns2) != 0;
+        wifiDirty = force || keepalive || !s_haveLastWifi || s_lastWifiConnected != wifi.connected ||
+                    s_lastWifiRssi != wifi.rssi || strcmp(s_lastWifiSsid, wifi.ssid) != 0 || strcmp(s_lastWifiIp, wifi.ip) != 0 ||
+                    strcmp(s_lastWifiGateway, wifi.gateway) != 0 || strcmp(s_lastWifiNetmask, wifi.netmask) != 0 ||
+                    strcmp(s_lastWifiDns1, wifi.dns1) != 0 || strcmp(s_lastWifiDns2, wifi.dns2) != 0;
     }
     if (wantMqtt) {
         if (mqttPageRelevant) {
@@ -267,22 +255,23 @@ void webEventsTick() {
 
     if (wifiDirty) {
         size_t plen = 0;
-        if (wifiConn) {
-            plen = buildWifiStatusPayload(true, curSsid, curIp, curGateway, curNetmask, curDns1, curDns2, rssi, buf, sizeof(buf));
+        if (wifi.connected) {
+            plen = buildWifiStatusPayload(true, wifi.ssid, wifi.ip, wifi.gateway, wifi.netmask, wifi.dns1, wifi.dns2, wifi.rssi,
+                                          buf, sizeof(buf));
         } else {
             plen = buildWifiStatusPayload(false, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, 0, buf, sizeof(buf));
         }
         if (sseSendEvent("wifi", buf, plen, sizeof(buf))) {
             portENTER_CRITICAL(&s_esCacheMux);
             s_haveLastWifi = true;
-            s_lastWifiConnected = wifiConn;
-            strlcpy(s_lastWifiSsid, curSsid, sizeof(s_lastWifiSsid));
-            strlcpy(s_lastWifiIp, curIp, sizeof(s_lastWifiIp));
-            strlcpy(s_lastWifiGateway, curGateway, sizeof(s_lastWifiGateway));
-            strlcpy(s_lastWifiNetmask, curNetmask, sizeof(s_lastWifiNetmask));
-            strlcpy(s_lastWifiDns1, curDns1, sizeof(s_lastWifiDns1));
-            strlcpy(s_lastWifiDns2, curDns2, sizeof(s_lastWifiDns2));
-            s_lastWifiRssi = rssi;
+            s_lastWifiConnected = wifi.connected;
+            strlcpy(s_lastWifiSsid, wifi.ssid, sizeof(s_lastWifiSsid));
+            strlcpy(s_lastWifiIp, wifi.ip, sizeof(s_lastWifiIp));
+            strlcpy(s_lastWifiGateway, wifi.gateway, sizeof(s_lastWifiGateway));
+            strlcpy(s_lastWifiNetmask, wifi.netmask, sizeof(s_lastWifiNetmask));
+            strlcpy(s_lastWifiDns1, wifi.dns1, sizeof(s_lastWifiDns1));
+            strlcpy(s_lastWifiDns2, wifi.dns2, sizeof(s_lastWifiDns2));
+            s_lastWifiRssi = wifi.rssi;
             portEXIT_CRITICAL(&s_esCacheMux);
         } else {
             sseMarkDirty(kSseWifi);

@@ -9,6 +9,8 @@ const PREFS_RETRY_MS = 800;
 
 let applyingFromDevice = false;
 let persistTimer: ReturnType<typeof setTimeout> | undefined;
+let pendingPrefs: { lang: UiLang; theme: UiTheme } | undefined;
+let persistInFlight = false;
 let writeTail: Promise<void> = Promise.resolve();
 
 /** Serialize settings POSTs so prefs persist and device save cannot race. */
@@ -36,29 +38,40 @@ async function waitUntilSettingsIdle(): Promise<boolean> {
   return false;
 }
 
-async function persistUiPrefs(opts?: { retry?: boolean }): Promise<void> {
+async function persistUiPrefs(
+  snap: { lang: UiLang; theme: UiTheme },
+  opts?: { retry?: boolean },
+): Promise<void> {
   let retry = false;
-  await enqueueSettingsWrite(async () => {
-    if (!(await waitUntilSettingsIdle())) {
-      retry = true;
-      return;
-    }
-    await api
-      .saveSettings({
-        lang: getLanguage() as UiLang,
-        theme: getThemePreference() as UiTheme,
-      })
-      .catch(() => {
-        /* AP mode / offline — localStorage already updated */
-      });
-  });
+  persistInFlight = true;
+  try {
+    await enqueueSettingsWrite(async () => {
+      if (!(await waitUntilSettingsIdle())) {
+        retry = true;
+        return;
+      }
+      await api
+        .saveSettings({
+          lang: snap.lang,
+          theme: snap.theme,
+        })
+        .catch(() => {
+          /* AP mode / offline — localStorage already updated */
+        });
+    });
+  } finally {
+    persistInFlight = false;
+  }
   if (retry && opts?.retry !== false) {
-    persistUiPrefsDebounced(PREFS_RETRY_MS);
+    persistUiPrefsDebounced(PREFS_RETRY_MS, snap);
   }
 }
 
-/** Apply lang/theme from device NVS. Device is source of truth when settings load succeeds. */
+/** Apply lang/theme from device NVS. Skip when the user already chose a pending value. */
 export function applyDeviceUiPrefs(lang: string, theme: string): void {
+  if (pendingPrefs !== undefined || persistTimer !== undefined || persistInFlight) {
+    return;
+  }
   applyingFromDevice = true;
   try {
     if (lang === "de" || lang === "en") setLanguage(lang);
@@ -69,12 +82,21 @@ export function applyDeviceUiPrefs(lang: string, theme: string): void {
 }
 
 /** Persist current browser lang/theme to device (debounced). No-op while applying from device. */
-export function persistUiPrefsDebounced(delayMs = 400): void {
+export function persistUiPrefsDebounced(
+  delayMs = 400,
+  snap?: { lang: UiLang; theme: UiTheme },
+): void {
   if (applyingFromDevice) return;
+  pendingPrefs = snap ?? {
+    lang: getLanguage() as UiLang,
+    theme: getThemePreference() as UiTheme,
+  };
   clearTimeout(persistTimer);
   persistTimer = setTimeout(() => {
     persistTimer = undefined;
-    void persistUiPrefs();
+    const snap = pendingPrefs;
+    pendingPrefs = undefined;
+    if (snap) void persistUiPrefs(snap);
   }, delayMs);
 }
 
@@ -82,12 +104,18 @@ export function persistUiPrefsDebounced(delayMs = 400): void {
 export function cancelUiPrefsPersist(): void {
   clearTimeout(persistTimer);
   persistTimer = undefined;
+  pendingPrefs = undefined;
 }
 
 /** Clear the debounce timer and send the pending prefs write now. */
 export function flushUiPrefsPersist(): Promise<void> {
-  if (persistTimer === undefined) return Promise.resolve();
+  if (persistTimer === undefined && pendingPrefs === undefined) return Promise.resolve();
   clearTimeout(persistTimer);
   persistTimer = undefined;
-  return persistUiPrefs({ retry: false });
+  const snap = pendingPrefs ?? {
+    lang: getLanguage() as UiLang,
+    theme: getThemePreference() as UiTheme,
+  };
+  pendingPrefs = undefined;
+  return persistUiPrefs(snap, { retry: false });
 }

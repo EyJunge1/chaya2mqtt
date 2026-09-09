@@ -3,13 +3,13 @@
 #include "counter_pure.h"
 
 #include "async/sse_dirty.h"
+#include "async/system_lifecycle.h"
 #include "config/app_config.h"
 
 #include <Arduino.h>
 #include <atomic>
 #include <freertos/portmacro.h>
 
-std::atomic<bool> s_chayaNvsWritesSuspended{false};
 portMUX_TYPE s_heartDisplayMux = portMUX_INITIALIZER_UNLOCKED;
 std::atomic<uint32_t> s_lastResetCalendarDayUtc{UINT32_MAX};
 
@@ -37,12 +37,20 @@ void heartCounterStoreFromRemote(int value) {
     sseMarkDirty(kSseChaya);
 }
 
-void heartSentCounterApplyAfterSuccessfulPublish() {
+bool heartSentCounterApplyAfterSuccessfulPublish(int expected) {
+    bool applied = false;
+    int next = 0;
     portENTER_CRITICAL(&s_heartDisplayMux);
-    const int cur = heartSentCounter.load(std::memory_order_relaxed);
-    heartSentCounter.store(heartSentCounterNextPure(cur), std::memory_order_relaxed);
+    if (heartSentApplyIfAllowed(&next, expected, g_systemShutdownInProgress.load(std::memory_order_acquire),
+                               g_chayaNvsWritesSuspended.load(std::memory_order_acquire))) {
+        heartSentCounter.store(next, std::memory_order_relaxed);
+        applied = true;
+    }
     portEXIT_CRITICAL(&s_heartDisplayMux);
-    sseMarkDirty(kSseChaya);
+    if (applied) {
+        sseMarkDirty(kSseChaya);
+    }
+    return applied;
 }
 
 void heartCounterFillDrawSnapshot(HeartCounterDrawSnapshot *out) {
@@ -55,6 +63,17 @@ void heartCounterFillDrawSnapshot(HeartCounterDrawSnapshot *out) {
     out->heartSentCounterRaw = heartSentCounter.load(std::memory_order_relaxed);
     out->sentCountBaselineRaw = sentCountBaseline.load(std::memory_order_relaxed);
     portEXIT_CRITICAL(&s_heartDisplayMux);
+}
+
+void heartCounterFillChayaDeltas(int *rx, int *tx) {
+    HeartCounterDrawSnapshot snap{};
+    heartCounterFillDrawSnapshot(&snap);
+    if (rx != nullptr) {
+        *rx = heartCounterDeltaPure(snap.heartCounterRaw, snap.counterBaselineRaw);
+    }
+    if (tx != nullptr) {
+        *tx = heartCounterDeltaPure(snap.heartSentCounterRaw, snap.sentCountBaselineRaw);
+    }
 }
 
 namespace {

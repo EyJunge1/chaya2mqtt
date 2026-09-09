@@ -103,6 +103,28 @@ inline auto wlanBootDecide(bool hasStaCredentials, bool staConnected, bool staCo
     return WlanBootAction::WaitForSta;
 }
 
+struct WlanGotIpActions {
+    bool runFinish;
+    bool markSettled;
+    bool playWifiUpIfNotFinish;
+};
+
+/**
+ * Pure GOT_IP decision for unit tests.
+ * First successful STA GOT_IP after boot must finish once (NTP/TX/PS/display),
+ * including the case where ContinueStaOnly already cleared boot-pending.
+ */
+inline auto wlanGotIpDecide(bool finishAlreadyDone, bool wasBootPending, bool gotIpAlreadyHandled) -> WlanGotIpActions {
+    WlanGotIpActions a{};
+    a.runFinish = !finishAlreadyDone;
+    a.markSettled = wasBootPending;
+    // Mid-session WifiUp + mDNS only after a previous GOT_IP was consumed (RC-NET-08).
+    // Boot-loop may finish via WiFi.status() before the first GOT_IP event;
+    // that first event must not play a second WifiUp or kick mDNS. Reconnect: flag stays set.
+    a.playWifiUpIfNotFinish = finishAlreadyDone && !wasBootPending && gotIpAlreadyHandled;
+    return a;
+}
+
 /** STA stability / scan timing (module-local). */
 constexpr unsigned long kStaStableAfterGotIpMs = 3000UL;
 /** After GOT_IP, defer admin STA scans to avoid disconnect races (STAB-07). */
@@ -113,6 +135,8 @@ constexpr unsigned long kWifiReconnectMaxBackoffMs = 120000UL;
 /** Soft `WiFi.STA.connect()` attempts before escalating to disconnect+begin. */
 constexpr uint32_t kWifiSoftReconnectAttemptsBeforeForce = 2U;
 constexpr unsigned long kApDnsPollIntervalMs = 5000UL;
+/** Factory-reset / controlled-restart wait for an in-flight EPD refresh (RC-NET-05). */
+constexpr unsigned long kWlanEpdWaitForDestructiveMs = 90000UL;
 
 /** Legacy packed credentials blob (SSID+pass only). */
 constexpr uint32_t kWifiCredPackedMagic = 0x43575631U; // "CWV1"

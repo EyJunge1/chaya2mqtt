@@ -1,6 +1,8 @@
 #include "counter.h"
 #include "counter_internal.h"
 
+#include "async/system_lifecycle.h"
+#include "config/nvs_blob_load_pure.h"
 #include "config/nvs_utils.h"
 #include "constants.h"
 #include "util/time_helpers.h"
@@ -66,23 +68,39 @@ void DebouncedChayaCounter::flushIfDirty() {
 DebouncedChayaCounter s_rxCounter(&heartCounter, kNvsKeyChayaCounter, "NVS chaya: write counter failed");
 DebouncedChayaCounter s_txCounter(&heartSentCounter, kNvsKeyChayaSentCount, "NVS chaya: write sentCount failed");
 
-bool chayaNvsWritesAllowed() { return !s_chayaNvsWritesSuspended.load(std::memory_order_acquire); }
+bool chayaNvsWritesAllowed() { return !g_chayaNvsWritesSuspended.load(std::memory_order_acquire); }
 
 void loadBaselineFromNvs(Preferences &prefs, int32_t *cntBase, int32_t *sntBase, uint32_t *rstDay) {
     ChayaBaselineBlob blob{};
     const size_t blobLen = prefs.getBytesLength(kNvsKeyChayaBaselineBlob);
-    if (blobLen == sizeof(blob) && prefs.getBytes(kNvsKeyChayaBaselineBlob, &blob, sizeof(blob)) == sizeof(blob)) {
-        *cntBase = blob.cntBase;
-        *sntBase = blob.sntBase;
-        *rstDay = blob.rstDay;
+    switch (nvsBlobLoadDecide(blobLen, sizeof(blob))) {
+    case NvsBlobLoad::UseBlob:
+        if (prefs.getBytes(kNvsKeyChayaBaselineBlob, &blob, sizeof(blob)) == sizeof(blob)) {
+            *cntBase = blob.cntBase;
+            *sntBase = blob.sntBase;
+            *rstDay = blob.rstDay;
+            return;
+        }
+        *cntBase = 0;
+        *sntBase = 0;
+        *rstDay = UINT32_MAX;
+        return;
+    case NvsBlobLoad::UseDefaults:
+        *cntBase = 0;
+        *sntBase = 0;
+        *rstDay = UINT32_MAX;
+        return;
+    case NvsBlobLoad::UseLegacy:
+        *cntBase = prefs.getInt(kNvsKeyChayaCntBase, 0);
+        *sntBase = prefs.getInt(kNvsKeyChayaSntBase, 0);
+        *rstDay = prefs.getUInt(kNvsKeyChayaRstDay, UINT32_MAX);
         return;
     }
-    *cntBase = prefs.getInt(kNvsKeyChayaCntBase, 0);
-    *sntBase = prefs.getInt(kNvsKeyChayaSntBase, 0);
-    *rstDay = prefs.getUInt(kNvsKeyChayaRstDay, UINT32_MAX);
 }
 
-void counterSuspendNvsSavesForFactoryReset() { s_chayaNvsWritesSuspended.store(true, std::memory_order_release); }
+void counterSuspendNvsSavesForFactoryReset() { g_chayaNvsWritesSuspended.store(true, std::memory_order_release); }
+
+void counterResumeNvsSavesAfterFactoryResetAbort() { g_chayaNvsWritesSuspended.store(false, std::memory_order_release); }
 
 void loadHeartCounter() {
     const unsigned long t = millis();

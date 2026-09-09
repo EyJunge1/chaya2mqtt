@@ -19,7 +19,7 @@ auto heartDisplayTxDelta() -> int;
 
 /** Update remote counter and apply publish-side TX increment under display mux. */
 void heartCounterStoreFromRemote(int value);
-void heartSentCounterApplyAfterSuccessfulPublish();
+auto heartSentCounterApplyAfterSuccessfulPublish(int expected) -> bool;
 
 struct HeartCounterDrawSnapshot {
     int heartCounterRaw{};
@@ -30,9 +30,13 @@ struct HeartCounterDrawSnapshot {
     uint8_t batteryIcon{};
 };
 void heartCounterFillDrawSnapshot(HeartCounterDrawSnapshot *out);
+/** One-mux (rx, tx) display deltas for SSE / bootstrap (RC-WEB-01). */
+void heartCounterFillChayaDeltas(int *rx, int *tx);
 
 void loadHeartCounter();
 void counterSuspendNvsSavesForFactoryReset();
+/** Undo suspend if factory reset aborts after the EPD wait (OTA raced in). */
+void counterResumeNvsSavesAfterFactoryResetAbort();
 /** Debounced save for RX + TX (≥30 s). */
 void maybeSaveAllHeartCounters();
 /** Debounced save for TX only (e.g. after successful publish ack). */

@@ -46,6 +46,12 @@ auto otaSetChannel(OtaChannel channel) -> bool;
 
 auto otaGetChannel() -> OtaChannel;
 
+/** Load update channel from NVS before the HTTP server starts. */
+void otaPreloadChannelFromNvs();
+
+/** Drop channel / last-update RAM caches after factory NVS wipe (RC-LIFE-07). */
+void otaResetRamAfterFactoryClear();
+
 /** Thread-safe status snapshot for API / SSE. */
 void otaCopyStatus(OtaStatus *out);
 

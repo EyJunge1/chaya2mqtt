@@ -1,9 +1,14 @@
 #include <cstring>
 #include <unity.h>
 
+#include "async/system_shutdown_pure.h"
+#include "config/nvs_blob_load_pure.h"
+#include "config/nvs_write_gate_pure.h"
 #include "constants.h"
+#include "wifi/factory_wipe_pure.h"
 #include "util/net_validate.h"
 #include "wifi/wifi_qr_pure.h"
+#include "wifi/test.h"
 #include "wifi/wlan.h"
 #include "wifi/wlan_config.h"
 #include "wifi/wlan_event_pure.h"
@@ -47,6 +52,55 @@ void test_wlan_boot_decision_keeps_configured_device_out_of_setup_ap() {
     TEST_ASSERT_EQUAL_INT(static_cast<int>(WlanBootAction::FinishSta), static_cast<int>(wlanBootDecide(true, true, false)));
     TEST_ASSERT_EQUAL_INT(static_cast<int>(WlanBootAction::ContinueStaOnly), static_cast<int>(wlanBootDecide(true, false, true)));
     TEST_ASSERT_EQUAL_INT(static_cast<int>(WlanBootAction::FinishSta), static_cast<int>(wlanBootDecide(true, true, true)));
+}
+
+void test_wlan_got_ip_decide_continue_sta_then_first_got_ip_runs_finish() {
+    // ContinueStaOnly already cleared pending; first GOT_IP must still finish (NTP).
+    const WlanGotIpActions a = wlanGotIpDecide(false, false, false);
+    TEST_ASSERT_TRUE(a.runFinish);
+    TEST_ASSERT_FALSE(a.markSettled);
+    TEST_ASSERT_FALSE(a.playWifiUpIfNotFinish);
+}
+
+void test_wlan_got_ip_decide_second_got_ip_plays_wifi_up() {
+    const WlanGotIpActions a = wlanGotIpDecide(true, false, true);
+    TEST_ASSERT_FALSE(a.runFinish);
+    TEST_ASSERT_FALSE(a.markSettled);
+    TEST_ASSERT_TRUE(a.playWifiUpIfNotFinish);
+}
+
+void test_wlan_got_ip_decide_boot_pending_finish_and_settled() {
+    const WlanGotIpActions a = wlanGotIpDecide(false, true, false);
+    TEST_ASSERT_TRUE(a.runFinish);
+    TEST_ASSERT_TRUE(a.markSettled);
+    TEST_ASSERT_FALSE(a.playWifiUpIfNotFinish);
+}
+
+void test_wlan_got_ip_decide_finish_already_done_no_second_finish() {
+    const WlanGotIpActions stillPending = wlanGotIpDecide(true, true, false);
+    TEST_ASSERT_FALSE(stillPending.runFinish);
+    TEST_ASSERT_TRUE(stillPending.markSettled);
+    TEST_ASSERT_FALSE(stillPending.playWifiUpIfNotFinish);
+
+    const WlanGotIpActions pendingCleared = wlanGotIpDecide(true, false, false);
+    TEST_ASSERT_FALSE(pendingCleared.runFinish);
+    TEST_ASSERT_FALSE(pendingCleared.playWifiUpIfNotFinish);
+}
+
+void test_wlan_got_ip_decide_status_finish_first_got_ip_no_second_wifi_up() {
+    const WlanGotIpActions firstAfterStatusFinish = wlanGotIpDecide(true, false, false);
+    TEST_ASSERT_FALSE(firstAfterStatusFinish.runFinish);
+    TEST_ASSERT_FALSE(firstAfterStatusFinish.playWifiUpIfNotFinish);
+
+    const WlanGotIpActions reconnect = wlanGotIpDecide(true, false, true);
+    TEST_ASSERT_TRUE(reconnect.playWifiUpIfNotFinish);
+}
+
+void test_wlan_wifi_test_owns_radio() {
+    TEST_ASSERT_FALSE(wlanWifiTestOwnsRadio(WlanWifiConnectionTestState::Idle));
+    TEST_ASSERT_TRUE(wlanWifiTestOwnsRadio(WlanWifiConnectionTestState::Testing));
+    TEST_ASSERT_TRUE(wlanWifiTestOwnsRadio(WlanWifiConnectionTestState::Ok));
+    TEST_ASSERT_FALSE(wlanWifiTestOwnsRadio(WlanWifiConnectionTestState::Fail));
 }
 
 void test_wifi_qr_payload() {
@@ -273,6 +327,13 @@ void test_wlan_net_cmd_coalesce_enqueue() {
     TEST_ASSERT_FALSE(wlanNetCmdShouldEnqueue(true));
 }
 
+void test_wifi_scan_defer_while_ota() {
+    TEST_ASSERT_FALSE(wifiScanServiceShouldDeferKick(false, false));
+    TEST_ASSERT_TRUE(wifiScanServiceShouldDeferKick(true, false));
+    TEST_ASSERT_TRUE(wifiScanServiceShouldDeferKick(false, true));
+    TEST_ASSERT_TRUE(wifiScanServiceShouldDeferKick(true, true));
+}
+
 void test_wlan_scan_deadline_wrap() {
     TEST_ASSERT_FALSE(wlanMsBeforeDeadline(1000UL, 0UL));
     TEST_ASSERT_TRUE(wlanMsBeforeDeadline(1000UL, 1500UL));
@@ -308,11 +369,88 @@ void test_wlan_unpack_invalid_static_falls_back_dhcp() {
     TEST_ASSERT_EQUAL_STRING("", out.ip);
 }
 
+void test_soft_off_blocked_when_factory_owns() {
+    TEST_ASSERT_FALSE(softOffAllowed(false, true, false));
+    TEST_ASSERT_FALSE(softOffAllowed(false, false, true));
+    TEST_ASSERT_FALSE(softOffAllowed(false, true, true));
+    TEST_ASSERT_TRUE(softOffAllowed(false, false, false));
+    TEST_ASSERT_FALSE(softOffAllowed(false, false, false, true, false, false));
+    TEST_ASSERT_FALSE(softOffAllowed(false, false, false, false, true, false));
+    TEST_ASSERT_FALSE(softOffAllowed(false, false, false, false, false, true));
+}
+
+void test_recovery_should_note_restart_only_after_claim() {
+    TEST_ASSERT_TRUE(recoveryShouldNoteRestart(true));
+    TEST_ASSERT_FALSE(recoveryShouldNoteRestart(false));
+}
+
+void test_wlan_mdns_kick_should_consume() {
+    TEST_ASSERT_TRUE(wlanMdnsKickShouldConsume(false, false, true));
+    TEST_ASSERT_FALSE(wlanMdnsKickShouldConsume(true, false, true));
+    TEST_ASSERT_FALSE(wlanMdnsKickShouldConsume(false, true, true));
+    TEST_ASSERT_FALSE(wlanMdnsKickShouldConsume(false, false, false));
+}
+
+void test_factory_wipe_should_abort() {
+    TEST_ASSERT_FALSE(factoryWipeShouldAbort(true, false, true));
+    TEST_ASSERT_FALSE(factoryWipeShouldAbort(true, true, false));
+    TEST_ASSERT_FALSE(factoryWipeShouldAbort(false, false, true));
+    TEST_ASSERT_TRUE(factoryWipeShouldAbort(false, false, false));
+    TEST_ASSERT_FALSE(factoryWipeShouldAbort(false, true, false));
+    TEST_ASSERT_FALSE(factoryWipeMustRestartUnready(true, false, false));
+    TEST_ASSERT_TRUE(factoryWipeMustRestartUnready(false, true, false));
+    TEST_ASSERT_TRUE(factoryWipeMustRestartUnready(false, false, true));
+    TEST_ASSERT_FALSE(factoryWipeMustRestartUnready(false, false, false));
+}
+
+void test_nvs_write_allowed_after_lock() {
+    TEST_ASSERT_TRUE(nvsWriteAllowedAfterLock(false, false, kNvsNsChaya));
+    TEST_ASSERT_TRUE(nvsWriteAllowedAfterLock(true, false, kNvsNsChaya));
+    TEST_ASSERT_FALSE(nvsWriteAllowedAfterLock(false, true, kNvsNsChaya));
+    TEST_ASSERT_FALSE(nvsWriteAllowedAfterLock(true, true, kNvsNsChaya));
+    TEST_ASSERT_TRUE(nvsWriteAllowedAfterLock(false, true, kNvsNsWifi));
+    TEST_ASSERT_FALSE(nvsWriteAllowedAfterLock(true, false, kNvsNsWifi));
+    TEST_ASSERT_FALSE(nvsWriteAllowedAfterLock(true, false, nullptr));
+}
+
+void test_wlan_force_caller_should_undo() {
+    TEST_ASSERT_TRUE(wlanForceCallerShouldUndo(WlanForceReassocResult::Deferred));
+    TEST_ASSERT_FALSE(wlanForceCallerShouldUndo(WlanForceReassocResult::Begun));
+    TEST_ASSERT_FALSE(wlanForceCallerShouldUndo(WlanForceReassocResult::SkippedConnected));
+    TEST_ASSERT_TRUE(wlanForceCallerShouldCountFail(WlanForceReassocResult::Begun));
+    TEST_ASSERT_FALSE(wlanForceCallerShouldCountFail(WlanForceReassocResult::SkippedConnected));
+    TEST_ASSERT_FALSE(wlanForceCallerShouldCountFail(WlanForceReassocResult::Deferred));
+}
+
+void test_wifi_scan_refresh_always_sets_kick() {
+    TEST_ASSERT_TRUE(wifiScanRefreshSetsKick(false));
+    TEST_ASSERT_TRUE(wifiScanRefreshSetsKick(true));
+    TEST_ASSERT_TRUE(wifiScanServiceMayStartKick(false));
+    TEST_ASSERT_FALSE(wifiScanServiceMayStartKick(true));
+}
+
+void test_wlan_nvs_invalid_cfg_v2_skips_legacy() {
+    TEST_ASSERT_EQUAL_INT(static_cast<int>(NvsBlobLoad::UseBlob),
+                          static_cast<int>(nvsBlobLoadDecide(sizeof(PackedWifiConfigV2), sizeof(PackedWifiConfigV2))));
+    TEST_ASSERT_EQUAL_INT(static_cast<int>(NvsBlobLoad::UseLegacy),
+                          static_cast<int>(nvsBlobLoadDecide(0, sizeof(PackedWifiConfigV2))));
+    TEST_ASSERT_EQUAL_INT(static_cast<int>(NvsBlobLoad::UseDefaults),
+                          static_cast<int>(nvsBlobLoadDecide(4, sizeof(PackedWifiConfigV2))));
+    TEST_ASSERT_EQUAL_INT(static_cast<int>(NvsBlobLoad::UseDefaults),
+                          static_cast<int>(nvsBlobLoadDecide(sizeof(PackedWifiConfigV2) + 8U, sizeof(PackedWifiConfigV2))));
+}
+
 int main(int, char **) {
     UNITY_BEGIN();
     RUN_TEST(test_setup_ap_pass_syntax_and_format);
     RUN_TEST(test_setup_ap_pass_ensure_idempotent);
     RUN_TEST(test_wlan_boot_decision_keeps_configured_device_out_of_setup_ap);
+    RUN_TEST(test_wlan_got_ip_decide_continue_sta_then_first_got_ip_runs_finish);
+    RUN_TEST(test_wlan_got_ip_decide_second_got_ip_plays_wifi_up);
+    RUN_TEST(test_wlan_got_ip_decide_boot_pending_finish_and_settled);
+    RUN_TEST(test_wlan_got_ip_decide_finish_already_done_no_second_finish);
+    RUN_TEST(test_wlan_got_ip_decide_status_finish_first_got_ip_no_second_wifi_up);
+    RUN_TEST(test_wlan_wifi_test_owns_radio);
     RUN_TEST(test_wifi_qr_payload);
     RUN_TEST(test_wifi_ssid_syntax);
     RUN_TEST(test_ipv4_and_netmask_validation);
@@ -322,7 +460,16 @@ int main(int, char **) {
     RUN_TEST(test_wifi_soft_reconnect_escalation_threshold);
     RUN_TEST(test_wlan_epd_tx_power_from_rssi);
     RUN_TEST(test_wlan_net_cmd_coalesce_enqueue);
+    RUN_TEST(test_wifi_scan_defer_while_ota);
     RUN_TEST(test_wlan_scan_deadline_wrap);
     RUN_TEST(test_wlan_unpack_invalid_static_falls_back_dhcp);
+    RUN_TEST(test_soft_off_blocked_when_factory_owns);
+    RUN_TEST(test_recovery_should_note_restart_only_after_claim);
+    RUN_TEST(test_wlan_mdns_kick_should_consume);
+    RUN_TEST(test_factory_wipe_should_abort);
+    RUN_TEST(test_nvs_write_allowed_after_lock);
+    RUN_TEST(test_wlan_force_caller_should_undo);
+    RUN_TEST(test_wifi_scan_refresh_always_sets_kick);
+    RUN_TEST(test_wlan_nvs_invalid_cfg_v2_skips_legacy);
     return UNITY_END();
 }

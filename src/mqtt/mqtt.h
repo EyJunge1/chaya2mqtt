@@ -9,8 +9,8 @@
  *  Access broker configuration only through mqtt/config.h APIs (mqttCfgSnapshot,
  *  mqttCfgStorePending, …).
  */
-void mqttSetup();
-void mqttDisconnect();
+auto mqttSetup() -> bool;
+auto mqttDisconnect() -> bool;
 void mqttLoop();
 
 /** Coalesce a client teardown for the network task (safe during EPD refresh). */
@@ -24,7 +24,14 @@ void mqttEndSettingsApply();
 
 auto mqttIsConnected() -> bool;
 
-auto mqttPublishChayaAndApplySentCounters() -> bool;
+enum class MqttChayaPublishTry : uint8_t { Ok = 0, Retry = 1, Fail = 2 };
+
+/** Start retained QoS 1 publish; Retry keeps LED Pending (RC-MQTT-02). */
+auto mqttPublishChayaAndApplySentCounters() -> MqttChayaPublishTry;
+
+inline auto mqttChayaPublishTryIsFail(MqttChayaPublishTry result) -> bool {
+    return result == MqttChayaPublishTry::Fail;
+}
 
 /**
  * Non-blocking heart publish for the LED TX sequence.
@@ -49,6 +56,8 @@ void mqttAbortPendingPublish();
 
 /** True while broker settings are being torn down/reapplied (blocks publish). */
 auto mqttPublishBlocked() -> bool;
+/** True while a failed kill is waiting to be retried (RC-MQTT-11). */
+auto mqttKillClientPending() -> bool;
 
 /** Result of requesting a heart/Chaya TX (button and web share this entry). */
 enum class ChayaSendResult : uint8_t {

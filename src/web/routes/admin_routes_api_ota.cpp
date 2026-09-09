@@ -8,6 +8,7 @@
 #include "ota/ota.h"
 #include "ota/ota_json.h"
 #include "util/log_tag.h"
+#include "web/admin.h"
 #include "web/web_utils.h"
 
 #include <ESPAsyncWebServer.h>
@@ -15,6 +16,17 @@
 #include <esp_log.h>
 
 DEFINE_LOG_TAG("WEBAPI");
+
+namespace {
+bool otaHttpBlockedByApply(AsyncWebServerRequest *req) {
+    if (webAdminOtaStartBlocked(mqttCfgApplyPending(), g_webAdminSettingsApplyPending.load(std::memory_order_acquire),
+                                webAdminMqttApplyUnqueued(), g_webAdminApplyInFlight.load(std::memory_order_acquire) > 0U)) {
+        sendErr(req, 503, "busy");
+        return true;
+    }
+    return false;
+}
+} // namespace
 
 void handleApiUpdateStatusGet(AsyncWebServerRequest *req) {
     JsonDocument doc;
@@ -26,7 +38,8 @@ void handleApiUpdateCheckPost(AsyncWebServerRequest *req, JsonVariant &json) {
     if (!adminJsonRequireObject(req, json)) {
         return;
     }
-    if (g_systemShutdownInProgress.load(std::memory_order_acquire)) {
+    if (g_systemShutdownInProgress.load(std::memory_order_acquire) ||
+        g_factoryResetQueued.load(std::memory_order_acquire)) {
         sendErr(req, 503, "shutdown");
         return;
     }
@@ -36,6 +49,14 @@ void handleApiUpdateCheckPost(AsyncWebServerRequest *req, JsonVariant &json) {
     }
     if (otaBlocksDestructiveAction()) {
         sendErr(req, 503, "busy");
+        return;
+    }
+    if (otaHttpBlockedByApply(req)) {
+        return;
+    }
+    const ScopedWebAdminApplyInFlight applyInFlight;
+    if (!applyInFlight || !applyInFlight.commitAllowed()) {
+        sendErr(req, 503, "shutdown");
         return;
     }
     if (!adminJsonHasField(json, "channel")) {
@@ -67,7 +88,8 @@ void handleApiUpdateInstallPost(AsyncWebServerRequest *req, JsonVariant &json) {
     if (!adminJsonRequireObject(req, json)) {
         return;
     }
-    if (g_systemShutdownInProgress.load(std::memory_order_acquire)) {
+    if (g_systemShutdownInProgress.load(std::memory_order_acquire) ||
+        g_factoryResetQueued.load(std::memory_order_acquire)) {
         sendErr(req, 503, "shutdown");
         return;
     }
@@ -77,6 +99,14 @@ void handleApiUpdateInstallPost(AsyncWebServerRequest *req, JsonVariant &json) {
     }
     if (otaBlocksDestructiveAction()) {
         sendErr(req, 503, "busy");
+        return;
+    }
+    if (otaHttpBlockedByApply(req)) {
+        return;
+    }
+    const ScopedWebAdminApplyInFlight applyInFlight;
+    if (!applyInFlight || !applyInFlight.commitAllowed()) {
+        sendErr(req, 503, "shutdown");
         return;
     }
     OtaStatus st{};

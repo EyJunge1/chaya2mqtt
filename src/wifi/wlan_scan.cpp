@@ -1,8 +1,11 @@
 #include "wlan.h"
 
+#include "test.h"
 #include "wlan_config.h"
 #include "wlan_event_pure.h"
 #include "wlan_internal.h"
+
+#include "ota/ota.h"
 
 #include "util/log_tag.h"
 
@@ -18,9 +21,7 @@ DEFINE_LOG_TAG("WIFI");
 void wlanRequestWifiScanRefresh() {
     s_wifiScanFailed.store(false, std::memory_order_release);
     s_wifiScanHasValidCache.store(false, std::memory_order_release);
-    if (!s_wifiScanInProgress.load(std::memory_order_acquire)) {
-        s_wifiScanKick.store(true, std::memory_order_release);
-    }
+    s_wifiScanKick.store(true, std::memory_order_release);
 }
 
 void wifiScanStopForEpdLocked() {
@@ -91,12 +92,20 @@ void wifiScanServiceOnMainTask() {
         wlanWifiApiUnlock();
         return;
     }
-    if (s_wifiScanKick.exchange(false, std::memory_order_acq_rel)) {
+    const bool inProgress = s_wifiScanInProgress.load(std::memory_order_acquire);
+    if (wifiScanServiceMayStartKick(inProgress) && s_wifiScanKick.exchange(false, std::memory_order_acq_rel)) {
         const unsigned long nowMs = millis();
         const unsigned long nextAllowed = s_wifiScanNextAllowedMs.load(std::memory_order_relaxed);
         if (wlanMsBeforeDeadline(nowMs, nextAllowed)) {
             s_wifiScanKick.store(true, std::memory_order_release);
             wlanWifiApiUnlock();
+            return;
+        }
+        // Lock-free test flag: no g_wifiTestMutex under g_wifiApiMutex (RC-NET-04).
+        if (wifiScanServiceShouldDeferKick(wlanWifiConnectionTestOwnsRadio(), otaBlocksDestructiveAction())) {
+            s_wifiScanKick.store(true, std::memory_order_release);
+            wlanWifiApiUnlock();
+            ESP_LOGD(TAG, "WLAN scan deferred (connection test or OTA)");
             return;
         }
         WiFi.scanDelete();

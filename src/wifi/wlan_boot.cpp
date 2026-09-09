@@ -104,15 +104,28 @@ void setupWifiBeginStaConnectAsync(const WlanConfig &cfg) {
     s_bootStaConnectPending.store(true, std::memory_order_release);
 }
 
+static std::atomic<bool> s_bootStaFinishRadioPending{false};
+
+static bool wlanApplyBootStaFinishRadioLocked() {
+    WiFi.setSleep(true);
+    (void)esp_wifi_set_ps(WIFI_PS_MIN_MODEM);
+    (void)esp_wifi_set_max_tx_power(kWifiStaMaxTxPowerQuarterDbm);
+    return WiFi.STA.setInactiveTime(kWifiStaInactiveTimeSeconds);
+}
+
 void setupWifiFinishStaConnected() {
     portENTER_CRITICAL(&g_lastFailedBootSsidMux);
     g_lastFailedBootSsid[0] = '\0';
     portEXIT_CRITICAL(&g_lastFailedBootSsidMux);
     wlanWifiApiLock();
-    WiFi.setSleep(true);
-    (void)esp_wifi_set_ps(WIFI_PS_MIN_MODEM);
-    (void)esp_wifi_set_max_tx_power(kWifiStaMaxTxPowerQuarterDbm);
-    const bool inactOk = WiFi.STA.setInactiveTime(kWifiStaInactiveTimeSeconds);
+    const bool epdActive = s_epdRefreshActive.load(std::memory_order_acquire);
+    bool inactOk = true;
+    if (!epdActive) {
+        inactOk = wlanApplyBootStaFinishRadioLocked();
+        s_bootStaFinishRadioPending.store(false, std::memory_order_release);
+    } else {
+        s_bootStaFinishRadioPending.store(true, std::memory_order_release);
+    }
     wlanWifiApiUnlock();
 
     wlanApplyNtpFromConfig(s_activeWlanConfig);
@@ -190,7 +203,7 @@ bool wlanBeginLowInterferenceForEpd() {
     s_epdRefreshActive.store(true, std::memory_order_release);
     // A setup connection test owns an active STA association. Let it finish
     // instead of changing radio state underneath it.
-    if (wlanGetWifiConnectionTestState() == WlanWifiConnectionTestState::Testing) {
+    if (wlanWifiConnectionTestOwnsRadio()) {
         s_epdRefreshActive.store(false, std::memory_order_release);
         return false;
     }
@@ -225,6 +238,26 @@ bool wlanBeginLowInterferenceForEpd() {
     }
     wlanWifiApiUnlock();
     return true;
+}
+
+void wlanApplyPendingBootStaFinishRadio() {
+    if (!s_bootStaFinishRadioPending.load(std::memory_order_acquire) ||
+        s_epdRefreshActive.load(std::memory_order_acquire) || !wlanWifiApiLockTimed(200U)) {
+        return;
+    }
+    if (s_epdRefreshActive.load(std::memory_order_acquire)) {
+        wlanWifiApiUnlock();
+        return;
+    }
+    if (s_bootStaFinishRadioPending.load(std::memory_order_acquire)) {
+        const bool inactOk = wlanApplyBootStaFinishRadioLocked();
+        s_bootStaFinishRadioPending.store(false, std::memory_order_release);
+        if (!inactOk) {
+            ESP_LOGW(TAG, "WiFi.STA.setInactiveTime(%u) failed (post-EPD)",
+                     static_cast<unsigned>(kWifiStaInactiveTimeSeconds));
+        }
+    }
+    wlanWifiApiUnlock();
 }
 
 void wlanRestoreTxPowerAfterEpd() {
@@ -296,7 +329,17 @@ void wlanHandleStaGotIpNetCmd() {
         // pending until the low-interference refresh window has closed.
         return;
     }
-    if (!s_staGotIpWorkPending.exchange(false, std::memory_order_acq_rel)) {
+    // Recheck EPD under the WiFi mutex before consuming the flag (RC-NET-05).
+    if (!wlanWifiApiLockTimed(200U)) {
+        return;
+    }
+    if (s_epdRefreshActive.load(std::memory_order_acquire)) {
+        wlanWifiApiUnlock();
+        return;
+    }
+    const bool hadPending = s_staGotIpWorkPending.exchange(false, std::memory_order_acq_rel);
+    wlanWifiApiUnlock();
+    if (!hadPending) {
         return;
     }
     if (!wlanStaConnectedOk()) {
@@ -306,12 +349,17 @@ void wlanHandleStaGotIpNetCmd() {
 
     bool finishedBoot = false;
     const bool wasBootPending = s_bootStaConnectPending.exchange(false, std::memory_order_acq_rel);
-    if (wasBootPending) {
+    const bool finishAlreadyDone = s_bootStaFinishDone.load(std::memory_order_acquire);
+    const bool gotIpAlreadyHandled = s_staGotIpHandled.load(std::memory_order_acquire);
+    const WlanGotIpActions actions = wlanGotIpDecide(finishAlreadyDone, wasBootPending, gotIpAlreadyHandled);
+    if (actions.runFinish) {
         bool expectedFinish = false;
         if (s_bootStaFinishDone.compare_exchange_strong(expectedFinish, true, std::memory_order_acq_rel)) {
             setupWifiFinishStaConnected();
             finishedBoot = true;
         }
+    }
+    if (actions.markSettled) {
         s_bootWifiSettled.store(true, std::memory_order_release);
         wlanNoteBootSettledNow();
     }
@@ -325,12 +373,14 @@ void wlanHandleStaGotIpNetCmd() {
         } else {
             ESP_LOGW(TAG, "Deferred GOT_IP: WiFi API mutex timeout");
         }
-        s_mdnsRestartNeeded.store(true, std::memory_order_release);
-        // Mid-session reconnect (not the boot-finish race where WifiUp already ran).
-        if (!wasBootPending) {
+        // Mid-session reconnect only. Boot-loop finish already queued mDNS + WifiUp;
+        // the first GOT_IP after WiFi.status() finish must not kick either again (RC-NET-08).
+        if (actions.playWifiUpIfNotFinish) {
+            s_mdnsRestartNeeded.store(true, std::memory_order_release);
             ledPlayPreset(LedPreset::WifiUp);
         }
     }
+    s_staGotIpHandled.store(true, std::memory_order_release);
 }
 
 void wlanBootConnectServiceLoop() {
@@ -374,6 +424,7 @@ void setupWiFi() {
     s_bootWifiSettled.store(false, std::memory_order_release);
     s_bootStaConnectPending.store(false, std::memory_order_release);
     s_bootStaFinishDone.store(false, std::memory_order_release);
+    s_staGotIpHandled.store(false, std::memory_order_release);
     s_staReconnectWorkPending.store(false, std::memory_order_release);
     s_staGotIpWorkPending.store(false, std::memory_order_release);
 

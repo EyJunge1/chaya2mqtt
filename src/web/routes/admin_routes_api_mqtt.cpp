@@ -9,6 +9,7 @@
 #include "identity/device_identity.h"
 #include "mqtt/config.h"
 #include "mqtt/mqtt.h"
+#include "ota/ota.h"
 #include "util/log_tag.h"
 #include "web/web_utils.h"
 
@@ -20,7 +21,8 @@ DEFINE_LOG_TAG("WEBAPI");
 
 void fillMqttStatusJson(JsonObject obj, bool connected) { obj["connected"] = connected; }
 
-void fillMqttConfigJson(JsonObject obj, const MqttConfig &cfg) {
+void fillMqttConfigJson(JsonObject obj, const MqttConfig &cfg, bool applyPending, bool nvsOk) {
+    // buildDeviceId may take g_nvsMutex on first miss — never call it while holding s_mqttCfgMutex.
     char deviceId[kDeviceIdBufLen]{};
     buildDeviceId(deviceId, sizeof(deviceId));
     obj["deviceId"] = deviceId;
@@ -32,18 +34,20 @@ void fillMqttConfigJson(JsonObject obj, const MqttConfig &cfg) {
     obj["topicPub"] = cfg.topicPub;
     obj["topicSub"] = cfg.topicSub;
     obj["partnerId"] = cfg.partnerDeviceId;
-    obj["nvsOk"] = !mqttCfgNvsWriteFailed();
-    obj["applyPending"] = mqttCfgApplyPending();
+    obj["nvsOk"] = nvsOk;
+    obj["applyPending"] = applyPending;
 }
 
 void handleApiMqttGet(AsyncWebServerRequest *req) {
     MqttConfig cfg{};
-    if (!mqttCfgSnapshotTimed(&cfg, 2000U)) {
+    bool applyPending = false;
+    bool nvsOk = false;
+    if (!mqttCfgSnapshotWithApplyFlagsTimed(&cfg, &applyPending, &nvsOk, 2000U)) {
         sendErr(req, 503, "busy");
         return;
     }
     JsonDocument doc;
-    fillMqttConfigJson(doc.to<JsonObject>(), cfg);
+    fillMqttConfigJson(doc.to<JsonObject>(), cfg, applyPending, nvsOk);
     webSendJsonDoc(req, 200, doc);
 }
 
@@ -71,7 +75,17 @@ void handleApiMqttPost(AsyncWebServerRequest *req, JsonVariant &json) {
     if (!adminJsonRequireObject(req, json)) {
         return;
     }
-    if (g_systemShutdownInProgress.load(std::memory_order_acquire)) {
+    if (g_systemShutdownInProgress.load(std::memory_order_acquire) ||
+        g_factoryResetQueued.load(std::memory_order_acquire)) {
+        sendErr(req, 503, "shutdown");
+        return;
+    }
+    if (adminApplyBlockedByOta(otaBlocksDestructiveAction())) {
+        sendErr(req, 503, "busy");
+        return;
+    }
+    const ScopedWebAdminApplyInFlight applyInFlight;
+    if (!applyInFlight) {
         sendErr(req, 503, "shutdown");
         return;
     }
@@ -161,7 +175,14 @@ void handleApiMqttPost(AsyncWebServerRequest *req, JsonVariant &json) {
         pending.topicSub[0] = '\0';
     }
     if (!mqttCfgEquals(&pending, &base)) {
-        mqttCfgStorePending(&pending);
+        if (!applyInFlight.commitAllowed()) {
+            sendErr(req, 503, "shutdown");
+            return;
+        }
+        if (!mqttCfgStorePendingTimed(&pending, 2000U)) {
+            sendErr(req, 503, "busy");
+            return;
+        }
         mqttCfgSetApplyPending(true);
         g_webAdminMqttApplyVersion.fetch_add(1U, std::memory_order_acq_rel);
         ESP_LOGI(TAG, "MQTT settings accepted broker=%s:%u tls=%s", pending.server, static_cast<unsigned>(pending.port),

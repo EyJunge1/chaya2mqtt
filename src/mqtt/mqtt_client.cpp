@@ -35,7 +35,7 @@ void mqttTeardownDeadlineCb(void *) {
 }
 } // namespace
 
-esp_mqtt_client_handle_t s_client = nullptr;
+std::atomic<esp_mqtt_client_handle_t> s_client{nullptr};
 std::atomic<uint32_t> s_clientGeneration{0};
 std::atomic<bool> s_connected{false};
 std::atomic<bool> s_connectPending{false};
@@ -84,7 +84,7 @@ bool mqttEnsureClientAllocated() {
         ESP_LOGW(TAG, "mqttEnsureClientAllocated: mutex timeout");
         return false;
     }
-    if (s_client != nullptr) {
+    if (s_client.load(std::memory_order_acquire) != nullptr) {
         mqttClientUnlock();
         return true;
     }
@@ -160,15 +160,16 @@ bool mqttEnsureClientAllocated() {
     ESP_LOGI(TAG, "MQTT client init %s… server %s:%u id %s", cfg.tls ? "TLS" : "TCP", cfg.server, static_cast<unsigned>(cfg.port),
              s_clientIdBuf);
 
-    s_client = esp_mqtt_client_init(&mqtt_cfg);
-    if (s_client == nullptr) {
+    const esp_mqtt_client_handle_t created = esp_mqtt_client_init(&mqtt_cfg);
+    s_client.store(created, std::memory_order_release);
+    if (created == nullptr) {
         ESP_LOGE(TAG, "esp_mqtt_client_init failed");
         mqttClientUnlock();
         return false;
     }
     s_clientGeneration.fetch_add(1U, std::memory_order_acq_rel);
 
-    const esp_err_t regErr = esp_mqtt_client_register_event(s_client, MQTT_EVENT_ANY, mqttEventHandler, nullptr);
+    const esp_err_t regErr = esp_mqtt_client_register_event(created, MQTT_EVENT_ANY, mqttEventHandler, nullptr);
     if (regErr != ESP_OK) {
         ESP_LOGE(TAG, "esp_mqtt_client_register_event failed: %s", esp_err_to_name(regErr));
         mqttKillClientImpl();
@@ -181,7 +182,8 @@ bool mqttEnsureClientAllocated() {
 }
 
 void mqttKillClientImpl() {
-    if (s_client == nullptr) {
+    const esp_mqtt_client_handle_t cli = s_client.load(std::memory_order_acquire);
+    if (cli == nullptr) {
         return;
     }
 
@@ -191,9 +193,8 @@ void mqttKillClientImpl() {
 
     s_disconnectIntentional.store(true, std::memory_order_release);
 
-    esp_mqtt_client_handle_t cli = s_client;
     mqttAbortPendingPublish(genBefore);
-    s_client = nullptr;
+    s_client.store(nullptr, std::memory_order_release);
     s_clientGeneration.fetch_add(1U, std::memory_order_acq_rel);
     portENTER_CRITICAL(&s_mqttSubTopicMux);
     s_mqttSubTopicLen = 0;
@@ -250,12 +251,13 @@ void mqttKillClientImpl() {
              esp_err_to_name(st), esp_err_to_name(de));
 }
 
-void mqttKillClient() {
+bool mqttKillClient() {
     if (!mqttClientLockTimed()) {
         ESP_LOGW(TAG, "mqttKillClient: mutex timeout");
         s_mqttKillCoalesce.store(true, std::memory_order_release);
-        return;
+        return false;
     }
     mqttKillClientImpl();
     mqttClientUnlock();
+    return true;
 }

@@ -3,6 +3,7 @@
   import { cycleLanguage } from "../i18n/store.ts";
   import { i18n } from "../i18n/i18n.svelte.ts";
   import { persistUiPrefsDebounced } from "../prefs/uiPrefs.ts";
+  import { settingsUiBusy } from "../prefs/settingsBusy.svelte.ts";
   import { themeView } from "../theme/theme.svelte.ts";
   import { toggleTheme, type ThemePreference } from "../theme/store.ts";
   import { cn } from "../ui/cn.ts";
@@ -31,11 +32,13 @@
   );
 
   function onCycleLanguage() {
+    if (settingsUiBusy.value) return;
     cycleLanguage();
     persistUiPrefsDebounced();
   }
 
   function onToggleTheme() {
+    if (settingsUiBusy.value) return;
     toggleTheme();
     persistUiPrefsDebounced();
   }
@@ -45,6 +48,7 @@
   <button
     type="button"
     onclick={onCycleLanguage}
+    disabled={settingsUiBusy.value}
     class={cn(btn, "h-10 w-[4.25rem] gap-1.5")}
     aria-label={i18n.t("nav.language")}
     title={`${i18n.t("nav.language")}: ${langLabel}`}
@@ -55,6 +59,7 @@
   <button
     type="button"
     onclick={onToggleTheme}
+    disabled={settingsUiBusy.value}
     class={cn(btn, "size-10")}
     aria-label={themeLabel}
     title={themeLabel}

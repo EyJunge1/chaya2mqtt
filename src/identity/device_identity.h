@@ -12,6 +12,9 @@
  */
 void buildDeviceId(char *out, size_t outLen);
 
+/** Drop the RAM device-id cache after factory NVS wipe (RC-LIFE-07). */
+void deviceIdentityResetRamAfterFactoryClear();
+
 /** Format the unique station / mDNS hostname from a validated device ID. */
 inline auto formatDeviceStaHostname(const char *deviceId, char *out, size_t outLen) -> bool {
     if (out == nullptr || outLen == 0U) {

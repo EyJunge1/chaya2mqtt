@@ -97,9 +97,66 @@ function failIfFault(key: MockFaultKey, res: ServerResponse): boolean {
 /** Indexed write so scanners do not treat this as a hardcoded password assignment. */
 const MQTT_AUTH_FIELD = "password" as const;
 
+type MqttSnapshot = ReturnType<typeof getState>["mqtt"];
+type SettingsSnapshot = {
+  resetDays: number;
+  lang: ReturnType<typeof getState>["lang"];
+  theme: ReturnType<typeof getState>["theme"];
+  ledEnabled: boolean;
+  audioTxEnabled: boolean;
+  audioRxEnabled: boolean;
+  audioTxVolume: number;
+  audioRxVolume: number;
+  quietHourStart: number;
+  quietHourEnd: number;
+  txHz: number;
+  txMs: number;
+  rxHz: number;
+  rxMs: number;
+};
+
+let mqttPending: MqttSnapshot | null = null;
+let settingsPending: SettingsSnapshot | null = null;
+
 function applyIncomingBrokerSecret(mqtt: { password: string }, incoming: unknown): void {
   if (typeof incoming !== "string" || incoming === "") return;
   mqtt[MQTT_AUTH_FIELD] = incoming;
+}
+
+function snapshotSettings(state: ReturnType<typeof getState>): SettingsSnapshot {
+  return {
+    resetDays: state.resetDays,
+    lang: state.lang,
+    theme: state.theme,
+    ledEnabled: state.ledEnabled,
+    audioTxEnabled: state.audioTxEnabled,
+    audioRxEnabled: state.audioRxEnabled,
+    audioTxVolume: state.audioTxVolume,
+    audioRxVolume: state.audioRxVolume,
+    quietHourStart: state.quietHourStart,
+    quietHourEnd: state.quietHourEnd,
+    txHz: state.txHz,
+    txMs: state.txMs,
+    rxHz: state.rxHz,
+    rxMs: state.rxMs,
+  };
+}
+
+function applySettingsSnapshot(state: ReturnType<typeof getState>, snap: SettingsSnapshot): void {
+  state.resetDays = snap.resetDays;
+  state.lang = snap.lang;
+  state.theme = snap.theme;
+  state.ledEnabled = snap.ledEnabled;
+  state.audioTxEnabled = snap.audioTxEnabled;
+  state.audioRxEnabled = snap.audioRxEnabled;
+  state.audioTxVolume = snap.audioTxVolume;
+  state.audioRxVolume = snap.audioRxVolume;
+  state.quietHourStart = snap.quietHourStart;
+  state.quietHourEnd = snap.quietHourEnd;
+  state.txHz = snap.txHz;
+  state.txMs = snap.txMs;
+  state.rxHz = snap.rxHz;
+  state.rxMs = snap.rxMs;
 }
 
 export async function handleApi(req: IncomingMessage, res: ServerResponse): Promise<boolean> {
@@ -191,19 +248,22 @@ export async function handleApi(req: IncomingMessage, res: ServerResponse): Prom
     const body = await readJsonObject(req, res);
     if (!body) return true;
     if (failIfFault("heart", res)) return true;
-    if (!state.mqttConnected || !state.mqtt.server || !state.mqtt.partnerId) {
+    const heartReady = Boolean(state.mqtt.server) && Boolean(state.mqtt.partnerId);
+    if (!heartReady) {
       sendJson(res, 503, { ok: false, error: "unavailable" });
       return true;
     }
-    if (state.heartBusy) {
+    if (state.heartBusy || state.mqttApplyPending) {
       sendJson(res, 503, { ok: false, error: "busy" });
       return true;
     }
+    state.heartBusy = true;
     const ackEpoch = getHeartAckEpoch();
     setTimeout(() => {
       if (ackEpoch !== getHeartAckEpoch()) return;
       const st = getState();
       st.tx += 1;
+      st.heartBusy = false;
       broadcastAll();
     }, 180);
     sendJson(res, 202, { ok: true, queued: true });
@@ -220,6 +280,10 @@ export async function handleApi(req: IncomingMessage, res: ServerResponse): Prom
     const body = await readJsonObject(req, res);
     if (!body) return true;
     if (failIfFault("wifi-scan", res)) return true;
+    if (otaBlocksDestructiveAction()) {
+      sendJson(res, 503, { ok: false, error: "busy" });
+      return true;
+    }
     state.scanReadyAt = Date.now() + 800;
     sendJson(res, 202, { ok: true });
     return true;
@@ -258,6 +322,10 @@ export async function handleApi(req: IncomingMessage, res: ServerResponse): Prom
     const body = await readJsonObject(req, res);
     if (!body) return true;
     if (failIfFault("wifi-connect", res)) return true;
+    if (otaBlocksDestructiveAction()) {
+      sendJson(res, 503, { ok: false, error: "busy" });
+      return true;
+    }
     const ssid = typeof body.ssid === "string" ? body.ssid : "";
     const password = typeof body.password === "string" ? body.password : "";
     const mode = body.mode === "static" ? "static" : "dhcp";
@@ -440,37 +508,47 @@ export async function handleApi(req: IncomingMessage, res: ServerResponse): Prom
     const body = await readJsonObject(req, res);
     if (!body) return true;
     if (failIfFault("mqtt-save", res)) return true;
-    if (typeof body.mqtt_server === "string") state.mqtt.server = body.mqtt_server;
+    if (otaBlocksDestructiveAction()) {
+      sendJson(res, 503, { ok: false, error: "busy" });
+      return true;
+    }
+    const pending: MqttSnapshot = { ...state.mqtt };
+    if (typeof body.mqtt_server === "string") pending.server = body.mqtt_server;
     if (typeof body.mqtt_port === "number" && Number.isFinite(body.mqtt_port)) {
-      state.mqtt.port = body.mqtt_port;
+      pending.port = body.mqtt_port;
     }
     if (typeof body.mqtt_tls === "boolean") {
-      state.mqtt.tls = body.mqtt_tls;
+      pending.tls = body.mqtt_tls;
     }
-    if (typeof body.mqtt_user === "string") state.mqtt.username = body.mqtt_user;
-    applyIncomingBrokerSecret(state.mqtt, body.mqtt_pass);
+    if (typeof body.mqtt_user === "string") pending.username = body.mqtt_user;
+    applyIncomingBrokerSecret(pending, body.mqtt_pass);
     if (Object.prototype.hasOwnProperty.call(body, "partner_id")) {
       const partner = (typeof body.partner_id === "string" ? body.partner_id : "")
         .trim()
         .toLowerCase();
       if (partner === "") {
-        state.mqtt.partnerId = "";
-        state.mqtt.topicSub = "";
+        pending.partnerId = "";
+        pending.topicSub = "";
       } else if (!/^[0-9a-f]{6}$/.test(partner) || partner === state.deviceId) {
         sendJson(res, 400, { ok: false, error: "partner" });
         return true;
       } else {
-        state.mqtt.partnerId = partner;
-        state.mqtt.topicSub = `chaya2mqtt/${partner}`;
+        pending.partnerId = partner;
+        pending.topicSub = `chaya2mqtt/${partner}`;
       }
     }
-    state.mqtt.topicPub = `chaya2mqtt/${state.deviceId}`;
-    state.mqttConnected = Boolean(state.mqtt.server);
+    pending.topicPub = `chaya2mqtt/${state.deviceId}`;
+    mqttPending = pending;
     state.mqttApplyPending = true;
     const mqttEpoch = nextMqttApplyEpoch();
     setTimeout(() => {
       if (mqttEpoch !== getMqttApplyEpoch()) return;
       const st = getState();
+      if (mqttPending) {
+        Object.assign(st.mqtt, mqttPending);
+        st.mqttConnected = Boolean(st.mqtt.server);
+        mqttPending = null;
+      }
       st.mqttApplyPending = false;
       broadcastAll();
     }, 120);
@@ -508,32 +586,37 @@ export async function handleApi(req: IncomingMessage, res: ServerResponse): Prom
     const body = await readJsonObject(req, res);
     if (!body) return true;
     if (failIfFault("settings-save", res)) return true;
+    if (otaBlocksDestructiveAction()) {
+      sendJson(res, 503, { ok: false, error: "busy" });
+      return true;
+    }
+    const pending = snapshotSettings(state);
     if (typeof body.reset_days === "number" && Number.isFinite(body.reset_days)) {
-      state.resetDays = Math.min(30, Math.max(0, body.reset_days));
+      pending.resetDays = Math.min(30, Math.max(0, body.reset_days));
     }
     const lang = body.lang;
-    if (lang === "de" || lang === "en") state.lang = lang;
+    if (lang === "de" || lang === "en") pending.lang = lang;
     else if (lang !== undefined) {
       sendJson(res, 400, { ok: false, error: "lang" });
       return true;
     }
     const theme = body.theme;
-    if (theme === "dark" || theme === "light" || theme === "system") state.theme = theme;
+    if (theme === "dark" || theme === "light" || theme === "system") pending.theme = theme;
     else if (theme !== undefined) {
       sendJson(res, 400, { ok: false, error: "theme" });
       return true;
     }
-    if (typeof body.led_enabled === "boolean") state.ledEnabled = body.led_enabled;
+    if (typeof body.led_enabled === "boolean") pending.ledEnabled = body.led_enabled;
     else if (body.led_enabled !== undefined) {
       sendJson(res, 400, { ok: false, error: "led_enabled" });
       return true;
     }
-    if (typeof body.audio_tx_enabled === "boolean") state.audioTxEnabled = body.audio_tx_enabled;
+    if (typeof body.audio_tx_enabled === "boolean") pending.audioTxEnabled = body.audio_tx_enabled;
     else if (body.audio_tx_enabled !== undefined) {
       sendJson(res, 400, { ok: false, error: "audio_tx_enabled" });
       return true;
     }
-    if (typeof body.audio_rx_enabled === "boolean") state.audioRxEnabled = body.audio_rx_enabled;
+    if (typeof body.audio_rx_enabled === "boolean") pending.audioRxEnabled = body.audio_rx_enabled;
     else if (body.audio_rx_enabled !== undefined) {
       sendJson(res, 400, { ok: false, error: "audio_rx_enabled" });
       return true;
@@ -553,19 +636,24 @@ export async function handleApi(req: IncomingMessage, res: ServerResponse): Prom
       assign(v);
       return true;
     };
-    if (!applyInt("audio_tx_volume", 0, 100, (v) => (state.audioTxVolume = v))) return true;
-    if (!applyInt("audio_rx_volume", 0, 100, (v) => (state.audioRxVolume = v))) return true;
-    if (!applyInt("quiet_hour_start", 0, 23, (v) => (state.quietHourStart = v))) return true;
-    if (!applyInt("quiet_hour_end", 0, 23, (v) => (state.quietHourEnd = v))) return true;
-    if (!applyInt("tx_hz", 40, 2000, (v) => (state.txHz = v))) return true;
-    if (!applyInt("tx_ms", 20, 500, (v) => (state.txMs = v))) return true;
-    if (!applyInt("rx_hz", 40, 2000, (v) => (state.rxHz = v))) return true;
-    if (!applyInt("rx_ms", 20, 500, (v) => (state.rxMs = v))) return true;
+    if (!applyInt("audio_tx_volume", 0, 100, (v) => (pending.audioTxVolume = v))) return true;
+    if (!applyInt("audio_rx_volume", 0, 100, (v) => (pending.audioRxVolume = v))) return true;
+    if (!applyInt("quiet_hour_start", 0, 23, (v) => (pending.quietHourStart = v))) return true;
+    if (!applyInt("quiet_hour_end", 0, 23, (v) => (pending.quietHourEnd = v))) return true;
+    if (!applyInt("tx_hz", 40, 2000, (v) => (pending.txHz = v))) return true;
+    if (!applyInt("tx_ms", 20, 500, (v) => (pending.txMs = v))) return true;
+    if (!applyInt("rx_hz", 40, 2000, (v) => (pending.rxHz = v))) return true;
+    if (!applyInt("rx_ms", 20, 500, (v) => (pending.rxMs = v))) return true;
+    settingsPending = pending;
     state.settingsApplyPending = true;
     const settingsEpoch = nextSettingsApplyEpoch();
     setTimeout(() => {
       if (settingsEpoch !== getSettingsApplyEpoch()) return;
       const st = getState();
+      if (settingsPending) {
+        applySettingsSnapshot(st, settingsPending);
+        settingsPending = null;
+      }
       st.settingsApplyPending = false;
       broadcastAll();
     }, 120);
@@ -578,6 +666,10 @@ export async function handleApi(req: IncomingMessage, res: ServerResponse): Prom
     const body = await readJsonObject(req, res);
     if (!body) return true;
     if (failIfFault("reboot", res)) return true;
+    if (otaBlocksDestructiveAction() || state.mqttApplyPending || state.settingsApplyPending) {
+      sendJson(res, 503, { ok: false, error: "busy" });
+      return true;
+    }
     sendJson(res, 200, { ok: true, message: "rebooting" });
     return true;
   }
@@ -587,7 +679,7 @@ export async function handleApi(req: IncomingMessage, res: ServerResponse): Prom
     const body = await readJsonObject(req, res);
     if (!body) return true;
     if (failIfFault("factory-reset", res)) return true;
-    if (otaBlocksDestructiveAction()) {
+    if (otaBlocksDestructiveAction() || state.mqttApplyPending || state.settingsApplyPending) {
       sendJson(res, 503, { ok: false, error: "busy" });
       return true;
     }
@@ -608,18 +700,29 @@ export async function handleApi(req: IncomingMessage, res: ServerResponse): Prom
     const body = await readJsonObject(req, res);
     if (!body) return true;
     if (failIfFault("update-check", res)) return true;
-    if (otaBlocksDestructiveAction()) {
+    if (otaBlocksDestructiveAction() || state.mqttApplyPending || state.settingsApplyPending) {
       sendJson(res, 503, { ok: false, error: "busy" });
       return true;
     }
     const channel = typeof body.channel === "string" ? body.channel : undefined;
     if (channel === "stable" || channel === "beta") {
-      bumpOta({ channel, phase: "checking", error: "" });
+      bumpOta({
+        channel,
+        phase: "checking",
+        error: "",
+        checkRequested: true,
+        checkInProgress: true,
+      });
     } else if (channel != null) {
       sendJson(res, 400, { ok: false, error: "channel" });
       return true;
     } else {
-      bumpOta({ phase: "checking", error: "" });
+      bumpOta({
+        phase: "checking",
+        error: "",
+        checkRequested: true,
+        checkInProgress: true,
+      });
     }
     sendJson(res, 200, { ok: true, message: "checking" });
     const checkEpoch = getOtaSimEpoch();
@@ -636,6 +739,8 @@ export async function handleApi(req: IncomingMessage, res: ServerResponse): Prom
           bytesDone: 0,
           bytesTotal: 0,
           error: "",
+          checkRequested: false,
+          checkInProgress: false,
         });
         return;
       }
@@ -645,6 +750,8 @@ export async function handleApi(req: IncomingMessage, res: ServerResponse): Prom
         bytesDone: 0,
         bytesTotal: 0,
         error: "",
+        checkRequested: false,
+        checkInProgress: false,
       });
     }, 800);
     return true;
@@ -655,6 +762,10 @@ export async function handleApi(req: IncomingMessage, res: ServerResponse): Prom
     const body = await readJsonObject(req, res);
     if (!body) return true;
     if (failIfFault("update-install", res)) return true;
+    if (otaBlocksDestructiveAction() || state.mqttApplyPending || state.settingsApplyPending) {
+      sendJson(res, 503, { ok: false, error: "busy" });
+      return true;
+    }
     const cur = getState().ota;
     if (cur.phase === "downloading" || cur.phase === "verifying" || cur.phase === "rebooting") {
       sendJson(res, 503, { ok: false, error: "busy" });
@@ -664,7 +775,14 @@ export async function handleApi(req: IncomingMessage, res: ServerResponse): Prom
       sendJson(res, 409, { ok: false, error: "not_available" });
       return true;
     }
-    bumpOta({ phase: "downloading", bytesDone: 0, bytesTotal: 1000000, error: "" });
+    bumpOta({
+      phase: "downloading",
+      bytesDone: 0,
+      bytesTotal: 1000000,
+      error: "",
+      installRequested: true,
+      flashInProgress: true,
+    });
     sendJson(res, 200, { ok: true, message: "installing" });
     let done = 0;
     const installEpoch = getOtaSimEpoch();
@@ -693,6 +811,8 @@ export async function handleApi(req: IncomingMessage, res: ServerResponse): Prom
             bytesDone: 0,
             bytesTotal: 0,
             error: "",
+            installRequested: false,
+            flashInProgress: false,
           });
           broadcastAll();
         }, 1200);

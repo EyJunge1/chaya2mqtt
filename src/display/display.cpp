@@ -2,6 +2,7 @@
 #include "display_task_internal.h"
 #include "internal.h"
 
+#include "async/system_lifecycle.h"
 #include "util/log_tag.h"
 
 #include <Arduino.h>
@@ -15,7 +16,12 @@ namespace {
 std::atomic<bool> s_contentAllowed{false};
 } // namespace
 
-void displaySetContentAllowed(bool allowed) { s_contentAllowed.store(allowed, std::memory_order_release); }
+void displaySetContentAllowed(bool allowed) {
+    const bool wasAllowed = s_contentAllowed.exchange(allowed, std::memory_order_acq_rel);
+    if (!wasAllowed && allowed) {
+        displayTaskSetDesiredHeartIcon(DisplayHeartIcon::Filled);
+    }
+}
 
 bool displayContentAllowed() { return s_contentAllowed.load(std::memory_order_acquire); }
 
@@ -24,6 +30,9 @@ void displaySetDesiredHeartIcon(DisplayHeartIcon icon) { displayTaskSetDesiredHe
 DisplayHeartIcon displayDesiredHeartIcon() { return displayTaskDesiredHeartIcon(); }
 
 bool displayRequest(DisplayMsg::Cmd cmd, DisplayRequestMode mode, uint32_t waitMs) {
+    if (g_systemShutdownInProgress.load(std::memory_order_acquire) && mode != DisplayRequestMode::PowerOffWait) {
+        return false;
+    }
     switch (mode) {
     case DisplayRequestMode::Content: {
         if (cmd != DisplayMsg::Cmd::DrawHeart) {
@@ -68,6 +77,8 @@ bool displayRequest(DisplayMsg::Cmd cmd, DisplayRequestMode mode, uint32_t waitM
 }
 
 bool displayWaitDrawIdle(uint32_t timeoutMs) { return displayTaskWaitDrawIdle(timeoutMs); }
+
+void displayClearPowerOffPending() { displayTaskClearPowerOffPending(); }
 
 void displayInit() {
     displayHwInitPins();

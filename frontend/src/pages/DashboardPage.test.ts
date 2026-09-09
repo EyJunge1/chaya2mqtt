@@ -143,6 +143,7 @@ describe("DashboardPage", () => {
   });
 
   it("toasts error if a queued heart never gets a tx bump", async () => {
+    setLanguage("en");
     vi.useFakeTimers();
     try {
       sendChaya.mockResolvedValue({ ok: true, queued: true });
@@ -157,8 +158,67 @@ describe("DashboardPage", () => {
       await Promise.resolve();
       expect(onToast).toHaveBeenCalledWith("Heart queued", "info");
 
-      await vi.advanceTimersByTimeAsync(5000);
+      await vi.advanceTimersByTimeAsync(5500);
+      expect(onToast).not.toHaveBeenCalledWith("Send failed", "error");
+
+      await vi.advanceTimersByTimeAsync(1499);
+      expect(onToast).not.toHaveBeenCalledWith("Send failed", "error");
+
+      await vi.advanceTimersByTimeAsync(1);
       expect(onToast).toHaveBeenCalledWith("Send failed", "error");
+      expect(onToast).not.toHaveBeenCalledWith("Heart sent", "success");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("shows success when tx arrives after 5s but before the 7s timeout", async () => {
+    setLanguage("en");
+    vi.useFakeTimers();
+    try {
+      sendChaya.mockResolvedValue({ ok: true, queued: true });
+      const onToast = vi.fn();
+
+      const { rerender } = render(DashboardPage, {
+        props: { device, chaya, wifi, onToast },
+      });
+
+      fireEvent.click(screen.getByRole("button", { name: /Send heart/i }));
+      await Promise.resolve();
+      await Promise.resolve();
+      expect(onToast).toHaveBeenCalledWith("Heart queued", "info");
+
+      await vi.advanceTimersByTimeAsync(5000);
+      expect(onToast).not.toHaveBeenCalledWith("Send failed", "error");
+
+      await rerender({ device, chaya: { ...chaya, tx: chaya.tx + 1 }, wifi, onToast });
+      expect(onToast).toHaveBeenCalledWith("Heart sent", "success");
+      expect(onToast).not.toHaveBeenCalledWith("Send failed", "error");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("does not upgrade a fail toast when a later tx++ arrives (RC-FE-06)", async () => {
+    setLanguage("en");
+    vi.useFakeTimers();
+    try {
+      sendChaya.mockResolvedValue({ ok: true, queued: true });
+      const onToast = vi.fn();
+
+      const { rerender } = render(DashboardPage, {
+        props: { device, chaya, wifi, onToast },
+      });
+
+      fireEvent.click(screen.getByRole("button", { name: /Send heart/i }));
+      await Promise.resolve();
+      await Promise.resolve();
+      expect(onToast).toHaveBeenCalledWith("Heart queued", "info");
+
+      await vi.advanceTimersByTimeAsync(7000);
+      expect(onToast).toHaveBeenCalledWith("Send failed", "error");
+
+      await rerender({ device, chaya: { ...chaya, tx: chaya.tx + 1 }, wifi, onToast });
       expect(onToast).not.toHaveBeenCalledWith("Heart sent", "success");
     } finally {
       vi.useRealTimers();
@@ -183,6 +243,56 @@ describe("DashboardPage", () => {
     await waitFor(() => {
       expect(onToast).toHaveBeenCalledWith("Heart sent", "success");
     });
+  });
+
+  it("re-enables send after a fail toast so the user can retry (RC-FE-06)", async () => {
+    setLanguage("en");
+    vi.useFakeTimers();
+    try {
+      sendChaya.mockResolvedValue({ ok: true, queued: true });
+      const onToast = vi.fn();
+
+      render(DashboardPage, {
+        props: { device, chaya, wifi, onToast },
+      });
+
+      fireEvent.click(screen.getByRole("button", { name: /Send heart/i }));
+      await Promise.resolve();
+      await Promise.resolve();
+      await vi.advanceTimersByTimeAsync(7000);
+      expect(onToast).toHaveBeenCalledWith("Send failed", "error");
+      const afterTimeout = screen.getByRole("button", { name: /Send heart/i });
+      expect(afterTimeout).toBeEnabled();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("does not toast late success after a fail toast", async () => {
+    setLanguage("en");
+    vi.useFakeTimers();
+    try {
+      sendChaya.mockResolvedValue({ ok: true, queued: true });
+      const onToast = vi.fn();
+
+      const { rerender } = render(DashboardPage, {
+        props: { device, chaya, wifi, onToast },
+      });
+
+      fireEvent.click(screen.getByRole("button", { name: /Send heart/i }));
+      await Promise.resolve();
+      await Promise.resolve();
+      await vi.advanceTimersByTimeAsync(7000);
+      expect(onToast).toHaveBeenCalledWith("Send failed", "error");
+
+      const afterFail = screen.getByRole("button", { name: /Send heart/i });
+      expect(afterFail).toBeEnabled();
+
+      await rerender({ device, chaya: { ...chaya, tx: chaya.tx + 1 }, wifi, onToast });
+      expect(onToast).not.toHaveBeenCalledWith("Heart sent", "success");
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("disables send when unpaired", async () => {

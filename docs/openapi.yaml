@@ -141,6 +141,15 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiOk"
+        "503":
+          description: Connection test or OTA in progress
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErr"
+              example:
+                ok: false
+                error: busy
   /api/wifi/connect:
     post:
       tags: [wifi]
@@ -304,7 +313,9 @@ paths:
       summary: Save MQTT config
       operationId: saveMqttConfig
       x-protection: Host + STA
-      description: Omitted fields keep their current value. Topics are derived.
+      description: >
+        Omitted fields keep their current value. Topics are derived.
+        Returns 503 busy while an OTA check or install owns the device.
       requestBody:
         required: true
         content:
@@ -366,6 +377,7 @@ paths:
       summary: Save settings
       operationId: saveSettings
       x-protection: Host + STA
+      description: Returns 503 busy while an OTA check or install owns the device.
       requestBody:
         required: true
         content:
@@ -486,7 +498,14 @@ paths:
         "400":
           $ref: "#/components/responses/ApiError"
         "503":
-          $ref: "#/components/responses/ApiError"
+          description: OTA already busy, or Settings/MQTT apply still pending
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErr"
+              example:
+                ok: false
+                error: busy
   /api/update/install:
     post:
       tags: [update]
@@ -511,7 +530,14 @@ paths:
         "409":
           $ref: "#/components/responses/ApiError"
         "503":
-          $ref: "#/components/responses/ApiError"
+          description: OTA already busy, or Settings/MQTT apply still pending
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErr"
+              example:
+                ok: false
+                error: busy
 components:
   schemas:
     EmptyJson:

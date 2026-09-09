@@ -83,18 +83,20 @@ Legacy keys `topic_pub` / `topic_sub` are removed when saving. Topics now exist 
 | `snd_rx_en` | UChar | `0` | RX (receive) click enabled (`1` = on; default off) |
 | `snd_tx_vol` | UChar | `70` | TX click volume 0–100 |
 | `snd_rx_vol` | UChar | `70` | RX click volume 0–100 |
-| `snd_q0` | UChar | `0` | Quiet-hours start (local hour after NTP) |
-| `snd_q1` | UChar | `0` | Quiet-hours end (equal to `snd_q0` = off; wraps midnight; default both `0` = off) |
-| `snd_tx_hz` | UInt | `880` | Send click frequency (Hz, 40–2000) |
-| `snd_tx_ms` | UInt | `80` | Send click duration (ms, 20–500) |
-| `snd_rx_hz` | UInt | `660` | Receive click frequency (Hz, 40–2000) |
-| `snd_rx_ms` | UInt | `140` | Receive click duration (ms, 20–500) |
+| `snd_qB` | Bytes (2) | — | Packed quiet hours: start/end (current write format) |
+| `snd_q0` | UChar | `0` | Legacy quiet-hours start (load fallback only) |
+| `snd_q1` | UChar | `0` | Legacy quiet-hours end (equal to `snd_q0` = off; wraps midnight; load fallback only) |
+| `snd_tB` | Bytes (8) | — | Packed tones: `txHz`, `txMs`, `rxHz`, `rxMs` (current write format) |
+| `snd_tx_hz` | UInt | `880` | Legacy send click frequency (Hz, 40–2000; load fallback only) |
+| `snd_tx_ms` | UInt | `80` | Legacy send click duration (ms, 20–500; load fallback only) |
+| `snd_rx_hz` | UInt | `660` | Legacy receive click frequency (Hz, 40–2000; load fallback only) |
+| `snd_rx_ms` | UInt | `140` | Legacy receive click duration (ms, 20–500; load fallback only) |
 | `upd_day` | UInt | `0` | Last automatic OTA check (UTC calendar day) |
 | `upd_chan` | String | `stable` | OTA channel (`stable` or `beta`) |
 
 **Written by:**
 - `device_id`: created by `buildDeviceId()` on first use (random, or one-time MAC seed on OTA migration)
-- `rstPeriod` / `ui_lang` / `ui_theme` / `led_en` / `snd_tx_en` / `snd_rx_en` / `snd_tx_vol` / `snd_rx_vol` / `snd_q0` / `snd_q1` / `snd_tx_hz` / `snd_tx_ms` / `snd_rx_hz` / `snd_rx_ms`: web POST `/api/settings` (deferred via the app task)
+- `rstPeriod` / `ui_lang` / `ui_theme` / `led_en` / `snd_tx_en` / `snd_rx_en` / `snd_tx_vol` / `snd_rx_vol` / `snd_qB` / `snd_tB`: web POST `/api/settings` (deferred via the app task)
 - `disp_view`: two-phase display transaction—`Unknown` is persisted before a full refresh and the
   completed view afterward. A reset or power loss during the waveform therefore forces a repaint.
 - `upd_day`: automatically after an OTA check
@@ -103,6 +105,8 @@ Legacy keys `topic_pub` / `topic_sub` are removed when saving. Topics now exist 
 Leftover keys from older firmware (`authEn`, `disp_dark`, `snd_custom`) are unused.
 Legacy `cfg/snd_mute` is migrated once to `snd_tx_en` / `snd_rx_en` (`unmuted` → both on) when the new keys are absent.
 Legacy `cfg/snd_vol` is migrated once to `snd_tx_vol` / `snd_rx_vol` when the new keys are absent.
+
+**Audio persistence:** Quiet hours and tones are written as `snd_qB` / `snd_tB`. On load, a valid blob is used; a missing blob falls back to the legacy scalar keys; a present but wrong-size blob uses defaults, not legacy. After a successful blob write, the legacy keys are removed.
 
 ### Reset period (`rstPeriod`)
 
@@ -127,7 +131,7 @@ In addition, if a displayed delta reaches ≥ **999**, the baseline for that sid
 | `sntBase` | Int | `0` | Legacy TX display baseline (load fallback only) |
 | `rstDay` | UInt | `UINT32_MAX` | Legacy last periodic reset UTC day (load fallback only) |
 
-**Baseline persistence:** `persistCounterBaselineState()` writes only `baseBlob` (`ChayaBaselineBlob`: two `int32_t` + one `uint32_t`). On load, `baseBlob` is preferred; if missing or the wrong size, the three legacy keys are read.
+**Baseline persistence:** `persistCounterBaselineState()` writes `baseBlob` (`ChayaBaselineBlob`: two `int32_t` + one `uint32_t`). On load, a valid blob is used; a missing blob falls back to the three legacy keys (`cntBase`, `sntBase`, `rstDay`); a present but wrong-size blob uses defaults (`0` / `0` / `UINT32_MAX`), not legacy. After a successful blob write, the legacy keys are removed.
 
 **Storage strategy:**
 - Counters (`counter` / `sentCount`): debounced save only every **≥30 s** if the value has changed
@@ -158,12 +162,16 @@ Trigger: web admin **Settings → Device → Factory reset** (`POST /api/factory
 `resetAllSettings()` in `wifi/wlan_reset.cpp`. There is no physical reset gesture; if the web
 admin is unreachable, erase and reflash over USB.
 
+`POST /api/factory-reset` returns `503 busy` when MQTT/settings apply is pending, an admin
+reboot/Wi-Fi-save restart is armed, or OTA is busy; `503 shutdown` when shutdown or a factory
+wipe is already queued.
+
 Sequence:
-1. `g_systemShutdownInProgress = true`
-2. Suspend NVS saves for counters
-3. Abort the WiFi test
-4. Stop the HTTP server and terminate DNS/mDNS
-5. Disconnect WiFi
+1. HTTP sets `g_factoryResetQueued` (blocks Soft-off and admin restart) then queues `NetCmd::FactoryResetRequested`
+2. Exclusive `systemShutdownTryClaim()`; abort without wipe if another owner already claimed or OTA is in progress
+3. Suspend NVS saves for counters and wait for an in-flight EPD refresh (up to 90 s)
+4. Stop the HTTP server only after the wipe is committed (so a refused claim does not leave HTTP down)
+5. Abort the WiFi test, terminate DNS/mDNS, disconnect WiFi
 6. **Delete all four namespaces:** `wifi`, `mqtt`, `cfg`, `chaya`
 7. Reset RAM counters and configuration caches
 8. Restart → SoftAP `Chaya2MQTT`

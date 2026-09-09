@@ -5,6 +5,7 @@
 #include "identity/device_identity_pure.h"
 #include "util/log_tag.h"
 
+#include <atomic>
 #include <cstdint>
 #include <cstring>
 
@@ -18,7 +19,7 @@ DEFINE_LOG_TAG("DEV_ID");
 namespace {
 
 char s_cachedId[kDeviceIdBufLen]{};
-bool s_cached = false;
+std::atomic<bool> s_cached{false};
 
 bool idFromStaMac(char *out, size_t outLen) {
     uint8_t mac[6] = {};
@@ -46,7 +47,7 @@ bool hadPriorSetupConfig(Preferences &prefs) {
         }
     }
     if (prefs.begin(kNvsNsMqtt, true)) {
-        const bool mqtt = prefs.isKey(kNvsKeyMqttServer);
+        const bool mqtt = hadPriorMqttSetupKeys(prefs.isKey(kNvsKeyMqttServer), prefs.isKey(kNvsKeyMqttCfgV1));
         prefs.end();
         return mqtt;
     }
@@ -121,19 +122,30 @@ void buildDeviceId(char *out, size_t outLen) {
         return;
     }
 
+    // Cache hit: no g_nvsMutex (BUG-WEB-10). Publish s_cachedId before s_cached=true.
+    if (s_cached.load(std::memory_order_acquire)) {
+        std::memcpy(out, s_cachedId, kDeviceIdBufLen);
+        return;
+    }
+
     {
         app_nvs::ScopedNvsLock lock;
-        if (!s_cached) {
+        if (!s_cached.load(std::memory_order_relaxed)) {
             ensureDeviceIdLocked(s_cachedId, sizeof(s_cachedId));
             if (deviceIdSyntaxOk(s_cachedId)) {
-                s_cached = true;
+                s_cached.store(true, std::memory_order_release);
             }
         }
-        if (s_cached) {
+        if (s_cached.load(std::memory_order_relaxed)) {
             std::memcpy(out, s_cachedId, kDeviceIdBufLen);
             return;
         }
     }
 
     out[0] = '\0';
+}
+
+void deviceIdentityResetRamAfterFactoryClear() {
+    s_cached.store(false, std::memory_order_release);
+    s_cachedId[0] = '\0';
 }

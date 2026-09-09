@@ -15,6 +15,6 @@ void fillSettingsJson(JsonObject obj);
 void fillChayaJson(JsonObject obj);
 void fillChayaJson(JsonObject obj, int rx, int tx, bool connected, bool configured, bool paired);
 void fillMqttStatusJson(JsonObject obj, bool connected);
-void fillMqttConfigJson(JsonObject obj, const MqttConfig &cfg);
+void fillMqttConfigJson(JsonObject obj, const MqttConfig &cfg, bool applyPending, bool nvsOk);
 void fillDeviceBatteryJson(JsonObject obj, int mv, int pct);
 void fillWifiConfigJson(JsonObject obj, const WlanConfig &cfg);

@@ -4,6 +4,7 @@
 #include <cstdint>
 
 #include "wlan_config.h"
+#include "wlan_soft_reconnect.h"
 
 void setupWiFi();
 void resetAllSettings();
@@ -25,6 +26,9 @@ auto wlanLoadConfigFromNvs(WlanConfig *cfg) -> bool;
  * No g_nvsMutex. False if never loaded/saved (caller clears).
  */
 auto wlanCopyCachedConfig(WlanConfig *out) -> bool;
+
+/** Drop NVS WiFi cache + active boot config after factory wipe (RC-LIFE-07). */
+void wlanResetRamAfterFactoryClear();
 
 /** @deprecated Prefer wlanSaveConfigToNvs; saves DHCP-only config. */
 auto configSaveWiFiCredentials(const char *ssid, const char *password) -> bool;
@@ -108,11 +112,17 @@ void wlanRecoveryServiceLoop();
 /**
  * Force STA reassociation via disconnect(false)+begin (shared by event escalate + recovery).
  * @param reasonTag short log tag (may be nullptr).
+ * @return Deferred if EPD/scan blocked the call — restore pending / undo cooldown.
  */
-void wlanForceStaReassoc(const char *reasonTag);
+auto wlanForceStaReassoc(const char *reasonTag) -> WlanForceReassocResult;
 
-/** Controlled restart after prolonged outage (flush counters, stop net services). */
-void wlanControlledRestart(const char *reasonTag);
+/**
+ * Controlled restart after prolonged outage (flush counters, stop net services).
+ * @return true if shutdown was claimed (then the device restarts and does not return).
+ * @param afterClaim optional hook run only after a successful claim, before reboot
+ *        (BUG-NET-05: persist rec_rst here, not before the call).
+ */
+auto wlanControlledRestart(const char *reasonTag, void (*afterClaim)() = nullptr) -> bool;
 
 /**
  * Snapshot of SoftAP setup connection data (SSID and IP).

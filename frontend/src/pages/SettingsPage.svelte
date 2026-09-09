@@ -1,6 +1,18 @@
+<script lang="ts" module>
+  import type { SettingsInfo } from "../api/types.ts";
+
+  let lastSubmittedSettings: SettingsInfo | null = null;
+  let settingsApplyToken = 0;
+
+  export function resetSettingsApplySession() {
+    settingsApplyToken += 1;
+    lastSubmittedSettings = null;
+  }
+</script>
+
 <script lang="ts">
-  import { untrack } from "svelte";
-  import { api } from "../api/client.ts";
+  import { onDestroy, untrack } from "svelte";
+  import { api, isApiBusyError } from "../api/client.ts";
   import type { SettingsInfo } from "../api/types.ts";
   import ConfirmDialog from "../components/ConfirmDialog.svelte";
   import DangerButton from "../components/DangerButton.svelte";
@@ -20,6 +32,7 @@
     cancelUiPrefsPersist,
     enqueueSettingsWrite,
   } from "../prefs/uiPrefs.ts";
+  import { setSettingsUiBusy } from "../prefs/settingsBusy.svelte.ts";
   import { getThemePreference } from "../theme/store.ts";
   import {
     AUDIO_TONE_HZ_MAX,
@@ -29,6 +42,9 @@
     AUDIO_VOLUME_MAX,
     AUDIO_VOLUME_MIN,
   } from "../audio/ranges.ts";
+
+  const SETTINGS_APPLY_POLL_MS = 200;
+  const SETTINGS_APPLY_POLL_MAX = 150;
 
   let {
     onToast,
@@ -46,45 +62,117 @@
   let confirmFactory = $state(false);
   let loadSeq = 0;
 
+  $effect(() => {
+    setSettingsUiBusy(busy);
+    return () => setSettingsUiBusy(false);
+  });
+
+  function applySettingsForm(s: SettingsInfo) {
+    settings = s;
+    quietHoursEnabled = s.quietHourStart !== s.quietHourEnd;
+  }
+
+  function restoreSubmittedSettings() {
+    if (!lastSubmittedSettings) return;
+    applySettingsForm({ ...lastSubmittedSettings });
+    busy = true;
+  }
+
   async function load() {
     const seq = ++loadSeq;
     loadError = false;
-    settings = null;
     try {
       const s = await api.getSettings();
       if (seq !== loadSeq) return;
-      settings = s;
-      quietHoursEnabled = s.quietHourStart !== s.quietHourEnd;
-      if (!s.applyPending) {
-        applyDeviceUiPrefs(s.lang, s.theme);
+      if (s.applyPending) {
+        if (lastSubmittedSettings) {
+          restoreSubmittedSettings();
+        }
+        // Cold load: do not treat live GET as editable truth (BUG-FE-01).
+        busy = true;
+        void resumeApplyPoll(seq);
+        return;
       }
-    } catch {
+      lastSubmittedSettings = null;
+      applySettingsForm(s);
+      applyDeviceUiPrefs(s.lang, s.theme);
+      busy = false;
+    } catch (e) {
       if (seq !== loadSeq) return;
-      loadError = true;
+      if (isApiBusyError(e)) {
+        busy = true;
+        void resumeApplyPoll(seq);
+        return;
+      }
+      busy = false;
+      if (!settings) loadError = true;
     }
   }
 
   /** Wait for deferred apply; surface NVS failure via nvsOk (QUAL-01). */
   async function waitForSettingsPersist(
-    seq: number,
+    stillCurrent: () => boolean,
   ): Promise<SettingsInfo | "aborted" | "timeout"> {
-    for (let i = 0; i < 25; i++) {
-      if (seq !== loadSeq) return "aborted";
-      const s = await api.getSettings();
-      if (seq !== loadSeq) return "aborted";
+    const delay = () => new Promise((r) => setTimeout(r, SETTINGS_APPLY_POLL_MS));
+    for (let i = 0; i < SETTINGS_APPLY_POLL_MAX; i++) {
+      if (!stillCurrent()) return "aborted";
+      let s: SettingsInfo;
+      try {
+        s = await api.getSettings();
+      } catch (e) {
+        if (isApiBusyError(e)) {
+          await delay();
+          continue;
+        }
+        throw e;
+      }
+      if (!stillCurrent()) return "aborted";
       if (!s.applyPending) {
         return s;
       }
-      await new Promise((r) => setTimeout(r, 80));
+      await delay();
     }
-    if (seq !== loadSeq) return "aborted";
-    const last = await api.getSettings();
-    if (seq !== loadSeq) return "aborted";
+    if (!stillCurrent()) return "aborted";
+    let last: SettingsInfo;
+    try {
+      last = await api.getSettings();
+    } catch (e) {
+      if (isApiBusyError(e)) {
+        await delay();
+        last = await api.getSettings();
+      } else {
+        throw e;
+      }
+    }
+    if (!stillCurrent()) return "aborted";
     return last.applyPending ? "timeout" : last;
+  }
+
+  async function resumeApplyPoll(seq: number) {
+    try {
+      const applied = await waitForSettingsPersist(() => seq === loadSeq);
+      if (applied === "aborted") return;
+      if (applied === "timeout") {
+        busy = false;
+        if (!settings) loadError = true;
+        return;
+      }
+      lastSubmittedSettings = null;
+      applySettingsForm(applied);
+      if (applied.nvsOk !== false) {
+        applyDeviceUiPrefs(applied.lang, applied.theme);
+      }
+      busy = false;
+    } catch {
+      if (seq !== loadSeq) return;
+      busy = false;
+      if (!settings) loadError = true;
+    }
   }
 
   $effect(() => {
     untrack(() => {
+      restoreSubmittedSettings();
       void load();
     });
     return () => {
@@ -92,10 +180,20 @@
     };
   });
 
+  onDestroy(() => {
+    settingsApplyToken += 1;
+  });
+
   async function save(e: SubmitEvent) {
     e.preventDefault();
-    if (!settings) return;
-    const seq = loadSeq;
+    if (!settings || busy) return;
+    const token = ++settingsApplyToken;
+    const quietEnd = quietHoursEnabled ? settings.quietHourEnd : settings.quietHourStart;
+    lastSubmittedSettings = {
+      ...settings,
+      quietHourEnd: quietEnd,
+      applyPending: true,
+    };
     busy = true;
     try {
       const payload = {
@@ -108,28 +206,29 @@
         audio_tx_volume: settings.audioTxVolume,
         audio_rx_volume: settings.audioRxVolume,
         quiet_hour_start: settings.quietHourStart,
-        quiet_hour_end: quietHoursEnabled ? settings.quietHourEnd : settings.quietHourStart,
+        quiet_hour_end: quietEnd,
         tx_hz: settings.txHz,
         tx_ms: settings.txMs,
         rx_hz: settings.rxHz,
         rx_ms: settings.rxMs,
       };
       cancelUiPrefsPersist();
-      if (seq !== loadSeq) return;
+      if (token !== settingsApplyToken) return;
       const res = await enqueueSettingsWrite(() => api.saveSettings(payload));
-      if (seq !== loadSeq) return;
+      if (token !== settingsApplyToken) return;
       if (!res.ok) {
+        lastSubmittedSettings = null;
         onToast(i18n.t("toast.save-failed"), "error");
         return;
       }
-      const applied = await waitForSettingsPersist(seq);
-      if (seq !== loadSeq || applied === "aborted") return;
+      const applied = await waitForSettingsPersist(() => token === settingsApplyToken);
+      if (token !== settingsApplyToken || applied === "aborted") return;
       if (applied === "timeout") {
         onToast(i18n.t("toast.save-failed"), "error");
         return;
       }
-      settings = applied;
-      quietHoursEnabled = applied.quietHourStart !== applied.quietHourEnd;
+      lastSubmittedSettings = null;
+      applySettingsForm(applied);
       if (applied.nvsOk === false) {
         onToast(i18n.t("toast.save-failed"), "error");
         return;
@@ -137,10 +236,11 @@
       onToast(i18n.t("toast.saved"), "success");
       await onDeviceRefresh();
     } catch {
-      if (seq !== loadSeq) return;
+      if (token !== settingsApplyToken) return;
+      lastSubmittedSettings = null;
       onToast(i18n.t("toast.save-failed"), "error");
     } finally {
-      if (seq === loadSeq) busy = false;
+      if (token === settingsApplyToken) busy = false;
     }
   }
 
@@ -148,10 +248,14 @@
     busy = true;
     try {
       const res = await api.reboot();
-      onToast(
-        res.ok ? i18n.t("toast.rebooting") : i18n.t("toast.reboot-failed"),
-        res.ok ? "info" : "error",
-      );
+      if (!res.ok && res.error === "busy") {
+        onToast(i18n.t("toast.save-failed"), "error");
+      } else {
+        onToast(
+          res.ok ? i18n.t("toast.rebooting") : i18n.t("toast.reboot-failed"),
+          res.ok ? "info" : "error",
+        );
+      }
       confirmReboot = false;
     } catch {
       onToast(i18n.t("toast.reboot-failed"), "error");

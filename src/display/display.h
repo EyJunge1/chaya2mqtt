@@ -46,9 +46,13 @@ enum class DisplayRequestMode : uint8_t {
  */
 auto displayRequest(DisplayMsg::Cmd cmd, DisplayRequestMode mode, uint32_t waitMs = 100U) -> bool;
 
-/** Policy gate for heart content paints (QUAL-05). SoftAP / unpaired → false. */
+/** Policy gate for heart content paints (QUAL-05). SoftAP / unpaired → false.
+ *  false→true resets the desired glyph to Filled so a stale Crack cannot paint first. */
 void displaySetContentAllowed(bool allowed);
 auto displayContentAllowed() -> bool;
 
 /** Wait until the display task finishes the next queued draw (or times out). */
 auto displayWaitDrawIdle(uint32_t timeoutMs) -> bool;
+
+/** Clear the power-off queue gate after an aborted soft-off (pending only applies to a sleep that proceeds). */
+void displayClearPowerOffPending();

@@ -1,7 +1,7 @@
 <script lang="ts">
   import { untrack } from "svelte";
   import { api } from "../api/client.ts";
-  import { otaHasPendingUpdate } from "../api/ota.ts";
+  import { otaHasPendingUpdate, otaStatusIsStale } from "../api/ota.ts";
   import type { OtaChannel, OtaPhase, OtaStatus } from "../api/types.ts";
   import ActionRow from "../components/ActionRow.svelte";
   import ConfirmDialog from "../components/ConfirmDialog.svelte";
@@ -42,6 +42,7 @@
 
   let status = $state<OtaStatus | null>(null);
   let channel = $state<OtaChannel>("stable");
+  let channelDirty = $state(false);
   let loadError = $state(false);
   let busy = $state(false);
   let confirmInstall = $state(false);
@@ -50,10 +51,12 @@
   let loadSeq = 0;
 
   function applyStatus(next: OtaStatus) {
-    // Ignore stale snapshots (late GET after fresher SSE).
-    if (status != null && next.generation < status.generation) return;
+    // Ignore stale or same-generation snapshots (late GET after fresher SSE).
+    if (otaStatusIsStale(status, next)) return;
     status = next;
-    channel = next.channel;
+    if (!channelDirty) {
+      channel = next.channel;
+    }
     if (next.phase === "error" && next.error) {
       if (next.error !== toastedError) {
         toastedError = next.error;
@@ -128,11 +131,13 @@
         res.ok ? i18n.t("toast.update-checking") : i18n.t("toast.update-failed"),
         res.ok ? "info" : "error",
       );
-      if (!res.ok) {
+      if (!res.ok && (status?.generation ?? 0) <= (previousStatus?.generation ?? 0)) {
         status = previousStatus;
       }
     } catch {
-      status = previousStatus;
+      if ((status?.generation ?? 0) <= (previousStatus?.generation ?? 0)) {
+        status = previousStatus;
+      }
       onToast(i18n.t("toast.update-failed"), "error");
     } finally {
       busy = false;
@@ -195,7 +200,13 @@
       />
 
       <Field label={i18n.t("update.channel")} hint={i18n.t("update.channel-hint")}>
-        <SelectInput bind:value={channel} disabled={busy || checking || installing}>
+        <SelectInput
+          bind:value={channel}
+          disabled={busy || checking || installing}
+          onchange={() => {
+            channelDirty = true;
+          }}
+        >
           <option value="stable">{i18n.t("update.channel.stable")}</option>
           <option value="beta">{i18n.t("update.channel.beta")}</option>
         </SelectInput>

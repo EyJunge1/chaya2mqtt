@@ -1,3 +1,4 @@
+#include <climits>
 #include <unity.h>
 
 #include "async/event_types.h"
@@ -7,6 +8,7 @@
 #include "battery/battery_pure.h"
 #include "button/button_debounce_pure.h"
 #include "button/button_soft_off_pure.h"
+#include "config/nvs_blob_load_pure.h"
 #include "display/display_config.h"
 #include "display/display_link_pure.h"
 #include "display/display_refresh_pure.h"
@@ -153,6 +155,46 @@ void test_display_heart_redraw_wait_and_follow_up() {
     TEST_ASSERT_FALSE(displayHeartNeedsFollowUpRedraw(6, 2, 6, 2, false, false, false));
     TEST_ASSERT_TRUE(displayHeartNeedsFollowUpRedraw(6, 2, 6, 2, false, false, false, 999, 2, 0, 2));
     TEST_ASSERT_FALSE(displayHeartNeedsFollowUpRedraw(6, 2, 6, 2, false, false, false, 3, 2, 3, 2));
+}
+
+void test_display_heart_skip_clears_pending() {
+    TEST_ASSERT_TRUE(displayHeartSkipClearsPending(DisplayHeartRedrawDecision::SkipUnchanged));
+    TEST_ASSERT_FALSE(displayHeartSkipClearsPending(DisplayHeartRedrawDecision::DeferPending));
+    TEST_ASSERT_FALSE(displayHeartSkipClearsPending(DisplayHeartRedrawDecision::QueueNow));
+
+    bool pending = true;
+    if (displayHeartSkipClearsPending(DisplayHeartRedrawDecision::SkipUnchanged)) {
+        pending = false;
+    }
+    TEST_ASSERT_FALSE(pending);
+    TEST_ASSERT_EQUAL_UINT(ULONG_MAX, displayHeartRedrawWaitMs(35000UL, 1000UL, kHeartRedrawMinIntervalMs, pending));
+}
+
+void test_display_heart_skip_then_defer_keeps_pending() {
+    TEST_ASSERT_TRUE(displayHeartSkipClearsPendingAfterReread(DisplayHeartRedrawDecision::SkipUnchanged,
+                                                             DisplayHeartRedrawDecision::SkipUnchanged));
+    TEST_ASSERT_FALSE(displayHeartSkipClearsPendingAfterReread(DisplayHeartRedrawDecision::SkipUnchanged,
+                                                              DisplayHeartRedrawDecision::DeferPending));
+    TEST_ASSERT_FALSE(displayHeartSkipClearsPendingAfterReread(DisplayHeartRedrawDecision::SkipUnchanged,
+                                                              DisplayHeartRedrawDecision::QueueNow));
+}
+
+void test_display_heart_redraw_skip_then_content() {
+    constexpr unsigned long kMin = kHeartRedrawMinIntervalMs;
+    // BootIfChanged skip must not stamp lastEnqueueMs (stays 0). Content with
+    // new RAM counters vs unpainted lastDrawn is QueueNow, not DeferPending.
+    TEST_ASSERT_EQUAL_INT(static_cast<int>(DisplayHeartRedrawDecision::QueueNow),
+                          static_cast<int>(displayHeartRedrawDecide(2, 1, INT32_MIN, INT32_MIN, false, false, 1500UL, 0UL, kMin)));
+
+    // A real refresh start stamps lastEnqueue → same Content defers for the interval.
+    TEST_ASSERT_EQUAL_INT(
+        static_cast<int>(DisplayHeartRedrawDecision::DeferPending),
+        static_cast<int>(displayHeartRedrawDecide(2, 1, INT32_MIN, INT32_MIN, false, false, 1500UL, 1500UL, kMin)));
+}
+
+void test_led_refresh_end_after_respects_hold() {
+    TEST_ASSERT_TRUE(ledRefreshEndAfterApplies(false));
+    TEST_ASSERT_FALSE(ledRefreshEndAfterApplies(true));
 }
 
 void test_led_tx_phase_allows_send_start() {
@@ -329,6 +371,13 @@ void test_soft_off_release_settle() {
     TEST_ASSERT_TRUE(softOffReleaseSettled(st, 1, 2800, 300));
 }
 
+void test_nvs_blob_load_decide() {
+    TEST_ASSERT_EQUAL_INT(static_cast<int>(NvsBlobLoad::UseBlob), static_cast<int>(nvsBlobLoadDecide(12, 12)));
+    TEST_ASSERT_EQUAL_INT(static_cast<int>(NvsBlobLoad::UseLegacy), static_cast<int>(nvsBlobLoadDecide(0, 12)));
+    TEST_ASSERT_EQUAL_INT(static_cast<int>(NvsBlobLoad::UseDefaults), static_cast<int>(nvsBlobLoadDecide(4, 12)));
+    TEST_ASSERT_EQUAL_INT(static_cast<int>(NvsBlobLoad::UseDefaults), static_cast<int>(nvsBlobLoadDecide(16, 12)));
+}
+
 void test_debounce_resets_timer_on_bounce() {
     DebouncedGpioState st{};
     st.lastRawReading = 1;
@@ -355,6 +404,10 @@ int main(int, char **) {
     RUN_TEST(test_queue_drop_coalescing);
     RUN_TEST(test_display_heart_redraw_leading_trailing);
     RUN_TEST(test_display_heart_redraw_wait_and_follow_up);
+    RUN_TEST(test_display_heart_skip_clears_pending);
+    RUN_TEST(test_display_heart_skip_then_defer_keeps_pending);
+    RUN_TEST(test_display_heart_redraw_skip_then_content);
+    RUN_TEST(test_led_refresh_end_after_respects_hold);
     RUN_TEST(test_led_tx_phase_allows_send_start);
     RUN_TEST(test_led_tx_phase_can_finish_to_background);
     RUN_TEST(test_audio_overflow_drain_skips_same_kind);
@@ -366,6 +419,7 @@ int main(int, char **) {
     RUN_TEST(test_debounce_commits_after_stable_ms);
     RUN_TEST(test_soft_off_may_arm_ext1_wake);
     RUN_TEST(test_soft_off_release_settle);
+    RUN_TEST(test_nvs_blob_load_decide);
     RUN_TEST(test_debounce_resets_timer_on_bounce);
     return UNITY_END();
 }

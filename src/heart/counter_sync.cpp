@@ -31,7 +31,10 @@ bool persistCounterBaselineState() {
     snapRstDay = s_lastResetCalendarDayUtc.load(std::memory_order_relaxed);
     portEXIT_CRITICAL(&s_heartDisplayMux);
 
-    app_nvs::ScopedNvsLock lock;
+    app_nvs::ScopedNvsWriteLock lock(kNvsNsChaya);
+    if (!lock) {
+        return false;
+    }
     Preferences prefs;
     if (!prefs.begin(kNvsNsChaya, false)) {
         ESP_LOGE(TAG, "NVS chaya: open for baseline write failed");
@@ -39,12 +42,29 @@ bool persistCounterBaselineState() {
     }
     const ChayaBaselineBlob blob{snapCntBase, snapSntBase, snapRstDay};
     const bool okBlob = prefs.putBytes(kNvsKeyChayaBaselineBlob, &blob, sizeof(blob)) == sizeof(blob);
+    if (okBlob) {
+        static_cast<void>(prefs.remove(kNvsKeyChayaCntBase));
+        static_cast<void>(prefs.remove(kNvsKeyChayaSntBase));
+        static_cast<void>(prefs.remove(kNvsKeyChayaRstDay));
+    }
     prefs.end();
     if (!okBlob) {
         ESP_LOGE(TAG, "NVS chaya: baseline blob write failed");
         return false;
     }
     return true;
+}
+
+static bool persistBaselineStateOrRollback(int oldCntBase, int oldSntBase, uint32_t oldRstDay) {
+    if (persistCounterBaselineState()) {
+        return true;
+    }
+    portENTER_CRITICAL(&s_heartDisplayMux);
+    counterBaseline.store(oldCntBase, std::memory_order_relaxed);
+    sentCountBaseline.store(oldSntBase, std::memory_order_relaxed);
+    s_lastResetCalendarDayUtc.store(oldRstDay, std::memory_order_relaxed);
+    portEXIT_CRITICAL(&s_heartDisplayMux);
+    return false;
 }
 
 void maybePeriodicallyResetCounters() {
@@ -91,12 +111,18 @@ void maybePeriodicallyResetCounters() {
         return;
     }
 
+    int oldCntBase = 0;
+    int oldSntBase = 0;
+    uint32_t oldRstDay = UINT32_MAX;
     portENTER_CRITICAL(&s_heartDisplayMux);
+    oldCntBase = counterBaseline.load(std::memory_order_relaxed);
+    oldSntBase = sentCountBaseline.load(std::memory_order_relaxed);
+    oldRstDay = s_lastResetCalendarDayUtc.load(std::memory_order_relaxed);
     counterBaseline.store(heartCounter.load(std::memory_order_relaxed), std::memory_order_relaxed);
     sentCountBaseline.store(heartSentCounter.load(std::memory_order_relaxed), std::memory_order_relaxed);
-    portEXIT_CRITICAL(&s_heartDisplayMux);
     s_lastResetCalendarDayUtc.store(currentDay, std::memory_order_relaxed);
-    if (persistCounterBaselineState()) {
+    portEXIT_CRITICAL(&s_heartDisplayMux);
+    if (persistBaselineStateOrRollback(oldCntBase, oldSntBase, oldRstDay)) {
         ESP_LOGI(TAG, "Periodic display counter reset (%u days)", static_cast<unsigned>(periodDays));
         (void)displayRequest(DisplayMsg::Cmd::DrawHeart, DisplayRequestMode::Content);
     }
@@ -111,11 +137,13 @@ void maybeResetDisplayBaselinesWhenCapped() {
     int32_t snapSent = 0;
     int32_t snapCb = 0;
     int32_t snapSb = 0;
+    uint32_t snapRstDay = UINT32_MAX;
     portENTER_CRITICAL(&s_heartDisplayMux);
     snapHeart = heartCounter.load(std::memory_order_relaxed);
     snapSent = heartSentCounter.load(std::memory_order_relaxed);
     snapCb = counterBaseline.load(std::memory_order_relaxed);
     snapSb = sentCountBaseline.load(std::memory_order_relaxed);
+    snapRstDay = s_lastResetCalendarDayUtc.load(std::memory_order_relaxed);
     auto applyCapBaseline = [&](int32_t counter, int32_t baseline, std::atomic<int> &baselineAtom) {
         if (static_cast<int64_t>(counter) - static_cast<int64_t>(baseline) >= kDisplayCounterMax) {
             baselineAtom.store(counter, std::memory_order_relaxed);
@@ -125,7 +153,7 @@ void maybeResetDisplayBaselinesWhenCapped() {
     applyCapBaseline(snapHeart, snapCb, counterBaseline);
     applyCapBaseline(snapSent, snapSb, sentCountBaseline);
     portEXIT_CRITICAL(&s_heartDisplayMux);
-    if (changed && persistCounterBaselineState()) {
+    if (changed && persistBaselineStateOrRollback(snapCb, snapSb, snapRstDay)) {
         ESP_LOGI(TAG, "Display baseline reset (display reached cap)");
         (void)displayRequest(DisplayMsg::Cmd::DrawHeart, DisplayRequestMode::Content);
     }

@@ -39,27 +39,23 @@ std::atomic<TaskHandle_t> s_buttonTaskHandle{nullptr};
 ButtonState btn{};
 PwrButtonState pwr{};
 
-/** Blocking SoftOff LED ack while still held (≥2 s). Queued patterns would stall during shutdown. */
-static void blinkSoftOffArmedLed() { ledPlayPresetBlocking(LedPreset::SoftOff); }
+/** Queued SoftOff ack while the button/LED task is still running (RC-UI-03). */
+static void blinkSoftOffArmedLed() { ledPlayPreset(LedPreset::SoftOff); }
 
-/** Wait until PWR is stably HIGH. Timeout cuts the latch and keeps waiting (KEEP_AWAKE). */
-static void waitForPwrRelease() {
+/** Wait until PWR is stably HIGH. Timeout is recorded; latch is cut only after the post-wait gate. */
+static bool waitForPwrRelease() {
     SoftOffReleaseSettle settle{};
     const unsigned long startedMs = millis();
-    bool cutLatchOnTimeout = false;
+    bool timedOut = false;
     for (;;) {
         const unsigned long nowMs = millis();
-        if (!cutLatchOnTimeout && nowMs - startedMs >= kSoftOffReleaseTimeoutMs) {
-            if (otaFlashInProgress()) {
-                ESP_LOGE(TAG, "PWR soft-off: release timeout — skip latch cut, OTA flash in progress");
-            } else {
-                ESP_LOGW(TAG, "PWR soft-off: release timeout (%lu ms) — cutting latch, still waiting", kSoftOffReleaseTimeoutMs);
-                batteryCutLatch();
-            }
-            cutLatchOnTimeout = true;
+        if (!timedOut && nowMs - startedMs >= kSoftOffReleaseTimeoutMs) {
+            ESP_LOGW(TAG, "PWR soft-off: release timeout (%lu ms) — latch cut deferred until sleep gate",
+                     kSoftOffReleaseTimeoutMs);
+            timedOut = true;
         }
         if (softOffReleaseSettled(settle, digitalRead(pins::kPwrButton), nowMs, kSoftOffReleaseSettleMs)) {
-            return;
+            return timedOut;
         }
         vTaskDelay(pdMS_TO_TICKS(10));
     }
@@ -83,14 +79,24 @@ static bool processPowerOff() {
 
     ESP_LOGI(TAG, "PWR long press released: soft-off");
 
-    mqttAbortPendingPublish();
     flushAllHeartCountersIfDirty();
     // Persist Unknown before the shutdown NVS gate so the power-off EPD can run (STAB-01).
     (void)configInvalidateDisplayView();
-    g_systemShutdownInProgress.store(true, std::memory_order_release);
-    if (otaFlashInProgress() || otaBlocksDestructiveAction()) {
-        g_systemShutdownInProgress.store(false, std::memory_order_release);
-        ESP_LOGW(TAG, "PWR soft-off aborted: OTA in progress");
+    if (!systemShutdownTryClaim()) {
+        ESP_LOGW(TAG, "PWR soft-off aborted: shutdown already claimed");
+        ledCancelChayaSend();
+        mqttAbortPendingPublish();
+        return false;
+    }
+    // After claim so HTTP cannot re-arm s_sendWanted between cancel and shutdown (BUG-UI-04).
+    ledCancelChayaSend();
+    mqttAbortPendingPublish();
+    if (otaFlashInProgress() || otaBlocksDestructiveAction() ||
+        g_factoryResetQueued.load(std::memory_order_acquire)) {
+        batteryHoldLatch();
+        systemShutdownRelease();
+        ledCancelChayaSend();
+        ESP_LOGW(TAG, "PWR soft-off aborted: OTA or factory in progress");
         return false;
     }
     webServerEnd();
@@ -103,14 +109,28 @@ static bool processPowerOff() {
 
     // Settle before EXT1 in case of bounce / re-press during the EPD refresh.
     ESP_LOGI(TAG, "PWR soft-off — stable release settle (%lu ms) then deep sleep", kSoftOffReleaseSettleMs);
-    waitForPwrRelease();
+    const bool releaseTimedOut = waitForPwrRelease();
     flushAllHeartCountersIfDirty();
-    if (otaFlashInProgress() || otaBlocksDestructiveAction()) {
-        ESP_LOGE(TAG, "OTA during power-off screen — skip latch cut, restore HTTP");
-        g_systemShutdownInProgress.store(false, std::memory_order_release);
+    if (otaFlashInProgress() || otaBlocksDestructiveAction() ||
+        g_factoryResetQueued.load(std::memory_order_acquire)) {
+        ESP_LOGE(TAG, "OTA/factory during power-off screen — skip latch cut, restore HTTP");
+        batteryHoldLatch();
+        systemShutdownRelease();
+        ledCancelChayaSend();
+        // s_powerOffPending applies only to the soft-off that actually enters deep sleep.
+        displayClearPowerOffPending();
         webServerBegin();
         chayaTaskWatchdogSubscribe(TAG);
+        if (displayContentAllowed()) {
+            (void)displayRequest(DisplayMsg::Cmd::DrawHeart, DisplayRequestMode::BootIfChanged);
+        } else {
+            (void)displayRequest(DisplayMsg::Cmd::DrawSplash, DisplayRequestMode::BootIfChanged);
+        }
         return false;
+    }
+    if (releaseTimedOut) {
+        ESP_LOGW(TAG, "PWR soft-off: cutting latch after release timeout (KEEP_AWAKE)");
+        batteryCutLatch();
     }
     ESP_LOGI(TAG, "PWR soft-off — entering deep sleep (mv=%d pct=%d)", batteryMilliVolts(), batteryPercent());
     if (hooks.performSoftOff != nullptr) {

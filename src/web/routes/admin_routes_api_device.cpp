@@ -5,13 +5,18 @@
 
 #include "battery/battery.h"
 #include "config/app_config.h"
+#include "heart/counter.h"
 #include "config/version.h"
 #include "constants.h"
 #include "identity/device_identity.h"
+#include "mqtt/config.h"
 #include "mqtt/mqtt.h"
 #include "ota/ota.h"
 #include "ota/ota_json.h"
+#include "web/events.h"
+#include "web/sse_send_pure.h"
 #include "web/web_utils.h"
+#include "web/wifi_status_cache_pure.h"
 #include "wifi/wlan.h"
 #include "wifi/wlan_config.h"
 
@@ -57,17 +62,12 @@ void fillWifiStatusJson(JsonObject obj, bool connected, const char *ssid, const 
 }
 
 void fillWifiStatusJson(JsonObject obj) {
-    bool connected = false;
-    char ssidBuf[kWifiSsidMaxLen]{};
-    char ipStr[kIpv4StrMaxLen]{};
-    char gateway[kIpv4StrMaxLen]{};
-    char netmask[kIpv4StrMaxLen]{};
-    char dns1[kIpv4StrMaxLen]{};
-    char dns2[kIpv4StrMaxLen]{};
-    int rssi = 0;
-    wlanFillStaNetSnapshot(&connected, ssidBuf, sizeof(ssidBuf), ipStr, sizeof(ipStr), gateway, sizeof(gateway), netmask,
-                           sizeof(netmask), dns1, sizeof(dns1), dns2, sizeof(dns2), &rssi);
-    fillWifiStatusJson(obj, connected, ssidBuf, ipStr, gateway, netmask, dns1, dns2, rssi);
+    WifiStaNetFields live{};
+    if (!webWifiStaNetSnapshotOrCached(&live)) {
+        fillWifiStatusJson(obj, false, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, 0);
+        return;
+    }
+    fillWifiStatusJson(obj, live.connected, live.ssid, live.ip, live.gateway, live.netmask, live.dns1, live.dns2, live.rssi);
 }
 
 void handleApiBootstrapGet(AsyncWebServerRequest *req) {
@@ -77,8 +77,13 @@ void handleApiBootstrapGet(AsyncWebServerRequest *req) {
     fillWifiStatusJson(doc["wifi"].to<JsonObject>());
 
     if (!configIsApMode()) {
-        fillChayaJson(doc["chaya"].to<JsonObject>());
-        fillMqttStatusJson(doc["mqtt"].to<JsonObject>(), mqttIsConnected());
+        const bool mqttConn = mqttIsConnected();
+        const bool mqttConfigured = mqttCfgIsBrokerConfigured();
+        int chayaRx = 0;
+        int chayaTx = 0;
+        heartCounterFillChayaDeltas(&chayaRx, &chayaTx);
+        fillChayaJson(doc["chaya"].to<JsonObject>(), chayaRx, chayaTx, mqttConn, mqttConfigured, mqttCfgIsPaired());
+        fillMqttStatusJson(doc["mqtt"].to<JsonObject>(), mqttPageConn(mqttConfigured, mqttConn));
         otaFillStatusJson(doc["update"].to<JsonObject>());
         fillSettingsJson(doc["settings"].to<JsonObject>());
     } else {

@@ -539,4 +539,16 @@ describe("otaBlocksDestructiveAction", () => {
     expect(otaBlocksDestructiveAction(createInitialState("update-available"))).toBe(false);
     expect(otaBlocksDestructiveAction(createInitialState("update-error"))).toBe(false);
   });
+
+  it("blocks on request flags even when phase is idle or available", () => {
+    expect(otaBlocksDestructiveAction(createInitialState("update-available"))).toBe(false);
+
+    const availableWithInstall = createInitialState("update-available");
+    availableWithInstall.ota.installRequested = true;
+    expect(otaBlocksDestructiveAction(availableWithInstall)).toBe(true);
+
+    const idleWithCheck = createInitialState("update-uptodate");
+    idleWithCheck.ota.checkRequested = true;
+    expect(otaBlocksDestructiveAction(idleWithCheck)).toBe(true);
+  });
 });

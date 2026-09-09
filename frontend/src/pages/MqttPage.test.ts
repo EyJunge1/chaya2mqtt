@@ -1,19 +1,26 @@
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/svelte";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { ApiHttpError } from "../api/client.ts";
 import type { MqttConfigView } from "../api/types.ts";
-import MqttPage from "./MqttPage.svelte";
+// <script module> exports are available at runtime; generated Svelte types omit them.
+// @ts-ignore svelte component types omit named module exports
+import MqttPage, { resetMqttApplySession } from "./MqttPage.svelte";
 
 const { getMqttConfig, saveMqtt } = vi.hoisted(() => ({
   getMqttConfig: vi.fn(),
   saveMqtt: vi.fn(),
 }));
 
-vi.mock("../api/client", () => ({
-  api: {
-    getMqttConfig: () => getMqttConfig(),
-    saveMqtt: (fields: unknown) => saveMqtt(fields),
-  },
-}));
+vi.mock("../api/client", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../api/client.ts")>();
+  return {
+    ...actual,
+    api: {
+      getMqttConfig: () => getMqttConfig(),
+      saveMqtt: (fields: unknown) => saveMqtt(fields),
+    },
+  };
+});
 
 vi.mock("../i18n/i18n.svelte.ts", () => ({
   i18n: { t: (key: string) => key, language: "en", setLanguage: () => undefined },
@@ -37,6 +44,8 @@ function cfg(partial: Partial<MqttConfigView> = {}): MqttConfigView {
 describe("MqttPage", () => {
   afterEach(() => {
     cleanup();
+    resetMqttApplySession();
+    vi.useRealTimers();
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
     vi.clearAllMocks();
@@ -269,6 +278,26 @@ describe("MqttPage", () => {
     expect(getMqttConfig).toHaveBeenCalledTimes(3);
   });
 
+  it("retries GET 503 busy during apply poll instead of save-failed", async () => {
+    const onToast = vi.fn();
+    getMqttConfig
+      .mockResolvedValueOnce(cfg())
+      .mockRejectedValueOnce(new ApiHttpError("/api/mqtt", 503, "busy"))
+      .mockResolvedValueOnce(cfg({ applyPending: false }));
+    render(MqttPage, { props: { mqtt: { connected: true }, onToast } });
+
+    await screen.findByDisplayValue("mqtt.example.com");
+    fireEvent.click(screen.getByRole("button", { name: "common.save" }));
+
+    await waitFor(() => {
+      expect(saveMqtt).toHaveBeenCalled();
+    });
+    await waitFor(() => {
+      expect(onToast).toHaveBeenCalledWith("toast.mqtt-saved", "success");
+    });
+    expect(onToast).not.toHaveBeenCalledWith("toast.save-failed", "error");
+  });
+
   it("shows save-failed when nvsOk is false after apply", async () => {
     const onToast = vi.fn();
     const onDeviceRefresh = vi.fn().mockResolvedValue(undefined);
@@ -301,5 +330,173 @@ describe("MqttPage", () => {
 
     expect(await screen.findByText("mqtts://mqtt.example.com:8883")).toBeTruthy();
     expect(getMqttConfig).toHaveBeenCalledTimes(2);
+  });
+
+  it("keeps submitted partner when remounting during applyPending", async () => {
+    const onToast = vi.fn();
+    render(MqttPage, { props: { mqtt: { connected: true }, onToast } });
+
+    await screen.findByDisplayValue("mqtt.example.com");
+    getMqttConfig.mockResolvedValue(cfg({ partnerId: "f5e6d7", applyPending: true }));
+    fireEvent.change(screen.getByDisplayValue("f5e6d7"), { target: { value: "abcdef" } });
+    fireEvent.click(screen.getByRole("button", { name: "common.save" }));
+    await waitFor(() => expect(saveMqtt).toHaveBeenCalledTimes(1));
+
+    cleanup();
+    render(MqttPage, { props: { mqtt: { connected: true }, onToast } });
+
+    expect(await screen.findByDisplayValue("abcdef")).toBeTruthy();
+    expect(screen.queryByDisplayValue("f5e6d7")).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: "common.save" }));
+    await new Promise((r) => setTimeout(r, 30));
+    expect(saveMqtt).toHaveBeenCalledTimes(1);
+    expect(saveMqtt).not.toHaveBeenCalledWith(expect.objectContaining({ partner_id: "f5e6d7" }));
+  });
+
+  it("does not POST the live form when refreshSeq hydrates applyPending", async () => {
+    const onToast = vi.fn();
+    const { rerender } = render(MqttPage, {
+      props: { mqtt: { connected: true }, refreshSeq: 1, onToast },
+    });
+
+    await screen.findByDisplayValue("mqtt.example.com");
+    getMqttConfig.mockResolvedValue(cfg({ partnerId: "f5e6d7", applyPending: true }));
+    fireEvent.change(screen.getByDisplayValue("f5e6d7"), { target: { value: "abcdef" } });
+    fireEvent.click(screen.getByRole("button", { name: "common.save" }));
+    await waitFor(() => expect(saveMqtt).toHaveBeenCalledTimes(1));
+
+    await rerender({ mqtt: { connected: true }, refreshSeq: 2, onToast });
+
+    expect(await screen.findByDisplayValue("abcdef")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "common.save" }));
+    await new Promise((r) => setTimeout(r, 30));
+    expect(saveMqtt).toHaveBeenCalledTimes(1);
+    expect(saveMqtt).not.toHaveBeenCalledWith(expect.objectContaining({ partner_id: "f5e6d7" }));
+  });
+
+  it("does not hydrate live GET fields on a cold load while applyPending", async () => {
+    resetMqttApplySession();
+    getMqttConfig
+      .mockResolvedValueOnce(cfg({ partnerId: "f5e6d7", applyPending: true }))
+      .mockResolvedValue(
+        cfg({ partnerId: "abcdef", topicSub: "chaya2mqtt/abcdef", applyPending: false }),
+      );
+
+    render(MqttPage, { props: { mqtt: { connected: true }, onToast: vi.fn() } });
+
+    expect(await screen.findByText("mqtt.loading")).toBeTruthy();
+    expect(screen.queryByDisplayValue("f5e6d7")).toBeNull();
+    expect(await screen.findByDisplayValue("abcdef")).toBeTruthy();
+  });
+
+  it("makes save clickable again after remount when applyPending is already false", async () => {
+    const onToast = vi.fn();
+    render(MqttPage, { props: { mqtt: { connected: true }, onToast } });
+
+    await screen.findByDisplayValue("mqtt.example.com");
+    getMqttConfig.mockResolvedValue(cfg({ partnerId: "f5e6d7", applyPending: true }));
+    fireEvent.change(screen.getByDisplayValue("f5e6d7"), { target: { value: "abcdef" } });
+    fireEvent.click(screen.getByRole("button", { name: "common.save" }));
+    await waitFor(() => expect(saveMqtt).toHaveBeenCalledTimes(1));
+
+    cleanup();
+    getMqttConfig.mockResolvedValue(
+      cfg({ partnerId: "abcdef", topicSub: "chaya2mqtt/abcdef", applyPending: false }),
+    );
+    render(MqttPage, { props: { mqtt: { connected: true }, onToast } });
+
+    const save = await screen.findByRole("button", { name: "common.save" });
+    await waitFor(() => expect(save).not.toHaveAttribute("aria-busy", "true"));
+    expect(save).toBeEnabled();
+    fireEvent.click(save);
+    await waitFor(() => expect(saveMqtt).toHaveBeenCalledTimes(2));
+  });
+
+  it("still toasts mqtt-saved when refreshSeq bumps during applyPending", async () => {
+    const onToast = vi.fn();
+    const { rerender } = render(MqttPage, {
+      props: { mqtt: { connected: true }, refreshSeq: 1, onToast },
+    });
+
+    await screen.findByDisplayValue("mqtt.example.com");
+    getMqttConfig.mockResolvedValue(cfg({ partnerId: "f5e6d7", applyPending: true }));
+    fireEvent.change(screen.getByDisplayValue("f5e6d7"), { target: { value: "abcdef" } });
+    fireEvent.click(screen.getByRole("button", { name: "common.save" }));
+    await waitFor(() => expect(saveMqtt).toHaveBeenCalledTimes(1));
+
+    await rerender({ mqtt: { connected: true }, refreshSeq: 2, onToast });
+    expect(await screen.findByDisplayValue("abcdef")).toBeTruthy();
+
+    getMqttConfig.mockResolvedValue(
+      cfg({ partnerId: "abcdef", topicSub: "chaya2mqtt/abcdef", applyPending: false }),
+    );
+    await waitFor(() => {
+      expect(onToast).toHaveBeenCalledWith("toast.mqtt-saved", "success");
+    });
+  });
+
+  it("keeps submitted form when remount GET fails", async () => {
+    const onToast = vi.fn();
+    render(MqttPage, { props: { mqtt: { connected: true }, onToast } });
+
+    await screen.findByDisplayValue("mqtt.example.com");
+    getMqttConfig.mockResolvedValue(cfg({ partnerId: "f5e6d7", applyPending: true }));
+    fireEvent.change(screen.getByDisplayValue("f5e6d7"), { target: { value: "abcdef" } });
+    fireEvent.click(screen.getByRole("button", { name: "common.save" }));
+    await waitFor(() => expect(saveMqtt).toHaveBeenCalledTimes(1));
+
+    cleanup();
+    getMqttConfig.mockRejectedValue(new Error("offline"));
+    render(MqttPage, { props: { mqtt: { connected: true }, onToast } });
+
+    expect(await screen.findByDisplayValue("abcdef")).toBeTruthy();
+    expect(screen.queryByText("mqtt.load-error")).toBeNull();
+    const save = screen.getByRole("button", { name: "common.save" });
+    await waitFor(() => expect(save).not.toHaveAttribute("aria-busy", "true"));
+    expect(save).toBeEnabled();
+  });
+
+  it("shows load-error when apply poll GET fails on a cold load", async () => {
+    resetMqttApplySession();
+    getMqttConfig
+      .mockResolvedValueOnce(cfg({ applyPending: true }))
+      .mockRejectedValue(new Error("offline"));
+
+    render(MqttPage, { props: { mqtt: { connected: true }, onToast: vi.fn() } });
+
+    expect(await screen.findByText("mqtt.load-error")).toBeTruthy();
+    expect(screen.queryByText("mqtt.loading")).toBeNull();
+  });
+
+  it("shows load-error instead of a spinner when cold-load applyPending never clears", async () => {
+    resetMqttApplySession();
+    vi.useFakeTimers();
+    try {
+      getMqttConfig.mockResolvedValue(cfg({ applyPending: true }));
+      render(MqttPage, { props: { mqtt: { connected: true }, onToast: vi.fn() } });
+
+      await Promise.resolve();
+      await Promise.resolve();
+      expect(screen.getByText("mqtt.loading")).toBeTruthy();
+
+      await vi.advanceTimersByTimeAsync(30_200);
+      expect(screen.getByText("mqtt.load-error")).toBeTruthy();
+      expect(screen.queryByText("mqtt.loading")).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("starts apply poll instead of load-error when cold-load GET is 503 busy", async () => {
+    resetMqttApplySession();
+    getMqttConfig
+      .mockRejectedValueOnce(new ApiHttpError("/api/mqtt", 503, "busy"))
+      .mockResolvedValue(cfg({ applyPending: false }));
+
+    render(MqttPage, { props: { mqtt: { connected: true }, onToast: vi.fn() } });
+
+    expect(await screen.findByDisplayValue("mqtt.example.com")).toBeTruthy();
+    expect(screen.queryByText("mqtt.load-error")).toBeNull();
   });
 });

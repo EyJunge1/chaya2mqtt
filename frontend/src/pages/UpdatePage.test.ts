@@ -156,6 +156,100 @@ describe("UpdatePage", () => {
     expect(onToast).toHaveBeenLastCalledWith("update.error-title", "error");
   });
 
+  it("does not clobber checking with a same-generation snapshot", async () => {
+    let resolveCheck!: (value: { ok: boolean; message: string }) => void;
+    checkUpdate.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveCheck = resolve;
+        }),
+    );
+    const onToast = vi.fn();
+    const { rerender } = render(UpdatePage, {
+      props: { onToast, otaStatus: status() },
+    });
+
+    await screen.findByText("2026.8.1");
+    fireEvent.click(screen.getByRole("button", { name: "update.check" }));
+    await waitFor(() => {
+      expect(checkUpdate).toHaveBeenCalledWith("stable");
+    });
+    expect(screen.getByText("update.phase.checking")).toBeInTheDocument();
+
+    await rerender({
+      onToast,
+      otaStatus: status({ phase: "idle", generation: 1 }),
+    });
+
+    expect(screen.getByText("update.phase.checking")).toBeInTheDocument();
+    expect(screen.queryByText("update.phase.idle")).not.toBeInTheDocument();
+
+    resolveCheck({ ok: true, message: "checking" });
+  });
+
+  it("skips check error restore if SSE generation rose", async () => {
+    let resolveCheck!: (value: { ok: boolean; message: string }) => void;
+    checkUpdate.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveCheck = resolve;
+        }),
+    );
+    const onToast = vi.fn();
+    const { rerender } = render(UpdatePage, {
+      props: { onToast, otaStatus: status() },
+    });
+
+    await screen.findByText("2026.8.1");
+    fireEvent.click(screen.getByRole("button", { name: "update.check" }));
+    await waitFor(() => {
+      expect(checkUpdate).toHaveBeenCalledWith("stable");
+    });
+
+    await rerender({
+      onToast,
+      otaStatus: status({
+        phase: "available",
+        availableVersion: "2026.8.2",
+        generation: 3,
+      }),
+    });
+    expect(screen.getByText("update.phase.available")).toBeInTheDocument();
+
+    resolveCheck({ ok: false, message: "failed" });
+
+    await waitFor(() => {
+      expect(onToast).toHaveBeenCalledWith("toast.update-failed", "error");
+    });
+    expect(screen.getByText("update.phase.available")).toBeInTheDocument();
+    expect(screen.getByText("2026.8.2")).toBeInTheDocument();
+    expect(screen.queryByText("update.phase.checking")).not.toBeInTheDocument();
+    expect(screen.queryByText("update.phase.idle")).not.toBeInTheDocument();
+  });
+
+  it("keeps a dirty channel when a newer snapshot arrives", async () => {
+    const onToast = vi.fn();
+    const { rerender } = render(UpdatePage, {
+      props: { onToast, otaStatus: status() },
+    });
+
+    await screen.findByText("2026.8.1");
+    const select = screen.getByRole("combobox");
+    fireEvent.change(select, { target: { value: "beta" } });
+    expect(select).toHaveValue("beta");
+
+    await rerender({
+      onToast,
+      otaStatus: status({
+        phase: "idle",
+        channel: "stable",
+        generation: 2,
+      }),
+    });
+
+    expect(screen.getByRole("combobox")).toHaveValue("beta");
+  });
+
   it("ignores a late GET that is older than SSE status", async () => {
     let resolveGet!: (value: OtaStatus) => void;
     getUpdateStatus.mockImplementation(
@@ -193,5 +287,38 @@ describe("UpdatePage", () => {
     });
     expect(screen.getByText("update.phase.downloading")).toBeInTheDocument();
     expect(screen.queryByText("update.phase.idle")).not.toBeInTheDocument();
+  });
+
+  it("leaves rebooting when SSE reports idle with a smaller generation after reboot", async () => {
+    getUpdateStatus.mockImplementation(() => new Promise<OtaStatus>(() => undefined));
+    const onToast = vi.fn();
+    const { rerender } = render(UpdatePage, {
+      props: {
+        onToast,
+        otaStatus: status({
+          phase: "rebooting",
+          localVersion: "2026.8.1",
+          availableVersion: "2026.8.2",
+          generation: 15,
+        }),
+      },
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText("update.phase.rebooting")).toBeInTheDocument();
+    });
+
+    await rerender({
+      onToast,
+      otaStatus: status({
+        phase: "idle",
+        localVersion: "2026.8.2",
+        generation: 1,
+      }),
+    });
+
+    expect(screen.getByText("update.phase.idle")).toBeInTheDocument();
+    expect(screen.queryByText("update.phase.rebooting")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "update.check" })).toBeEnabled();
   });
 });

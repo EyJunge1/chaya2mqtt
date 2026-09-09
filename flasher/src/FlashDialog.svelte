@@ -16,6 +16,7 @@
     port = null,
     onClose,
     onRetryPort,
+    onJobActiveChange,
   }: {
     open: boolean;
     lang: Lang;
@@ -25,6 +26,7 @@
     port?: SerialPort | null;
     onClose: () => void;
     onRetryPort: () => void;
+    onJobActiveChange?: (active: boolean) => void;
   } = $props();
 
   let dialogEl: HTMLDialogElement | undefined = $state();
@@ -120,47 +122,52 @@
     step = "running";
     progress = { phase: "initializing", message: "initializing", percentage: null };
 
-    await flashFirmware({
-      port: activePort,
-      manifestPath: manifestUrl,
-      eraseFirst,
-      onProgress: (next) => {
-        progress = next;
-        if (next.phase === "finished") {
-          step = "done";
-          busy = false;
-          activePort = null;
-        } else if (next.phase === "error") {
-          step = "error";
-          busy = false;
-          activePort = null;
-        }
-      },
-    });
+    onJobActiveChange?.(true);
+    try {
+      await flashFirmware({
+        port: activePort,
+        manifestPath: manifestUrl,
+        eraseFirst,
+        onProgress: (next) => {
+          progress = next;
+          if (next.phase === "finished") {
+            step = "done";
+          } else if (next.phase === "error") {
+            step = "error";
+          }
+        },
+      });
+    } finally {
+      // BUG-FE-05: release the port only after flashFirmware settled (disconnect done).
+      busy = false;
+      activePort = null;
+      onJobActiveChange?.(false);
+    }
 
     // Safety if the engine returned without a terminal progress event.
-    if (busy) {
-      busy = false;
-      if (step === "running") {
-        step = "error";
-        progress = {
-          phase: "error",
-          message: "write_failed",
-          percentage: null,
-        };
-      }
+    if (step === "running") {
+      step = "error";
+      progress = {
+        phase: "error",
+        message: "write_failed",
+        percentage: null,
+      };
     }
   }
 
   async function retryFromError() {
+    if (busy) return;
     await releasePort();
     onClose();
     onRetryPort();
   }
 
   onDestroy(() => {
-    if (busy) return;
+    if (busy) {
+      return;
+    }
     void releasePort();
+    onClose();
   });
 </script>
 
@@ -306,8 +313,9 @@
     {:else}
       <button
         type="button"
+        disabled={busy}
         onclick={() => void retryFromError()}
-        class="focus-ring w-full rounded-xl bg-accent px-5 py-2.5 text-sm font-bold text-bg transition hover:opacity-90 sm:w-auto sm:min-w-32"
+        class="focus-ring w-full rounded-xl bg-accent px-5 py-2.5 text-sm font-bold text-bg transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto sm:min-w-32"
       >
         {t("flash.retry")}
       </button>

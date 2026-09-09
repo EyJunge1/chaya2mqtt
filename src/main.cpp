@@ -8,6 +8,8 @@
 #include "util/log_tag.h"
 
 #include "async/app_task.h"
+#include "async/system_lifecycle.h"
+#include "async/system_shutdown_pure.h"
 #include "async/task_handles.h"
 
 #include "async/web_server_hooks.h"
@@ -25,13 +27,19 @@
 #include "network/network_task.h"
 #include "ota/ota.h"
 #include "ota/ota_task.h"
+#include "web/admin_globals.h"
 #include "wifi/wlan.h"
 
 DEFINE_LOG_TAG("MAIN");
 
 namespace {
 void onButtonRequestSend() { (void)chayaRequestSend(); }
-bool onButtonSoftOffAllowed() { return !otaBlocksDestructiveAction(); }
+bool onButtonSoftOffAllowed() {
+    return softOffAllowed(otaBlocksDestructiveAction(), g_systemShutdownInProgress.load(std::memory_order_acquire),
+                          g_factoryResetQueued.load(std::memory_order_acquire),
+                          g_webAdminApplyInFlight.load(std::memory_order_acquire) > 0U, mqttCfgApplyPending(),
+                          g_webAdminSettingsApplyPending.load(std::memory_order_acquire));
+}
 void onButtonPerformSoftOff() { batteryPowerOffAndSleep(); }
 } // namespace
 
@@ -103,6 +111,7 @@ void setup() {
     webServerRegisterRoutes();
     buttonSetActionHooks(ButtonActionHooks{onButtonRequestSend, onButtonSoftOffAllowed, onButtonPerformSoftOff});
     setupWiFi();
+    otaPreloadChannelFromNvs();
     webServerBegin();
 
     mqttSetup();

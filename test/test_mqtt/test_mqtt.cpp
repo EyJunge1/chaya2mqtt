@@ -4,7 +4,9 @@
 #include "constants.h"
 #include "identity/device_identity.h"
 #include "identity/device_identity_pure.h"
+#include "mqtt/mqtt.h"
 #include "mqtt/backoff.h"
+#include "mqtt/mqtt_event_live_pure.h"
 #include "mqtt/counter_payload.h"
 #include "mqtt/mqtt_apply_pure.h"
 #include "mqtt/mqtt_config.h"
@@ -59,6 +61,19 @@ void test_device_id_syntax() {
 void test_device_id_create_mode() {
     TEST_ASSERT_EQUAL(static_cast<int>(DeviceIdCreateMode::FromMacMigrate), static_cast<int>(deviceIdCreateMode(true)));
     TEST_ASSERT_EQUAL(static_cast<int>(DeviceIdCreateMode::FromRandom), static_cast<int>(deviceIdCreateMode(false)));
+}
+
+void test_had_prior_mqtt_setup_keys() {
+    TEST_ASSERT_FALSE(hadPriorMqttSetupKeys(false, false));
+    TEST_ASSERT_TRUE(hadPriorMqttSetupKeys(true, false));
+    TEST_ASSERT_TRUE(hadPriorMqttSetupKeys(false, true));
+    TEST_ASSERT_TRUE(hadPriorMqttSetupKeys(true, true));
+}
+
+void test_mqtt_chaya_publish_try_is_fail() {
+    TEST_ASSERT_FALSE(mqttChayaPublishTryIsFail(MqttChayaPublishTry::Ok));
+    TEST_ASSERT_FALSE(mqttChayaPublishTryIsFail(MqttChayaPublishTry::Retry));
+    TEST_ASSERT_TRUE(mqttChayaPublishTryIsFail(MqttChayaPublishTry::Fail));
 }
 
 void test_device_id_format_from_bytes() {
@@ -164,26 +179,50 @@ void test_backoff_helpers() {
 
 void test_publish_ack_state() {
     MqttPublishAckState state{};
+    TEST_ASSERT_TRUE(mqttPublishAckCanBegin(state));
+    TEST_ASSERT_FALSE(mqttPublishAckBlocksNewPublish(state));
     TEST_ASSERT_TRUE(mqttPublishAckBegin(&state, 7, 3U, 42));
     TEST_ASSERT_TRUE(mqttPublishAckIsPending(state));
+    TEST_ASSERT_TRUE(mqttPublishAckBlocksNewPublish(state));
+    TEST_ASSERT_FALSE(mqttPublishAckCanBegin(state));
     TEST_ASSERT_FALSE(mqttPublishAckBegin(&state, 8, 3U, 42));
     TEST_ASSERT_FALSE(mqttPublishAckConfirm(&state, 8, 3U));
     TEST_ASSERT_FALSE(mqttPublishAckConfirm(&state, 7, 4U));
     TEST_ASSERT_TRUE(mqttPublishAckConfirm(&state, 7, 3U));
     TEST_ASSERT_TRUE(mqttPublishAckWasConfirmed(state, 7, 3U));
+    TEST_ASSERT_EQUAL_INT(42, state.expectedCounter);
     TEST_ASSERT_FALSE(mqttPublishAckConfirm(&state, 7, 3U));
+    TEST_ASSERT_FALSE(mqttPublishAckBegin(&state, 9, 4U, 43));
+    TEST_ASSERT_TRUE(mqttPublishAckBlocksNewPublish(state));
+    TEST_ASSERT_FALSE(mqttPublishAckCanBegin(state));
 
-    TEST_ASSERT_TRUE(mqttPublishAckBegin(&state, 9, 4U, 43));
-    TEST_ASSERT_FALSE(mqttPublishAckFail(&state, 3U));
-    TEST_ASSERT_TRUE(mqttPublishAckFail(&state, 4U));
-    TEST_ASSERT_FALSE(mqttPublishAckIsPending(state));
-    TEST_ASSERT_FALSE(mqttPublishAckWasConfirmed(state, 9, 4U));
+    MqttPublishAckState failed{};
+    TEST_ASSERT_TRUE(mqttPublishAckBegin(&failed, 9, 4U, 43));
+    TEST_ASSERT_FALSE(mqttPublishAckFail(&failed, 3U));
+    TEST_ASSERT_TRUE(mqttPublishAckFail(&failed, 4U));
+    TEST_ASSERT_FALSE(mqttPublishAckIsPending(failed));
+    TEST_ASSERT_FALSE(mqttPublishAckWasConfirmed(failed, 9, 4U));
+    TEST_ASSERT_TRUE(mqttPublishAckCanBegin(failed));
+    TEST_ASSERT_FALSE(mqttPublishAckBlocksNewPublish(failed));
 
-    TEST_ASSERT_TRUE(mqttPublishAckBegin(&state, 1, 0U, 10));
-    TEST_ASSERT_TRUE(mqttPublishAckIsPending(state));
-    TEST_ASSERT_EQUAL_UINT32(0U, state.clientGeneration);
-    TEST_ASSERT_TRUE(mqttPublishAckFail(&state, 0U));
-    TEST_ASSERT_FALSE(mqttPublishAckIsPending(state));
+    TEST_ASSERT_TRUE(mqttPublishAckBegin(&failed, 1, 0U, 10));
+    TEST_ASSERT_TRUE(mqttPublishAckIsPending(failed));
+    TEST_ASSERT_EQUAL_UINT32(0U, failed.clientGeneration);
+    TEST_ASSERT_TRUE(mqttPublishAckFail(&failed, 0U));
+    TEST_ASSERT_FALSE(mqttPublishAckIsPending(failed));
+}
+
+void test_publish_ack_begin_blocked_after_confirm() {
+    MqttPublishAckState state{};
+    TEST_ASSERT_TRUE(mqttPublishAckBegin(&state, 5, 1U, 1));
+    TEST_ASSERT_TRUE(mqttPublishAckConfirm(&state, 5, 1U));
+    TEST_ASSERT_TRUE(mqttPublishAckWasConfirmed(state, 5, 1U));
+    TEST_ASSERT_FALSE(mqttPublishAckBegin(&state, 6, 1U, 2));
+    TEST_ASSERT_TRUE(mqttPublishAckWasConfirmed(state, 5, 1U));
+    TEST_ASSERT_FALSE(mqttPublishAckConfirm(&state, 5, 1U));
+    TEST_ASSERT_EQUAL(static_cast<int>(MqttPublishAckStatus::Acked), static_cast<int>(state.status));
+    TEST_ASSERT_TRUE(mqttPublishAckBlocksNewPublish(state));
+    TEST_ASSERT_FALSE(mqttPublishAckCanBegin(state));
 }
 
 void test_mqtt_pack_roundtrip() {
@@ -231,6 +270,108 @@ void test_mqtt_pack_reject_bad_magic() {
 void test_mqtt_settings_apply_clear_pending() {
     TEST_ASSERT_TRUE(mqttSettingsApplyShouldClearPending(false));
     TEST_ASSERT_FALSE(mqttSettingsApplyShouldClearPending(true));
+    TEST_ASSERT_TRUE(mqttSettingsApplyShouldFinish(true));
+    TEST_ASSERT_FALSE(mqttSettingsApplyShouldFinish(false));
+    TEST_ASSERT_FALSE(mqttSettingsApplyShouldDefer(false, false, false));
+    TEST_ASSERT_TRUE(mqttSettingsApplyShouldDefer(true, false, false));
+    TEST_ASSERT_TRUE(mqttSettingsApplyShouldDefer(false, true, false));
+    TEST_ASSERT_TRUE(mqttSettingsApplyShouldDefer(false, false, true));
+    TEST_ASSERT_FALSE(mqttSettingsApplyNothingPendingNeedsRetry(false));
+    TEST_ASSERT_TRUE(mqttSettingsApplyNothingPendingNeedsRetry(true));
+}
+
+void test_publish_ack_begin_blocked_when_async_not_pending() {
+    MqttPublishAckState state{};
+    TEST_ASSERT_TRUE(mqttPublishAckCanBegin(state));
+    TEST_ASSERT_TRUE(mqttPublishAckBeginAllowed(true, true));
+    TEST_ASSERT_FALSE(mqttPublishAckBeginAllowed(true, false));
+    TEST_ASSERT_FALSE(mqttPublishAckBeginAllowed(false, true));
+    // Abort without a pending ACK leaves Idle/Failed (CanBegin true) but async is no longer Pending.
+    TEST_ASSERT_FALSE(mqttPublishAckBeginAllowed(mqttPublishAckCanBegin(state), false));
+    TEST_ASSERT_FALSE(mqttPublishAckConfirm(&state, 4, 1U));
+}
+
+void test_abort_may_fail_async() {
+    TEST_ASSERT_TRUE(mqttAbortMayFailAsync(false, false));
+    TEST_ASSERT_TRUE(mqttAbortMayFailAsync(false, true));
+    TEST_ASSERT_TRUE(mqttAbortMayFailAsync(true, true));
+    TEST_ASSERT_FALSE(mqttAbortMayFailAsync(true, false));
+
+    MqttPublishAckState state{};
+    TEST_ASSERT_TRUE(mqttPublishAckBegin(&state, 3, 1U, 9));
+    TEST_ASSERT_TRUE(mqttPublishAckConfirm(&state, 3, 1U));
+    TEST_ASSERT_FALSE(mqttPublishAckFail(&state, 1U));
+    TEST_ASSERT_TRUE(mqttPublishAckWasConfirmed(state, 3, 1U));
+}
+
+void test_mqtt_event_is_live() {
+    const void *client = reinterpret_cast<const void *>(0x100);
+    const void *other = reinterpret_cast<const void *>(0x200);
+    TEST_ASSERT_TRUE(mqttEventIsLive(client, client, 3U, 3U));
+    TEST_ASSERT_FALSE(mqttEventIsLive(nullptr, client, 3U, 3U));
+    TEST_ASSERT_FALSE(mqttEventIsLive(client, nullptr, 3U, 3U));
+    TEST_ASSERT_FALSE(mqttEventIsLive(client, other, 3U, 3U));
+    TEST_ASSERT_FALSE(mqttEventIsLive(client, client, 3U, 4U));
+}
+
+void test_publish_ack_reserve_attach_survives_async_abort() {
+    MqttPublishAckState state{};
+    TEST_ASSERT_TRUE(mqttPublishAckBeginAllowed(mqttPublishAckCanBegin(state), true));
+    TEST_ASSERT_TRUE(mqttPublishAckReserve(&state, 3U, 42));
+    TEST_ASSERT_TRUE(mqttPublishAckIsStarting(state));
+    TEST_ASSERT_TRUE(mqttPublishAckBlocksNewPublish(state));
+    TEST_ASSERT_FALSE(mqttPublishAckCanBegin(state));
+    TEST_ASSERT_FALSE(mqttPublishAckIsPending(state));
+    TEST_ASSERT_FALSE(mqttPublishAckTimeoutDue(mqttPublishAckIsPending(state), true, 0UL, 5000UL, 5000UL));
+    TEST_ASSERT_FALSE(mqttPublishAckReserve(&state, 3U, 43));
+    TEST_ASSERT_FALSE(mqttPublishAckBegin(&state, 8, 3U, 43));
+    TEST_ASSERT_FALSE(mqttPublishAckFailIfPending(&state, 3U));
+    TEST_ASSERT_TRUE(mqttPublishAckIsStarting(state));
+    // Abort without ACK fails async (BeginAllowed false) but Attach must still bind.
+    TEST_ASSERT_FALSE(mqttPublishAckBeginAllowed(mqttPublishAckCanBegin(state), false));
+    TEST_ASSERT_TRUE(mqttPublishAckAttach(&state, 7, 3U));
+    TEST_ASSERT_TRUE(mqttPublishAckIsPending(state));
+    TEST_ASSERT_EQUAL_INT(7, state.messageId);
+    TEST_ASSERT_EQUAL_INT(42, state.expectedCounter);
+    TEST_ASSERT_TRUE(mqttPublishAckConfirm(&state, 7, 3U));
+    TEST_ASSERT_TRUE(mqttPublishAckWasConfirmed(state, 7, 3U));
+}
+
+void test_publish_ack_late_puback_during_starting() {
+    MqttPublishAckState state{};
+    TEST_ASSERT_TRUE(mqttPublishAckReserve(&state, 3U, 11));
+    TEST_ASSERT_FALSE(mqttPublishAckConfirm(&state, 7, 3U));
+    TEST_ASSERT_TRUE(mqttPublishAckIsStarting(state));
+    TEST_ASSERT_FALSE(mqttPublishAckWasConfirmed(state, 7, 3U));
+    TEST_ASSERT_TRUE(mqttPublishAckAttach(&state, 7, 3U));
+    TEST_ASSERT_TRUE(mqttPublishAckWasConfirmed(state, 7, 3U));
+    TEST_ASSERT_FALSE(mqttPublishAckIsPending(state));
+}
+
+void test_publish_ack_reserved_survives_idle_reset() {
+    MqttPublishAckState starting{};
+    TEST_ASSERT_TRUE(mqttPublishAckReserve(&starting, 1U, 4));
+    TEST_ASSERT_TRUE(mqttPublishAckIsReserved(starting));
+    TEST_ASSERT_FALSE(mqttPublishAckIsPending(starting));
+    MqttPublishAckState pending{};
+    TEST_ASSERT_TRUE(mqttPublishAckBegin(&pending, 2, 1U, 5));
+    TEST_ASSERT_TRUE(mqttPublishAckIsReserved(pending));
+    MqttPublishAckState idle{};
+    TEST_ASSERT_FALSE(mqttPublishAckIsReserved(idle));
+    MqttPublishAckState acked{};
+    TEST_ASSERT_TRUE(mqttPublishAckBegin(&acked, 3, 1U, 6));
+    TEST_ASSERT_TRUE(mqttPublishAckConfirm(&acked, 3, 1U));
+    TEST_ASSERT_FALSE(mqttPublishAckIsReserved(acked));
+}
+
+void test_publish_ack_reserve_abort_blocks_attach() {
+    MqttPublishAckState state{};
+    TEST_ASSERT_TRUE(mqttPublishAckReserve(&state, 2U, 9));
+    TEST_ASSERT_TRUE(mqttPublishAckFail(&state, 2U));
+    TEST_ASSERT_FALSE(mqttPublishAckIsStarting(state));
+    TEST_ASSERT_TRUE(mqttPublishAckCanBegin(state));
+    TEST_ASSERT_FALSE(mqttPublishAckAttach(&state, 4, 2U));
+    TEST_ASSERT_FALSE(mqttPublishAckConfirm(&state, 4, 2U));
 }
 
 void test_publish_ack_timeout_gen0() {
@@ -254,6 +395,8 @@ int main(int, char **) {
     RUN_TEST(test_mqtt_password_syntax);
     RUN_TEST(test_device_id_syntax);
     RUN_TEST(test_device_id_create_mode);
+    RUN_TEST(test_had_prior_mqtt_setup_keys);
+    RUN_TEST(test_mqtt_chaya_publish_try_is_fail);
     RUN_TEST(test_device_id_format_from_bytes);
     RUN_TEST(test_device_sta_hostname_format);
     RUN_TEST(test_normalize_mqtt_port);
@@ -262,9 +405,17 @@ int main(int, char **) {
     RUN_TEST(test_counter_payload_parse);
     RUN_TEST(test_backoff_helpers);
     RUN_TEST(test_publish_ack_state);
+    RUN_TEST(test_publish_ack_begin_blocked_after_confirm);
     RUN_TEST(test_mqtt_pack_roundtrip);
     RUN_TEST(test_mqtt_pack_reject_bad_magic);
     RUN_TEST(test_mqtt_settings_apply_clear_pending);
+    RUN_TEST(test_publish_ack_begin_blocked_when_async_not_pending);
+    RUN_TEST(test_abort_may_fail_async);
+    RUN_TEST(test_mqtt_event_is_live);
+    RUN_TEST(test_publish_ack_reserve_attach_survives_async_abort);
+    RUN_TEST(test_publish_ack_late_puback_during_starting);
+    RUN_TEST(test_publish_ack_reserved_survives_idle_reset);
+    RUN_TEST(test_publish_ack_reserve_abort_blocks_attach);
     RUN_TEST(test_publish_ack_timeout_gen0);
     return UNITY_END();
 }

@@ -181,8 +181,12 @@ void writeTone(i2s_chan_handle_t tx, uint32_t durationMs, float hz, float amplit
             mono[i] = static_cast<int16_t>(s * 28000.0f);
         }
         size_t written = 0;
-        (void)i2s_channel_write(tx, mono, n * sizeof(int16_t), &written, pdMS_TO_TICKS(200));
-        done += static_cast<uint32_t>(n);
+        const esp_err_t err = i2s_channel_write(tx, mono, n * sizeof(int16_t), &written, pdMS_TO_TICKS(200));
+        chayaTaskWatchdogReset();
+        if (err != ESP_OK || written < sizeof(int16_t)) {
+            break;
+        }
+        done += static_cast<uint32_t>(written / sizeof(int16_t));
     }
 }
 
@@ -194,8 +198,12 @@ void writeSilence(i2s_chan_handle_t tx, uint32_t durationMs) {
     while (done < total) {
         const size_t n = ((total - done) < kChunkFrames) ? (total - done) : kChunkFrames;
         size_t written = 0;
-        (void)i2s_channel_write(tx, mono, n * sizeof(int16_t), &written, pdMS_TO_TICKS(200));
-        done += static_cast<uint32_t>(n);
+        const esp_err_t err = i2s_channel_write(tx, mono, n * sizeof(int16_t), &written, pdMS_TO_TICKS(200));
+        chayaTaskWatchdogReset();
+        if (err != ESP_OK || written < sizeof(int16_t)) {
+            break;
+        }
+        done += static_cast<uint32_t>(written / sizeof(int16_t));
     }
 }
 

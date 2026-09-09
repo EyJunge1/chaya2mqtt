@@ -17,8 +17,10 @@ void fillChayaJson(JsonObject obj, int rx, int tx, bool connected, bool configur
 }
 
 void fillChayaJson(JsonObject obj) {
-    fillChayaJson(obj, heartDisplayRxDelta(), heartDisplayTxDelta(), mqttIsConnected(), mqttCfgIsBrokerConfigured(),
-                  mqttCfgIsPaired());
+    int rx = 0;
+    int tx = 0;
+    heartCounterFillChayaDeltas(&rx, &tx);
+    fillChayaJson(obj, rx, tx, mqttIsConnected(), mqttCfgIsBrokerConfigured(), mqttCfgIsPaired());
 }
 
 void handleApiChayaSendPost(AsyncWebServerRequest *req, JsonVariant &json) {

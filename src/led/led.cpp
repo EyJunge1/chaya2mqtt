@@ -25,11 +25,14 @@ unsigned long ledPhaseStartMs = 0;
 unsigned long ledPhaseDurationMs = 0;
 
 static std::atomic<bool> s_refreshWanted{false};
+static std::atomic<bool> s_refreshHold{false};
 static std::atomic<bool> s_refreshHasDeadline{false};
 static std::atomic<uint32_t> s_refreshDeadlineStartMs{0};
 static std::atomic<uint32_t> s_refreshDeadlineDurMs{0};
 
 static std::atomic<bool> s_patternWanted{false};
+static std::atomic<bool> s_sendWanted{false};
+static std::atomic<bool> s_applyEnabledWanted{false};
 static std::atomic<uint8_t> s_patternCount{0};
 static std::atomic<uint16_t> s_patternOnMs{0};
 static std::atomic<uint16_t> s_patternOffMs{0};
@@ -77,27 +80,29 @@ static void startRefreshIfIdle() {
     }
 }
 
-static void startPatternIfAllowed() {
-    const LedTxPhase p = ledTxPhase.load(std::memory_order_relaxed);
-    if (p == LedTxPhase::Idle || ledIsRefreshPhase(p) || ledIsPatternPhase(p)) {
-        (void)startPatternFromQueue();
-    }
+void ledRefreshPulseBegin() {
+    s_refreshWanted.store(true, std::memory_order_release);
+    buttonNotifyTask();
 }
 
-void ledRefreshPulseBegin() {
+void ledRefreshPulseHold() {
+    s_refreshHold.store(true, std::memory_order_release);
     s_refreshHasDeadline.store(false, std::memory_order_relaxed);
     s_refreshWanted.store(true, std::memory_order_release);
-    startRefreshIfIdle();
     buttonNotifyTask();
 }
 
 void ledRefreshPulseEnd() {
+    s_refreshHold.store(false, std::memory_order_release);
     s_refreshWanted.store(false, std::memory_order_release);
     s_refreshHasDeadline.store(false, std::memory_order_relaxed);
     buttonNotifyTask();
 }
 
 void ledRefreshPulseEndAfter(unsigned long durationMs) {
+    if (!ledRefreshEndAfterApplies(s_refreshHold.load(std::memory_order_acquire))) {
+        return;
+    }
     s_refreshDeadlineStartMs.store(static_cast<uint32_t>(millis()), std::memory_order_relaxed);
     s_refreshDeadlineDurMs.store(static_cast<uint32_t>(durationMs), std::memory_order_relaxed);
     s_refreshHasDeadline.store(true, std::memory_order_release);
@@ -128,9 +133,8 @@ void ledInit() {
 }
 
 void ledApplyEnabled() {
-    if (!configGetLedEnabled()) {
-        ledOutputForced(LOW);
-    }
+    s_applyEnabledWanted.store(true, std::memory_order_release);
+    buttonNotifyTask();
 }
 
 bool ledActivityActive() { return ledTxPhase.load(std::memory_order_relaxed) != LedTxPhase::Idle; }
@@ -142,7 +146,7 @@ bool ledTxBusy() {
     return p != LedTxPhase::Idle && !ledIsRefreshPhase(p) && !ledIsPatternPhase(p);
 }
 
-bool ledIsTxSendBusy() { return ledTxBusy(); }
+bool ledIsTxSendBusy() { return s_sendWanted.load(std::memory_order_acquire) || ledTxBusy(); }
 
 bool ledSendSequenceActive() { return ledActivityActive(); }
 
@@ -168,7 +172,6 @@ void ledPlayPattern(LedBlinkPattern pattern) {
     s_patternOnMs.store(pattern.onMs, std::memory_order_relaxed);
     s_patternOffMs.store(pattern.offMs, std::memory_order_relaxed);
     s_patternWanted.store(true, std::memory_order_release);
-    startPatternIfAllowed();
     buttonNotifyTask();
 }
 
@@ -229,8 +232,26 @@ bool startMqttSendLedSequence() {
     return false;
 }
 
+static bool startSendIfWanted() {
+    return s_sendWanted.load(std::memory_order_acquire) && startMqttSendLedSequence();
+}
+
+void ledCancelChayaSend() {
+    s_sendWanted.store(false, std::memory_order_release);
+    ledTxPhase.store(LedTxPhase::Idle, std::memory_order_release);
+    ledOutput(LOW);
+}
+
 bool ledStartChayaSendSequence() {
-    if (!startMqttSendLedSequence()) {
+    if (ledIsTxSendBusy()) {
+        return false;
+    }
+    const LedTxPhase phase = ledTxPhase.load(std::memory_order_relaxed);
+    if (!ledTxPhaseAllowsSendStart(phase)) {
+        return false;
+    }
+    bool expected = false;
+    if (!s_sendWanted.compare_exchange_strong(expected, true, std::memory_order_acq_rel, std::memory_order_relaxed)) {
         return false;
     }
     buttonNotifyTask();
@@ -238,6 +259,9 @@ bool ledStartChayaSendSequence() {
 }
 
 static void finishToIdleOrBackground() {
+    if (startSendIfWanted()) {
+        return;
+    }
     if (startPatternFromQueue()) {
         return;
     }
@@ -257,11 +281,20 @@ static void finishToIdleOrBackground() {
 }
 
 void advanceLedSequence() {
+    if (s_applyEnabledWanted.exchange(false, std::memory_order_acq_rel) && !configGetLedEnabled()) {
+        ledOutputForced(LOW);
+    }
+
     if (s_refreshHasDeadline.load(std::memory_order_acquire) &&
         deadlineReached(s_refreshDeadlineStartMs.load(std::memory_order_relaxed),
                         s_refreshDeadlineDurMs.load(std::memory_order_relaxed), static_cast<uint32_t>(millis()))) {
         s_refreshWanted.store(false, std::memory_order_release);
         s_refreshHasDeadline.store(false, std::memory_order_relaxed);
+    }
+
+    // TX preempts pattern and refresh; armLedPhase/ledOutput stay on this task.
+    if (startSendIfWanted()) {
+        return;
     }
 
     const LedTxPhase phaseNow = ledTxPhase.load(std::memory_order_relaxed);
@@ -344,6 +377,8 @@ void advanceLedSequence() {
 
     case LedTxPhase::PostOff2:
     case LedTxPhase::FailOff3:
+        // Drop the reservation only after the send sequence ends (single-flight).
+        s_sendWanted.store(false, std::memory_order_release);
         finishToIdleOrBackground();
         break;
 

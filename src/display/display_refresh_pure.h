@@ -39,6 +39,17 @@ inline auto displayHeartRedrawDecide(int currentRx, int currentTx, int lastDrawn
  * How long the display task should wait for the next command when a deferred
  * heart redraw is pending. ULONG_MAX means wait forever (no pending work).
  */
+/** SkipUnchanged must drop a deferred pending flag (BUG-UI-02). */
+inline auto displayHeartSkipClearsPending(DisplayHeartRedrawDecision decision) -> bool {
+    return decision == DisplayHeartRedrawDecision::SkipUnchanged;
+}
+
+/** Clear pending only when a re-read is still SkipUnchanged (RC-UI-02). */
+inline auto displayHeartSkipClearsPendingAfterReread(DisplayHeartRedrawDecision first,
+                                                     DisplayHeartRedrawDecision second) -> bool {
+    return displayHeartSkipClearsPending(first) && displayHeartSkipClearsPending(second);
+}
+
 inline auto displayHeartRedrawWaitMs(unsigned long nowMs, unsigned long lastEnqueueMs, unsigned long minIntervalMs,
                                      bool pending) -> unsigned long {
     if (!pending) {

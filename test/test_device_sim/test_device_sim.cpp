@@ -250,6 +250,50 @@ void test_sim_disconnect_aborts_pending_publish() {
     TEST_ASSERT_EQUAL_INT(0, dev.localTxCounter());
 }
 
+void test_sim_reconnect_keeps_client_generation() {
+    DeviceRuntime dev("a1b2c3");
+    dev.configureBroker("broker.example.com", 8883, "", "");
+    dev.net().setReadyForMqtt();
+    dev.tick(0);
+    TEST_ASSERT_TRUE(dev.mqttConnected());
+    const uint32_t generation = dev.clientGeneration();
+
+    dev.forceDisconnect(false);
+    TEST_ASSERT_FALSE(dev.mqttConnected());
+    TEST_ASSERT_EQUAL_UINT32(generation, dev.clientGeneration());
+    dev.tick(dev.backoff().lastAttemptAtMs + dev.backoff().backoffPeriodMs);
+    TEST_ASSERT_TRUE(dev.mqttConnected());
+    TEST_ASSERT_EQUAL_UINT32(generation, dev.clientGeneration());
+}
+
+void test_sim_late_ack_after_fail_and_begin() {
+    DeviceRuntime dev("a1b2c3");
+    dev.configureBroker("broker.example.com", 8883, "", "");
+    dev.net().setReadyForMqtt();
+    dev.tick(0);
+    TEST_ASSERT_TRUE(dev.publishCounter(1));
+    const int oldMessageId = dev.pendingMessageId();
+    TEST_ASSERT_TRUE(oldMessageId >= 0);
+
+    dev.forceDisconnect(false);
+    TEST_ASSERT_FALSE(dev.publishPending());
+
+    dev.tick(dev.backoff().lastAttemptAtMs + dev.backoff().backoffPeriodMs);
+    TEST_ASSERT_TRUE(dev.mqttConnected());
+
+    TEST_ASSERT_TRUE(dev.publishCounter(1));
+    const int newMessageId = dev.pendingMessageId();
+    TEST_ASSERT_TRUE(newMessageId != oldMessageId);
+    TEST_ASSERT_TRUE(dev.publishPending());
+
+    TEST_ASSERT_FALSE(dev.confirmPublish(oldMessageId));
+    TEST_ASSERT_EQUAL_INT(0, dev.localTxCounter());
+    TEST_ASSERT_TRUE(dev.publishPending());
+
+    TEST_ASSERT_TRUE(dev.confirmPublish(newMessageId));
+    TEST_ASSERT_EQUAL_INT(1, dev.localTxCounter());
+}
+
 int main(int, char **) {
     UNITY_BEGIN();
     RUN_TEST(test_sim_first_connect_and_pair);
@@ -267,5 +311,7 @@ int main(int, char **) {
     RUN_TEST(test_sim_nvs_wifi_mqtt_fault_injection);
     RUN_TEST(test_sim_mqtt_pack_and_apply_finish);
     RUN_TEST(test_sim_disconnect_aborts_pending_publish);
+    RUN_TEST(test_sim_reconnect_keeps_client_generation);
+    RUN_TEST(test_sim_late_ack_after_fail_and_begin);
     return UNITY_END();
 }

@@ -8,32 +8,83 @@
 #include "battery/battery_pure.h"
 #include "config/app_config.h"
 #include "constants.h"
+#include "ota/ota.h"
 #include "web/web_utils.h"
 
 #include <ESPAsyncWebServer.h>
 #include <cstring>
 
 void fillSettingsJson(JsonObject obj) {
+    uint8_t days = 0;
     char lang[3]{};
     char theme[8]{};
-    configCopyUiLang(lang, sizeof(lang));
-    configCopyUiTheme(theme, sizeof(theme));
-    obj["resetDays"] = configGetResetPeriodDays();
+    bool ledEnabled = false;
+    bool audioTxEnabled = false;
+    bool audioRxEnabled = false;
+    uint8_t audioTxVol = 0;
+    uint8_t audioRxVol = 0;
+    uint8_t quiet0 = 0;
+    uint8_t quiet1 = 0;
+    uint16_t txHz = 0;
+    uint16_t txMs = 0;
+    uint16_t rxHz = 0;
+    uint16_t rxMs = 0;
+    bool nvsOk = true;
+    bool applyPending = false;
+    bool fromPending = false;
+    portENTER_CRITICAL(&g_webAdminSettingsPendingMux);
+    applyPending = g_webAdminSettingsApplyPending.load(std::memory_order_relaxed);
+    nvsOk = !g_webAdminSettingsNvsWriteFailed.load(std::memory_order_relaxed);
+    fromPending = applyPending;
+    if (fromPending) {
+        days = g_webAdminPendingResetDays;
+        strlcpy(lang, g_webAdminPendingUiLang, sizeof(lang));
+        strlcpy(theme, g_webAdminPendingUiTheme, sizeof(theme));
+        ledEnabled = g_webAdminPendingLedEnabled;
+        audioTxEnabled = g_webAdminPendingAudioTxEnabled;
+        audioRxEnabled = g_webAdminPendingAudioRxEnabled;
+        audioTxVol = g_webAdminPendingAudioTxVolume;
+        audioRxVol = g_webAdminPendingAudioRxVolume;
+        quiet0 = g_webAdminPendingQuiet0;
+        quiet1 = g_webAdminPendingQuiet1;
+        txHz = g_webAdminPendingTxHz;
+        txMs = g_webAdminPendingTxMs;
+        rxHz = g_webAdminPendingRxHz;
+        rxMs = g_webAdminPendingRxMs;
+    }
+    portEXIT_CRITICAL(&g_webAdminSettingsPendingMux);
+    if (!fromPending) {
+        days = configGetResetPeriodDays();
+        ledEnabled = configGetLedEnabled();
+        audioTxEnabled = configGetAudioTxEnabled();
+        audioRxEnabled = configGetAudioRxEnabled();
+        audioTxVol = configGetAudioTxVolume();
+        audioRxVol = configGetAudioRxVolume();
+        quiet0 = configGetAudioQuietStart();
+        quiet1 = configGetAudioQuietEnd();
+        txHz = configGetAudioTxHz();
+        txMs = configGetAudioTxMs();
+        rxHz = configGetAudioRxHz();
+        rxMs = configGetAudioRxMs();
+        configCopyUiLang(lang, sizeof(lang));
+        configCopyUiTheme(theme, sizeof(theme));
+    }
+    obj["resetDays"] = days;
     obj["lang"] = lang;
     obj["theme"] = theme;
-    obj["ledEnabled"] = configGetLedEnabled();
-    obj["audioTxEnabled"] = configGetAudioTxEnabled();
-    obj["audioRxEnabled"] = configGetAudioRxEnabled();
-    obj["audioTxVolume"] = configGetAudioTxVolume();
-    obj["audioRxVolume"] = configGetAudioRxVolume();
-    obj["quietHourStart"] = configGetAudioQuietStart();
-    obj["quietHourEnd"] = configGetAudioQuietEnd();
-    obj["txHz"] = configGetAudioTxHz();
-    obj["txMs"] = configGetAudioTxMs();
-    obj["rxHz"] = configGetAudioRxHz();
-    obj["rxMs"] = configGetAudioRxMs();
-    obj["nvsOk"] = !g_webAdminSettingsNvsWriteFailed.load(std::memory_order_acquire);
-    obj["applyPending"] = g_webAdminSettingsApplyPending.load(std::memory_order_acquire);
+    obj["ledEnabled"] = ledEnabled;
+    obj["audioTxEnabled"] = audioTxEnabled;
+    obj["audioRxEnabled"] = audioRxEnabled;
+    obj["audioTxVolume"] = audioTxVol;
+    obj["audioRxVolume"] = audioRxVol;
+    obj["quietHourStart"] = quiet0;
+    obj["quietHourEnd"] = quiet1;
+    obj["txHz"] = txHz;
+    obj["txMs"] = txMs;
+    obj["rxHz"] = rxHz;
+    obj["rxMs"] = rxMs;
+    obj["nvsOk"] = nvsOk;
+    obj["applyPending"] = applyPending;
 }
 
 void handleApiSettingsGet(AsyncWebServerRequest *req) {
@@ -46,7 +97,17 @@ void handleApiSettingsPost(AsyncWebServerRequest *req, JsonVariant &json) {
     if (!adminJsonRequireObject(req, json)) {
         return;
     }
-    if (g_systemShutdownInProgress.load(std::memory_order_acquire)) {
+    if (g_systemShutdownInProgress.load(std::memory_order_acquire) ||
+        g_factoryResetQueued.load(std::memory_order_acquire)) {
+        sendErr(req, 503, "shutdown");
+        return;
+    }
+    if (adminApplyBlockedByOta(otaBlocksDestructiveAction())) {
+        sendErr(req, 503, "busy");
+        return;
+    }
+    const ScopedWebAdminApplyInFlight applyInFlight;
+    if (!applyInFlight) {
         sendErr(req, 503, "shutdown");
         return;
     }
@@ -157,6 +218,11 @@ void handleApiSettingsPost(AsyncWebServerRequest *req, JsonVariant &json) {
     }
     if (!adminApplyOptionalU16(json, "rx_ms", audioToneMsInRange, &rxMs)) {
         sendErr(req, 400, "rx_ms");
+        return;
+    }
+
+    if (!applyInFlight.commitAllowed()) {
+        sendErr(req, 503, "shutdown");
         return;
     }
 

@@ -11,6 +11,29 @@ import type {
 } from "./types";
 import { parseOtaStatus, parseWifiScanSnapshot } from "./validate";
 
+export class ApiHttpError extends Error {
+  readonly status: number;
+  readonly error?: string;
+  constructor(path: string, status: number, error?: string) {
+    super(`${path} failed (${status})`);
+    this.name = "ApiHttpError";
+    this.status = status;
+    this.error = error;
+  }
+}
+
+export function isApiBusyError(err: unknown): boolean {
+  return err instanceof ApiHttpError && err.status === 503 && err.error === "busy";
+}
+
+function responseErrorField(data: unknown): string | undefined {
+  if (data && typeof data === "object" && "error" in data) {
+    const error = (data as { error?: unknown }).error;
+    return typeof error === "string" ? error : undefined;
+  }
+  return undefined;
+}
+
 async function parseJson<T>(res: Response): Promise<T> {
   const text = await res.text();
   if (!text) {
@@ -35,15 +58,10 @@ async function apiGet<T>(path: string): Promise<T> {
   const res = await fetch(path);
   const data = await parseJson<T>(res);
   if (!res.ok) {
-    if (
-      data &&
-      typeof data === "object" &&
-      "error" in data &&
-      (data as { error?: unknown }).error === "host"
-    ) {
+    if (responseErrorField(data) === "host") {
       throw new Error("host");
     }
-    throw new Error(`${path} failed (${res.status})`);
+    throw new ApiHttpError(path, res.status, responseErrorField(data));
   }
   return data;
 }

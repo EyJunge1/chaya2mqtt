@@ -2,6 +2,7 @@
 
 #include "test.h"
 #include "wlan_config.h"
+#include "wlan_event_pure.h"
 #include "wlan_internal.h"
 
 #include "async/task_handles.h"
@@ -47,6 +48,7 @@ std::atomic<bool> s_wifiSetupComplete{false};
 std::atomic<bool> s_bootStaConnectPending{false};
 std::atomic<bool> s_bootWifiSettled{false};
 std::atomic<bool> s_bootStaFinishDone{false};
+std::atomic<bool> s_staGotIpHandled{false};
 char s_bootAttemptSsid[kWifiSsidMaxLen]{};
 unsigned long s_bootStaConnectStartMs = 0;
 
@@ -324,6 +326,7 @@ void wlanLoop() {
     const bool epdRefreshActive = s_epdRefreshActive.load(std::memory_order_acquire);
     if (!epdRefreshActive) {
         wlanRestoreTxPowerAfterEpd();
+        wlanApplyPendingBootStaFinishRadio();
         if (s_epdDeferredPsWake.exchange(false, std::memory_order_acq_rel)) {
             wlanSetStaPowerSaveMqttActive(false);
         }
@@ -352,8 +355,13 @@ void wlanLoop() {
             s_lastApDnsPollMs = nowMs;
         }
     }
-    if (!epdRefreshActive && s_mdnsRestartNeeded.exchange(false, std::memory_order_acq_rel)) {
-        if (!g_apMode.load(std::memory_order_relaxed) && wlanStaConnectedOk()) {
+    if (wlanMdnsKickShouldConsume(s_epdRefreshActive.load(std::memory_order_acquire),
+                                 g_apMode.load(std::memory_order_relaxed), wlanStaConnectedOk()) &&
+        s_mdnsRestartNeeded.exchange(false, std::memory_order_acq_rel)) {
+        if (!wlanMdnsKickShouldConsume(s_epdRefreshActive.load(std::memory_order_acquire),
+                                       g_apMode.load(std::memory_order_relaxed), wlanStaConnectedOk())) {
+            s_mdnsRestartNeeded.store(true, std::memory_order_release);
+        } else {
             char staHostname[kDeviceStaHostnameBufLen]{};
             if (!buildDeviceStaHostname(staHostname, sizeof(staHostname))) {
                 strlcpy(staHostname, kDeviceHostname, sizeof(staHostname));

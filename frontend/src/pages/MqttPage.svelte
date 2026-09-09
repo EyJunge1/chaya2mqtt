@@ -1,7 +1,19 @@
+<script lang="ts" module>
+  import type { MqttConfigView } from "../api/types.ts";
+
+  let lastSubmittedMqtt: { view: MqttConfigView; partner: string } | null = null;
+  let mqttApplyToken = 0;
+
+  export function resetMqttApplySession() {
+    mqttApplyToken += 1;
+    lastSubmittedMqtt = null;
+  }
+</script>
+
 <script lang="ts">
   import { Check, Copy, Radio, RadioOff } from "@lucide/svelte";
-  import { untrack } from "svelte";
-  import { api } from "../api/client.ts";
+  import { onDestroy, untrack } from "svelte";
+  import { api, isApiBusyError } from "../api/client.ts";
   import type { MqttConfigView, MqttStatus } from "../api/types.ts";
   import ActionRow from "../components/ActionRow.svelte";
   import ErrorBlock from "../components/ErrorBlock.svelte";
@@ -48,30 +60,81 @@
   let copiedReset: ReturnType<typeof setTimeout> | undefined;
   let loadSeq = 0;
 
+  function applyMqttForm(next: MqttConfigView) {
+    cfg = next;
+    partner = next.partnerId;
+  }
+
+  function restoreSubmittedMqtt() {
+    if (!lastSubmittedMqtt) return;
+    applyMqttForm({ ...lastSubmittedMqtt.view });
+    partner = lastSubmittedMqtt.partner;
+    busy = true;
+  }
+
   async function load() {
     const seq = ++loadSeq;
     loadError = false;
     try {
       const next = await api.getMqttConfig();
       if (seq !== loadSeq) return;
-      cfg = next;
-      partner = next.partnerId;
+      if (next.applyPending) {
+        if (lastSubmittedMqtt) {
+          restoreSubmittedMqtt();
+        }
+        // Cold load: do not treat live GET as editable truth (BUG-FE-01).
+        busy = true;
+        void resumeApplyPoll(seq);
+        return;
+      }
+      lastSubmittedMqtt = null;
+      applyMqttForm(next);
+      busy = false;
+    } catch (e) {
+      if (seq !== loadSeq) return;
+      if (isApiBusyError(e)) {
+        busy = true;
+        void resumeApplyPoll(seq);
+        return;
+      }
+      busy = false;
+      if (!cfg) loadError = true;
+    }
+  }
+
+  async function resumeApplyPoll(seq: number) {
+    try {
+      const applied = await waitForMqttPersist(() => seq === loadSeq);
+      if (applied === "aborted") return;
+      if (applied === "timeout") {
+        busy = false;
+        if (!cfg) loadError = true;
+        return;
+      }
+      lastSubmittedMqtt = null;
+      applyMqttForm(applied);
+      busy = false;
     } catch {
       if (seq !== loadSeq) return;
-      cfg = null;
-      loadError = true;
+      busy = false;
+      if (!cfg) loadError = true;
     }
   }
 
   $effect(() => {
     void refreshSeq;
     untrack(() => {
+      restoreSubmittedMqtt();
       void load();
     });
     return () => {
       loadSeq += 1;
       clearTimeout(copiedReset);
     };
+  });
+
+  onDestroy(() => {
+    mqttApplyToken += 1;
   });
 
   function protocolOf(tls: boolean): MqttProtocol {
@@ -92,26 +155,53 @@
   }
 
   /** Wait for deferred apply; surface NVS failure via nvsOk (QUAL-01). */
-  async function waitForMqttPersist(seq: number): Promise<MqttConfigView | "aborted" | "timeout"> {
+  async function waitForMqttPersist(
+    stillCurrent: () => boolean,
+  ): Promise<MqttConfigView | "aborted" | "timeout"> {
+    const delay = () => new Promise((r) => setTimeout(r, MQTT_APPLY_POLL_MS));
     for (let i = 0; i < MQTT_APPLY_POLL_MAX; i++) {
-      if (seq !== loadSeq) return "aborted";
-      const next = await api.getMqttConfig();
-      if (seq !== loadSeq) return "aborted";
+      if (!stillCurrent()) return "aborted";
+      let next: MqttConfigView;
+      try {
+        next = await api.getMqttConfig();
+      } catch (e) {
+        if (isApiBusyError(e)) {
+          await delay();
+          continue;
+        }
+        throw e;
+      }
+      if (!stillCurrent()) return "aborted";
       if (!next.applyPending) {
         return next;
       }
-      await new Promise((r) => setTimeout(r, MQTT_APPLY_POLL_MS));
+      await delay();
     }
-    if (seq !== loadSeq) return "aborted";
-    const last = await api.getMqttConfig();
-    if (seq !== loadSeq) return "aborted";
+    if (!stillCurrent()) return "aborted";
+    let last: MqttConfigView;
+    try {
+      last = await api.getMqttConfig();
+    } catch (e) {
+      if (isApiBusyError(e)) {
+        await delay();
+        last = await api.getMqttConfig();
+      } else {
+        throw e;
+      }
+    }
+    if (!stillCurrent()) return "aborted";
     return last.applyPending ? "timeout" : last;
   }
 
   async function persist(nextPartner: string) {
-    if (!cfg) return;
-    const seq = loadSeq;
+    if (!cfg || busy) return;
+    const token = ++mqttApplyToken;
     const submittedTls = cfg.tls;
+    const submittedPartner = nextPartner.trim().toLowerCase();
+    lastSubmittedMqtt = {
+      view: { ...cfg, partnerId: submittedPartner, applyPending: true },
+      partner: submittedPartner,
+    };
     busy = true;
     try {
       const res = await api.saveMqtt({
@@ -120,10 +210,11 @@
         mqtt_tls: cfg.tls,
         mqtt_user: cfg.username,
         mqtt_pass: password || undefined,
-        partner_id: nextPartner.trim().toLowerCase(),
+        partner_id: submittedPartner,
       });
-      if (seq !== loadSeq) return;
+      if (token !== mqttApplyToken) return;
       if (!res.ok) {
+        lastSubmittedMqtt = null;
         onToast(
           res.error === "partner" ? i18n.t("toast.partner-invalid") : i18n.t("toast.save-failed"),
           "error",
@@ -131,14 +222,14 @@
         return;
       }
       password = "";
-      const applied = await waitForMqttPersist(seq);
-      if (seq !== loadSeq || applied === "aborted") return;
+      const applied = await waitForMqttPersist(() => token === mqttApplyToken);
+      if (token !== mqttApplyToken || applied === "aborted") return;
       if (applied === "timeout") {
         onToast(i18n.t("toast.save-failed"), "error");
         return;
       }
-      cfg = applied;
-      partner = applied.partnerId;
+      lastSubmittedMqtt = null;
+      applyMqttForm(applied);
       if (applied.nvsOk === false) {
         onToast(i18n.t("toast.save-failed"), "error");
         return;
@@ -149,11 +240,11 @@
       }
       await onDeviceRefresh?.();
     } catch {
-      if (seq !== loadSeq) return;
+      if (token !== mqttApplyToken) return;
+      lastSubmittedMqtt = null;
       onToast(i18n.t("toast.save-failed"), "error");
     } finally {
-      // refreshDevice bumps refreshSeq → $effect bumps loadSeq; still unlock the buttons.
-      busy = false;
+      if (token === mqttApplyToken) busy = false;
     }
   }
 

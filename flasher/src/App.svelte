@@ -15,6 +15,12 @@
   import GithubIcon from "./GithubIcon.svelte";
   import NoPortPickedDialog from "./NoPortPickedDialog.svelte";
   import {
+    isChannelSwitchLocked,
+    isFlashJobLocked,
+    nextChannelSelection,
+    shouldMountFlashDialog,
+  } from "./flash/flashSession";
+  import {
     isSecureWebSerialContext,
     isWebSerialSupported,
     requestSerialPort,
@@ -50,15 +56,22 @@
   let connecting = $state(false);
   let noPortOpen = $state(false);
   let flashOpen = $state(false);
+  let flashJobActive = $state(false);
   let flashPort: SerialPort | null = $state(null);
   let portError = $state(false);
 
   const selectedInfo = $derived(channels[selected] ?? null);
   const stable = $derived(channels.stable ?? null);
   const beta = $derived(channels.beta ?? null);
+  const channelLocked = $derived(isChannelSwitchLocked(flashOpen, connecting, flashJobActive));
+  const flashLocked = $derived(isFlashJobLocked(flashOpen, connecting, flashJobActive));
   const manifestUrl = $derived(
     selectedInfo ? new URL(selectedInfo.manifest, window.location.href).href : "",
   );
+
+  function selectChannel(channel: Channel) {
+    selected = nextChannelSelection(selected, channel, channelLocked);
+  }
 
   function t(key: TranslationKey, params: Record<string, string | number> = {}): string {
     return translate(lang, key, params);
@@ -95,7 +108,7 @@
   }
 
   async function connectAndFlash() {
-    if (!selectedInfo || connecting || flashOpen) return;
+    if (!selectedInfo || flashLocked) return;
     connecting = true;
     portError = false;
     try {
@@ -272,12 +285,13 @@
                     type="button"
                     role="radio"
                     aria-checked={selected === "stable"}
-                    onclick={() => (selected = "stable")}
+                    disabled={channelLocked}
+                    onclick={() => selectChannel("stable")}
                     class={[
-                      "focus-ring rounded-xl border p-4 text-left transition",
+                      "focus-ring rounded-xl border p-4 text-left transition disabled:cursor-not-allowed disabled:opacity-60",
                       selected === "stable"
                         ? "border-accent bg-accent/10"
-                        : "border-border hover:border-accent/40 hover:bg-surface-hover",
+                        : "border-border hover:border-accent/40 hover:bg-surface-hover disabled:hover:border-border disabled:hover:bg-transparent",
                     ]}
                   >
                     <span class="flex items-center justify-between gap-3">
@@ -295,12 +309,13 @@
                     type="button"
                     role="radio"
                     aria-checked={selected === "beta"}
-                    onclick={() => (selected = "beta")}
+                    disabled={channelLocked}
+                    onclick={() => selectChannel("beta")}
                     class={[
-                      "focus-ring rounded-xl border p-4 text-left transition",
+                      "focus-ring rounded-xl border p-4 text-left transition disabled:cursor-not-allowed disabled:opacity-60",
                       selected === "beta"
                         ? "border-accent bg-accent/10"
-                        : "border-border hover:border-accent/40 hover:bg-surface-hover",
+                        : "border-border hover:border-accent/40 hover:bg-surface-hover disabled:hover:border-border disabled:hover:bg-transparent",
                     ]}
                   >
                     <span class="flex items-center justify-between gap-3">
@@ -363,7 +378,7 @@
                 {/if}
                 <button
                   type="button"
-                  disabled={connecting || flashOpen}
+                  disabled={flashLocked}
                   onclick={() => void connectAndFlash()}
                   class="focus-ring flex w-full items-center justify-center gap-2 rounded-xl bg-accent px-5 py-4 text-base font-bold text-bg transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
                 >
@@ -468,16 +483,19 @@
     onClose={closeNoPortDialog}
   />
 
-  {#if selectedInfo}
+  {#if shouldMountFlashDialog(selectedInfo != null, flashOpen)}
     <FlashDialog
       open={flashOpen}
       {lang}
       {manifestUrl}
-      versionLabel={selectedInfo.tag}
+      versionLabel={selectedInfo?.tag ?? ""}
       eraseDefault={false}
       port={flashPort}
       onClose={closeFlashDialog}
       onRetryPort={() => void connectAndFlash()}
+      onJobActiveChange={(active) => {
+        flashJobActive = active;
+      }}
     />
   {/if}
 </div>

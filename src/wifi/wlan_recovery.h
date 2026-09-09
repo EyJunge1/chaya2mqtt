@@ -74,3 +74,6 @@ inline auto wlanRecoveryDecide(bool apMode, bool staConnectedOk, bool otaBlockin
 
     return WlanRecoveryAction::None;
 }
+
+/** Count a recovery restart only after the controlled restart actually claimed shutdown (BUG-NET-05). */
+inline auto recoveryShouldNoteRestart(bool controlledRestartBegan) -> bool { return controlledRestartBegan; }

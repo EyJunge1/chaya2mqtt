@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { api } from "./client";
+import { api, ApiHttpError, isApiBusyError } from "./client";
 
 describe("api client", () => {
   beforeEach(() => {
@@ -221,6 +221,26 @@ describe("api client", () => {
       unknown
     >;
     expect(body.mqtt_tls).toBe(false);
+  });
+
+  it("throws ApiHttpError on GET 503 busy", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: false,
+        status: 503,
+        text: async () => JSON.stringify({ ok: false, error: "busy" }),
+      }),
+    );
+    await expect(api.getMqttConfig()).rejects.toMatchObject({
+      name: "ApiHttpError",
+      status: 503,
+      error: "busy",
+    });
+    await expect(api.getMqttConfig()).rejects.toBeInstanceOf(ApiHttpError);
+    expect(isApiBusyError(new ApiHttpError("/api/mqtt", 503, "busy"))).toBe(true);
+    expect(isApiBusyError(new ApiHttpError("/api/mqtt", 500, "busy"))).toBe(false);
+    expect(isApiBusyError(new Error("host"))).toBe(false);
   });
 
   it("treats an empty GET 403 as a host error", async () => {

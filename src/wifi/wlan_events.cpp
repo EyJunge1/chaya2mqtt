@@ -75,7 +75,14 @@ void wlanHandleStaReconnectNetCmd() {
     if (wlanSoftReconnectShouldForce(fails, kWifiSoftReconnectAttemptsBeforeForce)) {
         ESP_LOGW(TAG, "WLAN soft reconnect exhausted (fails=%u reason=%u) — force reassoc", static_cast<unsigned>(fails),
                  static_cast<unsigned>(reason));
-        wlanForceStaReassoc("event-escalate");
+        const WlanForceReassocResult forceResult = wlanForceStaReassoc("event-escalate");
+        if (wlanForceCallerShouldUndo(forceResult)) {
+            s_staReconnectWorkPending.store(true, std::memory_order_release);
+            return;
+        }
+        if (!wlanForceCallerShouldCountFail(forceResult)) {
+            return;
+        }
     } else {
         ESP_LOGW(TAG, "WLAN disconnected, soft reconnect (fails=%u reason=%u)...", static_cast<unsigned>(fails),
                  static_cast<unsigned>(reason));

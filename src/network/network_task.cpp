@@ -1,6 +1,7 @@
 #include "network_task.h"
 
 #include "async/event_types.h"
+#include "async/system_lifecycle.h"
 #include "async/task_config.h"
 #include "async/task_handles.h"
 #include "async/web_server_hooks.h"
@@ -47,23 +48,41 @@ static void handleNetCommand(NetCmd cmd) {
     ESP_LOGI(TAG, "netCmd=%s", idx < (sizeof(kNetCmdNames) / sizeof(kNetCmdNames[0])) ? kNetCmdNames[idx] : "?");
     switch (cmd) {
     case NetCmd::MqttSettingsChanged: {
-        if (wlanEpdRefreshActive()) {
-            ESP_LOGD(TAG, "MQTT settings apply deferred (EPD refresh active)");
+        if (mqttSettingsApplyShouldDefer(wlanEpdRefreshActive(),
+                                        g_factoryResetQueued.load(std::memory_order_acquire),
+                                        g_systemShutdownInProgress.load(std::memory_order_acquire))) {
+            ESP_LOGD(TAG, "MQTT settings apply deferred (epd/factory/shutdown)");
             s_mqttSettingsChangedDeferred = true;
             break;
         }
         ESP_LOGI(TAG, "MQTT settings apply: start");
         mqttBeginSettingsApply();
         if (!mqttCfgHasUnappliedPending()) {
+            if (mqttSettingsApplyNothingPendingNeedsRetry(mqttKillClientPending())) {
+                if (!mqttSettingsApplyShouldFinish(mqttSetup())) {
+                    s_mqttSettingsChangedDeferred = true;
+                    ESP_LOGW(TAG, "MQTT settings apply: kill still pending — keep publish blocked");
+                    break;
+                }
+                mqttPostponeConnect(3000UL);
+            }
             mqttFinishSettingsApply();
             ESP_LOGI(TAG, "MQTT settings apply: nothing pending");
             break;
         }
-        mqttDisconnect();
+        if (!mqttSettingsApplyShouldFinish(mqttDisconnect())) {
+            s_mqttSettingsChangedDeferred = true;
+            ESP_LOGW(TAG, "MQTT settings apply: kill timeout — keep publish blocked");
+            break;
+        }
         chayaTaskWatchdogReset();
         mqttCfgApplyPendingToActive();
         if (mqttCfgMatchesNvs()) {
-            mqttSetup();
+            if (!mqttSettingsApplyShouldFinish(mqttSetup())) {
+                s_mqttSettingsChangedDeferred = true;
+                ESP_LOGW(TAG, "MQTT settings apply: setup kill timeout — keep publish blocked");
+                break;
+            }
             mqttPostponeConnect(3000UL);
             mqttFinishSettingsApply();
             chayaTaskWatchdogReset();
@@ -84,7 +103,11 @@ static void handleNetCommand(NetCmd cmd) {
             mqttCfgSetNvsWriteFailed(false);
         }
         chayaTaskWatchdogReset();
-        mqttSetup();
+        if (!mqttSettingsApplyShouldFinish(mqttSetup())) {
+            s_mqttSettingsChangedDeferred = true;
+            ESP_LOGW(TAG, "MQTT settings apply: setup kill timeout — keep publish blocked");
+            break;
+        }
         mqttPostponeConnect(3000UL);
         mqttFinishSettingsApply();
         chayaTaskWatchdogReset();
@@ -115,7 +138,6 @@ static void handleNetCommand(NetCmd cmd) {
         mqttRunChayaPublishOnNetworkTask();
         break;
     case NetCmd::FactoryResetRequested:
-        webServerEnd();
         resetAllSettings();
         break;
     }
@@ -130,7 +152,8 @@ static void networkTaskFn(void *) {
         NetCmd cmd;
         const uint32_t pollMs = configIsApMode() ? kNetworkPollApMs : kNetworkPollStaMs;
         bool hasCmd = false;
-        if (s_mqttSettingsChangedDeferred && !wlanEpdRefreshActive()) {
+        if (s_mqttSettingsChangedDeferred && !wlanEpdRefreshActive() &&
+            !g_factoryResetQueued.load(std::memory_order_acquire)) {
             s_mqttSettingsChangedDeferred = false;
             cmd = NetCmd::MqttSettingsChanged;
             hasCmd = true;

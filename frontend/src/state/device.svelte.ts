@@ -79,7 +79,7 @@ export class DeviceStore {
       this.mqtt = boot.mqtt ?? emptyMqtt();
       this.ota = boot.update;
     }
-    if (boot.settings && !boot.settings.applyPending) {
+    if (!keepSse && boot.settings && !boot.settings.applyPending) {
       applyDeviceUiPrefs(boot.settings.lang, boot.settings.theme);
     }
     this.bootError = false;

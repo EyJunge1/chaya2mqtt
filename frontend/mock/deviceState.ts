@@ -175,6 +175,10 @@ export interface MockState {
     bytesTotal: number;
     error: string;
     generation: number;
+    checkRequested: boolean;
+    checkInProgress: boolean;
+    installRequested: boolean;
+    flashInProgress: boolean;
   };
 }
 
@@ -194,8 +198,24 @@ export function parseFaultKey(raw: string | null | undefined): MockFaultKey | nu
   return (MOCK_FAULT_KEYS as readonly string[]).includes(raw) ? (raw as MockFaultKey) : null;
 }
 
+function idleOtaFlags(): Pick<
+  MockState["ota"],
+  "checkRequested" | "checkInProgress" | "installRequested" | "flashInProgress"
+> {
+  return {
+    checkRequested: false,
+    checkInProgress: false,
+    installRequested: false,
+    flashInProgress: false,
+  };
+}
+
 export function otaBlocksDestructiveAction(target: MockState = state): boolean {
   return (
+    target.ota.checkRequested ||
+    target.ota.checkInProgress ||
+    target.ota.installRequested ||
+    target.ota.flashInProgress ||
     target.ota.phase === "checking" ||
     target.ota.phase === "downloading" ||
     target.ota.phase === "verifying" ||
@@ -276,6 +296,7 @@ function clearWifiLink(target: MockState): void {
 function setOtaIdle(state: MockState): void {
   state.ota = {
     ...state.ota,
+    ...idleOtaFlags(),
     phase: "idle",
     localVersion: state.version,
     availableVersion: "",
@@ -293,6 +314,7 @@ function setOtaPhase(
 ): void {
   state.ota = {
     ...state.ota,
+    ...idleOtaFlags(),
     phase,
     channel: "stable",
     localVersion: state.version,
@@ -390,6 +412,7 @@ export function createInitialState(scenario: MockScenario = "sta-connected"): Mo
       bytesTotal: 0,
       error: "",
       generation: 1,
+      ...idleOtaFlags(),
     },
   };
   applyScenario(state, scenario);
