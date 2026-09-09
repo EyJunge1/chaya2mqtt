@@ -77,3 +77,27 @@ inline auto wlanRecoveryDecide(bool apMode, bool staConnectedOk, bool otaBlockin
 
 /** Count a recovery restart only after the controlled restart actually claimed shutdown (BUG-NET-05). */
 inline auto recoveryShouldNoteRestart(bool controlledRestartBegan) -> bool { return controlledRestartBegan; }
+
+struct RecoveryRestartNote {
+    uint32_t day = 0U;
+    uint8_t n = 0U;
+};
+
+/**
+ * Next rec_day/rec_rst after a claimed recovery restart.
+ * day==0 (clock not synced) → no persist (caller must skip the write).
+ * New day starts at 1; same day increments (cap 255).
+ */
+inline auto recoveryNextRestartNote(uint32_t day, uint32_t storedDay, uint8_t storedN) -> RecoveryRestartNote {
+    RecoveryRestartNote note{};
+    if (day == 0U) {
+        return note;
+    }
+    uint8_t n = (storedDay == day) ? storedN : 0U;
+    if (n < 255U) {
+        ++n;
+    }
+    note.day = day;
+    note.n = n;
+    return note;
+}

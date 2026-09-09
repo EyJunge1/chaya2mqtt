@@ -327,6 +327,7 @@ export async function handleApi(req: IncomingMessage, res: ServerResponse): Prom
       return true;
     }
     const ssid = typeof body.ssid === "string" ? body.ssid : "";
+    const passwordPresent = Object.prototype.hasOwnProperty.call(body, "password");
     const password = typeof body.password === "string" ? body.password : "";
     const mode = body.mode === "static" ? "static" : "dhcp";
     const ip = typeof body.ip === "string" ? body.ip : "";
@@ -344,6 +345,17 @@ export async function handleApi(req: IncomingMessage, res: ServerResponse): Prom
       sendJson(res, 400, { ok: false, error: "ip" });
       return true;
     }
+    const storedSsid = state.wifiConfig.ssid;
+    if (state.mode !== "ap") {
+      if (!passwordPresent) {
+        if (ssid !== storedSsid) {
+          sendJson(res, 400, { ok: false, error: "password" });
+          return true;
+        }
+      } else {
+        state.wifiPassword = password;
+      }
+    }
     state.wifiConfig = {
       ssid,
       mode,
@@ -359,7 +371,7 @@ export async function handleApi(req: IncomingMessage, res: ServerResponse): Prom
       state.wifiConnect = {
         state: "testing",
         ssid,
-        password,
+        password: passwordPresent ? password : "",
         startedAt: Date.now(),
         freeze: false,
         mode,
@@ -415,6 +427,7 @@ export async function handleApi(req: IncomingMessage, res: ServerResponse): Prom
     state.mode = "sta";
     state.wifiConnected = true;
     state.wifiSsid = state.wifiConnect.ssid;
+    state.wifiPassword = state.wifiConnect.password;
     state.wifiConfig = {
       ssid: state.wifiConnect.ssid,
       mode: state.wifiConnect.mode,

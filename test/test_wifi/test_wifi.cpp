@@ -382,6 +382,37 @@ void test_soft_off_blocked_when_factory_owns() {
 void test_recovery_should_note_restart_only_after_claim() {
     TEST_ASSERT_TRUE(recoveryShouldNoteRestart(true));
     TEST_ASSERT_FALSE(recoveryShouldNoteRestart(false));
+
+    const RecoveryRestartNote unsynced = recoveryNextRestartNote(0U, 100U, 2U);
+    TEST_ASSERT_EQUAL_UINT32(0U, unsynced.day);
+    TEST_ASSERT_EQUAL_UINT8(0U, unsynced.n);
+
+    const RecoveryRestartNote first = recoveryNextRestartNote(200U, 0U, 0U);
+    TEST_ASSERT_EQUAL_UINT32(200U, first.day);
+    TEST_ASSERT_EQUAL_UINT8(1U, first.n);
+
+    const RecoveryRestartNote next = recoveryNextRestartNote(200U, 200U, 2U);
+    TEST_ASSERT_EQUAL_UINT32(200U, next.day);
+    TEST_ASSERT_EQUAL_UINT8(3U, next.n);
+
+    const RecoveryRestartNote rollover = recoveryNextRestartNote(201U, 200U, 3U);
+    TEST_ASSERT_EQUAL_UINT32(201U, rollover.day);
+    TEST_ASSERT_EQUAL_UINT8(1U, rollover.n);
+
+    const RecoveryRestartNote cap = recoveryNextRestartNote(200U, 200U, 255U);
+    TEST_ASSERT_EQUAL_UINT32(200U, cap.day);
+    TEST_ASSERT_EQUAL_UINT8(255U, cap.n);
+}
+
+void test_wifi_sta_password_apply() {
+    TEST_ASSERT_EQUAL_INT(static_cast<int>(WifiStaPasswordApply::KeepStored),
+                          static_cast<int>(wifiStaPasswordApply(false, true)));
+    TEST_ASSERT_EQUAL_INT(static_cast<int>(WifiStaPasswordApply::Reject),
+                          static_cast<int>(wifiStaPasswordApply(false, false)));
+    TEST_ASSERT_EQUAL_INT(static_cast<int>(WifiStaPasswordApply::UseProvided),
+                          static_cast<int>(wifiStaPasswordApply(true, true)));
+    TEST_ASSERT_EQUAL_INT(static_cast<int>(WifiStaPasswordApply::UseProvided),
+                          static_cast<int>(wifiStaPasswordApply(true, false)));
 }
 
 void test_wlan_mdns_kick_should_consume() {
@@ -465,6 +496,7 @@ int main(int, char **) {
     RUN_TEST(test_wlan_unpack_invalid_static_falls_back_dhcp);
     RUN_TEST(test_soft_off_blocked_when_factory_owns);
     RUN_TEST(test_recovery_should_note_restart_only_after_claim);
+    RUN_TEST(test_wifi_sta_password_apply);
     RUN_TEST(test_wlan_mdns_kick_should_consume);
     RUN_TEST(test_factory_wipe_should_abort);
     RUN_TEST(test_nvs_write_allowed_after_lock);

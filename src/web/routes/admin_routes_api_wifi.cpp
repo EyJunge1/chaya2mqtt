@@ -52,9 +52,12 @@ void handleApiWifiConfigGet(AsyncWebServerRequest *req) {
     webSendJsonDoc(req, 200, doc);
 }
 
-bool parseWifiConfigFromJson(JsonVariantConst json, WlanConfig *cfg, const char **err) {
+bool parseWifiConfigFromJson(JsonVariantConst json, WlanConfig *cfg, const char **err, bool *passwordPresent) {
     if (cfg == nullptr || err == nullptr) {
         return false;
+    }
+    if (passwordPresent != nullptr) {
+        *passwordPresent = false;
     }
     *err = "ssid";
     wlanConfigClear(cfg);
@@ -78,8 +81,17 @@ bool parseWifiConfigFromJson(JsonVariantConst json, WlanConfig *cfg, const char 
         *err = name;
         return false;
     };
-    if (!parseOptional("password", cfg->pass, sizeof(cfg->pass))) {
+    switch (adminOptionalJsonString(json, "password", cfg->pass, sizeof(cfg->pass))) {
+    case AdminJsonParam::Invalid:
+        *err = "password";
         return false;
+    case AdminJsonParam::Ok:
+        if (passwordPresent != nullptr) {
+            *passwordPresent = true;
+        }
+        break;
+    case AdminJsonParam::Absent:
+        break;
     }
 
     char modeBuf[12]{};
@@ -182,7 +194,8 @@ void handleApiWifiConnectPost(AsyncWebServerRequest *req, JsonVariant &json) {
     }
     WlanConfig cfg{};
     const char *err = nullptr;
-    if (!parseWifiConfigFromJson(json, &cfg, &err)) {
+    bool passwordPresent = false;
+    if (!parseWifiConfigFromJson(json, &cfg, &err, &passwordPresent)) {
         sendErr(req, 400, err != nullptr ? err : "ssid");
         return;
     }
@@ -208,6 +221,19 @@ void handleApiWifiConnectPost(AsyncWebServerRequest *req, JsonVariant &json) {
     }
     if (!applyInFlight.commitAllowed()) {
         sendErr(req, 503, "shutdown");
+        return;
+    }
+    WlanConfig stored{};
+    const bool haveStored = wlanCopyCachedConfig(&stored);
+    const bool sameSsid = haveStored && strcmp(stored.ssid, cfg.ssid) == 0;
+    switch (wifiStaPasswordApply(passwordPresent, sameSsid)) {
+    case WifiStaPasswordApply::KeepStored:
+        wlanConfigCopyStr(cfg.pass, sizeof(cfg.pass), stored.pass);
+        break;
+    case WifiStaPasswordApply::UseProvided:
+        break;
+    case WifiStaPasswordApply::Reject:
+        sendErr(req, 400, "password");
         return;
     }
     if (!wlanSaveConfigToNvs(cfg)) {

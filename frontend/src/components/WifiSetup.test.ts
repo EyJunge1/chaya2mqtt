@@ -233,6 +233,7 @@ describe("WifiSetup", () => {
       expect(connectWifi).toHaveBeenCalledWith(
         expect.objectContaining({
           ssid: "HomeNet",
+          password: undefined,
           mode: "static",
           ip: "192.168.1.50",
           gateway: "192.168.1.1",
@@ -270,6 +271,7 @@ describe("WifiSetup", () => {
       expect(connectWifi).toHaveBeenCalledWith(
         expect.objectContaining({
           ssid: "HomeNet",
+          password: undefined,
           mode: "dhcp",
           dns1: "1.1.1.1",
           dns2: "8.8.8.8",
@@ -374,5 +376,153 @@ describe("WifiSetup", () => {
     fireEvent.click(screen.getByTestId("wifi-mode-static"));
     const submit = screen.getByRole("button", { name: "wifi.save-reboot" });
     expect(submit).toBeDisabled();
+  });
+
+  it("omits password on STA save when DNS is edited before config hydrates", async () => {
+    let resolveConfig!: (cfg: WifiConfig) => void;
+    getWifiConfig.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveConfig = resolve;
+        }),
+    );
+
+    render(WifiSetup, {
+      props: {
+        device: {
+          hostname: "chaya2mqtt-a1b2c3",
+          version: "dev",
+          mode: "sta",
+          deviceId: "a1b2c3",
+          batteryMv: 3900,
+          batteryPct: 55,
+        },
+        wifi: wifiConnected,
+        onToast: vi.fn(),
+      },
+    });
+
+    await waitFor(() => expect(screen.getByDisplayValue("HomeNet")).toBeTruthy());
+    addServer("wifi-dns", "1.1.1.1");
+    resolveConfig(dhcpConfig);
+
+    await waitFor(() => expect(getWifiConfig).toHaveBeenCalled());
+    fireEvent.click(screen.getByRole("button", { name: "wifi.save-reboot" }));
+
+    await waitFor(() => {
+      expect(connectWifi).toHaveBeenCalledWith(
+        expect.objectContaining({ ssid: "HomeNet", password: undefined }),
+      );
+    });
+  });
+
+  it("omits password on STA save when the field is empty", async () => {
+    render(WifiSetup, {
+      props: {
+        device: {
+          hostname: "chaya2mqtt-a1b2c3",
+          version: "dev",
+          mode: "sta",
+          deviceId: "a1b2c3",
+          batteryMv: 3900,
+          batteryPct: 55,
+        },
+        wifi: wifiConnected,
+        onToast: vi.fn(),
+      },
+    });
+
+    await waitFor(() => expect(getWifiConfig).toHaveBeenCalled());
+    fireEvent.click(screen.getByRole("button", { name: "wifi.save-reboot" }));
+
+    await waitFor(() => {
+      expect(connectWifi).toHaveBeenCalledWith(
+        expect.objectContaining({ ssid: "HomeNet", password: undefined }),
+      );
+    });
+  });
+
+  it("sends an empty password in AP setup for an open network", async () => {
+    render(WifiSetup, {
+      props: {
+        device: {
+          hostname: "chaya2mqtt",
+          version: "dev",
+          mode: "ap",
+          deviceId: "a1b2c3",
+          batteryMv: 3900,
+          batteryPct: 55,
+        },
+        wifi: { connected: false },
+        onToast: vi.fn(),
+        showStatus: false,
+      },
+    });
+
+    await waitFor(() => expect(getWifiConfig).toHaveBeenCalled());
+    fireEvent.click(screen.getByRole("button", { name: "wifi.test-connect" }));
+
+    await waitFor(() => {
+      expect(connectWifi).toHaveBeenCalledWith(
+        expect.objectContaining({ ssid: "HomeNet", password: "" }),
+      );
+    });
+  });
+
+  it("sends an empty password when a scanned open network is picked", async () => {
+    scanWifi.mockResolvedValue({
+      status: "ready",
+      aps: [{ ssid: "CafeGuest", rssi: -67, open: true }],
+    });
+
+    render(WifiSetup, {
+      props: {
+        device: {
+          hostname: "chaya2mqtt-a1b2c3",
+          version: "dev",
+          mode: "sta",
+          deviceId: "a1b2c3",
+          batteryMv: 3900,
+          batteryPct: 55,
+        },
+        wifi: wifiConnected,
+        onToast: vi.fn(),
+      },
+    });
+
+    await waitFor(() => expect(screen.getByText("CafeGuest")).toBeTruthy());
+    fireEvent.click(screen.getByText("CafeGuest"));
+    fireEvent.click(screen.getByRole("button", { name: "wifi.save-reboot" }));
+
+    await waitFor(() => {
+      expect(connectWifi).toHaveBeenCalledWith(
+        expect.objectContaining({ ssid: "CafeGuest", password: "" }),
+      );
+    });
+  });
+
+  it("does not POST a STA save when the SSID changed without a password", async () => {
+    const onToast = vi.fn();
+    render(WifiSetup, {
+      props: {
+        device: {
+          hostname: "chaya2mqtt-a1b2c3",
+          version: "dev",
+          mode: "sta",
+          deviceId: "a1b2c3",
+          batteryMv: 3900,
+          batteryPct: 55,
+        },
+        wifi: wifiConnected,
+        onToast,
+      },
+    });
+
+    await waitFor(() => expect(getWifiConfig).toHaveBeenCalled());
+    fireEvent.change(screen.getByTestId("wifi-ssid"), { target: { value: "OtherNet" } });
+    fireEvent.click(screen.getByRole("button", { name: "wifi.save-reboot" }));
+
+    await waitFor(() => expect(onToast).toHaveBeenCalledWith("toast.wifi-connect-failed", "error"));
+    expect(connectWifi).not.toHaveBeenCalled();
   });
 });

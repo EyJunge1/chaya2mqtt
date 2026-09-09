@@ -168,6 +168,23 @@ struct WlanConfig {
     char ntp2[kWifiNtpHostMaxLen];
 };
 
+enum class WifiStaPasswordApply : uint8_t {
+    KeepStored = 0,
+    UseProvided = 1,
+    Reject = 2,
+};
+
+/**
+ * STA save: omitted password keeps the stored PSK only when the SSID is unchanged.
+ * A present field (including "") is used as-is; a new SSID without a password is rejected.
+ */
+inline auto wifiStaPasswordApply(bool passwordPresent, bool sameSsid) -> WifiStaPasswordApply {
+    if (passwordPresent) {
+        return WifiStaPasswordApply::UseProvided;
+    }
+    return sameSsid ? WifiStaPasswordApply::KeepStored : WifiStaPasswordApply::Reject;
+}
+
 inline void wlanConfigClear(WlanConfig *cfg) {
     if (cfg == nullptr) {
         return;

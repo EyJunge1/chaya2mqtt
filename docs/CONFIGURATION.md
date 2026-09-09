@@ -180,7 +180,7 @@ Sequence:
 
 | Setting | Route | Processing |
 |---------|-------|------------|
-| WiFi | POST `/api/wifi/connect` | Directly to NVS (STA) or test → commit (AP); fields: SSID/password, mode, optional IPv4/DNS/NTP |
+| WiFi | POST `/api/wifi/connect` | Directly to NVS (STA) or test → commit (AP); fields: SSID/password, mode, optional IPv4/DNS/NTP. Omit `password` to keep the stored PSK (STA, same SSID); empty `password` is an open network |
 | MQTT + pairing | POST `/api/mqtt` | Pending → app task → network task → NVS |
 | Reset period / display / LED / sound | POST `/api/settings` | Pending → app task → NVS |
 

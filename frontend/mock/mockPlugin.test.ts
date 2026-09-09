@@ -397,6 +397,27 @@ describe("mock API parity", () => {
     expect(fail.body).toEqual({ status: "failed" });
   });
 
+  it("keeps the stored STA PSK when password is omitted", async () => {
+    expect(getState().wifiPassword).toBe("secret");
+    const keep = await callJson("POST", "/api/wifi/connect", { ssid: "MockNet", mode: "dhcp" });
+    expect(keep.status).toBe(200);
+    expect(keep.body).toEqual({ ok: true, message: "saved_rebooting" });
+    expect(getState().wifiPassword).toBe("secret");
+
+    const missing = await callJson("POST", "/api/wifi/connect", { ssid: "OtherNet", mode: "dhcp" });
+    expect(missing.status).toBe(400);
+    expect(missing.body).toEqual({ ok: false, error: "password" });
+    expect(getState().wifiPassword).toBe("secret");
+
+    const open = await callJson("POST", "/api/wifi/connect", {
+      ssid: "MockNet",
+      password: "",
+      mode: "dhcp",
+    });
+    expect(open.status).toBe(200);
+    expect(getState().wifiPassword).toBe("");
+  });
+
   it("clears faults via mock control endpoint", async () => {
     await callMock("/api/_mock/fault", { fault: "settings", enabled: true });
     expect(getState().faults.settings).toBe(true);

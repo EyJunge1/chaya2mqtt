@@ -120,6 +120,26 @@ describe("api client", () => {
     });
   });
 
+  it("connectWifi omits an undefined password", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      text: async () => JSON.stringify({ ok: true, message: "saved_rebooting" }),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    await api.connectWifi({
+      ssid: "Home",
+      password: undefined,
+      mode: "dhcp",
+    });
+    const body = JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body ?? "{}")) as Record<
+      string,
+      unknown
+    >;
+    expect(body).toMatchObject({ ssid: "Home", mode: "dhcp" });
+    expect(body).not.toHaveProperty("password");
+  });
+
   it("getWifiConfig fetches saved config", async () => {
     vi.stubGlobal(
       "fetch",

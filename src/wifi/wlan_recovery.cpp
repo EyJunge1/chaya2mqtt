@@ -11,9 +11,11 @@
 #include "ota/ota.h"
 
 #include <Arduino.h>
+#include <Preferences.h>
 #include <WiFi.h>
 #include <esp_log.h>
 #include <esp_timer.h>
+#include <inttypes.h>
 #include <time.h>
 
 #include "util/log_tag.h"
@@ -42,16 +44,23 @@ void recoveryNoteRestart() {
     if (day == 0U) {
         return;
     }
-    const uint32_t storedDay = app_nvs::readUInt(kNvsNsWifi, kNvsKeyWifiRecDay, 0U);
-    uint8_t n = 0U;
-    if (storedDay == day) {
-        n = app_nvs::readUChar(kNvsNsWifi, kNvsKeyWifiRecRest, 0U);
+    // After claim, writeUInt/writeUChar reject wifi. Read+write rec_* under one lock (BUG-NET-01).
+    app_nvs::ScopedNvsLock lock;
+    Preferences prefs;
+    if (!prefs.begin(kNvsNsWifi, false)) {
+        ESP_LOGE(TAG, "NVS wifi: recovery rec_* begin failed");
+        return;
     }
-    if (n < 255U) {
-        ++n;
+    const uint32_t storedDay = prefs.getUInt(kNvsKeyWifiRecDay, 0U);
+    const uint8_t storedN = prefs.getUChar(kNvsKeyWifiRecRest, 0U);
+    const RecoveryRestartNote note = recoveryNextRestartNote(day, storedDay, storedN);
+    const size_t wDay = prefs.putUInt(kNvsKeyWifiRecDay, note.day);
+    const size_t wRst = prefs.putUChar(kNvsKeyWifiRecRest, note.n);
+    prefs.end();
+    if (wDay == 0U || wRst == 0U) {
+        ESP_LOGE(TAG, "NVS wifi: recovery rec_* write failed day=%" PRIu32 " n=%u", note.day,
+                 static_cast<unsigned>(note.n));
     }
-    (void)app_nvs::writeUInt(kNvsNsWifi, kNvsKeyWifiRecDay, day);
-    (void)app_nvs::writeUChar(kNvsNsWifi, kNvsKeyWifiRecRest, n);
 }
 
 } // namespace

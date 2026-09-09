@@ -114,6 +114,8 @@ export interface MockState {
     ntp1: string;
     ntp2: string;
   };
+  /** Stored STA PSK — never returned by GET /api/wifi/config. */
+  wifiPassword: string;
   wifiConnect: {
     state: "idle" | "testing" | "ok" | "fail";
     ssid: string;
@@ -280,6 +282,7 @@ function applyStaOnlineDefaults(target: MockState): void {
   target.wifiDns2 = "1.0.0.1";
   target.wifiRssi = -55;
   target.wifiConnect = idleWifiConnect();
+  target.wifiPassword = "secret";
 }
 
 function clearWifiLink(target: MockState): void {
@@ -377,6 +380,7 @@ export function createInitialState(scenario: MockScenario = "sta-connected"): Mo
     wifiDns2: "1.0.0.1",
     wifiRssi: -55,
     wifiConfig: defaultWifiConfig("MockNet"),
+    wifiPassword: "secret",
     mqtt: defaultMqtt(deviceId),
     resetDays: 7,
     lang: "en",
@@ -423,6 +427,7 @@ export function applyScenario(state: MockState, scenario: MockScenario): void {
   state.scenario = scenario;
   state.mqtt = defaultMqtt(state.deviceId);
   state.wifiConfig = defaultWifiConfig();
+  state.wifiPassword = "";
   state.wifiConnect = idleWifiConnect();
   clearSimulatorControls(state);
   resetBaselineSettings(state);

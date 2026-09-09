@@ -61,7 +61,9 @@
   } = $props();
 
   let ssid = $state("");
+  let loadedSsid = $state("");
   let password = $state("");
+  let pickedOpen = $state(false);
   let mode = $state<WifiIpMode>("dhcp");
   let ip = $state("");
   let gateway = $state("");
@@ -156,7 +158,10 @@
 
   $effect(() => {
     if (dirty || configLoaded) return;
-    if (!ssid && wifi.connected) ssid = wifi.ssid;
+    if (!ssid && wifi.connected) {
+      ssid = wifi.ssid;
+      if (!loadedSsid) loadedSsid = wifi.ssid;
+    }
   });
 
   $effect(() => {
@@ -174,6 +179,7 @@
       try {
         const cfg = await api.getWifiConfig();
         if (cancelled) return;
+        if (cfg.ssid && !loadedSsid) loadedSsid = cfg.ssid;
         if (dirty) return;
         if (cfg.ssid) ssid = cfg.ssid;
         mode = cfg.mode === "static" ? "static" : "dhcp";
@@ -218,11 +224,23 @@
     }
     const [dns1, dns2] = pairSlots(dnsServers);
     const [ntp1, ntp2] = pairSlots(ntpServers);
+    const sendPassword =
+      device.mode === "ap"
+        ? password
+        : password
+          ? password
+          : pickedOpen
+            ? ""
+            : undefined;
+    if (device.mode === "sta" && sendPassword === undefined && ssid !== loadedSsid) {
+      onToast(i18n.t("toast.wifi-connect-failed"), "error");
+      return;
+    }
     busy = true;
     try {
       const res = await api.connectWifi({
         ssid,
-        password,
+        password: sendPassword,
         mode,
         ip: mode === "static" ? ip : undefined,
         gateway: mode === "static" ? gateway : undefined,
@@ -310,6 +328,8 @@
             type="button"
             onclick={() => {
               ssid = ap.ssid;
+              pickedOpen = ap.open;
+              if (ap.open) password = "";
               markDirty();
             }}
             class={cn(
@@ -339,11 +359,20 @@
           required
           maxlength={32}
           data-testid="wifi-ssid"
-          oninput={markDirty}
-          onchange={markDirty}
+          oninput={() => {
+            pickedOpen = false;
+            markDirty();
+          }}
+          onchange={() => {
+            pickedOpen = false;
+            markDirty();
+          }}
         />
       </Field>
-      <Field label={i18n.t("wifi.password")} hint={i18n.t("wifi.password-hint")}>
+      <Field
+        label={i18n.t("wifi.password")}
+        hint={i18n.t(device.mode === "sta" ? "wifi.password-hint-keep" : "wifi.password-hint")}
+      >
         <TextInput
           type="password"
           bind:value={password}

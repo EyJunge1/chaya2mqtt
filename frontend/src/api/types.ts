@@ -62,7 +62,7 @@ export interface WifiConfig {
 
 export interface WifiConnectFields {
   ssid: string;
-  password: string;
+  password?: string;
   mode: WifiIpMode;
   ip?: string;
   gateway?: string;

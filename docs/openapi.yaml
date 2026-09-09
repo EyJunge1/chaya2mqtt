@@ -165,7 +165,12 @@ paths:
               required: [ssid, mode]
               properties:
                 ssid: { type: string, minLength: 1, maxLength: 32 }
-                password: { type: string, maxLength: 63 }
+                password:
+                  type: string
+                  maxLength: 63
+                  description: >
+                    Omit to keep the stored PSK (STA, same SSID). Empty string for an
+                    open network. A new SSID without a password is rejected.
                 mode: { type: string, enum: [dhcp, static] }
                 ip: { type: string, maxLength: 15 }
                 gateway: { type: string, maxLength: 15 }
