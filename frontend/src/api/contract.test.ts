@@ -31,7 +31,7 @@ function readFirmwareApiRoutes(): string {
     .join("\n");
 }
 
-type HttpMethod = "get" | "post" | "put" | "patch" | "delete";
+type HttpMethod = "get" | "post" | "put" | "patch" | "delete" | "query";
 
 type OpenApiOperation = {
   method: HttpMethod;
@@ -72,7 +72,7 @@ function parseOpenApiOperations(yaml: string): OpenApiOperation[] {
       continue;
     }
 
-    const methodMatch = raw.match(new RegExp(`^${yamlIndent(4)}(get|post|put|patch|delete):$`));
+    const methodMatch = raw.match(new RegExp(`^${yamlIndent(4)}(get|post|put|patch|delete|query):$`));
     if (methodMatch && path) {
       flush();
       current = { method: methodMatch[1] as HttpMethod, path };
@@ -228,6 +228,16 @@ describe("api contract", () => {
   it("documents Host allowlist rejection in OpenAPI", () => {
     expect(openapi).toContain("Host rejected");
     expect(openapi).toContain('error: "host"');
+  });
+
+  it("keeps RFC 10008 QUERY plumbing ready for OpenAPI query operations", () => {
+    const firmware = readFirmwareApiRoutes();
+    const client = read("frontend/src/api/client.ts");
+    const mock = read("frontend/mock/mockPlugin.ts");
+    expect(firmware).toContain("adminAddJsonQuery");
+    expect(firmware).toContain("HTTP_QUERY");
+    expect(client).toContain('"QUERY"');
+    expect(mock).toContain('method === "QUERY"');
   });
 
   it("applies Host once on the server and mode gates via ApiGuard", () => {

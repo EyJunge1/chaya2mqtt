@@ -155,6 +155,9 @@ The 1.54G has **8 MB** flash. `partitions_chaya_8mb.csv` is a dual-OTA map (~3
 | [CONFIGURATION.md](CONFIGURATION.md) | NVS namespaces, defaults |
 | [DISPLAY.md](DISPLAY.md) | Display task, Lucide icons, delta logic |
 
+> **API contract:** QUERY is only for reads with a body. Actions stay POST.
+> Details and beta note: [WEB_ADMIN.md](WEB_ADMIN.md).
+
 ## License
 
 [GNU General Public License v3.0 only](../LICENSE)—use, modification, and distribution

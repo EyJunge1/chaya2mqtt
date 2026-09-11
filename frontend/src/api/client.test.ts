@@ -1,9 +1,29 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { api, ApiHttpError, isApiBusyError } from "./client";
+import { api, apiQuery, ApiHttpError, isApiBusyError } from "./client";
 
 describe("api client", () => {
   beforeEach(() => {
     vi.restoreAllMocks();
+  });
+
+  it("apiQuery sends uppercase QUERY with a JSON body", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      text: async () => JSON.stringify({ ok: true }),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    await expect(apiQuery("/api/example", { filter: "x" })).resolves.toEqual({ ok: true });
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/example",
+      expect.objectContaining({
+        method: "QUERY",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ filter: "x" }),
+      }),
+    );
   });
 
   it("sendChaya posts JSON", async () => {

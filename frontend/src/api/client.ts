@@ -66,12 +66,13 @@ async function apiGet<T>(path: string): Promise<T> {
   return data;
 }
 
-async function apiPost(
+async function apiJson(
   path: string,
+  method: "POST" | "QUERY",
   fields: Record<string, string | number | boolean | undefined> = {},
 ): Promise<ApiResult> {
   const res = await fetch(path, {
-    method: "POST",
+    method,
     headers: {
       "Content-Type": "application/json",
     },
@@ -85,6 +86,21 @@ async function apiPost(
     return { ok: false, error: `request_failed_${res.status}` };
   }
   return data;
+}
+
+async function apiPost(
+  path: string,
+  fields: Record<string, string | number | boolean | undefined> = {},
+): Promise<ApiResult> {
+  return apiJson(path, "POST", fields);
+}
+
+/** RFC 10008 / OpenAPI 3.2 `query:` — always uppercase; fetch does not normalize `query`. */
+export async function apiQuery(
+  path: string,
+  fields: Record<string, string | number | boolean | undefined> = {},
+): Promise<ApiResult> {
+  return apiJson(path, "QUERY", fields);
 }
 
 export const api = {

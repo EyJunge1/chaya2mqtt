@@ -66,6 +66,11 @@ afterEach(() => {
 });
 
 describe("mock API parity", () => {
+  it("does not treat QUERY as a mutation POST", async () => {
+    const res = await callJson("QUERY", "/api/chaya/send");
+    expect(res.handled).toBe(false);
+  });
+
   it("rejects unknown mock scenarios", async () => {
     const res = await callMock("/api/_mock/scenario", { scenario: "nope" });
     expect(res.status).toBe(400);

@@ -39,6 +39,10 @@ updates:
     open-pull-requests-limit: 5
     labels:
       - dependencies
+    # typescript-eslint currently supports TypeScript 6.x only (<6.1.0).
+    ignore:
+      - dependency-name: "typescript"
+        versions: [">=7"]
     groups:
       frontend-minor-patch:
         patterns:
@@ -62,6 +66,10 @@ updates:
     open-pull-requests-limit: 5
     labels:
       - dependencies
+    # typescript-eslint currently supports TypeScript 6.x only (<6.1.0).
+    ignore:
+      - dependency-name: "typescript"
+        versions: [">=7"]
     groups:
       flasher-minor-patch:
         patterns:
