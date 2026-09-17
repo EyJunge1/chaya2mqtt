@@ -56,15 +56,17 @@ class PrepareReleaseArtifactsTests(unittest.TestCase):
             (build / "firmware.bin").write_bytes(firmware)
             self._write_factory(build / "firmware.factory.bin", firmware)
             hashes = self.mod.prepare(build)
-            self.assertEqual(len(hashes["sha256"]), 64)
-            self.assertEqual(len(hashes["factory_sha256"]), 64)
+            self.assertEqual(len(hashes["sha512"]), 128)
+            self.assertEqual(len(hashes["factory_sha512"]), 128)
             self.assertEqual(
-                (build / "firmware.sha256").read_text(encoding="utf-8").strip(), hashes["sha256"]
+                (build / "firmware.sha512").read_text(encoding="utf-8").strip(), hashes["sha512"]
             )
             self.assertEqual(
-                (build / "firmware.factory.sha256").read_text(encoding="utf-8").strip(),
-                hashes["factory_sha256"],
+                (build / "firmware.factory.sha512").read_text(encoding="utf-8").strip(),
+                hashes["factory_sha512"],
             )
+            self.assertFalse((build / "firmware.sha256").exists())
+            self.assertFalse((build / "firmware.factory.sha256").exists())
 
     def test_rejects_missing_magic(self) -> None:
         """Reject a factory image without ESP image markers."""
@@ -149,15 +151,16 @@ class GenerateFlasherSiteTests(unittest.TestCase):
         self.assertEqual(channels["beta"].tag, "v2026.8.1-rc.2")
 
     def test_manifest_offsets(self) -> None:
-        """Generate an ESP Web Tools manifest with the expected app offset."""
+        """Generate a web-flasher manifest with the expected app offset."""
         manifest = self.mod.make_manifest("Chaya2MQTT", "2026.8.1", "firmware.factory.bin")
         self.assertEqual(manifest["builds"][0]["chipFamily"], "ESP32-S3")
         self.assertEqual(manifest["builds"][0]["parts"][0]["offset"], 0)
-        self.assertNotIn("sha256", manifest["builds"][0]["parts"][0])
+        self.assertNotIn("sha512", manifest["builds"][0]["parts"][0])
         with_hash = self.mod.make_manifest(
-            "Chaya2MQTT", "2026.8.1", "firmware.factory.bin", sha256="a" * 64
+            "Chaya2MQTT", "2026.8.1", "firmware.factory.bin", sha512="b" * 128
         )
-        self.assertEqual(with_hash["builds"][0]["parts"][0]["sha256"], "a" * 64)
+        self.assertEqual(with_hash["builds"][0]["parts"][0]["sha512"], "b" * 128)
+        self.assertNotIn("sha256", with_hash["builds"][0]["parts"][0])
         self.assertTrue(manifest["new_install_prompt_erase"])
         self.assertEqual(manifest["new_install_improv_wait_time"], 0)
 
@@ -198,8 +201,10 @@ class GenerateFlasherSiteTests(unittest.TestCase):
             self.assertEqual(
                 stable_manifest["builds"][0]["parts"][0]["path"], "firmware.factory.bin"
             )
-            self.assertEqual(len(stable_manifest["builds"][0]["parts"][0]["sha256"]), 64)
-            self.assertTrue((out / "firmware" / "stable" / "firmware.factory.sha256").is_file())
+            self.assertEqual(len(stable_manifest["builds"][0]["parts"][0]["sha512"]), 128)
+            self.assertNotIn("sha256", stable_manifest["builds"][0]["parts"][0])
+            self.assertTrue((out / "firmware" / "stable" / "firmware.factory.sha512").is_file())
+            self.assertFalse((out / "firmware" / "stable" / "firmware.factory.sha256").exists())
 
 
 class FetchFlasherReleasesTests(unittest.TestCase):
@@ -213,7 +218,7 @@ class FetchFlasherReleasesTests(unittest.TestCase):
         """Do not serve an older release merely because GitHub returns it first."""
         assets = [
             {"name": "firmware.factory.bin"},
-            {"name": "firmware.factory.sha256"},
+            {"name": "firmware.factory.sha512"},
         ]
         releases = [
             {
@@ -233,11 +238,26 @@ class FetchFlasherReleasesTests(unittest.TestCase):
         self.assertIsNotNone(selected)
         self.assertEqual(selected["tag_name"], "v2026.8.1")
 
+    def test_pick_latest_ignores_sha256_only_releases(self) -> None:
+        """SHA-256 sidecars are not a substitute for firmware.factory.sha512."""
+        releases = [
+            {
+                "tag_name": "v2026.8.1",
+                "draft": False,
+                "prerelease": False,
+                "assets": [
+                    {"name": "firmware.factory.bin"},
+                    {"name": "firmware.factory.sha256"},
+                ],
+            }
+        ]
+        self.assertIsNone(self.mod.pick_latest(releases, prerelease=False))
+
     def test_main_follows_release_pagination(self) -> None:
         """Select releases across all API pages, not only the first response."""
         assets = [
             {"name": "firmware.factory.bin"},
-            {"name": "firmware.factory.sha256"},
+            {"name": "firmware.factory.sha512"},
         ]
         pages = iter(
             [
@@ -285,17 +305,22 @@ class FetchFlasherReleasesTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             factory = root / "firmware.factory.bin"
-            sidecar = root / "firmware.factory.sha256"
+            sidecar = root / "firmware.factory.sha512"
             data = bytearray(0x10001)
             data[0] = 0xE9
             data[0x10000] = 0xE9
             factory.write_bytes(data)
-            sidecar.write_text(hashlib.sha256(data).hexdigest() + "\n", encoding="ascii")
+            sidecar.write_text(hashlib.sha512(data).hexdigest() + "\n", encoding="ascii")
             self.mod.validate_factory_download(factory, sidecar)
 
-            sidecar.write_text("0" * 64 + "\n", encoding="ascii")
+            sidecar.write_text("0" * 128 + "\n", encoding="ascii")
             with self.assertRaises(SystemExit):
                 self.mod.validate_factory_download(factory, sidecar)
+
+            sha256_sidecar = root / "firmware.factory.sha256"
+            sha256_sidecar.write_text(hashlib.sha256(data).hexdigest() + "\n", encoding="ascii")
+            with self.assertRaises(SystemExit):
+                self.mod.validate_factory_download(factory, sha256_sidecar)
 
 
 if __name__ == "__main__":

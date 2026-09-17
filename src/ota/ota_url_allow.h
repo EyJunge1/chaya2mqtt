@@ -8,7 +8,7 @@
 
 enum class OtaDownloadAsset : uint8_t {
     Firmware,
-    Sha256,
+    Sha512,
 };
 
 inline auto otaReleaseDownloadUrlAllowed(const char *url, OtaDownloadAsset asset) -> bool {
@@ -31,7 +31,7 @@ inline auto otaReleaseDownloadUrlAllowed(const char *url, OtaDownloadAsset asset
     if (!otaReleaseTagIsAllowed(tag)) {
         return false;
     }
-    const char *expected = asset == OtaDownloadAsset::Firmware ? "firmware.bin" : "firmware.sha256";
+    const char *expected = asset == OtaDownloadAsset::Firmware ? "firmware.bin" : "firmware.sha512";
     return strcmp(slash + 1, expected) == 0;
 }
 
@@ -44,7 +44,7 @@ inline auto otaReleaseDownloadRedirectUrlAllowed(const char *url) -> bool {
         return false;
     }
     if (otaReleaseDownloadUrlAllowed(url, OtaDownloadAsset::Firmware) ||
-        otaReleaseDownloadUrlAllowed(url, OtaDownloadAsset::Sha256)) {
+        otaReleaseDownloadUrlAllowed(url, OtaDownloadAsset::Sha512)) {
         return true;
     }
     constexpr const char kHttps[] = "https://";

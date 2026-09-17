@@ -8,7 +8,7 @@ struct OtaReleaseInfo {
     char tag[64]{};
     char version[64]{}; // tag without leading 'v'
     char binUrl[256]{};
-    char sha256Url[256]{};
+    char sha512Url[256]{};
     OtaChannel channel = OtaChannel::Stable;
     bool isPrerelease = false;
 };

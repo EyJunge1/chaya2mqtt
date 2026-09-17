@@ -160,7 +160,7 @@ inline auto otaReleaseHasRequiredAssets(JsonVariantConst root) -> bool {
         }
         if (!hasBin && strcmp(name, "firmware.bin") == 0) {
             hasBin = true;
-        } else if (!hasSha && strcmp(name, "firmware.sha256") == 0) {
+        } else if (!hasSha && strcmp(name, "firmware.sha512") == 0) {
             hasSha = true;
         }
         if (hasBin && hasSha) {
@@ -174,7 +174,7 @@ inline auto otaReleaseHasRequiredAssets(JsonVariantConst root) -> bool {
  * Select release tag from a GitHub /releases JSON array.
  * preferPrerelease=true: newest non-draft prerelease, else newest non-draft stable.
  * preferPrerelease=false: newest non-draft stable.
- * requireAssets: skip releases that lack firmware.bin + firmware.sha256.
+ * requireAssets: skip releases that lack firmware.bin + firmware.sha512.
  */
 inline auto otaSelectReleaseFromListJson(JsonVariantConst root, bool preferPrerelease, char *tagOut, size_t tagLen,
                                          bool *outIsPrerelease, bool requireAssets = false) -> bool {

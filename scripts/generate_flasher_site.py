@@ -20,7 +20,7 @@ DEFAULT_OUT = ROOT / "flasher" / "_site"
 CALVER_TAG_RE = re.compile(
     r"^v(?P<year>\d{4})\.(?P<month>[1-9]|1[0-2])\.(?P<patch>\d+)(?:-rc\.(?P<rc>[1-9]\d*))?$"
 )
-SHA256_RE = re.compile(r"^[0-9a-fA-F]{64}$")
+SHA512_RE = re.compile(r"^[0-9a-fA-F]{128}$")
 
 
 @dataclass(frozen=True)
@@ -38,9 +38,9 @@ class ReleaseRef:
         return "beta" if self.is_prerelease else "stable"
 
     @property
-    def factory_sha256_sidecar(self) -> Path:
-        """Sidecar path next to the factory image (firmware.factory.sha256)."""
-        return self.factory_bin.with_name("firmware.factory.sha256")
+    def factory_sha512_sidecar(self) -> Path:
+        """Sidecar path next to the factory image (firmware.factory.sha512)."""
+        return self.factory_bin.with_name("firmware.factory.sha512")
 
 
 def parse_tag(tag: str) -> tuple[int, int, int, bool, int] | None:
@@ -90,19 +90,19 @@ def pick_channels(releases: list[ReleaseRef]) -> dict[str, ReleaseRef]:
     return out
 
 
-def factory_sha256_hex(factory_bin: Path, sidecar: Path | None = None) -> str:
-    """Return the factory image SHA-256 from sidecar (preferred) or by hashing the bin."""
+def factory_sha512_hex(factory_bin: Path, sidecar: Path | None = None) -> str:
+    """Return the factory image SHA-512 from sidecar (preferred) or by hashing the bin."""
+    actual = hashlib.sha512(factory_bin.read_bytes()).hexdigest()
     if sidecar is not None and sidecar.is_file():
         expected = sidecar.read_text(encoding="ascii").strip().split()[0]
-        if SHA256_RE.fullmatch(expected) is None:
-            message = f"invalid factory SHA-256 sidecar: {sidecar}"
+        if SHA512_RE.fullmatch(expected) is None:
+            message = f"invalid factory SHA-512 sidecar: {sidecar}"
             raise SystemExit(message)
-        actual = hashlib.sha256(factory_bin.read_bytes()).hexdigest()
         if actual.lower() != expected.lower():
-            message = f"factory SHA-256 mismatch vs sidecar: {factory_bin}"
+            message = f"factory SHA-512 mismatch vs sidecar: {factory_bin}"
             raise SystemExit(message)
         return expected.lower()
-    return hashlib.sha256(factory_bin.read_bytes()).hexdigest()
+    return actual
 
 
 def make_manifest(
@@ -110,12 +110,12 @@ def make_manifest(
     version: str,
     factory_filename: str,
     *,
-    sha256: str | None = None,
+    sha512: str | None = None,
 ) -> dict[str, Any]:
-    """Build an ESP Web Tools manifest for one factory image."""
+    """Build a web-flasher manifest for one factory image."""
     part: dict[str, Any] = {"path": factory_filename, "offset": 0}
-    if sha256 is not None:
-        part["sha256"] = sha256
+    if sha512 is not None:
+        part["sha512"] = sha512
     return {
         "name": name,
         "version": version,
@@ -144,11 +144,10 @@ def write_channel_assets(
     dest = channel_dir / dest_name
     shutil.copy2(release.factory_bin, dest)
 
-    sha256 = factory_sha256_hex(dest, release.factory_sha256_sidecar)
-    sidecar_dest = channel_dir / "firmware.factory.sha256"
-    sidecar_dest.write_text(sha256 + "\n", encoding="ascii")
+    sha512 = factory_sha512_hex(dest, release.factory_sha512_sidecar)
+    (channel_dir / "firmware.factory.sha512").write_text(sha512 + "\n", encoding="ascii")
 
-    manifest = make_manifest(project_name, release.version, dest_name, sha256=sha256)
+    manifest = make_manifest(project_name, release.version, dest_name, sha512=sha512)
     (channel_dir / "manifest.json").write_text(
         json.dumps(manifest, indent=2) + "\n", encoding="utf-8"
     )
@@ -158,7 +157,7 @@ def write_channel_assets(
         "version": release.version,
         "manifest": f"firmware/{channel}/manifest.json",
         "factory": f"firmware/{channel}/{dest_name}",
-        "sha256": sha256,
+        "sha512": sha512,
     }
 
 
@@ -196,7 +195,7 @@ def load_releases_from_dir(releases_dir: Path) -> list[ReleaseRef]:
     Expected layout:
       releases_dir/
         v2026.8.1/firmware.factory.bin
-        v2026.8.1/firmware.factory.sha256   (optional; hashed if missing)
+        v2026.8.1/firmware.factory.sha512   (optional; hashed if missing)
         v2026.8.1-rc.1/firmware.factory.bin
     """
     found: list[ReleaseRef] = []

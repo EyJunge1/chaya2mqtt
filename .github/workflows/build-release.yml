@@ -109,16 +109,16 @@ jobs:
 
             | File | Purpose | Hash |
             |------|---------|------|
-            | `firmware.bin` | OTA app image | SHA-256 `${{ steps.hashes.outputs.sha256 }}` |
-            | `firmware.factory.bin` | USB / web flasher (full chip image) | SHA-256 `${{ steps.hashes.outputs.factory_sha256 }}` |
+            | `firmware.bin` | OTA app image | SHA-512 `${{ steps.hashes.outputs.sha512 }}` |
+            | `firmware.factory.bin` | USB / web flasher (full chip image) | SHA-512 `${{ steps.hashes.outputs.factory_sha512 }}` |
 
-            - OTA verifies `firmware.bin` against the published `firmware.sha256` sidecar.
+            - OTA verifies `firmware.bin` against the published `firmware.sha512` sidecar (`HTTPUpdate::setSHA512sumUrl()`).
             - Browser install: use the [web flasher](https://eyjunge1.github.io/chaya2mqtt/) once GitHub Pages is enabled.
           files: |
             .pio/build/esp32s3-release/firmware.bin
-            .pio/build/esp32s3-release/firmware.sha256
+            .pio/build/esp32s3-release/firmware.sha512
             .pio/build/esp32s3-release/firmware.factory.bin
-            .pio/build/esp32s3-release/firmware.factory.sha256
+            .pio/build/esp32s3-release/firmware.factory.sha512
 
       - name: Publish beta after assets
         if: contains(github.ref_name, '-rc.')

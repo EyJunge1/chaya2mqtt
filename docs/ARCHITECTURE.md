@@ -122,7 +122,7 @@ senders without requiring HIL in CI.
 | **HW** | `src/hw/*` | SD hold-off + board pin map |
 | **Audio** | `src/audio/*` | ES8311 DAC click; capture disabled |
 | **Web admin** | `src/web/*` | HTTP routes, Host allowlist, SSE, SPA |
-| **OTA** | `src/ota/*` | GitHub stable/beta check, HTTPUpdate + SHA-256 sidecar, status/SSE |
+| **OTA** | `src/ota/*` | GitHub stable/beta check, HTTPUpdate + SHA-512 sidecar, status/SSE |
 | **App configuration** | `src/config/app_config.*` | Reset period, UI/LED/audio prefs; NVS utils/keys |
 | **TLS** | `src/tls/*` | Embedded CA bundle (MQTT + OTA) |
 | **Diagnostics** | `src/diag/*` | Stack monitor, task WDT |

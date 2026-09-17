@@ -17,7 +17,7 @@ export type FlashManifest = {
   new_install_prompt_erase?: boolean;
   builds: Array<{
     chipFamily: ChipFamily;
-    parts: Array<{ path: string; offset: number; sha256?: string }>;
+    parts: Array<{ path: string; offset: number; sha512?: string }>;
     serialType?: "cdc" | "uart";
   }>;
 };

@@ -1,6 +1,6 @@
 # OTA – Firmware Updates
 
-Chaya2MQTT supports **over-the-air updates** through GitHub Releases. The firmware is downloaded via HTTPS, checked against a SHA-256 sidecar, and flashed to the next OTA partition using Arduino `HTTPUpdate`.
+Chaya2MQTT supports **over-the-air updates** through GitHub Releases. The firmware is downloaded via HTTPS, checked against a SHA-512 sidecar, and flashed to the next OTA partition using Arduino `HTTPUpdate`.
 
 **USB / first install** uses a separate **factory** image (`firmware.factory.bin`) via PlatformIO or the [web flasher](../flasher/README.md). That package includes bootloader, partition table, and app. OTA must **never** flash the factory image into an OTA slot—only `firmware.bin`.
 
@@ -12,15 +12,15 @@ flowchart LR
     github[GitHub Releases API]
     calver[CalVer comparison]
     confirm[UI confirmation]
-    sha256[SHA-256-Sidecar]
+    sha512[SHA-512-Sidecar]
     httpUpdate[HTTPUpdate]
     reboot[Controlled reboot]
 
     trigger --> github
     github --> calver
     calver -->|newer| confirm
-    confirm --> sha256
-    sha256 --> httpUpdate
+    confirm --> sha512
+    sha512 --> httpUpdate
     httpUpdate --> reboot
 ```
 
@@ -41,19 +41,19 @@ GitHub JSON is streamed with an ArduinoJson filter (`tag_name`, `draft`, `prerel
 |-----------|-------|
 | Repository | `EyJunge1/chaya2mqtt` |
 | Firmware URL (OTA) | `https://github.com/EyJunge1/chaya2mqtt/releases/download/{tag}/firmware.bin` |
-| SHA-256 URL (OTA) | `https://github.com/EyJunge1/chaya2mqtt/releases/download/{tag}/firmware.sha256` |
+| SHA-512 URL (OTA) | `https://github.com/EyJunge1/chaya2mqtt/releases/download/{tag}/firmware.sha512` |
 | Factory URL (USB / web flasher) | `https://github.com/EyJunge1/chaya2mqtt/releases/download/{tag}/firmware.factory.bin` |
 
 OTA URLs are checked both when constructed and immediately before flashing: HTTPS, the exact
 `EyJunge1/chaya2mqtt` release path, a strict CalVer tag, and exactly `firmware.bin` or
-`firmware.sha256` are required. Redirect handling remains TLS-validated; a factory filename,
+`firmware.sha512` are required. Redirect handling remains TLS-validated; a factory filename,
 different host/repository, query suffix, or path traversal is rejected before `HTTPUpdate`.
 
 Releases are triggered **manually** by a Git tag (CI: `.github/workflows/build-release.yml`). The tag must point to a commit contained in `main`.
 
-### SHA-256 support
+### SHA-512 support
 
-The pinned Arduino-ESP32 framework includes [arduino-esp32#12824](https://github.com/espressif/arduino-esp32/pull/12824) and [arduino-esp32#12848](https://github.com/espressif/arduino-esp32/pull/12848). OTA passes the published sidecar URL to `HTTPUpdate::setSHA256sumUrl()`; Arduino downloads and validates the 64-character hexadecimal hash before accepting the update.
+The pinned Arduino-ESP32 framework includes [arduino-esp32#12865](https://github.com/espressif/arduino-esp32/pull/12865). SHA-256 and SHA-512 live in their own translation units so unused hashes are dropped by `--gc-sections`; OTA calls `HTTPUpdate::setSHA512sumUrl()` and therefore links only SHA-512. Arduino downloads and validates the 128-character hexadecimal hash before accepting the update.
 
 ## Versioning (CalVer)
 
@@ -120,15 +120,15 @@ Web UI: `/update`—channel selection, version display, progress, and a confirma
 
 ## Download & installation
 
-`otaFlashVerifiedInstall(binUrl, sha256Url)` in `ota/flash.cpp`:
+`otaFlashVerifiedInstall(binUrl, sha512Url)` in `ota/flash.cpp`:
 
-1. **Configure sidecar:** pass `firmware.sha256` to `setSHA256sumUrl()`
+1. **Configure sidecar:** pass `firmware.sha512` to `setSHA512sumUrl()`
 2. **HTTPUpdate:** download the sidecar and firmware via HTTPS + TLS (CA bundle). GitHub redirects are resolved and allowlisted first; `HTTPUpdate` then disables further follow-redirects. `rebootOnUpdate(false)`
 3. **Flash:** Arduino `HTTPUpdate`/`Update` writes to the next OTA partition
 4. **Progress:** callbacks update the OTA status for SSE/UI
 5. **Reboot:** controlled by chaya2mqtt after flushing
 
-On a SHA-256 mismatch, sidecar error, or flash error: **no reboot**.
+On a SHA-512 mismatch, sidecar error, or flash error: **no reboot**.
 
 ## OTA task
 
@@ -168,13 +168,13 @@ GitHub Actions (`.github/workflows/build-release.yml`):
 4. Run the complete `make check` quality gate, including frontend/flasher checks, tests, static analysis, and the release firmware build
 5. Validate and package the built images via `scripts/prepare_release_artifacts.py`
 6. Publish GitHub Release assets:
-   - `firmware.bin` + `firmware.sha256` (OTA)
-   - `firmware.factory.bin` + `firmware.factory.sha256` (USB / web flasher)
+   - `firmware.bin` + `firmware.sha512` (OTA)
+   - `firmware.factory.bin` + `firmware.factory.sha512` (USB / web flasher)
 7. Beta tags (`-rc.N`) are published as prereleases
 
 Web flasher Pages deploy (`.github/workflows/deploy-pages.yml`) runs only when the
 repository is public and GitHub Pages is enabled. Before publishing Stable + Beta
-factory images, it verifies each image against its `firmware.factory.sha256`
+factory images, it verifies each image against its `firmware.factory.sha512`
 sidecar and checks the expected ESP image markers. Release preparation also
 verifies that the factory app region is byte-identical to `firmware.bin`.
 
@@ -186,14 +186,14 @@ Local checks before commits: `make check`.
 |-------|----------|
 | GitHub API unavailable | Status `error` / `api_error`, no download |
 | No upgrade available | Status `idle`, still store the check day |
-| SHA-256 mismatch or invalid sidecar | Abort installation, no reboot |
+| SHA-512 mismatch or invalid sidecar | Abort installation, no reboot |
 | Flash error | Abort installation, no reboot |
 | AP mode | Automatic check skipped |
 
 ## Security
 
 - TLS with the Mozilla CA bundle for downloads
-- SHA-256 integrity check against the release sidecar (not cryptographic proof of origin)
+- SHA-512 integrity check against the release sidecar (not cryptographic proof of origin)
 - **No code signature** for firmware blobs
 - Threat model: trust in the GitHub release source
 - During OTA, factory reset / reboot / network restart are blocked (`otaBlocksDestructiveAction`)

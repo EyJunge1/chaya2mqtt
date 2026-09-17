@@ -19,7 +19,7 @@ if TYPE_CHECKING:
     from collections.abc import Iterator, Mapping
 
 CALVER_TAG_RE = re.compile(r"^v[0-9]{4}\.([1-9]|1[0-2])\.[0-9]+(-rc\.[1-9][0-9]*)?$")
-SHA256_RE = re.compile(r"^[0-9a-fA-F]{64}$")
+SHA512_RE = re.compile(r"^[0-9a-fA-F]{128}$")
 REDIRECT_STATUSES = {301, 302, 303, 307, 308}
 FACTORY_MAX_BYTES = 8 * 1024 * 1024
 FACTORY_APP_OFFSET = 0x10000
@@ -123,10 +123,10 @@ def download(url: str, dest: Path, token: str | None) -> None:
 
 
 def validate_factory_download(factory: Path, sidecar: Path) -> None:
-    """Verify checksum, size, and ESP image markers before publishing to Pages."""
-    expected = sidecar.read_text(encoding="ascii").strip()
-    if SHA256_RE.fullmatch(expected) is None:
-        message = f"invalid factory SHA-256 sidecar: {sidecar}"
+    """Verify SHA-512, size, and ESP image markers before publishing to Pages."""
+    expected = sidecar.read_text(encoding="ascii").strip().split()[0]
+    if SHA512_RE.fullmatch(expected) is None:
+        message = f"invalid factory SHA-512 sidecar: {sidecar}"
         raise SystemExit(message)
     data = factory.read_bytes()
     if not data or len(data) > FACTORY_MAX_BYTES:
@@ -135,9 +135,9 @@ def validate_factory_download(factory: Path, sidecar: Path) -> None:
     if data[0] != 0xE9 or len(data) <= FACTORY_APP_OFFSET or data[FACTORY_APP_OFFSET] != 0xE9:
         message = f"factory image lacks ESP image markers: {factory}"
         raise SystemExit(message)
-    actual = hashlib.sha256(data).hexdigest()
+    actual = hashlib.sha512(data).hexdigest()
     if actual.lower() != expected.lower():
-        message = f"factory SHA-256 mismatch: {factory}"
+        message = f"factory SHA-512 mismatch: {factory}"
         raise SystemExit(message)
 
 
@@ -163,7 +163,7 @@ def pick_latest(releases: list[dict], *, prerelease: bool) -> dict | None:
         if bool(rel.get("prerelease")) != prerelease:
             continue
         assets = {a.get("name"): a for a in rel.get("assets") or []}
-        if "firmware.factory.bin" not in assets or "firmware.factory.sha256" not in assets:
+        if "firmware.factory.bin" not in assets or "firmware.factory.sha512" not in assets:
             continue
         candidates.append(rel)
     return max(candidates, key=lambda rel: calver_sort_key(str(rel["tag_name"])), default=None)
@@ -174,13 +174,13 @@ def write_release(rel: dict, out_root: Path, token: str | None) -> Path:
     tag = rel["tag_name"]
     assets = {a["name"]: a for a in rel["assets"]}
     factory = assets["firmware.factory.bin"]
-    factory_sha256 = assets["firmware.factory.sha256"]
+    factory_sha512 = assets["firmware.factory.sha512"]
     dest_dir = out_root / tag
     dest = dest_dir / "firmware.factory.bin"
-    sidecar_dest = dest_dir / "firmware.factory.sha256"
+    sidecar_dest = dest_dir / "firmware.factory.sha512"
     # Prefer the API asset URL; it supports private-repository downloads with GITHUB_TOKEN.
     url = factory.get("url") or factory.get("browser_download_url")
-    sidecar_url = factory_sha256.get("url") or factory_sha256.get("browser_download_url")
+    sidecar_url = factory_sha512.get("url") or factory_sha512.get("browser_download_url")
     if not url or not sidecar_url:
         message = f"missing factory download URL in {tag}"
         raise SystemExit(message)
