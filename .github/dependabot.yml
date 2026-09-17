@@ -39,10 +39,11 @@ updates:
     open-pull-requests-limit: 5
     labels:
       - dependencies
-    # typescript-eslint currently supports TypeScript 6.x only (<6.1.0).
+    # ESLint 10 / typescript-eslint do not support TypeScript 7 yet (peer: <6.1.0).
     ignore:
       - dependency-name: "typescript"
         versions: [">=7"]
+        update-types: ["version-update:semver-major"]
     groups:
       frontend-minor-patch:
         patterns:
@@ -53,6 +54,8 @@ updates:
       frontend-major:
         patterns:
           - "*"
+        exclude-patterns:
+          - "typescript"
         update-types:
           - major
 
@@ -66,10 +69,11 @@ updates:
     open-pull-requests-limit: 5
     labels:
       - dependencies
-    # typescript-eslint currently supports TypeScript 6.x only (<6.1.0).
+    # ESLint 10 / typescript-eslint do not support TypeScript 7 yet (peer: <6.1.0).
     ignore:
       - dependency-name: "typescript"
         versions: [">=7"]
+        update-types: ["version-update:semver-major"]
     groups:
       flasher-minor-patch:
         patterns:
@@ -80,5 +84,7 @@ updates:
       flasher-major:
         patterns:
           - "*"
+        exclude-patterns:
+          - "typescript"
         update-types:
           - major
