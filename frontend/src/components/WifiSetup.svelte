@@ -225,13 +225,7 @@
     const [dns1, dns2] = pairSlots(dnsServers);
     const [ntp1, ntp2] = pairSlots(ntpServers);
     const sendPassword =
-      device.mode === "ap"
-        ? password
-        : password
-          ? password
-          : pickedOpen
-            ? ""
-            : undefined;
+      device.mode === "ap" ? password : password ? password : pickedOpen ? "" : undefined;
     if (device.mode === "sta" && sendPassword === undefined && ssid !== loadedSsid) {
       onToast(i18n.t("toast.wifi-connect-failed"), "error");
       return;

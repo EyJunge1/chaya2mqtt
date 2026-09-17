@@ -72,7 +72,9 @@ function parseOpenApiOperations(yaml: string): OpenApiOperation[] {
       continue;
     }
 
-    const methodMatch = raw.match(new RegExp(`^${yamlIndent(4)}(get|post|put|patch|delete|query):$`));
+    const methodMatch = raw.match(
+      new RegExp(`^${yamlIndent(4)}(get|post|put|patch|delete|query):$`),
+    );
     if (methodMatch && path) {
       flush();
       current = { method: methodMatch[1] as HttpMethod, path };

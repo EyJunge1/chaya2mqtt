@@ -53,9 +53,9 @@ describe("ota helpers", () => {
 
   it("keeps same-boot stale snapshots stale", () => {
     const prev = status({ phase: "downloading", generation: 5, localVersion: "2026.8.1" });
-    expect(otaStatusIsStale(prev, status({ phase: "idle", generation: 1, localVersion: "2026.8.1" }))).toBe(
-      true,
-    );
+    expect(
+      otaStatusIsStale(prev, status({ phase: "idle", generation: 1, localVersion: "2026.8.1" })),
+    ).toBe(true);
     expect(otaStatusIsStale(prev, status({ phase: "downloading", generation: 5 }))).toBe(true);
     expect(otaStatusIsStale(prev, status({ phase: "verifying", generation: 6 }))).toBe(false);
   });

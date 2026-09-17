@@ -245,7 +245,10 @@ describe("mock API parity", () => {
     expect(scan.status).toBe(503);
     expect(scan.body).toEqual({ ok: false, error: "busy" });
 
-    const connect = await callJson("POST", "/api/wifi/connect", { ssid: "MockNet", password: "secret" });
+    const connect = await callJson("POST", "/api/wifi/connect", {
+      ssid: "MockNet",
+      password: "secret",
+    });
     expect(connect.status).toBe(503);
     expect(connect.body).toEqual({ ok: false, error: "busy" });
   });
