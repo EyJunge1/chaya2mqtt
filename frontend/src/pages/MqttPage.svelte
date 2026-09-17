@@ -14,7 +14,7 @@
   import { Check, Copy, Radio, RadioOff } from "@lucide/svelte";
   import { onDestroy, untrack } from "svelte";
   import { api, isApiBusyError } from "../api/client.ts";
-  import type { MqttConfigView, MqttStatus } from "../api/types.ts";
+  import type { MqttStatus } from "../api/types.ts";
   import ActionRow from "../components/ActionRow.svelte";
   import ErrorBlock from "../components/ErrorBlock.svelte";
   import Field from "../components/Field.svelte";

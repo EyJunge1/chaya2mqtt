@@ -3,8 +3,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiHttpError } from "../api/client.ts";
 import { getLanguage, setLanguage } from "../i18n/store.ts";
 import { getThemePreference, setTheme } from "../theme/store.ts";
-// <script module> exports are available at runtime; generated Svelte types omit them.
-// @ts-expect-error svelte component types omit named module exports
 import SettingsPage, { resetSettingsApplySession } from "./SettingsPage.svelte";
 
 const getSettings = vi.fn();

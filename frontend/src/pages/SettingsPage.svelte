@@ -13,7 +13,6 @@
 <script lang="ts">
   import { onDestroy, untrack } from "svelte";
   import { api, isApiBusyError } from "../api/client.ts";
-  import type { SettingsInfo } from "../api/types.ts";
   import ConfirmDialog from "../components/ConfirmDialog.svelte";
   import DangerButton from "../components/DangerButton.svelte";
   import ErrorBlock from "../components/ErrorBlock.svelte";
