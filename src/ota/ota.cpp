@@ -343,7 +343,7 @@ void runInstall() {
         return;
     }
 
-    const bool installed = otaFlashVerifiedInstall(release.binUrl, release.sha256Url);
+    const bool installed = otaFlashVerifiedInstall(release.binUrl, release.sha512Url);
 
     if (!installed) {
         g_otaFlashInProgress.store(false, std::memory_order_release);

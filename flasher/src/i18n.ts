@@ -83,7 +83,7 @@ const translations = {
     "flash.error.unsupported": "Unsupported chip: {chip}",
     "flash.error.download": "Firmware download failed. Check your network and try again.",
     "flash.error.hashMismatch":
-      "Firmware integrity check failed (SHA-256 mismatch). Do not flash — refresh the page and try again.",
+      "Firmware integrity check failed (SHA-512 mismatch). Do not flash — refresh the page and try again.",
     "flash.error.hashMissing":
       "Firmware checksum is missing or invalid. Do not flash — refresh the page and try again.",
     "flash.error.erase": "Erase failed. Reconnect USB and try again.",
@@ -175,7 +175,7 @@ const translations = {
     "flash.error.download":
       "Firmware-Download fehlgeschlagen. Netzwerk prüfen und erneut versuchen.",
     "flash.error.hashMismatch":
-      "Integritätsprüfung fehlgeschlagen (SHA-256 stimmt nicht). Nicht flashen — Seite neu laden und erneut versuchen.",
+      "Integritätsprüfung fehlgeschlagen (SHA-512 stimmt nicht). Nicht flashen — Seite neu laden und erneut versuchen.",
     "flash.error.hashMissing":
       "Firmware-Prüfsumme fehlt oder ist ungültig. Nicht flashen — Seite neu laden und erneut versuchen.",
     "flash.error.erase": "Löschen fehlgeschlagen. USB neu stecken und erneut versuchen.",

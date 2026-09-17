@@ -55,9 +55,9 @@ void test_ota_version_compare() {
 void test_ota_github_release_select() {
     const char *json = "["
                        "{\"tag_name\":\"v2026.8.2-rc.1\",\"draft\":false,\"prerelease\":true,"
-                       "\"assets\":[{\"name\":\"firmware.bin\"},{\"name\":\"firmware.sha256\"}]},"
+                       "\"assets\":[{\"name\":\"firmware.bin\"},{\"name\":\"firmware.sha512\"}]},"
                        "{\"tag_name\":\"v2026.8.1\",\"draft\":false,\"prerelease\":false,"
-                       "\"assets\":[{\"name\":\"firmware.bin\"},{\"name\":\"firmware.sha256\"}]}"
+                       "\"assets\":[{\"name\":\"firmware.bin\"},{\"name\":\"firmware.sha512\"}]}"
                        "]";
 
     char tag[64]{};
@@ -76,13 +76,13 @@ void test_ota_github_release_select() {
     TEST_ASSERT_FALSE(isPre);
 
     TEST_ASSERT_TRUE(otaJsonHasAssetName(json, "firmware.bin"));
-    TEST_ASSERT_TRUE(otaJsonHasAssetName(json, "firmware.sha256"));
+    TEST_ASSERT_TRUE(otaJsonHasAssetName(json, "firmware.sha512"));
     TEST_ASSERT_FALSE(otaJsonHasAssetName(json, "missing.bin"));
     TEST_ASSERT_FALSE(
-        otaJsonHasAssetName("{\"name\":\"firmware.sha256\",\"assets\":[{\"name\":\"firmware.bin\"}]}", "firmware.sha256"));
+        otaJsonHasAssetName("{\"name\":\"firmware.sha512\",\"assets\":[{\"name\":\"firmware.bin\"}]}", "firmware.sha512"));
     TEST_ASSERT_FALSE(otaJsonHasAssetName("{\"assets\":[{\"name\":\"firmware.bin\","
-                                          "\"uploader\":{\"name\":\"firmware.sha256\"}}]}",
-                                          "firmware.sha256"));
+                                          "\"uploader\":{\"name\":\"firmware.sha512\"}}]}",
+                                          "firmware.sha512"));
 
     const char *withDraft = "["
                             "{\"tag_name\":\"v2026.9.1-rc.1\",\"draft\":true,\"prerelease\":true},"
@@ -110,7 +110,7 @@ void test_ota_github_release_select() {
 
     JsonDocument once;
     TEST_ASSERT_TRUE(otaDeserializeJson("{\"tag_name\":\"v2026.8.1\",\"draft\":false,\"prerelease\":false,"
-                                        "\"assets\":[{\"name\":\"firmware.bin\"},{\"name\":\"firmware.sha256\"}]}",
+                                        "\"assets\":[{\"name\":\"firmware.bin\"},{\"name\":\"firmware.sha512\"}]}",
                                         once));
     const JsonVariantConst root = once.as<JsonVariantConst>();
     char onceTag[64]{};
@@ -134,7 +134,7 @@ void test_ota_github_release_select() {
     const char *newestWithoutAssets = "["
                                       "{\"tag_name\":\"v2026.9.1-rc.1\",\"draft\":false,\"prerelease\":true},"
                                       "{\"tag_name\":\"v2026.8.2-rc.1\",\"draft\":false,\"prerelease\":true,"
-                                      "\"assets\":[{\"name\":\"firmware.bin\"},{\"name\":\"firmware.sha256\"}]}"
+                                      "\"assets\":[{\"name\":\"firmware.bin\"},{\"name\":\"firmware.sha512\"}]}"
                                       "]";
     TEST_ASSERT_TRUE(otaSelectReleaseFromListJson(newestWithoutAssets, true, tag, sizeof(tag), &isPre, false));
     TEST_ASSERT_EQUAL_STRING("v2026.9.1-rc.1", tag);
@@ -146,7 +146,7 @@ void test_ota_github_release_select() {
                               "{\"tag_name\":\"v2026.8.2\",\"draft\":false,\"prerelease\":false,"
                               "\"assets\":[{\"name\":\"firmware.bin\"}]},"
                               "{\"tag_name\":\"v2026.8.1\",\"draft\":false,\"prerelease\":false,"
-                              "\"assets\":[{\"name\":\"firmware.sha256\"}]}"
+                              "\"assets\":[{\"name\":\"firmware.sha512\"}]}"
                               "]";
     JsonDocument splitDoc;
     TEST_ASSERT_TRUE(otaDeserializeJson(splitAssets, splitDoc));
@@ -162,8 +162,8 @@ void test_ota_github_release_filter() {
 
     std::string json = "{\"tag_name\":\"v2026.8.1\",\"draft\":false,\"prerelease\":false,"
                        "\"author\":{\"login\":\"bot\",\"name\":\"nope\"},"
-                       "\"assets\":[{\"name\":\"firmware.bin\",\"uploader\":{\"name\":\"firmware.sha256\"}},"
-                       "{\"name\":\"firmware.sha256\"}],\"body\":\"";
+                       "\"assets\":[{\"name\":\"firmware.bin\",\"uploader\":{\"name\":\"firmware.sha512\"}},"
+                       "{\"name\":\"firmware.sha512\"}],\"body\":\"";
     json.append(20000, 'A');
     json += "\"}";
 
@@ -188,7 +188,7 @@ void test_ota_github_release_filter() {
     std::string list = "[{\"tag_name\":\"v2026.8.2-rc.1\",\"draft\":false,\"prerelease\":true,"
                        "\"body\":\"";
     list.append(20000, 'B');
-    list += "\",\"assets\":[{\"name\":\"firmware.bin\"},{\"name\":\"firmware.sha256\"}]},"
+    list += "\",\"assets\":[{\"name\":\"firmware.bin\"},{\"name\":\"firmware.sha512\"}]},"
             "{\"tag_name\":\"v2026.8.1\",\"draft\":false,\"prerelease\":false,"
             "\"assets\":[{\"name\":\"firmware.bin\"}]}]";
     TEST_ASSERT_TRUE(otaSelectReleaseFromListJson(list.c_str(), true, tag, sizeof(tag), &pre, true));
@@ -201,8 +201,10 @@ void test_ota_download_url_allowlist() {
     TEST_ASSERT_TRUE(otaReleaseDownloadUrlAllowed(
         "https://github.com/EyJunge1/chaya2mqtt/releases/download/v2026.8.1/firmware.bin", OtaDownloadAsset::Firmware));
     TEST_ASSERT_TRUE(otaReleaseDownloadUrlAllowed("https://github.com/EyJunge1/chaya2mqtt/releases/download/v2026.8.1-rc.1/"
-                                                  "firmware.sha256",
-                                                  OtaDownloadAsset::Sha256));
+                                                  "firmware.sha512",
+                                                  OtaDownloadAsset::Sha512));
+    TEST_ASSERT_FALSE(otaReleaseDownloadUrlAllowed(
+        "https://github.com/EyJunge1/chaya2mqtt/releases/download/v2026.8.1/firmware.sha256", OtaDownloadAsset::Sha512));
     TEST_ASSERT_FALSE(otaReleaseDownloadUrlAllowed(
         "http://github.com/EyJunge1/chaya2mqtt/releases/download/v2026.8.1/firmware.bin", OtaDownloadAsset::Firmware));
     TEST_ASSERT_FALSE(otaReleaseDownloadUrlAllowed(

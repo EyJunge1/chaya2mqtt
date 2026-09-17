@@ -2,8 +2,8 @@ import { ESPLoader, Transport } from "esptool-js";
 import type { FlashManifest, FlashProgress } from "./types";
 import { firmwareFetchInit } from "./flashFetch";
 import {
-  isSha256Hex,
-  parseSha256SidecarText,
+  isSha512Hex,
+  parseSha512SidecarText,
   resolvePartUrl,
   sidecarUrlForPart,
 } from "./flashVerify";
@@ -46,33 +46,31 @@ async function fetchPart(url: string): Promise<Uint8Array> {
   return new Uint8Array(await response.arrayBuffer());
 }
 
-async function sha256Hex(data: Uint8Array): Promise<string> {
-  const digest = await crypto.subtle.digest("SHA-256", data.buffer as ArrayBuffer);
+async function sha512Hex(data: Uint8Array): Promise<string> {
+  const digest = await crypto.subtle.digest("SHA-512", data.buffer as ArrayBuffer);
   return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, "0")).join("");
 }
 
-async function loadExpectedSha256(
+async function loadExpectedSha512(
   partUrl: string,
-  manifestSha256: string | undefined,
+  manifestSha512: string | undefined,
 ): Promise<string> {
-  if (isSha256Hex(manifestSha256)) {
-    return manifestSha256!.toLowerCase();
+  if (isSha512Hex(manifestSha512)) {
+    return manifestSha512!.toLowerCase();
   }
   const sidecarUrl = sidecarUrlForPart(partUrl);
   const response = await fetch(sidecarUrl, firmwareFetchInit());
   if (!response.ok) {
-    throw new Error(`Missing firmware SHA-256 sidecar (${response.status})`);
+    throw new Error(`Missing firmware SHA-512 sidecar (${response.status})`);
   }
-  const parsed = parseSha256SidecarText(await response.text());
+  const parsed = parseSha512SidecarText(await response.text());
   if (!parsed) {
-    throw new Error("Invalid firmware SHA-256 sidecar");
+    throw new Error("Invalid firmware SHA-512 sidecar");
   }
   return parsed;
 }
 
-/**
- * Flash a factory image from an ESP Web Tools-compatible manifest over Web Serial.
- */
+/** Flash a factory image from a SHA-512-verified manifest over Web Serial. */
 export async function flashFirmware(options: {
   port: SerialPort;
   manifestPath: string;
@@ -167,10 +165,10 @@ export async function flashFirmware(options: {
     for (const part of build.parts) {
       const partUrl = resolvePartUrl(part.path, manifestUrl.href);
       const data = await fetchPart(partUrl);
-      const expected = await loadExpectedSha256(partUrl, part.sha256);
-      const actual = await sha256Hex(data);
+      const expected = await loadExpectedSha512(partUrl, part.sha512);
+      const actual = await sha512Hex(data);
       if (actual !== expected) {
-        throw new Error(`Firmware SHA-256 mismatch for ${part.path}`);
+        throw new Error(`Firmware SHA-512 mismatch for ${part.path}`);
       }
       fileArray.push({ data, address: part.offset });
       totalSize += data.length;
@@ -178,9 +176,9 @@ export async function flashFirmware(options: {
   } catch (err) {
     console.error(err);
     const message = err instanceof Error ? err.message : String(err);
-    if (/SHA-256 mismatch/i.test(message)) {
+    if (/SHA-512 mismatch/i.test(message)) {
       await fail("hash_mismatch");
-    } else if (/SHA-256|sidecar/i.test(message)) {
+    } else if (/SHA-512|sidecar/i.test(message)) {
       await fail("hash_missing");
     } else {
       await fail("download_failed");

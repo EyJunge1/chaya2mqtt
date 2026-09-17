@@ -238,9 +238,9 @@ jobs:
           name: firmware-pr-${{ github.event.pull_request.number }}-${{ github.sha }}
           path: |
             .pio/build/esp32s3-release/firmware.bin
-            .pio/build/esp32s3-release/firmware.sha256
+            .pio/build/esp32s3-release/firmware.sha512
             .pio/build/esp32s3-release/firmware.factory.bin
-            .pio/build/esp32s3-release/firmware.factory.sha256
+            .pio/build/esp32s3-release/firmware.factory.sha512
           retention-days: 7
           if-no-files-found: error
 

@@ -17,9 +17,9 @@ FACTORY_FIXED_OFFSETS = (0x0, 0x8000, 0xE000)
 FACTORY_MAX = 8 * 1024 * 1024
 
 
-def sha256_hex(path: Path) -> str:
-    """Return the SHA-256 checksum of a file as hexadecimal text."""
-    h = hashlib.sha256()
+def digest_hex(path: Path, algorithm: str) -> str:
+    """Return a hexadecimal digest of a file."""
+    h = hashlib.new(algorithm)
     with path.open("rb") as f:
         for chunk in iter(lambda: f.read(1024 * 1024), b""):
             h.update(chunk)
@@ -103,15 +103,15 @@ def prepare(build_dir: Path, partition_table: Path = PARTITION_TABLE) -> dict[st
 
     validate_factory(factory, app_offset, firmware_data)
 
-    sha256 = sha256_hex(firmware)
-    factory_sha256 = sha256_hex(factory)
+    sha512 = digest_hex(firmware, "sha512")
+    factory_sha512 = digest_hex(factory, "sha512")
 
-    (build_dir / "firmware.sha256").write_text(sha256 + "\n", encoding="utf-8")
-    (build_dir / "firmware.factory.sha256").write_text(factory_sha256 + "\n", encoding="utf-8")
+    (build_dir / "firmware.sha512").write_text(sha512 + "\n", encoding="utf-8")
+    (build_dir / "firmware.factory.sha512").write_text(factory_sha512 + "\n", encoding="utf-8")
 
     return {
-        "sha256": sha256,
-        "factory_sha256": factory_sha256,
+        "sha512": sha512,
+        "factory_sha512": factory_sha512,
         "app_size": str(app_size),
         "factory_size": str(factory.stat().st_size),
     }

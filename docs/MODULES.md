@@ -434,7 +434,7 @@ Details: [WEB_ADMIN.md](WEB_ADMIN.md)
 | `ota_json.h` | `otaFillStatusJson` for GET `/api/update/status` and SSE `ota` |
 | `ota_task.cpp` | OTA task (12288 stack, priority 4) |
 | `github.h` / `github.cpp` | GitHub Releases API, CalVer comparison |
-| `flash.h` / `flash.cpp` | TLS + SHA-256 sidecar, Arduino `HTTPUpdate` |
+| `flash.h` / `flash.cpp` | TLS + SHA-512 sidecar, Arduino `HTTPUpdate` |
 | `version_cmp.h` | CalVer/beta (`-rc.N`) comparison (header-only) |
 | `github_parse.h` | GitHub release JSON helper (ArduinoJson filter, header-only) |
 

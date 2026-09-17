@@ -1,29 +1,31 @@
 import { describe, expect, it } from "vitest";
 import {
-  isSha256Hex,
-  parseSha256SidecarText,
+  isSha512Hex,
+  parseSha512SidecarText,
   resolvePartUrl,
   sidecarUrlForPart,
 } from "./flashVerify";
 
 describe("flashVerify", () => {
-  it("accepts 64-char hex digests", () => {
-    expect(isSha256Hex("a".repeat(64))).toBe(true);
-    expect(isSha256Hex("A1".repeat(32))).toBe(true);
-    expect(isSha256Hex("short")).toBe(false);
-    expect(isSha256Hex(undefined)).toBe(false);
+  it("accepts 128-char hex digests", () => {
+    expect(isSha512Hex("a".repeat(128))).toBe(true);
+    expect(isSha512Hex("A1".repeat(64))).toBe(true);
+    expect(isSha512Hex("a".repeat(64))).toBe(false);
+    expect(isSha512Hex("short")).toBe(false);
+    expect(isSha512Hex(undefined)).toBe(false);
   });
 
-  it("maps bin parts to sha256 sidecars", () => {
+  it("maps bin parts to sha512 sidecars", () => {
     expect(sidecarUrlForPart("https://x/firmware.factory.bin")).toBe(
-      "https://x/firmware.factory.sha256",
+      "https://x/firmware.factory.sha512",
     );
-    expect(sidecarUrlForPart("https://x/part")).toBe("https://x/part.sha256");
+    expect(sidecarUrlForPart("https://x/part")).toBe("https://x/part.sha512");
   });
 
   it("parses sidecar files", () => {
-    expect(parseSha256SidecarText(`${"ab".repeat(32)}  firmware.bin\n`)).toBe("ab".repeat(32));
-    expect(parseSha256SidecarText("not-a-hash")).toBeNull();
+    expect(parseSha512SidecarText(`${"ab".repeat(64)}  firmware.bin\n`)).toBe("ab".repeat(64));
+    expect(parseSha512SidecarText("not-a-hash")).toBeNull();
+    expect(parseSha512SidecarText("a".repeat(64))).toBeNull();
   });
 
   it("resolves relative same-origin part paths (SEC-10)", () => {

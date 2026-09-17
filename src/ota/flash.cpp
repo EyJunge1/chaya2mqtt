@@ -79,7 +79,7 @@ bool resolveHttpLocation(const char *baseUrl, const String &location, char *out,
 
 bool isGithubReleaseDownloadUrl(const char *url) {
     return otaReleaseDownloadUrlAllowed(url, OtaDownloadAsset::Firmware) ||
-           otaReleaseDownloadUrlAllowed(url, OtaDownloadAsset::Sha256);
+           otaReleaseDownloadUrlAllowed(url, OtaDownloadAsset::Sha512);
 }
 
 /**
@@ -146,13 +146,13 @@ bool otaResolveDownloadUrl(WiFiClientSecure &tls, const char *startUrl, OtaDownl
 
 } // namespace
 
-bool otaFlashVerifiedInstall(const char *binUrl, const char *sha256Url) {
-    if (binUrl == nullptr || binUrl[0] == '\0' || sha256Url == nullptr || sha256Url[0] == '\0') {
-        ESP_LOGE(TAG, "OTA firmware or SHA-256 sidecar URL missing");
+bool otaFlashVerifiedInstall(const char *binUrl, const char *sha512Url) {
+    if (binUrl == nullptr || binUrl[0] == '\0' || sha512Url == nullptr || sha512Url[0] == '\0') {
+        ESP_LOGE(TAG, "OTA firmware or SHA-512 sidecar URL missing");
         return false;
     }
     if (!otaReleaseDownloadUrlAllowed(binUrl, OtaDownloadAsset::Firmware) ||
-        !otaReleaseDownloadUrlAllowed(sha256Url, OtaDownloadAsset::Sha256)) {
+        !otaReleaseDownloadUrlAllowed(sha512Url, OtaDownloadAsset::Sha512)) {
         ESP_LOGE(TAG, "OTA download URL rejected by allowlist");
         return false;
     }
@@ -172,8 +172,8 @@ bool otaFlashVerifiedInstall(const char *binUrl, const char *sha256Url) {
         ESP_LOGE(TAG, "OTA firmware URL redirect resolve failed");
         return false;
     }
-    if (!otaResolveDownloadUrl(tls, sha256Url, OtaDownloadAsset::Sha256, resolvedSha, sizeof(resolvedSha))) {
-        ESP_LOGE(TAG, "OTA SHA-256 URL redirect resolve failed");
+    if (!otaResolveDownloadUrl(tls, sha512Url, OtaDownloadAsset::Sha512, resolvedSha, sizeof(resolvedSha))) {
+        ESP_LOGE(TAG, "OTA SHA-512 URL redirect resolve failed");
         return false;
     }
 
@@ -182,7 +182,7 @@ bool otaFlashVerifiedInstall(const char *binUrl, const char *sha256Url) {
     // Redirects already resolved and allowlisted; do not follow further opaque hops.
     updater.setFollowRedirects(HTTPC_DISABLE_FOLLOW_REDIRECTS);
     // HTTPUpdate API requires Arduino String; URLs already resolved into stack buffers (STAB-07).
-    updater.setSHA256sumUrl(String(resolvedSha));
+    updater.setSHA512sumUrl(String(resolvedSha));
     updater.onStart([]() {
         otaNotifyFlashProgress(0, 0);
         chayaTaskWatchdogReset();
@@ -191,7 +191,7 @@ bool otaFlashVerifiedInstall(const char *binUrl, const char *sha256Url) {
         const uint32_t done = static_cast<uint32_t>(current < 0 ? 0 : current);
         const uint32_t bytes = static_cast<uint32_t>(total < 0 ? 0 : total);
         if (bytes > 0U && done >= bytes) {
-            // HTTPUpdate calls Update.end() (including SHA-256 verification) after this.
+            // HTTPUpdate calls Update.end() (including SHA-512 verification) after this.
             otaNotifyFlashVerifying();
         } else {
             otaNotifyFlashProgress(done, bytes);
@@ -211,6 +211,6 @@ bool otaFlashVerifiedInstall(const char *binUrl, const char *sha256Url) {
         ESP_LOGE(TAG, "HTTPUpdate failed: %s", updater.getLastErrorString().c_str());
         return false;
     }
-    ESP_LOGI(TAG, "HTTPUpdate OK (SHA-256 verified)");
+    ESP_LOGI(TAG, "HTTPUpdate OK (SHA-512 verified)");
     return true;
 }

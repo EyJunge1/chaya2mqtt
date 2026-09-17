@@ -115,11 +115,11 @@ bool fillReleaseUrls(const char *tag, OtaReleaseInfo *out) {
     strlcpy(out->tag, tag, sizeof(out->tag));
     stripLeadingV(tag, out->version, sizeof(out->version));
     const int nBin = snprintf(out->binUrl, sizeof(out->binUrl), "%s%s/firmware.bin", kGithubDownloadBase, tag);
-    const int nSha256 = snprintf(out->sha256Url, sizeof(out->sha256Url), "%s%s/firmware.sha256", kGithubDownloadBase, tag);
-    return nBin > 0 && static_cast<size_t>(nBin) < sizeof(out->binUrl) && nSha256 > 0 &&
-           static_cast<size_t>(nSha256) < sizeof(out->sha256Url) &&
+    const int nSha512 = snprintf(out->sha512Url, sizeof(out->sha512Url), "%s%s/firmware.sha512", kGithubDownloadBase, tag);
+    return nBin > 0 && static_cast<size_t>(nBin) < sizeof(out->binUrl) && nSha512 > 0 &&
+           static_cast<size_t>(nSha512) < sizeof(out->sha512Url) &&
            otaReleaseDownloadUrlAllowed(out->binUrl, OtaDownloadAsset::Firmware) &&
-           otaReleaseDownloadUrlAllowed(out->sha256Url, OtaDownloadAsset::Sha256);
+           otaReleaseDownloadUrlAllowed(out->sha512Url, OtaDownloadAsset::Sha512);
 }
 
 bool httpGetGithubJson(const char *url, JsonDocument &doc, bool list, bool *outHasNext = nullptr) {
@@ -245,7 +245,7 @@ GithubCheckResult otaGithubEvaluateChannel(OtaChannel channel, OtaReleaseInfo *o
             return GithubCheckResult::ParsedNoUpgrade;
         }
         if (!otaReleaseHasRequiredAssets(root)) {
-            ESP_LOGE(TAG, "GitHub latest lacks firmware.bin or firmware.sha256");
+            ESP_LOGE(TAG, "GitHub latest lacks firmware.bin or firmware.sha512");
             return GithubCheckResult::ApiError;
         }
         return evaluateTag(tag, false, channel, out);
