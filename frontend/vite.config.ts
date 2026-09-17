@@ -1,6 +1,5 @@
-/// <reference types="vitest/config" />
 import type { Plugin } from "vite";
-import { defineConfig } from "vite";
+import { defineConfig } from "vitest/config";
 import { svelte } from "@sveltejs/vite-plugin-svelte";
 import tailwindcss from "@tailwindcss/vite";
 import { mockDevicePlugin } from "./mock/mockPlugin.ts";
