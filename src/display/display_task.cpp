@@ -81,8 +81,7 @@ bool displayPostMsg(DisplayMsg::Cmd cmd, uint32_t payload, TickType_t waitTicks)
 }
 
 bool displayPostHeartRedraw(TickType_t waitTicks) {
-    if (g_systemShutdownInProgress.load(std::memory_order_acquire) ||
-        s_powerOffPending.load(std::memory_order_acquire)) {
+    if (g_systemShutdownInProgress.load(std::memory_order_acquire) || s_powerOffPending.load(std::memory_order_acquire)) {
         return false;
     }
     // Waiting title / SoftAP: never queue heart content over ProductTitle or SetupQr.
@@ -112,8 +111,7 @@ bool displayPostHeartRedraw(TickType_t waitTicks) {
         const bool iconChangedAgain =
             s_desiredHeartIcon.load(std::memory_order_acquire) != s_lastDrawnHeartIcon.load(std::memory_order_acquire);
         const uint8_t batteryIconAgain = static_cast<uint8_t>(displayBatteryIcon(batteryPercent()));
-        const bool batteryIconChangedAgain =
-            batteryIconAgain != s_lastDrawnBatteryIcon.load(std::memory_order_acquire);
+        const bool batteryIconChangedAgain = batteryIconAgain != s_lastDrawnBatteryIcon.load(std::memory_order_acquire);
         const DisplayHeartRedrawDecision again = displayHeartRedrawDecide(
             rxAgain, txAgain, s_lastDrawnRx.load(std::memory_order_relaxed), s_lastDrawnTx.load(std::memory_order_relaxed),
             iconChangedAgain, batteryIconChangedAgain, millis(), s_lastHeartRedrawEnqueueMs.load(std::memory_order_relaxed),

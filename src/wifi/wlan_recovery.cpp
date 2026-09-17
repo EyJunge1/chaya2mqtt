@@ -58,8 +58,7 @@ void recoveryNoteRestart() {
     const size_t wRst = prefs.putUChar(kNvsKeyWifiRecRest, note.n);
     prefs.end();
     if (wDay == 0U || wRst == 0U) {
-        ESP_LOGE(TAG, "NVS wifi: recovery rec_* write failed day=%" PRIu32 " n=%u", note.day,
-                 static_cast<unsigned>(note.n));
+        ESP_LOGE(TAG, "NVS wifi: recovery rec_* write failed day=%" PRIu32 " n=%u", note.day, static_cast<unsigned>(note.n));
     }
 }
 
@@ -111,8 +110,7 @@ void wlanRecoveryServiceLoop() {
             ESP_LOGD(TAG, "WLAN recovery restart deferred (EPD)");
             break;
         }
-        if (g_factoryResetQueued.load(std::memory_order_acquire) ||
-            g_systemShutdownInProgress.load(std::memory_order_acquire)) {
+        if (g_factoryResetQueued.load(std::memory_order_acquire) || g_systemShutdownInProgress.load(std::memory_order_acquire)) {
             ESP_LOGW(TAG, "WLAN recovery restart skipped — factory or shutdown in progress");
             break;
         }

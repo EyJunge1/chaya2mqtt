@@ -12,6 +12,4 @@ inline auto mqttSettingsApplyShouldDefer(bool epdActive, bool factoryQueued, boo
 }
 
 /** Apply-to-active already ran, but teardown/setup is still incomplete (RC-MQTT-11). */
-inline auto mqttSettingsApplyNothingPendingNeedsRetry(bool killCoalescePending) -> bool {
-    return killCoalescePending;
-}
+inline auto mqttSettingsApplyNothingPendingNeedsRetry(bool killCoalescePending) -> bool { return killCoalescePending; }

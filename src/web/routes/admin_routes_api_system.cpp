@@ -23,14 +23,12 @@ void handleApiRebootPost(AsyncWebServerRequest *req, JsonVariant &json) {
     if (!adminJsonRequireObject(req, json)) {
         return;
     }
-    if (g_systemShutdownInProgress.load(std::memory_order_acquire) ||
-        g_factoryResetQueued.load(std::memory_order_acquire)) {
+    if (g_systemShutdownInProgress.load(std::memory_order_acquire) || g_factoryResetQueued.load(std::memory_order_acquire)) {
         sendErr(req, 503, "shutdown");
         return;
     }
     if (webAdminRestartBlocked(otaBlocksDestructiveAction(), mqttCfgApplyPending(),
-                               g_webAdminSettingsApplyPending.load(std::memory_order_acquire),
-                               webAdminMqttApplyUnqueued(),
+                               g_webAdminSettingsApplyPending.load(std::memory_order_acquire), webAdminMqttApplyUnqueued(),
                                g_webAdminApplyInFlight.load(std::memory_order_acquire) > 0U)) {
         sendErr(req, 503, "busy");
         return;
@@ -43,10 +41,9 @@ void handleApiRebootPost(AsyncWebServerRequest *req, JsonVariant &json) {
 void handleApiResetPost(AsyncWebServerRequest *req, NetCmd cmd, const char *message) {
     const bool shutdown = g_systemShutdownInProgress.load(std::memory_order_acquire);
     const bool factoryQueued = g_factoryResetQueued.load(std::memory_order_acquire);
-    const bool restartBlocked =
-        webAdminRestartBlocked(otaBlocksDestructiveAction(), mqttCfgApplyPending(),
-                               g_webAdminSettingsApplyPending.load(std::memory_order_acquire), webAdminMqttApplyUnqueued(),
-                               g_webAdminApplyInFlight.load(std::memory_order_acquire) > 0U);
+    const bool restartBlocked = webAdminRestartBlocked(
+        otaBlocksDestructiveAction(), mqttCfgApplyPending(), g_webAdminSettingsApplyPending.load(std::memory_order_acquire),
+        webAdminMqttApplyUnqueued(), g_webAdminApplyInFlight.load(std::memory_order_acquire) > 0U);
     const bool rebootReq = g_webAdminRebootRequested.load(std::memory_order_acquire);
     const bool wifiReconnectReq = g_webAdminWifiReconnectRequested.load(std::memory_order_acquire);
     if (factoryResetHttpBlocked(shutdown, factoryQueued, restartBlocked, rebootReq, wifiReconnectReq)) {
@@ -58,8 +55,7 @@ void handleApiResetPost(AsyncWebServerRequest *req, NetCmd cmd, const char *mess
         return;
     }
     bool expected = false;
-    if (!g_factoryResetQueued.compare_exchange_strong(expected, true, std::memory_order_acq_rel,
-                                                      std::memory_order_acquire)) {
+    if (!g_factoryResetQueued.compare_exchange_strong(expected, true, std::memory_order_acq_rel, std::memory_order_acquire)) {
         sendErr(req, 503, "shutdown");
         return;
     }

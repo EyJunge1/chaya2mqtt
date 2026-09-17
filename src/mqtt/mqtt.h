@@ -29,9 +29,7 @@ enum class MqttChayaPublishTry : uint8_t { Ok = 0, Retry = 1, Fail = 2 };
 /** Start retained QoS 1 publish; Retry keeps LED Pending (RC-MQTT-02). */
 auto mqttPublishChayaAndApplySentCounters() -> MqttChayaPublishTry;
 
-inline auto mqttChayaPublishTryIsFail(MqttChayaPublishTry result) -> bool {
-    return result == MqttChayaPublishTry::Fail;
-}
+inline auto mqttChayaPublishTryIsFail(MqttChayaPublishTry result) -> bool { return result == MqttChayaPublishTry::Fail; }
 
 /**
  * Non-blocking heart publish for the LED TX sequence.

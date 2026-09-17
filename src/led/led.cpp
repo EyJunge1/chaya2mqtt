@@ -232,9 +232,7 @@ bool startMqttSendLedSequence() {
     return false;
 }
 
-static bool startSendIfWanted() {
-    return s_sendWanted.load(std::memory_order_acquire) && startMqttSendLedSequence();
-}
+static bool startSendIfWanted() { return s_sendWanted.load(std::memory_order_acquire) && startMqttSendLedSequence(); }
 
 void ledCancelChayaSend() {
     s_sendWanted.store(false, std::memory_order_release);

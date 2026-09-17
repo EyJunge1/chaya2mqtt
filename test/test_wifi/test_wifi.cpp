@@ -5,10 +5,10 @@
 #include "config/nvs_blob_load_pure.h"
 #include "config/nvs_write_gate_pure.h"
 #include "constants.h"
-#include "wifi/factory_wipe_pure.h"
 #include "util/net_validate.h"
-#include "wifi/wifi_qr_pure.h"
+#include "wifi/factory_wipe_pure.h"
 #include "wifi/test.h"
+#include "wifi/wifi_qr_pure.h"
 #include "wifi/wlan.h"
 #include "wifi/wlan_config.h"
 #include "wifi/wlan_event_pure.h"
@@ -407,8 +407,7 @@ void test_recovery_should_note_restart_only_after_claim() {
 void test_wifi_sta_password_apply() {
     TEST_ASSERT_EQUAL_INT(static_cast<int>(WifiStaPasswordApply::KeepStored),
                           static_cast<int>(wifiStaPasswordApply(false, true)));
-    TEST_ASSERT_EQUAL_INT(static_cast<int>(WifiStaPasswordApply::Reject),
-                          static_cast<int>(wifiStaPasswordApply(false, false)));
+    TEST_ASSERT_EQUAL_INT(static_cast<int>(WifiStaPasswordApply::Reject), static_cast<int>(wifiStaPasswordApply(false, false)));
     TEST_ASSERT_EQUAL_INT(static_cast<int>(WifiStaPasswordApply::UseProvided),
                           static_cast<int>(wifiStaPasswordApply(true, true)));
     TEST_ASSERT_EQUAL_INT(static_cast<int>(WifiStaPasswordApply::UseProvided),

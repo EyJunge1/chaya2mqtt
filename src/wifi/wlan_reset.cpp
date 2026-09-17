@@ -10,8 +10,8 @@
 #include "config/nvs_keys.h"
 #include "config/nvs_utils.h"
 #include "constants.h"
-#include "factory_wipe_pure.h"
 #include "diag/task_watchdog.h"
+#include "factory_wipe_pure.h"
 #include "heart/counter.h"
 #include "identity/device_identity.h"
 #include "mqtt/config.h"
@@ -136,8 +136,7 @@ static void waitEpdIdleForDestructiveWork(const char *what) {
 }
 
 bool wlanControlledRestart(const char *reasonTag, void (*afterClaim)()) {
-    if (g_factoryResetQueued.load(std::memory_order_acquire) || otaBlocksDestructiveAction() ||
-        !systemShutdownTryClaim()) {
+    if (g_factoryResetQueued.load(std::memory_order_acquire) || otaBlocksDestructiveAction() || !systemShutdownTryClaim()) {
         ESP_LOGW(TAG, "WLAN controlled restart skipped (%s) — shutdown, factory, or OTA owns the device",
                  reasonTag != nullptr ? reasonTag : "n/a");
         return false;
@@ -196,8 +195,8 @@ void resetAllSettings() {
     {
         // RC-LIFE-04: hold g_nvsMutex across clear + fallback partition erase + re-init.
         app_nvs::ScopedNvsLock lock;
-        progress = app_nvs::clearNamespacesUnlocked(kFactoryNamespaces,
-                                                    sizeof(kFactoryNamespaces) / sizeof(kFactoryNamespaces[0]));
+        progress =
+            app_nvs::clearNamespacesUnlocked(kFactoryNamespaces, sizeof(kFactoryNamespaces) / sizeof(kFactoryNamespaces[0]));
         chayaTaskWatchdogReset();
         ready = progress.allCleared;
         if (!progress.allCleared) {

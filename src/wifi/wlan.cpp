@@ -355,8 +355,8 @@ void wlanLoop() {
             s_lastApDnsPollMs = nowMs;
         }
     }
-    if (wlanMdnsKickShouldConsume(s_epdRefreshActive.load(std::memory_order_acquire),
-                                 g_apMode.load(std::memory_order_relaxed), wlanStaConnectedOk()) &&
+    if (wlanMdnsKickShouldConsume(s_epdRefreshActive.load(std::memory_order_acquire), g_apMode.load(std::memory_order_relaxed),
+                                  wlanStaConnectedOk()) &&
         s_mdnsRestartNeeded.exchange(false, std::memory_order_acq_rel)) {
         if (!wlanMdnsKickShouldConsume(s_epdRefreshActive.load(std::memory_order_acquire),
                                        g_apMode.load(std::memory_order_relaxed), wlanStaConnectedOk())) {

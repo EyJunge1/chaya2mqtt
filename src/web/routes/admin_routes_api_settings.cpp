@@ -97,8 +97,7 @@ void handleApiSettingsPost(AsyncWebServerRequest *req, JsonVariant &json) {
     if (!adminJsonRequireObject(req, json)) {
         return;
     }
-    if (g_systemShutdownInProgress.load(std::memory_order_acquire) ||
-        g_factoryResetQueued.load(std::memory_order_acquire)) {
+    if (g_systemShutdownInProgress.load(std::memory_order_acquire) || g_factoryResetQueued.load(std::memory_order_acquire)) {
         sendErr(req, 503, "shutdown");
         return;
     }

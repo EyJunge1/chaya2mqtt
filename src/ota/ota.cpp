@@ -8,13 +8,13 @@
 
 #include "async/sse_dirty.h"
 #include "async/system_lifecycle.h"
+#include "async/web_server_hooks.h"
 #include "battery/battery.h"
 #include "battery/battery_config.h"
 #include "config/nvs_keys.h"
 #include "config/nvs_utils.h"
 #include "config/version.h"
 #include "constants.h"
-#include "async/web_server_hooks.h"
 #include "heart/counter.h"
 #include "wifi/wlan.h"
 
@@ -193,8 +193,7 @@ void clearOtaQueuedWorkForShutdown() {
 }
 
 bool otaDestructiveOwnerActive() {
-    return g_systemShutdownInProgress.load(std::memory_order_acquire) ||
-           g_factoryResetQueued.load(std::memory_order_acquire);
+    return g_systemShutdownInProgress.load(std::memory_order_acquire) || g_factoryResetQueued.load(std::memory_order_acquire);
 }
 
 void runGithubCheck(bool manual) {

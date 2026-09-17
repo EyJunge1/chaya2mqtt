@@ -241,8 +241,8 @@ bool wlanBeginLowInterferenceForEpd() {
 }
 
 void wlanApplyPendingBootStaFinishRadio() {
-    if (!s_bootStaFinishRadioPending.load(std::memory_order_acquire) ||
-        s_epdRefreshActive.load(std::memory_order_acquire) || !wlanWifiApiLockTimed(200U)) {
+    if (!s_bootStaFinishRadioPending.load(std::memory_order_acquire) || s_epdRefreshActive.load(std::memory_order_acquire) ||
+        !wlanWifiApiLockTimed(200U)) {
         return;
     }
     if (s_epdRefreshActive.load(std::memory_order_acquire)) {
@@ -253,8 +253,7 @@ void wlanApplyPendingBootStaFinishRadio() {
         const bool inactOk = wlanApplyBootStaFinishRadioLocked();
         s_bootStaFinishRadioPending.store(false, std::memory_order_release);
         if (!inactOk) {
-            ESP_LOGW(TAG, "WiFi.STA.setInactiveTime(%u) failed (post-EPD)",
-                     static_cast<unsigned>(kWifiStaInactiveTimeSeconds));
+            ESP_LOGW(TAG, "WiFi.STA.setInactiveTime(%u) failed (post-EPD)", static_cast<unsigned>(kWifiStaInactiveTimeSeconds));
         }
     }
     wlanWifiApiUnlock();

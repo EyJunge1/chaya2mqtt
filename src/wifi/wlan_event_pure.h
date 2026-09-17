@@ -28,6 +28,4 @@ inline auto wifiScanRefreshSetsKick(bool /*inProgress*/) -> bool { return true; 
 inline auto wifiScanServiceMayStartKick(bool inProgress) -> bool { return !inProgress; }
 
 /** Consume mDNS restart only when STA is up and the EPD window is idle (RC-NET-12 / RC-NET-14). */
-inline auto wlanMdnsKickShouldConsume(bool epdActive, bool apMode, bool staOk) -> bool {
-    return !epdActive && !apMode && staOk;
-}
+inline auto wlanMdnsKickShouldConsume(bool epdActive, bool apMode, bool staOk) -> bool { return !epdActive && !apMode && staOk; }

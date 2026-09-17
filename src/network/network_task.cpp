@@ -48,9 +48,8 @@ static void handleNetCommand(NetCmd cmd) {
     ESP_LOGI(TAG, "netCmd=%s", idx < (sizeof(kNetCmdNames) / sizeof(kNetCmdNames[0])) ? kNetCmdNames[idx] : "?");
     switch (cmd) {
     case NetCmd::MqttSettingsChanged: {
-        if (mqttSettingsApplyShouldDefer(wlanEpdRefreshActive(),
-                                        g_factoryResetQueued.load(std::memory_order_acquire),
-                                        g_systemShutdownInProgress.load(std::memory_order_acquire))) {
+        if (mqttSettingsApplyShouldDefer(wlanEpdRefreshActive(), g_factoryResetQueued.load(std::memory_order_acquire),
+                                         g_systemShutdownInProgress.load(std::memory_order_acquire))) {
             ESP_LOGD(TAG, "MQTT settings apply deferred (epd/factory/shutdown)");
             s_mqttSettingsChangedDeferred = true;
             break;
@@ -152,8 +151,7 @@ static void networkTaskFn(void *) {
         NetCmd cmd;
         const uint32_t pollMs = configIsApMode() ? kNetworkPollApMs : kNetworkPollStaMs;
         bool hasCmd = false;
-        if (s_mqttSettingsChangedDeferred && !wlanEpdRefreshActive() &&
-            !g_factoryResetQueued.load(std::memory_order_acquire)) {
+        if (s_mqttSettingsChangedDeferred && !wlanEpdRefreshActive() && !g_factoryResetQueued.load(std::memory_order_acquire)) {
             s_mqttSettingsChangedDeferred = false;
             cmd = NetCmd::MqttSettingsChanged;
             hasCmd = true;

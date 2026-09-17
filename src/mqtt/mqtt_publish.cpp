@@ -12,6 +12,7 @@
 #include "heart/counter.h"
 #include "heart/counter_pure.h"
 #include "led/led.h"
+#include "wifi/wlan.h"
 
 #include <Arduino.h>
 
@@ -162,8 +163,7 @@ static MqttChayaPublishTry mqttPublishChayaLocked() {
         ESP_LOGW(TAG, "Publish skipped: shutdown in progress");
         return MqttChayaPublishTry::Fail;
     }
-    if (s_mqttPublishBlocked.load(std::memory_order_acquire) ||
-        s_mqttKillCoalesce.load(std::memory_order_acquire)) {
+    if (s_mqttPublishBlocked.load(std::memory_order_acquire) || s_mqttKillCoalesce.load(std::memory_order_acquire)) {
         ESP_LOGW(TAG, "Publish skipped: broker settings changing");
         return MqttChayaPublishTry::Fail;
     }
@@ -201,9 +201,9 @@ static MqttChayaPublishTry mqttPublishChayaLocked() {
 
     bool reserved = false;
     portENTER_CRITICAL(&s_publishAckMux);
-    const bool canReserve = mqttPublishAckBeginAllowed(
-        mqttPublishAckCanBegin(s_publishAckState),
-        s_publishAsync.load(std::memory_order_acquire) == static_cast<uint8_t>(PublishAsyncState::Pending));
+    const bool canReserve = mqttPublishAckBeginAllowed(mqttPublishAckCanBegin(s_publishAckState),
+                                                       s_publishAsync.load(std::memory_order_acquire) ==
+                                                           static_cast<uint8_t>(PublishAsyncState::Pending));
     if (canReserve) {
         reserved = mqttPublishAckReserve(&s_publishAckState, clientGeneration, nextVal);
     }
@@ -323,8 +323,7 @@ void mqttClearChayaPublishAsync() {
 }
 
 bool mqttPublishBlocked() {
-    return s_mqttPublishBlocked.load(std::memory_order_acquire) ||
-           s_mqttKillCoalesce.load(std::memory_order_acquire);
+    return s_mqttPublishBlocked.load(std::memory_order_acquire) || s_mqttKillCoalesce.load(std::memory_order_acquire);
 }
 
 bool mqttKillClientPending() { return s_mqttKillCoalesce.load(std::memory_order_acquire); }

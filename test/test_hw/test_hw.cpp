@@ -172,19 +172,20 @@ void test_display_heart_skip_clears_pending() {
 
 void test_display_heart_skip_then_defer_keeps_pending() {
     TEST_ASSERT_TRUE(displayHeartSkipClearsPendingAfterReread(DisplayHeartRedrawDecision::SkipUnchanged,
-                                                             DisplayHeartRedrawDecision::SkipUnchanged));
+                                                              DisplayHeartRedrawDecision::SkipUnchanged));
     TEST_ASSERT_FALSE(displayHeartSkipClearsPendingAfterReread(DisplayHeartRedrawDecision::SkipUnchanged,
-                                                              DisplayHeartRedrawDecision::DeferPending));
+                                                               DisplayHeartRedrawDecision::DeferPending));
     TEST_ASSERT_FALSE(displayHeartSkipClearsPendingAfterReread(DisplayHeartRedrawDecision::SkipUnchanged,
-                                                              DisplayHeartRedrawDecision::QueueNow));
+                                                               DisplayHeartRedrawDecision::QueueNow));
 }
 
 void test_display_heart_redraw_skip_then_content() {
     constexpr unsigned long kMin = kHeartRedrawMinIntervalMs;
     // BootIfChanged skip must not stamp lastEnqueueMs (stays 0). Content with
     // new RAM counters vs unpainted lastDrawn is QueueNow, not DeferPending.
-    TEST_ASSERT_EQUAL_INT(static_cast<int>(DisplayHeartRedrawDecision::QueueNow),
-                          static_cast<int>(displayHeartRedrawDecide(2, 1, INT32_MIN, INT32_MIN, false, false, 1500UL, 0UL, kMin)));
+    TEST_ASSERT_EQUAL_INT(
+        static_cast<int>(DisplayHeartRedrawDecision::QueueNow),
+        static_cast<int>(displayHeartRedrawDecide(2, 1, INT32_MIN, INT32_MIN, false, false, 1500UL, 0UL, kMin)));
 
     // A real refresh start stamps lastEnqueue → same Content defers for the interval.
     TEST_ASSERT_EQUAL_INT(

@@ -22,14 +22,12 @@ extern std::atomic<uint32_t> g_webAdminApplyInFlight;
 class ScopedWebAdminApplyInFlight {
   public:
     ScopedWebAdminApplyInFlight() {
-        if (g_systemShutdownInProgress.load(std::memory_order_acquire) ||
-            g_factoryResetQueued.load(std::memory_order_acquire)) {
+        if (g_systemShutdownInProgress.load(std::memory_order_acquire) || g_factoryResetQueued.load(std::memory_order_acquire)) {
             armed_ = false;
             return;
         }
         g_webAdminApplyInFlight.fetch_add(1U, std::memory_order_acq_rel);
-        if (g_systemShutdownInProgress.load(std::memory_order_acquire) ||
-            g_factoryResetQueued.load(std::memory_order_acquire)) {
+        if (g_systemShutdownInProgress.load(std::memory_order_acquire) || g_factoryResetQueued.load(std::memory_order_acquire)) {
             g_webAdminApplyInFlight.fetch_sub(1U, std::memory_order_acq_rel);
             armed_ = false;
             return;

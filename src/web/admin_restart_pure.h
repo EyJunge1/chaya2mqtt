@@ -3,8 +3,8 @@
 #include <cstdint>
 
 /** True when admin reboot / Wi-Fi-save restart must wait (OTA, RAM apply, or in-flight POST). */
-inline auto webAdminRestartBlocked(bool otaBusy, bool mqttApplyPending, bool settingsApplyPending,
-                                   bool mqttApplyUnqueued, bool applyInFlight) -> bool {
+inline auto webAdminRestartBlocked(bool otaBusy, bool mqttApplyPending, bool settingsApplyPending, bool mqttApplyUnqueued,
+                                   bool applyInFlight) -> bool {
     return otaBusy || mqttApplyPending || settingsApplyPending || mqttApplyUnqueued || applyInFlight;
 }
 
@@ -28,6 +28,4 @@ inline auto webAdminDeferredApplyAllowed(bool shutdown, bool otaBusy, bool facto
 }
 
 /** RC-WEB-15: MQTT apply is unqueued when version is strictly ahead of the last queued NetCmd. */
-inline auto webAdminMqttApplyUnqueuedPure(uint32_t version, uint32_t queued) -> bool {
-    return version > queued;
-}
+inline auto webAdminMqttApplyUnqueuedPure(uint32_t version, uint32_t queued) -> bool { return version > queued; }

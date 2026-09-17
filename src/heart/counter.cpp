@@ -42,7 +42,7 @@ bool heartSentCounterApplyAfterSuccessfulPublish(int expected) {
     int next = 0;
     portENTER_CRITICAL(&s_heartDisplayMux);
     if (heartSentApplyIfAllowed(&next, expected, g_systemShutdownInProgress.load(std::memory_order_acquire),
-                               g_chayaNvsWritesSuspended.load(std::memory_order_acquire))) {
+                                g_chayaNvsWritesSuspended.load(std::memory_order_acquire))) {
         heartSentCounter.store(next, std::memory_order_relaxed);
         applied = true;
     }

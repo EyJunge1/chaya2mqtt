@@ -25,9 +25,7 @@ inline auto mqttPublishAckCanBegin(const MqttPublishAckState &state) -> bool {
 }
 
 /** Reserve also requires the async request still Pending (abort-without-ACK blocks Reserve). */
-inline auto mqttPublishAckBeginAllowed(bool canBegin, bool asyncStillPending) -> bool {
-    return canBegin && asyncStillPending;
-}
+inline auto mqttPublishAckBeginAllowed(bool canBegin, bool asyncStillPending) -> bool { return canBegin && asyncStillPending; }
 
 inline auto mqttPublishAckIsStarting(const MqttPublishAckState &state) -> bool {
     return state.status == MqttPublishAckStatus::Starting;
@@ -110,8 +108,7 @@ inline auto mqttPublishAckFail(MqttPublishAckState *state, uint32_t clientGenera
 
 /** Disconnect/timeout: fail only a bound PUBACK wait. Starting stays so Attach can bind. */
 inline auto mqttPublishAckFailIfPending(MqttPublishAckState *state, uint32_t clientGeneration) -> bool {
-    if (state == nullptr || state->clientGeneration != clientGeneration ||
-        state->status != MqttPublishAckStatus::Pending) {
+    if (state == nullptr || state->clientGeneration != clientGeneration || state->status != MqttPublishAckStatus::Pending) {
         return false;
     }
     state->status = MqttPublishAckStatus::Failed;
@@ -134,9 +131,7 @@ inline auto mqttPublishAckWasConfirmed(const MqttPublishAckState &state, int mes
 }
 
 /** Extra async Pending→Fail only when no PUBACK was in flight, or Fail actually ran. */
-inline auto mqttAbortMayFailAsync(bool ackPending, bool failAckSucceeded) -> bool {
-    return !ackPending || failAckSucceeded;
-}
+inline auto mqttAbortMayFailAsync(bool ackPending, bool failAckSucceeded) -> bool { return !ackPending || failAckSucceeded; }
 
 /** Pending + armed timer; startMs==0 is a valid millis() snapshot (not a sentinel). */
 inline auto mqttPublishAckTimeoutDue(bool pending, bool timerArmed, unsigned long startedMs, unsigned long nowMs,

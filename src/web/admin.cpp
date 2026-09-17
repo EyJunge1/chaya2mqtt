@@ -169,8 +169,7 @@ void webAdminLoop() {
     // RC-WEB-01: snapshot version before send; do not re-read after enqueue.
     const uint32_t v = g_webAdminMqttApplyVersion.load(std::memory_order_acquire);
     if (webAdminMqttApplyUnqueuedPure(v, s_webAdminMqttApplyQueuedVersion.load(std::memory_order_acquire)) &&
-        webAdminDeferredApplyAllowed(g_systemShutdownInProgress.load(std::memory_order_acquire),
-                                     otaBlocksDestructiveAction(),
+        webAdminDeferredApplyAllowed(g_systemShutdownInProgress.load(std::memory_order_acquire), otaBlocksDestructiveAction(),
                                      g_factoryResetQueued.load(std::memory_order_acquire))) {
         if (netCmdTrySend(NetCmd::MqttSettingsChanged, pdMS_TO_TICKS(500))) {
             s_webAdminMqttApplyQueuedVersion.store(v, std::memory_order_release);
@@ -188,8 +187,7 @@ void webAdminLoop() {
     const bool wifiReconnectReq = g_webAdminWifiReconnectRequested.load(std::memory_order_acquire);
     if (rebootReq || wifiReconnectReq) {
         // Factory / Soft-off / OTA own shutdown — never ESP.restart() and never clear their flag.
-        if (g_systemShutdownInProgress.load(std::memory_order_acquire) ||
-            g_factoryResetQueued.load(std::memory_order_acquire)) {
+        if (g_systemShutdownInProgress.load(std::memory_order_acquire) || g_factoryResetQueued.load(std::memory_order_acquire)) {
             return;
         }
         const bool otaBusy = otaBlocksDestructiveAction();
@@ -217,8 +215,8 @@ void webAdminLoop() {
         const bool settingsApplyPending2 = g_webAdminSettingsApplyPending.load(std::memory_order_acquire);
         const bool mqttApplyUnqueued2 = webAdminMqttApplyUnqueued();
         const bool applyInFlight2 = g_webAdminApplyInFlight.load(std::memory_order_acquire) > 0U;
-        if (webAdminRestartBlocked(otaBlocksDestructiveAction(), mqttApplyPending2, settingsApplyPending2,
-                                   mqttApplyUnqueued2, applyInFlight2) ||
+        if (webAdminRestartBlocked(otaBlocksDestructiveAction(), mqttApplyPending2, settingsApplyPending2, mqttApplyUnqueued2,
+                                   applyInFlight2) ||
             g_factoryResetQueued.load(std::memory_order_acquire)) {
             systemShutdownRelease();
             ESP_LOGW(TAG, "Reboot/reconnect deferred: apply raced shutdown");

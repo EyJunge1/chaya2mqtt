@@ -5,9 +5,9 @@
 
 #include "battery/battery.h"
 #include "config/app_config.h"
-#include "heart/counter.h"
 #include "config/version.h"
 #include "constants.h"
+#include "heart/counter.h"
 #include "identity/device_identity.h"
 #include "mqtt/config.h"
 #include "mqtt/mqtt.h"

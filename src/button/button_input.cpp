@@ -91,8 +91,7 @@ static bool processPowerOff() {
     // After claim so HTTP cannot re-arm s_sendWanted between cancel and shutdown (BUG-UI-04).
     ledCancelChayaSend();
     mqttAbortPendingPublish();
-    if (otaFlashInProgress() || otaBlocksDestructiveAction() ||
-        g_factoryResetQueued.load(std::memory_order_acquire)) {
+    if (otaFlashInProgress() || otaBlocksDestructiveAction() || g_factoryResetQueued.load(std::memory_order_acquire)) {
         batteryHoldLatch();
         systemShutdownRelease();
         ledCancelChayaSend();
@@ -111,8 +110,7 @@ static bool processPowerOff() {
     ESP_LOGI(TAG, "PWR soft-off — stable release settle (%lu ms) then deep sleep", kSoftOffReleaseSettleMs);
     const bool releaseTimedOut = waitForPwrRelease();
     flushAllHeartCountersIfDirty();
-    if (otaFlashInProgress() || otaBlocksDestructiveAction() ||
-        g_factoryResetQueued.load(std::memory_order_acquire)) {
+    if (otaFlashInProgress() || otaBlocksDestructiveAction() || g_factoryResetQueued.load(std::memory_order_acquire)) {
         ESP_LOGE(TAG, "OTA/factory during power-off screen — skip latch cut, restore HTTP");
         batteryHoldLatch();
         systemShutdownRelease();
