@@ -63,3 +63,7 @@ inline auto ledPatternAdvance(LedPatternRuntime &rt) -> LedPatternAdvanceResult 
     rt.onPhase = true;
     return {false, true, rt.onMs};
 }
+
+/** EndAfter arms a deadline only when Display is not holding the pulse (BUG-UI-03).
+ *  MQTT Begin does not hold; Display Hold does. */
+inline auto ledRefreshEndAfterApplies(bool hold) -> bool { return !hold; }

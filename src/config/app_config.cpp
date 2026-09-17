@@ -2,6 +2,7 @@
 
 #include "audio/audio_config.h"
 #include "constants.h"
+#include "nvs_blob_load_pure.h"
 #include "nvs_keys.h"
 #include "nvs_utils.h"
 
@@ -220,28 +221,44 @@ void configLoadAudioFromNvs() {
     uint8_t q0 = kAudioDefaultQuiet0;
     uint8_t q1 = kAudioDefaultQuiet1;
     PackedQuietHoursV1 quietBlob{};
-    if (app_nvs::readBytes(kNvsNsCfg, kNvsKeyCfgSndQuietBlob, &quietBlob, sizeof(quietBlob))) {
-        q0 = quietBlob.start;
-        q1 = quietBlob.end;
-    } else {
+    const size_t qLen = app_nvs::bytesLength(kNvsNsCfg, kNvsKeyCfgSndQuietBlob);
+    switch (nvsBlobLoadDecide(qLen, sizeof(quietBlob))) {
+    case NvsBlobLoad::UseBlob:
+        if (app_nvs::readBytes(kNvsNsCfg, kNvsKeyCfgSndQuietBlob, &quietBlob, sizeof(quietBlob))) {
+            q0 = quietBlob.start;
+            q1 = quietBlob.end;
+        }
+        break;
+    case NvsBlobLoad::UseDefaults:
+        break;
+    case NvsBlobLoad::UseLegacy:
         q0 = app_nvs::readUChar(kNvsNsCfg, kNvsKeyCfgSndQ0, kAudioDefaultQuiet0);
         q1 = app_nvs::readUChar(kNvsNsCfg, kNvsKeyCfgSndQ1, kAudioDefaultQuiet1);
+        break;
     }
     uint16_t txHz = kAudioDefaultTxHz;
     uint16_t txMs = kAudioDefaultTxMs;
     uint16_t rxHz = kAudioDefaultRxHz;
     uint16_t rxMs = kAudioDefaultRxMs;
     PackedTonesV1 toneBlob{};
-    if (app_nvs::readBytes(kNvsNsCfg, kNvsKeyCfgSndToneBlob, &toneBlob, sizeof(toneBlob))) {
-        txHz = clampAudioToneHz(toneBlob.txHz, kAudioDefaultTxHz);
-        txMs = clampAudioToneMs(toneBlob.txMs, kAudioDefaultTxMs);
-        rxHz = clampAudioToneHz(toneBlob.rxHz, kAudioDefaultRxHz);
-        rxMs = clampAudioToneMs(toneBlob.rxMs, kAudioDefaultRxMs);
-    } else {
+    const size_t tLen = app_nvs::bytesLength(kNvsNsCfg, kNvsKeyCfgSndToneBlob);
+    switch (nvsBlobLoadDecide(tLen, sizeof(toneBlob))) {
+    case NvsBlobLoad::UseBlob:
+        if (app_nvs::readBytes(kNvsNsCfg, kNvsKeyCfgSndToneBlob, &toneBlob, sizeof(toneBlob))) {
+            txHz = clampAudioToneHz(toneBlob.txHz, kAudioDefaultTxHz);
+            txMs = clampAudioToneMs(toneBlob.txMs, kAudioDefaultTxMs);
+            rxHz = clampAudioToneHz(toneBlob.rxHz, kAudioDefaultRxHz);
+            rxMs = clampAudioToneMs(toneBlob.rxMs, kAudioDefaultRxMs);
+        }
+        break;
+    case NvsBlobLoad::UseDefaults:
+        break;
+    case NvsBlobLoad::UseLegacy:
         txHz = clampAudioToneHz(app_nvs::readUInt(kNvsNsCfg, kNvsKeyCfgSndTxHz, kAudioDefaultTxHz), kAudioDefaultTxHz);
         txMs = clampAudioToneMs(app_nvs::readUInt(kNvsNsCfg, kNvsKeyCfgSndTxMs, kAudioDefaultTxMs), kAudioDefaultTxMs);
         rxHz = clampAudioToneHz(app_nvs::readUInt(kNvsNsCfg, kNvsKeyCfgSndRxHz, kAudioDefaultRxHz), kAudioDefaultRxHz);
         rxMs = clampAudioToneMs(app_nvs::readUInt(kNvsNsCfg, kNvsKeyCfgSndRxMs, kAudioDefaultRxMs), kAudioDefaultRxMs);
+        break;
     }
 
     bool txEn = false;
@@ -352,6 +369,8 @@ bool configSetAudioQuietHours(uint8_t startHour, uint8_t endHour) {
         ESP_LOGE(TAG, "NVS cfg: failed to persist snd_qB");
         return false;
     }
+    static_cast<void>(app_nvs::removeKey(kNvsNsCfg, kNvsKeyCfgSndQ0));
+    static_cast<void>(app_nvs::removeKey(kNvsNsCfg, kNvsKeyCfgSndQ1));
     s_audioQuiet0Cached.store(startHour, std::memory_order_relaxed);
     s_audioQuiet1Cached.store(endHour, std::memory_order_relaxed);
     return true;
@@ -377,6 +396,10 @@ bool configSetAudioTones(uint16_t txHz, uint16_t txMs, uint16_t rxHz, uint16_t r
         ESP_LOGE(TAG, "NVS cfg: failed to persist snd_tB");
         return false;
     }
+    static_cast<void>(app_nvs::removeKey(kNvsNsCfg, kNvsKeyCfgSndTxHz));
+    static_cast<void>(app_nvs::removeKey(kNvsNsCfg, kNvsKeyCfgSndTxMs));
+    static_cast<void>(app_nvs::removeKey(kNvsNsCfg, kNvsKeyCfgSndRxHz));
+    static_cast<void>(app_nvs::removeKey(kNvsNsCfg, kNvsKeyCfgSndRxMs));
     s_audioTxHzCached.store(tx.hz, std::memory_order_relaxed);
     s_audioTxMsCached.store(tx.ms, std::memory_order_relaxed);
     s_audioRxHzCached.store(rx.hz, std::memory_order_relaxed);

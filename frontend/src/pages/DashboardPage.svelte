@@ -41,9 +41,8 @@
   let awaitingHeartAck = $state(false);
   let queuedFromTx = $state(0);
 
-  /** Matches device LED TX single-flight (~1–2s + PUBACK). */
-  /** Match firmware PUBACK wait (5s) so UI does not re-enable while device is busy. */
-  const kHeartSendCooldownMs = 5000;
+  /** LED preamble (~400 ms) + PUBACK (5 s) + post-LED (~900 ms) + SSE slack. */
+  const kHeartSendCooldownMs = 7000;
 
   const WifiIcon = $derived(wifiSignalIcon(wifi));
   const MqttIcon = $derived(chaya.configured ? Radio : RadioOff);
@@ -68,7 +67,7 @@
   });
 
   async function sendHeart() {
-    if (busy) {
+    if (busy || awaitingHeartAck) {
       return;
     }
     busy = true;
@@ -93,8 +92,9 @@
         sendCooldownTimer = setTimeout(resolve, kHeartSendCooldownMs);
       });
       if (awaitingHeartAck) {
-        awaitingHeartAck = false;
         onToast(i18n.t("toast.heart-failed"), "error");
+        // RC-FE-06: do not upgrade a fail toast from a later foreign tx++.
+        awaitingHeartAck = false;
       }
     } catch {
       onToast(i18n.t("toast.heart-failed"), "error");
@@ -105,7 +105,7 @@
   }
 
   $effect(() => {
-    if (awaitingHeartAck && chaya.tx > queuedFromTx) {
+    if (awaitingHeartAck && chaya.tx === queuedFromTx + 1) {
       awaitingHeartAck = false;
       onToast(i18n.t("toast.heart-sent"), "success");
     }
@@ -193,7 +193,7 @@
       <PrimaryButton
         onclick={sendHeart}
         loading={busy}
-        disabled={!chaya.connected || !chaya.paired}
+        disabled={!chaya.connected || !chaya.paired || awaitingHeartAck}
       >
         <Heart size={18} fill="currentColor" />
         {i18n.t("dashboard.send-heart")}

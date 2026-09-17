@@ -9,7 +9,7 @@
 #include <freertos/portmacro.h>
 #include <mqtt_client.h>
 
-extern esp_mqtt_client_handle_t s_client;
+extern std::atomic<esp_mqtt_client_handle_t> s_client;
 extern std::atomic<uint32_t> s_clientGeneration;
 extern std::atomic<bool> s_connected;
 extern std::atomic<bool> s_connectPending;
@@ -33,7 +33,7 @@ bool mqttClientLock();
 void mqttClientUnlock();
 
 void mqttKillClientImpl();
-void mqttKillClient();
+auto mqttKillClient() -> bool;
 
 bool mqttEnsureClientAllocated();
 

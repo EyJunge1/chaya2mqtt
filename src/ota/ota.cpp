@@ -1,5 +1,6 @@
 #include "ota.h"
 #include "ota_json.h"
+#include "ota_queue_pure.h"
 
 #include "flash.h"
 #include "github.h"
@@ -7,6 +8,7 @@
 
 #include "async/sse_dirty.h"
 #include "async/system_lifecycle.h"
+#include "async/web_server_hooks.h"
 #include "battery/battery.h"
 #include "battery/battery_config.h"
 #include "config/nvs_keys.h"
@@ -107,12 +109,7 @@ void applyPendingHttpChannelIfAny() {
     }
     const OtaChannel channel = (raw == static_cast<uint8_t>(OtaChannel::Beta)) ? OtaChannel::Beta : OtaChannel::Stable;
     if (!otaSetChannel(channel)) {
-        portENTER_CRITICAL(&s_otaMux);
-        s_channel.store(channel, std::memory_order_relaxed);
-        s_status.channel = channel;
-        bumpLocked();
-        s_channelLoaded.store(true, std::memory_order_release);
-        portEXIT_CRITICAL(&s_otaMux);
+        ESP_LOGE(TAG, "pending HTTP channel persist failed — NVS channel remains source of truth");
     }
 }
 
@@ -195,8 +192,12 @@ void clearOtaQueuedWorkForShutdown() {
     portEXIT_CRITICAL(&s_otaMux);
 }
 
+bool otaDestructiveOwnerActive() {
+    return g_systemShutdownInProgress.load(std::memory_order_acquire) || g_factoryResetQueued.load(std::memory_order_acquire);
+}
+
 void runGithubCheck(bool manual) {
-    if (g_systemShutdownInProgress.load(std::memory_order_acquire)) {
+    if (otaDestructiveOwnerActive()) {
         clearOtaQueuedWorkForShutdown();
         ESP_LOGW(TAG, "OTA check skipped — shutdown");
         return;
@@ -216,9 +217,13 @@ void runGithubCheck(bool manual) {
         ESP_LOGW(TAG, "OTA check skipped — busy");
         return;
     }
-    s_havePendingRelease = false;
-    s_pendingRelease = OtaReleaseInfo{};
-    s_status.availableVersion[0] = '\0';
+    if (!otaGithubCheckMayClearPendingRelease(g_otaInstallRequested.load(std::memory_order_acquire))) {
+        portEXIT_CRITICAL(&s_otaMux);
+        g_otaCheckInProgress.store(false, std::memory_order_release);
+        ESP_LOGW(TAG, "OTA check skipped — install queued, keeping pending release");
+        return;
+    }
+    // Keep any copied pending release until this check has a replacement (RC-LIFE-03).
     s_status.error[0] = '\0';
     s_status.bytesDone = 0;
     s_status.bytesTotal = 0;
@@ -228,7 +233,7 @@ void runGithubCheck(bool manual) {
     g_otaCheckInProgress.store(true, std::memory_order_release);
     portEXIT_CRITICAL(&s_otaMux);
 
-    if (g_systemShutdownInProgress.load(std::memory_order_acquire)) {
+    if (otaDestructiveOwnerActive()) {
         clearOtaQueuedWorkForShutdown();
         ESP_LOGW(TAG, "OTA check skipped — shutdown");
         return;
@@ -239,6 +244,14 @@ void runGithubCheck(bool manual) {
     g_otaCheckInProgress.store(false, std::memory_order_release);
 
     portENTER_CRITICAL(&s_otaMux);
+    if (!otaGithubCheckMayClearPendingRelease(g_otaInstallRequested.load(std::memory_order_acquire))) {
+        if (s_havePendingRelease && (s_status.phase == OtaPhase::Checking || s_status.phase == OtaPhase::Idle)) {
+            setPhaseLocked(OtaPhase::Available);
+        }
+        portEXIT_CRITICAL(&s_otaMux);
+        ESP_LOGW(TAG, "OTA check result discarded — install queued, keeping pending release");
+        return;
+    }
     s_status.channel = channel;
     ensureLocalVersionLocked();
     if (gr == GithubCheckResult::ApiError) {
@@ -268,7 +281,7 @@ void runGithubCheck(bool manual) {
 }
 
 void runInstall() {
-    if (g_systemShutdownInProgress.load(std::memory_order_acquire)) {
+    if (otaDestructiveOwnerActive()) {
         g_otaFlashInProgress.store(false, std::memory_order_release);
         clearOtaQueuedWorkForShutdown();
         ESP_LOGW(TAG, "OTA install ignored — shutdown");
@@ -285,7 +298,7 @@ void runInstall() {
     release = s_pendingRelease;
     portEXIT_CRITICAL(&s_otaMux);
 
-    if (g_systemShutdownInProgress.load(std::memory_order_acquire)) {
+    if (otaDestructiveOwnerActive()) {
         g_otaFlashInProgress.store(false, std::memory_order_release);
         clearOtaQueuedWorkForShutdown();
         ESP_LOGW(TAG, "OTA install ignored — shutdown");
@@ -305,7 +318,7 @@ void runInstall() {
         return;
     }
 
-    if (g_systemShutdownInProgress.load(std::memory_order_acquire)) {
+    if (otaDestructiveOwnerActive()) {
         g_otaFlashInProgress.store(false, std::memory_order_release);
         clearOtaQueuedWorkForShutdown();
         ESP_LOGW(TAG, "OTA install ignored — shutdown");
@@ -323,7 +336,7 @@ void runInstall() {
 
     flushAllHeartCountersIfDirty();
 
-    if (g_systemShutdownInProgress.load(std::memory_order_acquire)) {
+    if (otaDestructiveOwnerActive()) {
         g_otaFlashInProgress.store(false, std::memory_order_release);
         clearOtaQueuedWorkForShutdown();
         ESP_LOGW(TAG, "OTA install ignored — shutdown");
@@ -348,8 +361,13 @@ void runInstall() {
     setPhaseLocked(OtaPhase::Rebooting);
     portEXIT_CRITICAL(&s_otaMux);
 
+    if (!systemShutdownTryClaim()) {
+        ESP_LOGW(TAG, "OTA installed — shutdown already claimed, restarting anyway");
+    }
+    webServerEnd();
     flushAllHeartCountersIfDirty();
     delay(200);
+    flushAllHeartCountersIfDirty();
     ESP.restart();
 }
 
@@ -463,11 +481,23 @@ OtaChannel otaGetChannel() {
     return s_channel.load(std::memory_order_acquire);
 }
 
+void otaPreloadChannelFromNvs() { loadChannelIfNeeded(); }
+
+void otaResetRamAfterFactoryClear() {
+    portENTER_CRITICAL(&s_otaMux);
+    s_channel.store(OtaChannel::Stable, std::memory_order_relaxed);
+    s_status.channel = OtaChannel::Stable;
+    s_channelLoaded.store(false, std::memory_order_release);
+    s_cachedNvUpdateDay = UINT32_MAX;
+    s_nvUpdateDayCacheValid = false;
+    s_havePendingRelease = false;
+    portEXIT_CRITICAL(&s_otaMux);
+}
+
 void otaCopyStatus(OtaStatus *out) {
     if (out == nullptr) {
         return;
     }
-    loadChannelIfNeeded();
     portENTER_CRITICAL(&s_otaMux);
     ensureLocalVersionLocked();
     *out = s_status;
@@ -494,15 +524,9 @@ void otaFillStatusJson(JsonObject obj) {
 void otaQueueGithubCheck() {
     g_otaCheckRequested.store(true, std::memory_order_release);
     otaTaskWake();
-    portENTER_CRITICAL(&s_otaMux);
-    s_havePendingRelease = false;
-    s_pendingRelease = OtaReleaseInfo{};
-    s_status.availableVersion[0] = '\0';
-    s_status.error[0] = '\0';
-    s_status.bytesDone = 0;
-    s_status.bytesTotal = 0;
-    setPhaseLocked(OtaPhase::Checking);
-    portEXIT_CRITICAL(&s_otaMux);
+    // Do not wipe the copied pending release here (RC-LIFE-03). Check∥Install
+    // can both pass the HTTP busy gate; otaLoop runs install first and
+    // runGithubCheck keeps the release if install is already queued.
 }
 
 void otaQueueGithubCheck(OtaChannel channel) {
@@ -511,14 +535,25 @@ void otaQueueGithubCheck(OtaChannel channel) {
 }
 
 void otaQueueInstall() {
+    portENTER_CRITICAL(&s_otaMux);
     g_otaInstallRequested.store(true, std::memory_order_release);
+    portEXIT_CRITICAL(&s_otaMux);
     otaTaskWake();
 }
 
 void otaLoop() {
-    if (g_systemShutdownInProgress.load(std::memory_order_acquire)) {
+    if (otaDestructiveOwnerActive()) {
         clearOtaQueuedWorkForShutdown();
         return;
+    }
+
+    if (g_otaInstallRequested.load(std::memory_order_acquire)) {
+        g_otaFlashInProgress.store(true, std::memory_order_release);
+        if (g_otaInstallRequested.exchange(false, std::memory_order_acq_rel)) {
+            runInstall();
+            return;
+        }
+        g_otaFlashInProgress.store(false, std::memory_order_release);
     }
 
     if (g_otaCheckRequested.load(std::memory_order_acquire)) {
@@ -542,15 +577,6 @@ void otaLoop() {
         } else {
             g_otaCheckInProgress.store(false, std::memory_order_release);
         }
-    }
-
-    if (g_otaInstallRequested.load(std::memory_order_acquire)) {
-        g_otaFlashInProgress.store(true, std::memory_order_release);
-        if (g_otaInstallRequested.exchange(false, std::memory_order_acq_rel)) {
-            runInstall();
-            return;
-        }
-        g_otaFlashInProgress.store(false, std::memory_order_release);
     }
 
     maybeDailyCheck();

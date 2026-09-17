@@ -1,9 +1,29 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { api } from "./client";
+import { api, apiQuery, ApiHttpError, isApiBusyError } from "./client";
 
 describe("api client", () => {
   beforeEach(() => {
     vi.restoreAllMocks();
+  });
+
+  it("apiQuery sends uppercase QUERY with a JSON body", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      text: async () => JSON.stringify({ ok: true }),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    await expect(apiQuery("/api/example", { filter: "x" })).resolves.toEqual({ ok: true });
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/example",
+      expect.objectContaining({
+        method: "QUERY",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ filter: "x" }),
+      }),
+    );
   });
 
   it("sendChaya posts JSON", async () => {
@@ -120,6 +140,26 @@ describe("api client", () => {
     });
   });
 
+  it("connectWifi omits an undefined password", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      text: async () => JSON.stringify({ ok: true, message: "saved_rebooting" }),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    await api.connectWifi({
+      ssid: "Home",
+      password: undefined,
+      mode: "dhcp",
+    });
+    const body = JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body ?? "{}")) as Record<
+      string,
+      unknown
+    >;
+    expect(body).toMatchObject({ ssid: "Home", mode: "dhcp" });
+    expect(body).not.toHaveProperty("password");
+  });
+
   it("getWifiConfig fetches saved config", async () => {
     vi.stubGlobal(
       "fetch",
@@ -221,6 +261,26 @@ describe("api client", () => {
       unknown
     >;
     expect(body.mqtt_tls).toBe(false);
+  });
+
+  it("throws ApiHttpError on GET 503 busy", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: false,
+        status: 503,
+        text: async () => JSON.stringify({ ok: false, error: "busy" }),
+      }),
+    );
+    await expect(api.getMqttConfig()).rejects.toMatchObject({
+      name: "ApiHttpError",
+      status: 503,
+      error: "busy",
+    });
+    await expect(api.getMqttConfig()).rejects.toBeInstanceOf(ApiHttpError);
+    expect(isApiBusyError(new ApiHttpError("/api/mqtt", 503, "busy"))).toBe(true);
+    expect(isApiBusyError(new ApiHttpError("/api/mqtt", 500, "busy"))).toBe(false);
+    expect(isApiBusyError(new Error("host"))).toBe(false);
   });
 
   it("treats an empty GET 403 as a host error", async () => {

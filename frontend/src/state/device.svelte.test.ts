@@ -200,6 +200,22 @@ describe("DeviceStore", () => {
     expect(store.sseKey).toBe(key);
   });
 
+  it("does not apply ui prefs on keepSse refresh when applyPending is false", async () => {
+    const store = new DeviceStore();
+    await store.boot();
+    applyDeviceUiPrefs.mockClear();
+    store.live = "live";
+
+    getBootstrap.mockResolvedValueOnce(
+      bootstrap({
+        settings: { ...bootstrap().settings!, applyPending: false, lang: "de", theme: "dark" },
+      }),
+    );
+    await store.refreshDevice();
+
+    expect(applyDeviceUiPrefs).not.toHaveBeenCalled();
+  });
+
   it("applies ui prefs only when settings are not applyPending", async () => {
     const store = new DeviceStore();
     getBootstrap.mockResolvedValueOnce(

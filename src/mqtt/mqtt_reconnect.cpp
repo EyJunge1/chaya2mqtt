@@ -34,18 +34,22 @@ unsigned long mqttConnectPrecheckDeferMs() {
     return defer;
 }
 
-void mqttDisconnect() { mqttKillClient(); }
+bool mqttDisconnect() { return mqttKillClient(); }
 
 void mqttRequestKillClientDeferred() { s_mqttKillCoalesce.store(true, std::memory_order_release); }
 
-void mqttSetup() {
+bool mqttSetup() {
     ESP_LOGI(TAG, "MQTT setup (kill+reset backoff)");
-    mqttKillClient();
+    const bool killed = mqttKillClient();
+    if (!killed) {
+        return false;
+    }
     portENTER_CRITICAL(&s_mqttBackoffMux);
     lastMqttAttemptAt = 0;
     mqttBackoffMs = 0;
     mqttCurrentBackoffMs = kMqttBackoffInitialMs;
     portEXIT_CRITICAL(&s_mqttBackoffMux);
+    return true;
 }
 
 bool mqttIsConnected() { return s_connected.load(std::memory_order_acquire); }
@@ -123,11 +127,12 @@ static void mqttLoopTryReconnect(MqttConfig &loopCfg, unsigned long now) {
     }
     s_connectPending.store(true, std::memory_order_release);
     esp_err_t sr = ESP_FAIL;
-    if (s_client != nullptr) {
+    const esp_mqtt_client_handle_t cli = s_client.load(std::memory_order_acquire);
+    if (cli != nullptr) {
         // Prefer reconnect on an existing handle after unintentional disconnect (PERF-02).
-        sr = esp_mqtt_client_reconnect(s_client);
+        sr = esp_mqtt_client_reconnect(cli);
         if (sr != ESP_OK) {
-            sr = esp_mqtt_client_start(s_client);
+            sr = esp_mqtt_client_start(cli);
         }
     }
     mqttClientUnlock();
@@ -174,7 +179,7 @@ void mqttLoop() {
         if (!mqttClientLockTimed()) {
             return;
         }
-        const bool hasClient = s_client != nullptr;
+        const bool hasClient = s_client.load(std::memory_order_acquire) != nullptr;
         mqttClientUnlock();
         if (hasClient || s_connectPending.load(std::memory_order_acquire)) {
             ESP_LOGW(TAG, "MQTT broker not configured — stopping client");

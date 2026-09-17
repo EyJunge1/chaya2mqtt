@@ -114,6 +114,8 @@ export interface MockState {
     ntp1: string;
     ntp2: string;
   };
+  /** Stored STA PSK — never returned by GET /api/wifi/config. */
+  wifiPassword: string;
   wifiConnect: {
     state: "idle" | "testing" | "ok" | "fail";
     ssid: string;
@@ -175,6 +177,10 @@ export interface MockState {
     bytesTotal: number;
     error: string;
     generation: number;
+    checkRequested: boolean;
+    checkInProgress: boolean;
+    installRequested: boolean;
+    flashInProgress: boolean;
   };
 }
 
@@ -194,8 +200,24 @@ export function parseFaultKey(raw: string | null | undefined): MockFaultKey | nu
   return (MOCK_FAULT_KEYS as readonly string[]).includes(raw) ? (raw as MockFaultKey) : null;
 }
 
+function idleOtaFlags(): Pick<
+  MockState["ota"],
+  "checkRequested" | "checkInProgress" | "installRequested" | "flashInProgress"
+> {
+  return {
+    checkRequested: false,
+    checkInProgress: false,
+    installRequested: false,
+    flashInProgress: false,
+  };
+}
+
 export function otaBlocksDestructiveAction(target: MockState = state): boolean {
   return (
+    target.ota.checkRequested ||
+    target.ota.checkInProgress ||
+    target.ota.installRequested ||
+    target.ota.flashInProgress ||
     target.ota.phase === "checking" ||
     target.ota.phase === "downloading" ||
     target.ota.phase === "verifying" ||
@@ -260,6 +282,7 @@ function applyStaOnlineDefaults(target: MockState): void {
   target.wifiDns2 = "1.0.0.1";
   target.wifiRssi = -55;
   target.wifiConnect = idleWifiConnect();
+  target.wifiPassword = "secret";
 }
 
 function clearWifiLink(target: MockState): void {
@@ -276,6 +299,7 @@ function clearWifiLink(target: MockState): void {
 function setOtaIdle(state: MockState): void {
   state.ota = {
     ...state.ota,
+    ...idleOtaFlags(),
     phase: "idle",
     localVersion: state.version,
     availableVersion: "",
@@ -293,6 +317,7 @@ function setOtaPhase(
 ): void {
   state.ota = {
     ...state.ota,
+    ...idleOtaFlags(),
     phase,
     channel: "stable",
     localVersion: state.version,
@@ -355,6 +380,7 @@ export function createInitialState(scenario: MockScenario = "sta-connected"): Mo
     wifiDns2: "1.0.0.1",
     wifiRssi: -55,
     wifiConfig: defaultWifiConfig("MockNet"),
+    wifiPassword: "secret",
     mqtt: defaultMqtt(deviceId),
     resetDays: 7,
     lang: "en",
@@ -390,6 +416,7 @@ export function createInitialState(scenario: MockScenario = "sta-connected"): Mo
       bytesTotal: 0,
       error: "",
       generation: 1,
+      ...idleOtaFlags(),
     },
   };
   applyScenario(state, scenario);
@@ -400,6 +427,7 @@ export function applyScenario(state: MockState, scenario: MockScenario): void {
   state.scenario = scenario;
   state.mqtt = defaultMqtt(state.deviceId);
   state.wifiConfig = defaultWifiConfig();
+  state.wifiPassword = "";
   state.wifiConnect = idleWifiConnect();
   clearSimulatorControls(state);
   resetBaselineSettings(state);

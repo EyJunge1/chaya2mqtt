@@ -2,14 +2,17 @@
 
 #include "backoff.h"
 #include "counter_payload.h"
+#include "mqtt_event_live_pure.h"
 
 #include "async/event_types.h"
 #include "async/sse_dirty.h"
+#include "async/system_lifecycle.h"
 #include "async/task_handles.h"
 #include "audio/audio.h"
 #include "config.h"
 #include "display/display.h"
 #include "heart/counter.h"
+#include "heart/counter_pure.h"
 #include "led/led.h"
 #include "led/led_config.h"
 #include "wifi/wlan.h"
@@ -75,16 +78,19 @@ static void handleCounterPayload(const char *payload, unsigned int length) {
     if (newCounter == heartCounter.load(std::memory_order_relaxed)) {
         return;
     }
+    if (!heartApplyAllowed(g_systemShutdownInProgress.load(std::memory_order_acquire),
+                           g_chayaNvsWritesSuspended.load(std::memory_order_acquire))) {
+        ESP_LOGD(TAG, "Heart counter from MQTT ignored (shutdown or factory suspend)");
+        return;
+    }
 
     ESP_LOGI(TAG, "Heart counter from MQTT (remote): %d", newCounter);
     heartCounterStoreFromRemote(newCounter);
     audioRequest(AudioMsg::Kind::Rx);
     ledRefreshPulseBegin();
-
+    ledRefreshPulseEndAfter(kLedRefreshAckMs); // Display Begin overrides if a refresh actually starts.
     // Display layer owns the 30 s leading/trailing coalesce; always report the change.
-    if (!displayRequest(DisplayMsg::Cmd::DrawHeart, DisplayRequestMode::Content, 0U)) {
-        ledRefreshPulseEndAfter(kLedRefreshAckMs);
-    }
+    (void)displayRequest(DisplayMsg::Cmd::DrawHeart, DisplayRequestMode::Content, 0U);
 }
 
 static bool feedFragmentedPayload(esp_mqtt_event_handle_t ev) {
@@ -163,34 +169,28 @@ static bool topicMatchesSubscribe(const esp_mqtt_event_handle_t ev) {
 }
 
 static bool mqttEventClientStillLive(esp_mqtt_client_handle_t cli, uint32_t *outGeneration) {
-    if (cli == nullptr) {
+    const esp_mqtt_client_handle_t live = s_client.load(std::memory_order_acquire);
+    const uint32_t gen = s_clientGeneration.load(std::memory_order_acquire);
+    if (!mqttEventIsLive(cli, live, gen, gen)) {
         return false;
     }
-    if (!mqttClientLockTimed()) {
-        return false;
+    if (outGeneration != nullptr) {
+        *outGeneration = gen;
     }
-    const bool live = (s_client != nullptr && cli == s_client);
-    if (live && outGeneration != nullptr) {
-        *outGeneration = s_clientGeneration.load(std::memory_order_acquire);
-    }
-    mqttClientUnlock();
-    return live;
+    return true;
 }
 
 static bool mqttEventGenerationStillValid(uint32_t generation) {
-    if (!mqttClientLockTimed()) {
-        return false;
-    }
-    const bool valid = (s_client != nullptr && s_clientGeneration.load(std::memory_order_acquire) == generation);
-    mqttClientUnlock();
-    return valid;
+    const esp_mqtt_client_handle_t live = s_client.load(std::memory_order_acquire);
+    return mqttEventIsLive(live, live, generation, s_clientGeneration.load(std::memory_order_acquire));
 }
 
 template <typename Fn> static bool mqttWithLiveClient(esp_mqtt_client_handle_t cli, uint32_t generation, Fn &&fn) {
     if (!mqttClientLockTimed()) {
         return false;
     }
-    const bool live = (s_client == cli && s_clientGeneration.load(std::memory_order_acquire) == generation);
+    const bool live = mqttEventIsLive(cli, s_client.load(std::memory_order_acquire), generation,
+                                      s_clientGeneration.load(std::memory_order_acquire));
     if (live) {
         fn(cli);
     }
@@ -200,6 +200,11 @@ template <typename Fn> static bool mqttWithLiveClient(esp_mqtt_client_handle_t c
 
 static bool mqttEventDisconnectIfLive(esp_mqtt_client_handle_t cli, uint32_t generation) {
     return mqttWithLiveClient(cli, generation, [](esp_mqtt_client_handle_t c) { (void)esp_mqtt_client_disconnect(c); });
+}
+
+static void mqttAbortConnectPendingIfLive(esp_mqtt_client_handle_t cli, uint32_t generation) {
+    s_connectPending.store(false, std::memory_order_release);
+    (void)mqttEventDisconnectIfLive(cli, generation);
 }
 
 void mqttEventHandler(void * /*handler_args*/, esp_event_base_t /*base*/, int32_t event_id, void *event_data) {
@@ -221,7 +226,7 @@ void mqttEventHandler(void * /*handler_args*/, esp_event_base_t /*base*/, int32_
         MqttConfig cfg{};
         if (!mqttCfgSnapshotTimed(&cfg, 2000U)) {
             ESP_LOGW(TAG, "MQTT connected: cfg snapshot timeout — disconnecting");
-            (void)mqttEventDisconnectIfLive(ev->client, handlerGeneration);
+            mqttAbortConnectPendingIfLive(ev->client, handlerGeneration);
             break;
         }
         char lwtPublishTopic[sizeof(s_lwtTopicBuf)];
@@ -269,16 +274,17 @@ void mqttEventHandler(void * /*handler_args*/, esp_event_base_t /*base*/, int32_
             sseMarkDirty(kSseChaya | kSseMqtt);
         });
         if (!live) {
+            s_connectPending.store(false, std::memory_order_release);
             break;
         }
         if (subscribeFailed) {
             ESP_LOGE(TAG, "MQTT subscribe failed — disconnecting for retry");
-            (void)mqttEventDisconnectIfLive(ev->client, handlerGeneration);
+            mqttAbortConnectPendingIfLive(ev->client, handlerGeneration);
             break;
         }
         if (publishFailed) {
             ESP_LOGW(TAG, "MQTT publish retained online failed — disconnecting for retry");
-            (void)mqttEventDisconnectIfLive(ev->client, handlerGeneration);
+            mqttAbortConnectPendingIfLive(ev->client, handlerGeneration);
             break;
         }
 
@@ -345,7 +351,7 @@ void mqttEventHandler(void * /*handler_args*/, esp_event_base_t /*base*/, int32_
                      eh->esp_transport_sock_errno);
             if (eh->error_type == MQTT_ERROR_TYPE_SUBSCRIBE_FAILED) {
                 ESP_LOGE(TAG, "MQTT subscribe rejected by broker");
-                (void)mqttEventDisconnectIfLive(ev->client, handlerGeneration);
+                mqttAbortConnectPendingIfLive(ev->client, handlerGeneration);
             }
         } else {
             ESP_LOGW(TAG, "MQTT EVENT_ERROR (no error_handle)");

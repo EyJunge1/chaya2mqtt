@@ -15,7 +15,6 @@ extern std::atomic<int> heartSentCounter;
 extern std::atomic<int> counterBaseline;
 extern std::atomic<int> sentCountBaseline;
 
-extern std::atomic<bool> s_chayaNvsWritesSuspended;
 extern portMUX_TYPE s_heartDisplayMux;
 extern std::atomic<uint32_t> s_lastResetCalendarDayUtc;
 

@@ -94,6 +94,17 @@ void mqttCfgSetNvsWriteFailed(bool failed) { s_mqttNvsWriteFailed.store(failed, 
 
 bool mqttCfgNvsWriteFailed() { return s_mqttNvsWriteFailed.load(std::memory_order_acquire); }
 
+void mqttCfgResetRamAfterFactoryClear() {
+    mqttCfgLock();
+    mqttCfg = MqttConfig{};
+    s_mqttPendingCfg = MqttConfig{};
+    mqttCfgRefreshFlagsLocked();
+    mqttCfgUnlock();
+    s_mqttApplyPending.store(false, std::memory_order_release);
+    s_mqttNvsWriteFailed.store(false, std::memory_order_release);
+    mqttCfgMarkDirty();
+}
+
 void mqttCfgSetApplyPending(bool pending) { s_mqttApplyPending.store(pending, std::memory_order_release); }
 
 bool mqttCfgApplyPending() { return s_mqttApplyPending.load(std::memory_order_acquire); }
@@ -116,6 +127,24 @@ bool mqttCfgSnapshotTimed(MqttConfig *out, uint32_t timeoutMs) {
         return false;
     }
     *out = mqttCfg;
+    xSemaphoreGive(s_mqttCfgMutex);
+    return true;
+}
+
+bool mqttCfgSnapshotWithApplyFlagsTimed(MqttConfig *out, bool *applyPending, bool *nvsOk, uint32_t timeoutMs) {
+    if (out == nullptr || applyPending == nullptr || nvsOk == nullptr) {
+        return false;
+    }
+    mqttCfgMutexEnsureCreated();
+    if (xSemaphoreTake(s_mqttCfgMutex, pdMS_TO_TICKS(timeoutMs)) != pdTRUE) {
+        return false;
+    }
+    *out = mqttCfg;
+    // Apply-to-active updates mqttCfg under this lock; pending/nvs flags are cleared after
+    // that release (mqttFinishSettingsApply / saveMQTTConfig). Same-hold reads cannot see
+    // stale cfg with applyPending==false.
+    *applyPending = s_mqttApplyPending.load(std::memory_order_acquire);
+    *nvsOk = !s_mqttNvsWriteFailed.load(std::memory_order_acquire);
     xSemaphoreGive(s_mqttCfgMutex);
     return true;
 }
@@ -164,6 +193,19 @@ void mqttCfgStorePending(const MqttConfig *pending) {
     mqttCfgLock();
     s_mqttPendingCfg = *pending;
     mqttCfgUnlock();
+}
+
+bool mqttCfgStorePendingTimed(const MqttConfig *pending, uint32_t timeoutMs) {
+    if (pending == nullptr) {
+        return false;
+    }
+    mqttCfgMutexEnsureCreated();
+    if (xSemaphoreTake(s_mqttCfgMutex, pdMS_TO_TICKS(timeoutMs)) != pdTRUE) {
+        return false;
+    }
+    s_mqttPendingCfg = *pending;
+    xSemaphoreGive(s_mqttCfgMutex);
+    return true;
 }
 
 void mqttCfgApplyPendingToActive() {
@@ -310,7 +352,11 @@ bool saveMQTTConfig() {
     PackedMqttConfigV1 pk{};
     mqttPackConfigV1(snap, &pk);
 
-    app_nvs::ScopedNvsLock lock;
+    app_nvs::ScopedNvsWriteLock lock(kNvsNsMqtt);
+    if (!lock) {
+        ESP_LOGW(TAG, "NVS mqtt: save blocked during shutdown");
+        return false;
+    }
     Preferences prefs;
     if (!prefs.begin(kNvsNsMqtt, false)) {
         ESP_LOGE(TAG, "NVS mqtt: begin failed");

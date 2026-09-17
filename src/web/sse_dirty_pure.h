@@ -27,3 +27,11 @@ inline auto sseTickSelectBits(uint32_t pendingBits, uint32_t nowMs, uint32_t las
     }
     return 0U;
 }
+
+/** SoftAP clients only get wifi/device SSE; STA REST already gates the rest (RC-WEB-03). */
+inline auto sseTickMaskForApMode(uint32_t workBits, bool apMode) -> uint32_t {
+    return apMode ? (workBits & (kSseWifi | kSseDevice)) : workBits;
+}
+
+/** Force a full snapshot from bits before the AP mask (BUG-WEB-51). */
+inline auto sseTickForceSnapshot(uint32_t selectBits) -> bool { return (selectBits & kSseAll) == kSseAll; }

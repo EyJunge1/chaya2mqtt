@@ -3,15 +3,19 @@
 #include "wlan_config.h"
 #include "wlan_internal.h"
 #include "wlan_recovery.h"
+#include "wlan_soft_reconnect.h"
 
-#include "async/web_server_hooks.h"
+#include "async/system_lifecycle.h"
 #include "config/nvs_keys.h"
 #include "config/nvs_utils.h"
 #include "ota/ota.h"
 
 #include <Arduino.h>
+#include <Preferences.h>
 #include <WiFi.h>
 #include <esp_log.h>
+#include <esp_timer.h>
+#include <inttypes.h>
 #include <time.h>
 
 #include "util/log_tag.h"
@@ -40,16 +44,22 @@ void recoveryNoteRestart() {
     if (day == 0U) {
         return;
     }
-    const uint32_t storedDay = app_nvs::readUInt(kNvsNsWifi, kNvsKeyWifiRecDay, 0U);
-    uint8_t n = 0U;
-    if (storedDay == day) {
-        n = app_nvs::readUChar(kNvsNsWifi, kNvsKeyWifiRecRest, 0U);
+    // After claim, writeUInt/writeUChar reject wifi. Read+write rec_* under one lock (BUG-NET-01).
+    app_nvs::ScopedNvsLock lock;
+    Preferences prefs;
+    if (!prefs.begin(kNvsNsWifi, false)) {
+        ESP_LOGE(TAG, "NVS wifi: recovery rec_* begin failed");
+        return;
     }
-    if (n < 255U) {
-        ++n;
+    const uint32_t storedDay = prefs.getUInt(kNvsKeyWifiRecDay, 0U);
+    const uint8_t storedN = prefs.getUChar(kNvsKeyWifiRecRest, 0U);
+    const RecoveryRestartNote note = recoveryNextRestartNote(day, storedDay, storedN);
+    const size_t wDay = prefs.putUInt(kNvsKeyWifiRecDay, note.day);
+    const size_t wRst = prefs.putUChar(kNvsKeyWifiRecRest, note.n);
+    prefs.end();
+    if (wDay == 0U || wRst == 0U) {
+        ESP_LOGE(TAG, "NVS wifi: recovery rec_* write failed day=%" PRIu32 " n=%u", note.day, static_cast<unsigned>(note.n));
     }
-    (void)app_nvs::writeUInt(kNvsNsWifi, kNvsKeyWifiRecDay, day);
-    (void)app_nvs::writeUChar(kNvsNsWifi, kNvsKeyWifiRecRest, n);
 }
 
 } // namespace
@@ -67,9 +77,11 @@ void wlanRecoveryServiceLoop() {
     const bool hasCreds = s_activeWlanConfig.ssid[0] != '\0';
     const bool otaBlock = otaBlocksDestructiveAction();
     const unsigned long nowMs = millis();
+    const unsigned long uptimeMs = static_cast<unsigned long>(esp_timer_get_time() / 1000LL);
     const uint8_t restartsUsed = recoveryRestartsUsedToday();
 
-    const WlanRecoveryAction action = wlanRecoveryDecide(apMode, connected, otaBlock, hasCreds, nowMs, nowMs, s_recovery,
+    const unsigned long lastForcedBeforeDecide = s_recovery.lastForcedReassocMs;
+    const WlanRecoveryAction action = wlanRecoveryDecide(apMode, connected, otaBlock, hasCreds, nowMs, uptimeMs, s_recovery,
                                                          restartsUsed, kWlanRecoveryMaxRestartsPerDay);
 
 #if defined(CORE_DEBUG_LEVEL) && CORE_DEBUG_LEVEL >= 2
@@ -80,16 +92,36 @@ void wlanRecoveryServiceLoop() {
     case WlanRecoveryAction::None:
         break;
     case WlanRecoveryAction::ForcedReassoc:
+        if (s_wifiScanInProgress.load(std::memory_order_acquire)) {
+            // STAB-07 / BUG-NET-03: do not disconnect+begin while a scan owns the STA iface.
+            // No pending flag — undo decide's cooldown stamp so the next loop can retry.
+            s_recovery.lastForcedReassocMs = lastForcedBeforeDecide;
+            ESP_LOGD(TAG, "WLAN recovery deferred (scan in progress)");
+            break;
+        }
         ESP_LOGW(TAG, "WLAN recovery action=ForcedReassoc downFor=%lu ms otaBlock=%d restarts=%u", downFor, otaBlock ? 1 : 0,
                  static_cast<unsigned>(restartsUsed));
-        wlanForceStaReassoc("recovery");
+        if (wlanForceCallerShouldUndo(wlanForceStaReassoc("recovery"))) {
+            s_recovery.lastForcedReassocMs = lastForcedBeforeDecide;
+        }
         break;
     case WlanRecoveryAction::Restart:
+        if (s_epdRefreshActive.load(std::memory_order_acquire)) {
+            ESP_LOGD(TAG, "WLAN recovery restart deferred (EPD)");
+            break;
+        }
+        if (g_factoryResetQueued.load(std::memory_order_acquire) || g_systemShutdownInProgress.load(std::memory_order_acquire)) {
+            ESP_LOGW(TAG, "WLAN recovery restart skipped — factory or shutdown in progress");
+            break;
+        }
+        if (otaBlocksDestructiveAction()) {
+            ESP_LOGW(TAG, "WLAN recovery restart skipped — OTA in progress");
+            break;
+        }
         ESP_LOGW(TAG, "WLAN recovery action=Restart downFor=%lu ms otaBlock=%d restarts=%u", downFor, otaBlock ? 1 : 0,
                  static_cast<unsigned>(restartsUsed));
-        recoveryNoteRestart();
-        webServerEnd();
-        wlanControlledRestart("recovery-prolonged-outage");
+        // Note rec_rst only after a successful claim — ESP.restart() does not return (BUG-NET-05).
+        (void)wlanControlledRestart("recovery-prolonged-outage", recoveryNoteRestart);
         break;
     }
 }

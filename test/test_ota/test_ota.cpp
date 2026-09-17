@@ -4,8 +4,15 @@
 
 #include "ota/github_parse.h"
 #include "ota/ota_health.h"
+#include "ota/ota_queue_pure.h"
 #include "ota/ota_url_allow.h"
 #include "ota/version_cmp.h"
+
+void test_ota_queue_check_keeps_pending_release() {
+    TEST_ASSERT_FALSE(otaQueueCheckClearsPendingRelease());
+    TEST_ASSERT_FALSE(otaGithubCheckMayClearPendingRelease(true));
+    TEST_ASSERT_TRUE(otaGithubCheckMayClearPendingRelease(false));
+}
 
 void test_ota_health_window() {
     TEST_ASSERT_FALSE(otaHealthWindowElapsed(false, true, true, 1000UL, 40000UL));
@@ -231,5 +238,6 @@ int main(int, char **) {
     RUN_TEST(test_ota_github_release_filter);
     RUN_TEST(test_ota_download_url_allowlist);
     RUN_TEST(test_ota_health_window);
+    RUN_TEST(test_ota_queue_check_keeps_pending_release);
     return UNITY_END();
 }
