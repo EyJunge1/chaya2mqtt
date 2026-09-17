@@ -98,6 +98,11 @@ void batteryCutLatch() {
     digitalWrite(pins::kBatControl, LOW);
 }
 
+void batteryHoldLatch() {
+    pinMode(pins::kBatControl, OUTPUT);
+    digitalWrite(pins::kBatControl, HIGH);
+}
+
 void batteryPowerOffAndSleep() {
     const gpio_num_t pwrGpio = static_cast<gpio_num_t>(pins::kPwrButton);
     const bool rtcPad = configurePwrRtcPad(pwrGpio);

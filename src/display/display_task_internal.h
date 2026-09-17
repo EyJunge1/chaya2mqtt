@@ -22,6 +22,7 @@ void displayTaskDrainDrawIdleSem();
 void displayTaskSetSplashDrawPending(bool pending);
 bool displayTaskWaitDrawIdle(uint32_t timeoutMs);
 bool displayTaskDrawPowerOffAndWait(uint32_t timeoutMs);
+void displayTaskClearPowerOffPending();
 
 /** Create sync primitives and pin the display FreeRTOS task (aborts on failure). */
 void displayTaskStart();

@@ -55,7 +55,7 @@ inline auto webHostCStringAllowed(const char *host, bool apMode, const char *dev
         if (hostPrefixIgnoreCaseThenPortOrEnd(host, "4.3.2.1")) {
             return true;
         }
-        if (hostEqualsIgnoreCase(host, "chaya2mqtt")) {
+        if (hostPrefixIgnoreCaseThenPortOrEnd(host, "chaya2mqtt")) {
             return true;
         }
         if (hostPrefixIgnoreCaseThenPortOrEnd(host, "chaya2mqtt.local")) {
@@ -66,7 +66,7 @@ inline auto webHostCStringAllowed(const char *host, bool apMode, const char *dev
     if (deviceHostname == nullptr || deviceHostname[0] == '\0') {
         return false;
     }
-    if (hostEqualsIgnoreCase(host, deviceHostname)) {
+    if (hostPrefixIgnoreCaseThenPortOrEnd(host, deviceHostname)) {
         return true;
     }
     char localPrefix[48];

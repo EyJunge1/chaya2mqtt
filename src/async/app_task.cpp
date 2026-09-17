@@ -48,6 +48,19 @@ static void appTaskPollDisplayLinkStatus() {
 
     static DisplayLinkState s_link{};
     static DisplayHeartIcon s_lastIcon = DisplayHeartIcon::Filled;
+    static bool s_wasContentAllowed = false;
+
+    const bool contentAllowed = displayContentAllowed();
+    if (!contentAllowed) {
+        s_wasContentAllowed = false;
+        return;
+    }
+    if (!s_wasContentAllowed) {
+        s_wasContentAllowed = true;
+        s_link = {};
+        s_lastIcon = DisplayHeartIcon::Filled;
+        displaySetDesiredHeartIcon(DisplayHeartIcon::Filled);
+    }
 
     const bool wifiConnected = wlanStaConnectedOk();
     const bool mqttConnected = mqttIsConnected();

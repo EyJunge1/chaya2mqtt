@@ -14,6 +14,8 @@ Eine Datei für alles. Sechs Agents parallel starten; jeder bekommt den **gemein
 
 Nicht denselben Agent-Block zwei Chats geben. An Scope-Grenzen eine Zeile „an Agent N“ plus `Datei:Symbol`, nicht tief in fremden Code.
 
+`audit/FINDINGS.md` ist nur Ausgabe und darf fehlen. Der lokale Code ist die Wahrheit — gefixte Stellen sind keine Findings mehr. Trotzdem: wenige echte Bugs, keine lange Liste.
+
 ---
 
 ## Gemeinsamer Block (jeden Agent mitgeben)
@@ -36,49 +38,68 @@ Weitere: `g_nvsMutex`, `g_wifiTestMutex`, `g_wifiApiMutex`, `s_mqttCfgMutex`, TL
 
 Web-Handler dürfen nicht blockieren: Atomics/Flags → App-Task (`webAdminLoop`) oder `NetCmd`. Nur die Display-Task darf SPI/EPD anfassen.
 
-Chaya-Publish: Network-Task startet QoS-1; PUBACK / Disconnect / 5-s-Timeout schließen den Async-Pfad. Counter/NVS/Audio/Display **genau einmal** bei matching PUBACK.
+Chaya-Publish: Network-Task startet QoS-1; PUBACK / Disconnect / 5-s-Timeout schließen den Async-Pfad. Counter/NVS/Audio/Display **genau einmal** bei matching PUBACK. `network_task.cpp` pollt `mqttChayaPublishAsyncIsPending()` jeden Tick — ein `netCmdTrySend(ChayaPublish)`-Drop ist kein Lost-Send.
+
+### Warum so viele Findings entstehen
+
+Der Code ist in den Hotspots bewusst gegattet. Ein Agent, der „eine Liste liefern muss“, baut Interleavings aus NVS-voll, zwei Tabs, ms-Fenstern und HIL. Das sind keine Alltags-Bugs. **0 Findings in deinem Scope ist eine gute Antwort.** Max. **2 Findings** pro Agent. Lieber keines als ein weiches.
+
+### Was zählt (alle müssen gelten)
+
+1. Der Fehlerpfad steht **jetzt** im Code.
+2. Ein normaler User kann ihn auslösen: Taste, ein Tab, Speichern, Unpair, Soft-off, OTA, WLAN-Save — nicht „zwei Tabs + NVS voll + ms + HIL“.
+3. Du würdest den Fix mergen.
+4. Die Auswirkung ist ohne HIL zwingend: verlorenes/doppeltes Herz, Send dauerhaft tot, Gerät offline ohne AP, Latch schneidet nicht, Watchdog, Brick, Restart-Schleife, `200 saved_rebooting` ohne Reboot.
+5. Es ist kein dokumentiertes Design (unten).
+
+Sonst: eine Zeile unter „ohne Befund“ oder HIL-Liste. **Kein Finding.**
 
 ### Harte Regeln
 
 - Nur echte Issues mit Codebeleg (Datei, Symbol, Zeilen, Zitat).
 - Keine Style-Hinweise, keine FreeRTOS-Lehrtexte, keine Spekulation.
-- Dokumentierte Designs nicht als Bug werten: Core-1-Pinning, Display ohne TWDT, Lock-Order, deferred Web-Work, EPD-Low-Interference-Fenster.
-- Unterscheide: **Bug** / **Latent race** (schwer, aber möglich) / **Hardening**.
+- Kein Hardening-Finding, kein „Latent race“-Finding. Klasse nur **Bug**.
+- Dokumentierte Designs nicht als Bug: Core-1-Pinning; Display ohne TWDT; Lock-Order; deferred Web-Work; EPD-Low-Interference (Poll 50/250 ms, kein Lost-Wakeup); QUAL-04 Settings-Pending bleibt bei NVS-Fail und wird retried; `GET /api/mqtt` = aktive Config + `applyPending` (`docs/MQTT.md`); OTA-Force macht „soft connect only“ statt disconnect+begin; LED `PublishTry` wartet auf erwarteten Reconnect; Factory flushed Hearts absichtlich nicht; SSE-Payloads werden kopiert, Erfolg nur `ENQUEUED`.
+- Check-then-act nur mit Alltags-Trigger, nicht zwei Tabs / Epoch-ms.
+- `s_contentAllowed` startet `false`, `loadHeartCounter` liegt davor — kein Boot-Torn-Snapshot.
+- Severity nur High / Medium. **High** nur bei Brick, Gerät unerreichbar, Zählerverlust, Watchdog, totem Heart-Send im normalen Pfad. Kein High für „OTA könnte abreißen (HIL)“ oder NVS-voll.
 - Bleib in deinem Scope.
 - Sprache: Deutsch.
 
 ### Was du systematisch suchst (im eigenen Scope)
 
-Shared State: nicht-atomare Globals/Statics über Tasks, ISR, MQTT-Callback, WiFi-Event, HTTP-Handler; check-then-act, TOCTOU, lost updates, torn reads; `memory_order`; inkonsistente Snapshots.
+Shared State, der im Alltag reißt: nicht-atomare Globals über Tasks/ISR/MQTT-Event/HTTP; Lost-Update ohne Fallback.
 
-Locks: Order-Verletzung, Deadlock, Mutex in ISR/MQTT-Event, lange Holds, fehlendes Unlock, rekursiv vs. nicht-rekursiv, Lock im Callback der schon unter Lock läuft.
+Locks: Order-Verletzung, Deadlock, Mutex in ISR/MQTT-Event, fehlendes Unlock, Lock im Callback der schon unter Lock läuft.
 
-Queues/Flags: `netCmdTrySend`-Drops; Display-Coalescing; Audio-Overflow; stale by-value Payloads; ISR vs. Task-Enqueue.
+Queues: wirklich verlorene `FactoryReset` / Settings **ohne** Flag-/Versions-Fallback. `GOT_IP`/`Reconnect`/`ChayaPublish` haben Fallbacks — nur melden, wenn der Fallback **jetzt** fehlt.
 
-Lifetime/Zeit: JSON-Buffer in Async-Handlern, MQTT-Client destroy vs. Event, `millis()`-Wrap nur über `elapsedMs` / `deadlineReached` / `remainingMs`, TWDT-Reset in langen Loops.
+Lifetime: JSON-Buffer nach Handler-Return; MQTT-Client-Destroy aus dem Event-Task.
 
-Weitere Bugs: ignorierte Return-Werte, UB, API-Vertrag, Host-Allowlist / AP-STA-Gates / OTA-URL-Allowlist, fehlende Tests nur wenn eine Invariante ungedeckt ist.
+Weitere: UB, Host-Allowlist / AP-STA-Gates / OTA-URL-Allowlist gebrochen, SoftAP-PSK in API/Logs.
 
 ### Ausgabe
 
-Zuerst Kurzfassung (Gesamtbild + bis zu 3 kritischste Punkte im eigenen Scope).
+Zuerst Kurzfassung. Nichts gefunden: **„Keine Findings.“** und aufhören. Keine drei „kritischsten Punkte“ erfinden.
 
 Je Finding:
 
-- ID (dein Präfix + Nummer)
-- Severity: Critical / High / Medium / Low
-- Klasse: Bug / Latent race / Hardening
+- ID (dein Präfix + Nummer; bei 01 anfangen ist ok)
+- Severity: High / Medium
+- Klasse: Bug
 - Typ: Race / Deadlock / Lost-Update / Lifetime / Logic / Contract
 - Ort: `Datei:Symbol` und zweite Task/Callback
 - Verletzte Invariante
-- Interleaving oder Fehlerpfad (schrittweise)
-- Auswirkung (User-sichtbar: verlorenes Herz, Doppelcount, Reset, Watchdog, Brick, UI-Desync)
-- Fix: minimal, im Stil des Repos (Atomics, NetCmd, bestehende Mutex-Order, deferred Web-Work)
+- Fehlerpfad mit Alltags-Trigger (schrittweise)
+- Auswirkung (user-sichtbar, ohne HIL)
+- Warum es kein dokumentiertes Design ist (ein Satz)
+- Fix: minimal, Repo-Stil
 - Tests: bestehender `test/`/`sim/`-Fall oder fehlender Fall
+- Codezitat mit Zeilen
 
-Am Ende: geprüfte Hotspots ohne Befund; was ohne HIL nicht beweisbar ist.
+Am Ende: geprüfte Hotspots ohne Befund; HIL-Fragen (keine Findings).
 
-Keine allgemeine Abhandlung. Nur repo-spezifische, belegte Ergebnisse. Beginne jetzt.
+Keine allgemeine Abhandlung. Beginne jetzt.
 
 ---
 
@@ -94,7 +115,7 @@ Keine allgemeine Abhandlung. Nur repo-spezifische, belegte Ergebnisse. Beginne j
 - doppelter PUBACK, late ACK nach Timeout, ACK für falsche Generation/msg-id
 - `heartSentCounterApplyAfterSuccessfulPublish` genau einmal
 - RX `heartCounterStoreFromRemote` || TX || NVS-Debounce || Baseline-Reset
-- Settings-Apply / Unpair mitten im Publish
+- Settings-Apply / Unpair mitten im Publish — nur wenn Heart-Ready / Fail **jetzt** fehlt
 - Retain + QoS-1: Echo des eigenen Publishes auf Subscribe-Topic
 - Lock-Order `g_chayaPublishMutex` → `g_mqttClientMutex` → `g_heartDebounceMutex`; Mutex im MQTT-Event-Handler
 - `mqttBeginSettingsApply` / `mqttEndSettingsApply` / `mqttPublishBlocked`
@@ -112,14 +133,12 @@ Nicht tief in WiFi-Events, HTTP-Routen oder Display-SPI.
 
 **Interleavings:**
 
-- `netCmdTrySend` Queue voll: werden `GOT_IP` / Reconnect durch atomare Flags gerettet? Gehen `ChayaPublish`, `FactoryReset`, `MqttSettingsChanged` verloren?
-- GOT_IP || E-Ink-Refresh || MQTT-Settings-Apply || Factory-Reset
-- EPD-Low-Interference-Fenster: Lost-Wakeup, doppelte Apply, veralteter State nach dem Fenster
-- `g_wifiApiMutex` / `g_wifiTestMutex`: fehlendes Unlock, Hold über lange Scans, WiFi-API außerhalb Network-Task
-- WiFi-Event-Callbacks: nur Atomics + `NetCmd`, keine Display/MQTT/NVS-Arbeit im Event
-- STA-Reconnect-Backoff, Recovery-Stage-2, OTA-Guard gegen destruktive Reassoc
-- SoftAP vs. STA: Captive-DNS-Takt 50 ms vs. 250 ms, Scan-Cache-Races
-- `wlanSetStaPowerSaveMqttActive` vs. EPD-TX-Power-Save
+- `netCmdTrySend` Queue voll: Fallback **jetzt** weg? (`GOT_IP`/`Reconnect`-Flags und Chaya-Pending-Poll sind der Soll-Stand)
+- Unlock-Leak / Lock-Order `g_wifiApiMutex` / `g_wifiTestMutex`
+- WiFi-Event macht Display/MQTT/NVS statt Atomics+`NetCmd`
+- Recovery-Zähler: Claim vs. Write-Gate — nur wenn `rec_rst` **jetzt** nicht persistiert
+
+Nicht: OTA-`STA.connect()` als Brick (absichtlich soft-only, Impact HIL). Nicht: Scan+Reconnect im selben Tick als Assoc-Drop (HIL).
 
 Nicht tief in MQTT-Publish-ACK-Logik oder Frontend.
 
@@ -133,13 +152,12 @@ Nicht tief in MQTT-Publish-ACK-Logik oder Frontend.
 
 **Interleavings:**
 
-- HTTP-Handler blockieren (Scan, NVS, Reset, OTA, Publish)? Factory-Reset / MQTT-Apply / Reboot wirklich außerhalb des Callbacks?
-- SSE-Tick || POST `/api/mqtt` || pending→active || `applyPending`
-- JSON/String-Buffer-Lifetime: Antwort nach Handler-Return (AsyncWebServer)
-- Host-Allowlist, AP/STA-Gates, SoftAP-PSK nicht im Klartext in Logs/API
-- Atomics/Flags vs. `portENTER_CRITICAL` in `admin.cpp` / Settings-Pending
-- SSE-Client-Listen: Use-after-free, parallele Writes, Dirty-Bits
-- `g_webAdminMqttApplyVersion` und verwandte Version-Counters: lost update, stale GET
+- HTTP-Handler blockieren — neuer Pfad, nicht die bekannten Flags
+- JSON-Buffer-Lifetime nach Handler-Return
+- Host-Allowlist / AP-STA-Gates gebrochen; SoftAP-PSK in JSON/Logs
+- SSE Use-after-free belegen (nicht die Library vermuten)
+
+Nicht: `GET /api/mqtt` liefert aktiv statt Pending. Nicht: Settings-Pending bleibt bei NVS-Fail (QUAL-04).
 
 Grenzfall MQTT-Apply-Inhalt → Agent 1; WiFi-Save-Inhalt → Agent 2; OTA-Queue → Agent 5. Nur die Web-Seite prüfen.
 
@@ -158,7 +176,8 @@ Grenzfall MQTT-Apply-Inhalt → Agent 1; WiFi-Save-Inhalt → Agent 2; OTA-Queue
 - Audio: pending TX/RX bei Queue-Overflow, keine ungebundene Backlog, keine Doppel-Clicks pro Drain
 - Button-ISR: kein Mutex, nur Notify/Queue-from-ISR; Debounce; `chayaRequestSend` gleicher Pfad wie Web
 - LED-Priorität: MQTT-TX > Pattern > Refresh-Pulse > Idle; `ledIsTxSendBusy` blockt zweiten Send
-- Soft-off: PWR HIGH + 300 ms; kein EXT1 solange PWR LOW; Latch-Cut; 15-s-Timeout
+- Soft-off: Latch nach 15 s bei gehaltenem PWR — nur wenn der Cut **jetzt** fehlt
+- LED dauerhaft `Busy` nur wenn Connect unmöglich ist und kein Fail kommt (Reconnect-Warten ist Design)
 - Display-Task ohne TWDT: andere Tasks dürfen nicht auf E-Ink warten und dabei TWDT riskieren
 - Cap 999, Baseline-Roll nur soweit Display-Snapshot betroffen (Counter-Persistenz → Agent 1/5)
 
@@ -197,13 +216,10 @@ MQTT-Config-Inhalt → Agent 1; WiFi-NVS-Pack-Format → Agent 2 (hier nur Mutex
 
 **Interleavings:**
 
-- SSE vs. parallele Fetches: stale overwrite, verlorenes `applyPending`, doppelte Toasts
-- User tippt/speichert während SSE-Event (MQTT-Form, OTA, WiFi-Test)
-- In-flight Requests ohne Abort/Generation: alte Antwort überschreibt neue
-- `mock/deviceState.ts` vs. Firmware: `otaBlocksDestructiveAction`, `applyPending`, heart-ready
-- Flasher: paralleles `flashFirmware` / `closeSerialPort` / Verify; Port-Lifecycle
-- OpenAPI/AsyncAPI vs. Routen vs. `frontend/src/api/types.ts` — nur echte Vertragsbrüche
-- Host/API-Fehlerbehandlung, die UI in inkonsistenten State lässt
+- SSE vs. Fetch überschreibt Formular-Wahrheit **trotz** vorhandener Generation-Gates
+- STA-WLAN-Save: leeres Passwort wischt NVS-PSK und rebootet ohne SoftAP — nur wenn der Pfad **jetzt** so sendet/speichert
+- Flasher: paralleles Flash ohne Job-Lock
+- Echter Vertragsbruch OpenAPI ↔ Route ↔ `types.ts` (nicht Mock)
 
 Keine Firmware-Internals außer zum Abgleich der Invarianten.
 
@@ -211,13 +227,12 @@ Keine Firmware-Internals außer zum Abgleich der Invarianten.
 
 ## Merge-Block (nach den sechs Agents)
 
-Du führst sechs unabhängige Audit-Reports zu Chaya2MQTT zusammen. Du liest die Reports, verifizierst **kritische/hohe** Findings kurz am Code (kein neuer Full-Audit).
+Du führst sechs Reports zusammen. Verifiziere jedes Finding kurz am **aktuellen** Code (kein neuer Full-Audit).
 
-1. Duplikate an Scope-Grenzen zusammenlegen (eine kanonische ID behalten, Alias der anderen nennen).
-2. Widersprüche auflösen: Code schlägt Report; unsichere Findings zu Hardening oder streichen.
-3. Nach Severity sortieren, dann nach User-Impact (Datenverlust, Brick, Watchdog, Desync).
-4. Kurzfassung: Gesamtbild und die 3 kritischsten Punkte.
-5. Schreibe das Ergebnis nach `audit/FINDINGS.md` in derselben Finding-Struktur wie oben, plus:
-   - geprüfte Hotspots ohne Befund (aus allen Agents)
-   - offene HIL-Fragen
-   - welche Agent-IDs du gedroppt oder gemerged hast
+1. Code schlägt Report. Fix schon da → streichen, nicht „fast noch“.
+2. Duplikate an Scope-Grenzen: eine ID.
+3. Streichen: Hardening, Latent race, HIL-only, Zwei-Tab, NVS-voll, ms-Fenster, dokumentiertes Design.
+4. High nur nach der High-Regel. Keine drei „kritischsten Punkte“, wenn weniger übrig sind.
+5. Schreibe `audit/FINDINGS.md` schlank: Kurzfassung, nur überlebende Findings, Hotspots ohne Befund, HIL-Fragen, gedroppte IDs.
+
+Leere Datei mit „Keine Findings“ ist ein gültiges Ergebnis. Keine 15er-Liste.

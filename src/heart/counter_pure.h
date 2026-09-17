@@ -27,6 +27,18 @@ inline auto heartCounterShouldShowPlusPure(int raw, int baseline) -> bool {
 }
 
 /** Saturating TX increment after a successful publish. */
+/** ACK/DATA must not apply counters or play audio during shutdown or factory NVS suspend (RC-MQTT-01). */
+inline auto heartApplyAllowed(bool shutdown, bool nvsSuspended) -> bool { return !shutdown && !nvsSuspended; }
+
+/** Re-check the apply gate at the store (RC-MQTT-12). */
+inline auto heartSentApplyIfAllowed(int *dest, int expected, bool shutdown, bool nvsSuspended) -> bool {
+    if (dest == nullptr || !heartApplyAllowed(shutdown, nvsSuspended)) {
+        return false;
+    }
+    *dest = expected;
+    return true;
+}
+
 inline auto heartSentCounterNextPure(int current) -> int {
     if (current >= INT_MAX) {
         return INT_MAX;

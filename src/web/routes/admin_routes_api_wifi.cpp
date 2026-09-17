@@ -3,8 +3,10 @@
 #include "../admin_globals.h"
 #include "admin_routes_api_internal.h"
 
+#include "async/system_lifecycle.h"
 #include "config/app_config.h"
 #include "constants.h"
+#include "ota/ota.h"
 #include "util/log_tag.h"
 #include "web/deferred_reboot.h"
 #include "web/web_utils.h"
@@ -50,9 +52,12 @@ void handleApiWifiConfigGet(AsyncWebServerRequest *req) {
     webSendJsonDoc(req, 200, doc);
 }
 
-bool parseWifiConfigFromJson(JsonVariantConst json, WlanConfig *cfg, const char **err) {
+bool parseWifiConfigFromJson(JsonVariantConst json, WlanConfig *cfg, const char **err, bool *passwordPresent) {
     if (cfg == nullptr || err == nullptr) {
         return false;
+    }
+    if (passwordPresent != nullptr) {
+        *passwordPresent = false;
     }
     *err = "ssid";
     wlanConfigClear(cfg);
@@ -76,8 +81,17 @@ bool parseWifiConfigFromJson(JsonVariantConst json, WlanConfig *cfg, const char 
         *err = name;
         return false;
     };
-    if (!parseOptional("password", cfg->pass, sizeof(cfg->pass))) {
+    switch (adminOptionalJsonString(json, "password", cfg->pass, sizeof(cfg->pass))) {
+    case AdminJsonParam::Invalid:
+        *err = "password";
         return false;
+    case AdminJsonParam::Ok:
+        if (passwordPresent != nullptr) {
+            *passwordPresent = true;
+        }
+        break;
+    case AdminJsonParam::Absent:
+        break;
     }
 
     char modeBuf[12]{};
@@ -144,8 +158,29 @@ void handleApiWifiScanGet(AsyncWebServerRequest *req) {
     webSendJsonDoc(req, 200, doc);
 }
 
+namespace {
+bool wifiDestructivePathBlocked(AsyncWebServerRequest *req) {
+    if (g_systemShutdownInProgress.load(std::memory_order_acquire) || g_factoryResetQueued.load(std::memory_order_acquire)) {
+        sendErr(req, 503, "shutdown");
+        return true;
+    }
+    if (adminApplyBlockedByOta(otaBlocksDestructiveAction())) {
+        sendErr(req, 503, "busy");
+        return true;
+    }
+    return false;
+}
+} // namespace
+
 void handleApiWifiScanPost(AsyncWebServerRequest *req, JsonVariant &json) {
     if (!adminJsonRequireObject(req, json)) {
+        return;
+    }
+    if (wifiDestructivePathBlocked(req)) {
+        return;
+    }
+    if (wlanWifiConnectionTestOwnsRadio()) {
+        sendErr(req, 503, "busy");
         return;
     }
     wlanRequestWifiScanRefresh();
@@ -158,17 +193,46 @@ void handleApiWifiConnectPost(AsyncWebServerRequest *req, JsonVariant &json) {
     }
     WlanConfig cfg{};
     const char *err = nullptr;
-    if (!parseWifiConfigFromJson(json, &cfg, &err)) {
+    bool passwordPresent = false;
+    if (!parseWifiConfigFromJson(json, &cfg, &err, &passwordPresent)) {
         sendErr(req, 400, err != nullptr ? err : "ssid");
         return;
     }
     if (configIsApMode()) {
+        if (wifiDestructivePathBlocked(req)) {
+            return;
+        }
         if (!wlanStartWifiConnectionTest(cfg)) {
             sendErr(req, 503, "test_start");
             return;
         }
         ESP_LOGI(TAG, "WiFi connect test started ssid=%s", cfg.ssid);
         sendOk(req, 200, nullptr, "/wifi-testing");
+        return;
+    }
+    if (wifiDestructivePathBlocked(req)) {
+        return;
+    }
+    const ScopedWebAdminApplyInFlight applyInFlight;
+    if (!applyInFlight) {
+        sendErr(req, 503, "shutdown");
+        return;
+    }
+    if (!applyInFlight.commitAllowed()) {
+        sendErr(req, 503, "shutdown");
+        return;
+    }
+    WlanConfig stored{};
+    const bool haveStored = wlanCopyCachedConfig(&stored);
+    const bool sameSsid = haveStored && strcmp(stored.ssid, cfg.ssid) == 0;
+    switch (wifiStaPasswordApply(passwordPresent, sameSsid)) {
+    case WifiStaPasswordApply::KeepStored:
+        wlanConfigCopyStr(cfg.pass, sizeof(cfg.pass), stored.pass);
+        break;
+    case WifiStaPasswordApply::UseProvided:
+        break;
+    case WifiStaPasswordApply::Reject:
+        sendErr(req, 400, "password");
         return;
     }
     if (!wlanSaveConfigToNvs(cfg)) {
@@ -198,15 +262,28 @@ void handleApiWifiConnectCommitPost(AsyncWebServerRequest *req, JsonVariant &jso
     if (!adminJsonRequireObject(req, json)) {
         return;
     }
+    if (wifiDestructivePathBlocked(req)) {
+        return;
+    }
+    const ScopedWebAdminApplyInFlight applyInFlight;
+    if (!applyInFlight) {
+        sendErr(req, 503, "shutdown");
+        return;
+    }
     char staIp[16]{};
     if (!wlanReadStaLocalIpForCommit(staIp, sizeof(staIp))) {
         sendErr(req, 400, "not_connected");
         return;
     }
-    if (!wlanCommitWifiConnectionTestAndScheduleReboot()) {
+    if (!applyInFlight.commitAllowed()) {
+        sendErr(req, 503, "shutdown");
+        return;
+    }
+    if (!wlanCommitWifiConnectionTest()) {
         sendErr(req, 400, "not_ok");
         return;
     }
+    deferredRebootAfterWifiSave();
     char next[32]{};
     const int n = snprintf(next, sizeof(next), "http://%s/", staIp);
     if (n < 0 || static_cast<size_t>(n) >= sizeof(next)) {

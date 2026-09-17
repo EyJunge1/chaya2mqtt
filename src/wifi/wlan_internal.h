@@ -32,6 +32,8 @@ extern std::atomic<bool> s_wifiSetupComplete;
 extern std::atomic<bool> s_bootStaConnectPending;
 extern std::atomic<bool> s_bootWifiSettled;
 extern std::atomic<bool> s_bootStaFinishDone;
+/** Set after the first consumed GOT_IP; not cleared on disconnect (RC-NET-08). */
+extern std::atomic<bool> s_staGotIpHandled;
 extern char s_bootAttemptSsid[kWifiSsidMaxLen];
 extern unsigned long s_bootStaConnectStartMs;
 
@@ -64,6 +66,8 @@ void wifiLoadCredentialsFromNvs(char *ssid, size_t ssidLen, char *pass, size_t p
 void wlanBootConnectServiceLoop();
 /** Retry restoring WiFi TX power after an EPD refresh if the mutex was busy. */
 void wlanRestoreTxPowerAfterEpd();
+/** Apply STA finish radio (PS / inactive / TX cap) skipped while EPD was active (RC-NET-13). */
+void wlanApplyPendingBootStaFinishRadio();
 /** Stop an asynchronous scan before EPD TX throttling; caller holds g_wifiApiMutex. */
 void wifiScanStopForEpdLocked();
 void wifiScanServiceOnMainTask();

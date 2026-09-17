@@ -13,6 +13,7 @@
 #include <Arduino.h>
 #include <WiFi.h>
 #include <WiFiType.h>
+#include <atomic>
 #include <cstring>
 #include <esp_log.h>
 
@@ -28,6 +29,7 @@ static constexpr unsigned long kWifiConnectionTestBeginWaitMs = 30000UL;
 static WlanConfig s_wifiConnTestCfg{};
 static unsigned long s_wifiConnTestStartMs = 0;
 static WlanWifiConnectionTestState s_wifiConnTestState = WlanWifiConnectionTestState::Idle;
+static std::atomic<bool> s_wifiConnTestBusy{false};
 // Testing + begin-pending: HTTP queued start; WiFi.begin runs in the service loop.
 static bool s_wifiConnTestBeginPending = false;
 // Disconnect requested; WiFi.disconnect runs in the service loop only.
@@ -47,6 +49,11 @@ static inline void wifiTestUnlock() {
     }
 }
 
+static void wifiConnTestSetStateLocked(WlanWifiConnectionTestState st) {
+    s_wifiConnTestState = st;
+    s_wifiConnTestBusy.store(wlanWifiTestOwnsRadio(st), std::memory_order_release);
+}
+
 static void disconnectStaIfaceKeepSoftAp() {
     // Disconnect STA only; do not touch NVS. Caller is the network task.
     wlanWifiApiLock();
@@ -59,7 +66,7 @@ static void disconnectStaIfaceKeepSoftAp() {
 static void wifiConnTestResetToIdleLocked() {
     wlanConfigClear(&s_wifiConnTestCfg);
     s_wifiConnTestStartMs = 0;
-    s_wifiConnTestState = WlanWifiConnectionTestState::Idle;
+    wifiConnTestSetStateLocked(WlanWifiConnectionTestState::Idle);
     s_wifiConnTestBeginPending = false;
     s_wifiConnTestEpoch += 1U;
 }
@@ -70,6 +77,12 @@ static bool wifiConnTestRfMayBeUpLocked() {
 }
 
 static void wifiConnTestIssueBegin(const WlanConfig &cfg) {
+    // Hostname (NVS / g_nvsMutex) before g_wifiApiMutex — same order as wlan_boot / force (RC-NET-09).
+    char staHostname[kDeviceStaHostnameBufLen]{};
+    if (!buildDeviceStaHostname(staHostname, sizeof(staHostname))) {
+        strlcpy(staHostname, kDeviceHostname, sizeof(staHostname));
+        ESP_LOGE(TAG, "Device ID unavailable; using non-unique STA hostname");
+    }
     wlanWifiApiLock();
     if (WiFi.getMode() != WIFI_AP_STA && WiFi.getMode() != WIFI_AP) {
         ESP_LOGW(TAG, "wlanStartWifiConnectionTest: unexpected WiFi mode");
@@ -77,11 +90,6 @@ static void wifiConnTestIssueBegin(const WlanConfig &cfg) {
 
     WiFi.persistent(false);
     WiFi.setAutoReconnect(false);
-    char staHostname[kDeviceStaHostnameBufLen]{};
-    if (!buildDeviceStaHostname(staHostname, sizeof(staHostname))) {
-        strlcpy(staHostname, kDeviceHostname, sizeof(staHostname));
-        ESP_LOGE(TAG, "Device ID unavailable; using non-unique STA hostname");
-    }
     WiFi.setHostname(staHostname);
     if (!wlanApplyStaIpConfigLocked(cfg)) {
         ESP_LOGW(TAG, "WiFi.config failed during test — falling back to DHCP");
@@ -102,14 +110,16 @@ void wifiConnectionTestServiceLoop() {
     wifiTestLock();
     if (s_wifiConnTestAbortPending) {
         s_wifiConnTestAbortPending = false;
+        wifiTestUnlock();
         disconnectStaIfaceKeepSoftAp();
+        wifiTestLock();
     }
     if (s_wifiConnTestBeginPending) {
         if (s_wifiScanInProgress.load(std::memory_order_acquire) || wlanEpdRefreshActive()) {
             const unsigned long started = s_wifiConnTestStartMs;
             if (started != 0UL && (millis() - started) > kWifiConnectionTestBeginWaitMs) {
                 s_wifiConnTestBeginPending = false;
-                s_wifiConnTestState = WlanWifiConnectionTestState::Fail;
+                wifiConnTestSetStateLocked(WlanWifiConnectionTestState::Fail);
                 wifiTestUnlock();
                 ESP_LOGW(TAG, "WLAN connection test timeout waiting for scan/EPD");
                 return;
@@ -152,7 +162,7 @@ void wifiConnectionTestServiceLoop() {
     }
     wlanWifiApiUnlock();
     if (haveIp) {
-        s_wifiConnTestState = WlanWifiConnectionTestState::Ok;
+        wifiConnTestSetStateLocked(WlanWifiConnectionTestState::Ok);
         wifiTestUnlock();
         ESP_LOGI(TAG, "WLAN connection test OK, IP %s", ipStr);
         // NVS save happens at POST /wifi-connect-commit.
@@ -160,17 +170,17 @@ void wifiConnectionTestServiceLoop() {
     }
     // Fail fast on definitive WiFi status.
     if (wst == WL_NO_SSID_AVAIL || wst == WL_CONNECT_FAILED || wst == WL_CONNECTION_LOST) {
-        disconnectStaIfaceKeepSoftAp();
-        s_wifiConnTestState = WlanWifiConnectionTestState::Fail;
+        wifiConnTestSetStateLocked(WlanWifiConnectionTestState::Fail);
         wifiTestUnlock();
+        disconnectStaIfaceKeepSoftAp();
         ESP_LOGW(TAG, "WLAN connection test failed (status=%d)", static_cast<int>(wst));
         return;
     }
     const unsigned long started = s_wifiConnTestStartMs;
     if (millis() - started > kWifiConnectionTestTimeoutMs) {
-        disconnectStaIfaceKeepSoftAp();
-        s_wifiConnTestState = WlanWifiConnectionTestState::Fail;
+        wifiConnTestSetStateLocked(WlanWifiConnectionTestState::Fail);
         wifiTestUnlock();
+        disconnectStaIfaceKeepSoftAp();
         ESP_LOGW(TAG, "WLAN connection test timeout");
         return;
     }
@@ -199,6 +209,10 @@ WlanWifiConnectionTestState wlanGetWifiConnectionTestState() {
     wifiTestUnlock();
     return st;
 }
+
+bool wlanWifiConnectionTestBusy() { return s_wifiConnTestBusy.load(std::memory_order_acquire); }
+
+bool wlanWifiConnectionTestOwnsRadio() { return wlanWifiConnectionTestBusy(); }
 
 void wlanAbortWifiConnectionTest() {
     wifiTestLock();
@@ -247,33 +261,49 @@ bool wlanStartWifiConnectionTest(const WlanConfig &cfg) {
     }
     s_wifiConnTestCfg = cfg;
     s_wifiConnTestStartMs = millis();
-    s_wifiConnTestState = WlanWifiConnectionTestState::Testing;
+    wifiConnTestSetStateLocked(WlanWifiConnectionTestState::Testing);
     s_wifiConnTestBeginPending = true;
     wifiTestUnlock();
     return true;
 }
 
-bool wlanCommitWifiConnectionTestAndScheduleReboot() {
+bool wlanCommitWifiConnectionTest() {
+    WlanConfig cfgCopy{};
     wifiTestLock();
     if (s_wifiConnTestState != WlanWifiConnectionTestState::Ok) {
         wifiTestUnlock();
         return false;
     }
-    const WlanConfig cfgCopy = s_wifiConnTestCfg;
+    cfgCopy = s_wifiConnTestCfg;
+    wifiTestUnlock();
+    // RC-NET-06: do not hold g_wifiTestMutex across IP probe / NVS (captive DNS + TWDT).
     char ipProbe[16]{};
     if (!wlanReadStaLocalIpForCommit(ipProbe, sizeof(ipProbe))) {
-        wifiTestUnlock();
         ESP_LOGW(TAG, "WLAN commit refused: STA not connected");
         return false;
     }
+    wifiTestLock();
+    const bool stillOk = s_wifiConnTestState == WlanWifiConnectionTestState::Ok;
+    wifiTestUnlock();
+    if (!stillOk) {
+        ESP_LOGW(TAG, "WLAN commit refused: test no longer Ok");
+        return false;
+    }
     if (!wlanSaveConfigToNvs(cfgCopy)) {
-        wifiTestUnlock();
         ESP_LOGW(TAG, "WLAN commit: wlanSaveConfigToNvs failed (NVS full?)");
         return false;
     }
+    wifiTestLock();
     s_wifiConnTestAbortPending = true;
     wifiConnTestResetToIdleLocked();
     wifiTestUnlock();
+    return true;
+}
+
+bool wlanCommitWifiConnectionTestAndScheduleReboot() {
+    if (!wlanCommitWifiConnectionTest()) {
+        return false;
+    }
     webRequestRebootAfterWifiSave();
     return true;
 }

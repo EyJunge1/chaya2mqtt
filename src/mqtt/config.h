@@ -37,6 +37,8 @@ auto mqttCfgIsHeartReady() -> bool;
 void mqttCfgTopicPubLockedCopy(char *out, size_t outLen);
 
 void mqttCfgStorePending(const MqttConfig *pending);
+/** Store pending with bounded wait; false if cfg mutex unavailable (RC-WEB-17). */
+auto mqttCfgStorePendingTimed(const MqttConfig *pending, uint32_t timeoutMs) -> bool;
 void mqttCfgApplyPendingToActive();
 auto mqttCfgConsumeDirtySnapshotNeeded() -> bool;
 
@@ -54,6 +56,8 @@ auto mqttCfgEquals(const MqttConfig *a, const MqttConfig *b) -> bool;
 
 /** Snapshot with bounded wait; false if cfg mutex unavailable. */
 auto mqttCfgSnapshotTimed(MqttConfig *out, uint32_t timeoutMs) -> bool;
+/** Active cfg + applyPending + nvsOk under one cfg-mutex hold (GET /api/mqtt). */
+auto mqttCfgSnapshotWithApplyFlagsTimed(MqttConfig *out, bool *applyPending, bool *nvsOk, uint32_t timeoutMs) -> bool;
 /** Pending snapshot with bounded wait; false if cfg mutex unavailable. */
 auto mqttCfgPendingSnapshotTimed(MqttConfig *out, uint32_t timeoutMs) -> bool;
 
@@ -64,3 +68,6 @@ auto mqttCfgNvsWriteFailed() -> bool;
 /** True from a changing POST /api/mqtt until network-task apply finishes (including NVS). */
 void mqttCfgSetApplyPending(bool pending);
 auto mqttCfgApplyPending() -> bool;
+
+/** Drop active + pending MQTT RAM after factory NVS wipe (RC-LIFE-07). */
+void mqttCfgResetRamAfterFactoryClear();

@@ -18,7 +18,7 @@ enum class LedPreset : uint8_t {
 };
 
 void ledInit();
-/** Force the header LED off when the user disabled it in settings. */
+/** Queue LED-off when the user disabled it. Safe from any task (wakes the LED task). */
 void ledApplyEnabled();
 
 /** True while TX sequence, pattern, or refresh pulse is active. */
@@ -30,12 +30,18 @@ auto ledIsTxSendBusy() -> bool;
 /**
  * Arm the MQTT TX LED sequence; publish runs in the button/LED task.
  * Safe from any task (wakes the LED task). Prefer chayaRequestSend() for guarded entry.
- * Returns false if CAS cannot take Idle/Refresh/Pattern → PreOn1 (caller should treat as Busy).
+ * Returns false if a send is already reserved or running (caller should treat as Busy).
  */
 auto ledStartChayaSendSequence() -> bool;
 
-/** Pulse GPIO3 during E-Ink refresh / RX ack. Safe from any task. */
+/** Drop a reserved/in-flight TX send. Button-task only (BUG-UI-04). */
+void ledCancelChayaSend();
+
+/** Pulse GPIO3 during E-Ink refresh / RX ack. Safe from any task.
+ *  Begin starts the pulse without holding it (MQTT RX + EndAfter fallback).
+ *  Hold is Display-only: cancels EndAfter until End (BUG-UI-03). */
 void ledRefreshPulseBegin();
+void ledRefreshPulseHold();
 void ledRefreshPulseEnd();
 void ledRefreshPulseEndAfter(unsigned long durationMs);
 

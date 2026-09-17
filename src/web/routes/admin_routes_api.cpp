@@ -65,6 +65,16 @@ AsyncCallbackJsonWebHandler &adminAddJsonPost(AsyncWebServer &ws, const char *ur
     return *h;
 }
 
+AsyncCallbackJsonWebHandler &adminAddJsonQuery(AsyncWebServer &ws, const char *uri, ArJsonRequestHandlerFunction fn,
+                                               ApiGuard guard) {
+    auto *h = new AsyncCallbackJsonWebHandler(uri, std::move(fn));
+    h->setMethod(HTTP_QUERY);
+    h->setMaxContentLength(2048);
+    applyApiGuard(*h, guard);
+    ws.addHandler(h);
+    return *h;
+}
+
 void adminRoutesRegisterApi(AsyncWebServer &ws) {
     adminRoutesRegisterApiDevice(ws);
     adminRoutesRegisterApiChaya(ws);

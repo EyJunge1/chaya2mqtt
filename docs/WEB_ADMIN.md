@@ -71,6 +71,13 @@ Static assets include a Vite content hash and are located under `/assets/*` (Cac
 
 ## JSON API
 
+> **HTTP QUERY (RFC 10008):** OpenAPI 3.2 `query:` is only for safe, idempotent
+> reads with a JSON body (filter/search). Mutations stay `POST` (`{}` or fields) —
+> send, scan start, connect, save, reboot, factory-reset, OTA. QUERY is not a
+> substitute POST. The admin API is beta: verb and path can disappear without
+> deprecation (old verb then `405`). In the client always `method: "QUERY"`
+> (uppercase); `fetch` does not normalize `query`.
+
 Mutations expect `application/json`. Empty mutations send `{}`.
 
 The REST surface lives in [openapi.yaml](openapi.yaml) (OpenAPI 3.2). Each operation
@@ -104,8 +111,9 @@ Maximum **6** SSE clients. App-task poll remains ~500 ms, but SSE gather runs 
   **Access** — LAN participants can fully control the device)
 - Admin is HTTP-only: credentials travel in cleartext on the LAN
 - SoftAP uses a 24-character alphanumeric WPA-PSK (WIFI QR only — no manual typing fallback)
-- Mutations are same-origin JSON POSTs. The Host allowlist (same as GET) rejects DNS-rebinding
-  Host headers. There is no CORS and no Origin check.
+- Mutations are same-origin JSON POSTs. QUERY, when added, is a same-origin JSON
+  read with a body (RFC 10008) — not a mutation. The Host allowlist (same as GET)
+  rejects DNS-rebinding Host headers. There is no CORS and no Origin check.
 - Host allowlist in STA and AP: in captive mode only `4.3.2.1` and `chaya2mqtt` / `.local`
   are accepted (see Access warning / SEC-10). The check is attached once on the HTTP server.
   Dedicated captive probe routes skip that middleware (OS probes send a foreign Host).
