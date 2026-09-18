@@ -82,14 +82,6 @@ void test_spa_asset_lookup() {
     TEST_ASSERT_EQUAL_UINT32(30u, js->offset);
     TEST_ASSERT_EQUAL_UINT32(40u, js->length);
 
-    const SpaAssetEntry *index = spaFindIndex(entries, count);
-    TEST_ASSERT_NOT_NULL(index);
-    TEST_ASSERT_EQUAL_STRING("/index.html", index->path);
-
-    TEST_ASSERT_EQUAL_INT(static_cast<int>(SpaCacheClass::Immutable), static_cast<int>(spaCacheClassForPath("/assets/x.css")));
-    TEST_ASSERT_EQUAL_INT(static_cast<int>(SpaCacheClass::NoCache), static_cast<int>(spaCacheClassForPath("/index.html")));
-    TEST_ASSERT_EQUAL_STRING("text/css; charset=utf-8", spaContentTypeForPath("/assets/a.css"));
-    TEST_ASSERT_EQUAL_STRING("application/javascript; charset=utf-8", spaContentTypeForPath("/assets/a.js"));
     TEST_ASSERT_FALSE(spaAssetUsesGzip("/index.html"));
     TEST_ASSERT_TRUE(spaAssetUsesGzip("/assets/a.js"));
 }

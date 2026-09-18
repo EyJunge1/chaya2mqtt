@@ -26,7 +26,6 @@ constexpr int kI2cScl = 48;
 
 constexpr int kI2sMclk = 14;
 constexpr int kI2sSclk = 15;
-constexpr int kI2sAsdout = 16; // Codec capture — unused (mic stays off)
 constexpr int kI2sLrck = 38;
 constexpr int kI2sDsdin = 45;
 constexpr int kPaEn = 42;   // Audio_PWR: drive LOW to power codec/amp rail

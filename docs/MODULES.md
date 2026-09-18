@@ -347,7 +347,7 @@ GPIO4 ADC, `VBAT = VADC × 2`, averaged in the app task about every 30 s. Alwa
 
 **Files:** `audio/audio.h`, `audio/audio.cpp`, `audio/audio_pure.h`, `audio/audio_config.h`
 
-Dedicated task + `g_audioCmdQueue`. Capture/mic path is disabled at boot. Playback on TX/RX heart events (per-kind enable, volume, quiet hours; default both kinds off). Sine clicks use NVS `snd_tx_hz`/`snd_tx_ms`/`snd_tx_vol` and `snd_rx_hz`/`snd_rx_ms`/`snd_rx_vol` (defaults 880 Hz/80 ms/70 and 660 Hz/140 ms/70).
+Dedicated task + `g_audioCmdQueue`. Capture/mic path is disabled at boot. Playback on TX/RX heart events (per-kind enable, volume, quiet hours; default both kinds off). Sine-click timing and frequency are packed in NVS `snd_tB`; enable and volume use `snd_tx_en`/`snd_rx_en` and `snd_tx_vol`/`snd_rx_vol` (defaults 880 Hz/80 ms/70 and 660 Hz/140 ms/70).
 Queue overflow sets separate TX/RX pending flags; each kind is replayed at most once per drain
 cycle, so bursts do not grow an unbounded audio backlog.
 
@@ -460,8 +460,8 @@ Details: [OTA.md](OTA.md)
 ### `config/nvs_utils`
 
 Thread-safe `Preferences` wrapper with `g_nvsMutex`:
-- `readInt`, `writeInt`, `readUInt`, `writeUInt`, `readUChar`, `writeUChar`
-- `clearNamespace(const char*)`
+- `writeInt`, `readUInt`, `writeUInt`, `readUChar`, `writeUChar`
+- namespace wipes through `clearNamespacesUnlocked()` while holding the NVS lock
 
 ---
 

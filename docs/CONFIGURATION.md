@@ -16,9 +16,9 @@ All persistent settings are stored in the ESP32-S3 **NVS** (Non-Volatile Storage
 | Key | Type | Description |
 |-----|------|-------------|
 | `cfg_v2` | Bytes (packed) | SSID, password, IP mode, static IPv4 fields, NTP |
-| `ap_pin` | String | SoftAP WPA-PSK (24 alphanumeric) for WIFI QR (created on first setup AP; legacy 8-digit values are regenerated) |
+| `ap_pin` | String | SoftAP WPA-PSK (24 alphanumeric) for WIFI QR (created on first setup AP; missing or invalid values are regenerated) |
 
-Missing or invalid `cfg_v2` means no STA credentials (setup AP). Older scalar/`cred_v1` keys are ignored.
+Missing or invalid `cfg_v2` means no STA credentials (setup AP).
 
 ### `cfg_v2` fields
 
@@ -85,8 +85,6 @@ Missing or invalid `cfg_v1` uses empty broker defaults (TLS port 8883). Topics e
   completed view afterward. A reset or power loss during the waveform therefore forces a repaint.
 - `upd_day`: automatically after an OTA check
 - `upd_chan`: when selecting a channel during the update check
-
-Leftover keys from older firmware are unused.
 
 **Audio persistence:** Quiet hours and tones are written as `snd_qB` / `snd_tB`. On load, a valid blob is used; a missing or wrong-size blob uses defaults.
 
@@ -167,7 +165,7 @@ MQTT and settings changes are processed **as deferred work** (not in the HTTP ha
 
 ## Constants headers
 
-Module-specific defaults and limits are located in `*_config.h` (no longer centrally in `constants.h`):
+Module-specific defaults and limits are located in `*_config.h`; shared identity, NTP, and validation constants remain in `constants.h`:
 
 | Header | Content |
 |--------|---------|

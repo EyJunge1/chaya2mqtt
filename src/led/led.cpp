@@ -148,8 +148,6 @@ bool ledTxBusy() {
 
 bool ledIsTxSendBusy() { return s_sendWanted.load(std::memory_order_acquire) || ledTxBusy(); }
 
-bool ledSendSequenceActive() { return ledActivityActive(); }
-
 static LedBlinkPattern ledPresetToPattern(LedPreset preset) {
     switch (preset) {
     case LedPreset::Boot:

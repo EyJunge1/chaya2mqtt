@@ -24,7 +24,6 @@ void drawPowerOffScreen();
 
 /** Desired Lucide heart glyph for the next STA heart paint (filled vs crack). */
 void displaySetDesiredHeartIcon(DisplayHeartIcon icon);
-auto displayDesiredHeartIcon() -> DisplayHeartIcon;
 
 /**
  * How to queue a display command (LED-style single entry for callers).

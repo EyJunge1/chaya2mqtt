@@ -43,6 +43,7 @@ GitHub JSON is streamed with an ArduinoJson filter (`tag_name`, `draft`, `prerel
 | Firmware URL (OTA) | `https://github.com/EyJunge1/chaya2mqtt/releases/download/{tag}/firmware.bin` |
 | SHA-512 URL (OTA) | `https://github.com/EyJunge1/chaya2mqtt/releases/download/{tag}/firmware.sha512` |
 | Factory URL (USB / web flasher) | `https://github.com/EyJunge1/chaya2mqtt/releases/download/{tag}/firmware.factory.bin` |
+| Factory SHA-512 URL (USB / web flasher) | `https://github.com/EyJunge1/chaya2mqtt/releases/download/{tag}/firmware.factory.sha512` |
 
 OTA URLs are checked both when constructed and immediately before flashing: HTTPS, the exact
 `EyJunge1/chaya2mqtt` release path, a strict CalVer tag, and exactly `firmware.bin` or

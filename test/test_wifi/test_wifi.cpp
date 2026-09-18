@@ -17,7 +17,7 @@
 #include "wifi/wlan_soft_reconnect.h"
 
 void test_setup_ap_pass_syntax_and_format() {
-    TEST_ASSERT_FALSE(setupApPassSyntaxOk("00000000")); // legacy 8-digit rejected
+    TEST_ASSERT_FALSE(setupApPassSyntaxOk("00000000")); // too short
     TEST_ASSERT_FALSE(setupApPassSyntaxOk("1234567"));
     TEST_ASSERT_FALSE(setupApPassSyntaxOk(""));
     TEST_ASSERT_FALSE(setupApPassSyntaxOk(nullptr));
@@ -182,8 +182,6 @@ void test_wlan_config_validate() {
     wlanConfigClear(&cfg);
     wlanConfigCopyStr(cfg.ssid, sizeof(cfg.ssid), "Home");
     cfg.mode = WlanIpMode::Dhcp;
-    TEST_ASSERT_NULL(wlanConfigValidate(&cfg));
-    wlanConfigSetNtpDefaults(&cfg);
     TEST_ASSERT_NULL(wlanConfigValidate(&cfg));
 
     cfg.mode = WlanIpMode::Static;

@@ -78,7 +78,7 @@ bool wlanEnsureSetupApPass() {
         return true;
     }
 
-    // Migrate away from legacy 8-digit PSK / invalid NVS values (SEC-03).
+    // Regenerate missing or invalid NVS PSKs (SEC-03).
     uint8_t rnd[kSetupApPassLen]{};
     esp_fill_random(rnd, sizeof(rnd));
     if (!formatSetupApPassFromRandom(rnd, sizeof(rnd), s_setupApPass, sizeof(s_setupApPass))) {

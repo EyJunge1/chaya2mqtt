@@ -128,7 +128,7 @@
       <Alert variant="warning" title={i18n.t("dashboard.update-available-title")}>
         <div class="space-y-2">
           <p>{i18n.t("dashboard.update-available-text", { version: ota.availableVersion })}</p>
-          <LinkButton href="/update" variant="warning">
+          <LinkButton href="/update">
             {i18n.t("dashboard.update-available-action")}
           </LinkButton>
         </div>

@@ -204,20 +204,6 @@ inline void wlanConfigCopyStr(char *dst, size_t dstLen, const char *src) {
 }
 
 /**
- * Fill empty NTP with built-in fallback (runtime apply only — not for NVS storage).
- * Empty NTP in config means automatic: DHCP option 42 when offered, else Cloudflare.
- */
-inline void wlanConfigSetNtpDefaults(WlanConfig *cfg) {
-    if (cfg == nullptr) {
-        return;
-    }
-    if (cfg->ntp1[0] == '\0') {
-        wlanConfigCopyStr(cfg->ntp1, sizeof(cfg->ntp1), kWifiDefaultNtp1);
-    }
-    cfg->ntp2[0] = '\0';
-}
-
-/**
  * Validate WLAN config for connect/save.
  * Always: SSID; optional DNS/NTP (must be valid when set). Empty NTP = automatic
  * (DHCP NTP if offered, else time.cloudflare.com).
