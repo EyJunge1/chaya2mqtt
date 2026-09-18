@@ -1,6 +1,6 @@
 #pragma once
 
-/** Pin map for Waveshare ESP32-S3-ePaper-1.54G (SKU 34586); see docs/HARDWARE.md. */
+/** Pin map for Waveshare ESP32-S3-ePaper-1.54G (SKU 34586). */
 namespace pins {
 
 constexpr int kButton = 0;    // BOOT / Key1 (active-low)

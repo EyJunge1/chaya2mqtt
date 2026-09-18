@@ -1,6 +1,6 @@
 #pragma once
 
-/** Central NVS namespace and key names (see docs/CONFIGURATION.md). */
+/** Central NVS namespace and key names (see docs/README.md). */
 constexpr const char kNvsNsWifi[] = "wifi";
 constexpr const char kNvsNsMqtt[] = "mqtt";
 constexpr const char kNvsNsCfg[] = "cfg";
