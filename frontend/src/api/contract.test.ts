@@ -7,7 +7,7 @@ import { KNOWN_ROUTES } from "../nav/router.svelte.ts";
 function findRoot(): string {
   let dir = process.cwd();
   for (let i = 0; i < 6; i++) {
-    if (existsSync(resolve(dir, "docs/openapi.yaml")) && existsSync(resolve(dir, "src/web"))) {
+    if (existsSync(resolve(dir, "docs/api/openapi.yaml")) && existsSync(resolve(dir, "src/web"))) {
       return dir;
     }
     dir = resolve(dir, "..");
@@ -42,7 +42,7 @@ type OpenApiOperation = {
 
 const yamlIndent = (n: number) => " ".repeat(n);
 
-/** Path/method surface from docs/openapi.yaml — the REST source of truth. */
+/** Path/method surface from docs/api/openapi.yaml — the REST source of truth. */
 function parseOpenApiOperations(yaml: string): OpenApiOperation[] {
   const ops: OpenApiOperation[] = [];
   let inPaths = false;
@@ -98,7 +98,7 @@ function parseOpenApiOperations(yaml: string): OpenApiOperation[] {
   return ops;
 }
 
-/** Event names from docs/asyncapi.yaml — the SSE source of truth. */
+/** Event names from docs/api/asyncapi.yaml — the SSE source of truth. */
 function parseAsyncApiEventTypes(yaml: string): string[] {
   const events: string[] = [];
   let inChannelMessages = false;
@@ -130,8 +130,8 @@ function quotedApiPaths(source: string): string[] {
   return [...paths].sort();
 }
 
-const openapi = read("docs/openapi.yaml");
-const asyncapi = read("docs/asyncapi.yaml");
+const openapi = read("docs/api/openapi.yaml");
+const asyncapi = read("docs/api/asyncapi.yaml");
 const operations = parseOpenApiOperations(openapi);
 const sseEvents = parseAsyncApiEventTypes(asyncapi);
 const apiPaths = [...new Set(operations.map((op) => op.path))].sort();

@@ -12,7 +12,7 @@
     lang,
     manifestUrl,
     versionLabel,
-    eraseDefault = false,
+    eraseDefault = true,
     port = null,
     onClose,
     onRetryPort,
@@ -31,7 +31,7 @@
 
   let dialogEl: HTMLDialogElement | undefined = $state();
   let step = $state<Step>("confirm");
-  let eraseFirst = $state(false);
+  let eraseFirst = $state(true);
   let progress = $state<FlashProgress | null>(null);
   let activePort: SerialPort | null = $state(null);
   let busy = $state(false);

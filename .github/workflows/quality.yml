@@ -51,10 +51,10 @@ jobs:
               echo "changed: $path"
 
               case "$path" in
-                docs/openapi.yaml|docs/asyncapi.yaml)
+                docs/api/openapi.yaml|docs/api/asyncapi.yaml)
                   frontend=true
                   ;;
-                docs/*|*.md|LICENSE|THIRD_PARTY_NOTICES.md|.github/ISSUE_TEMPLATE/*)
+                docs/*|*.md|LICENSE|.github/ISSUE_TEMPLATE/*)
                   ;;
                 frontend/*)
                   frontend=true
