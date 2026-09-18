@@ -2,7 +2,6 @@
 #include <unity.h>
 
 #include "async/event_types.h"
-#include "async/queue_coalesce_pure.h"
 #include "audio/audio_drain_pure.h"
 #include "audio/audio_pure.h"
 #include "battery/battery_pure.h"
@@ -24,8 +23,6 @@ void test_battery_pct_curve() {
     TEST_ASSERT_EQUAL_INT(55, batteryPctFromMilliVolts(3900));
     TEST_ASSERT_EQUAL_INT(100, batteryPctFromMilliVolts(4200));
     TEST_ASSERT_EQUAL_INT(100, batteryPctFromMilliVolts(4300));
-    TEST_ASSERT_TRUE(batteryWarnLow(19));
-    TEST_ASSERT_FALSE(batteryWarnLow(20));
 }
 
 void test_audio_quiet_hours() {
@@ -86,18 +83,6 @@ void test_display_view_refresh_decision() {
                           static_cast<int>(displayViewForHeartIcon(DisplayHeartIcon::Filled)));
     TEST_ASSERT_EQUAL_INT(static_cast<int>(DisplayView::HeartCrack),
                           static_cast<int>(displayViewForHeartIcon(DisplayHeartIcon::Crack)));
-}
-
-void test_queue_drop_coalescing() {
-    bool pending = false;
-    pending = queueCoalescePendingAfterPost(pending, true);
-    TEST_ASSERT_FALSE(pending);
-    pending = queueCoalescePendingAfterPost(pending, false);
-    pending = queueCoalescePendingAfterPost(pending, false);
-    TEST_ASSERT_TRUE(pending);
-    TEST_ASSERT_TRUE(queueCoalesceConsume(&pending));
-    TEST_ASSERT_FALSE(pending);
-    TEST_ASSERT_FALSE(queueCoalesceConsume(&pending));
 }
 
 void test_display_heart_redraw_leading_trailing() {
@@ -374,7 +359,7 @@ void test_soft_off_release_settle() {
 
 void test_nvs_blob_load_decide() {
     TEST_ASSERT_EQUAL_INT(static_cast<int>(NvsBlobLoad::UseBlob), static_cast<int>(nvsBlobLoadDecide(12, 12)));
-    TEST_ASSERT_EQUAL_INT(static_cast<int>(NvsBlobLoad::UseLegacy), static_cast<int>(nvsBlobLoadDecide(0, 12)));
+    TEST_ASSERT_EQUAL_INT(static_cast<int>(NvsBlobLoad::UseDefaults), static_cast<int>(nvsBlobLoadDecide(0, 12)));
     TEST_ASSERT_EQUAL_INT(static_cast<int>(NvsBlobLoad::UseDefaults), static_cast<int>(nvsBlobLoadDecide(4, 12)));
     TEST_ASSERT_EQUAL_INT(static_cast<int>(NvsBlobLoad::UseDefaults), static_cast<int>(nvsBlobLoadDecide(16, 12)));
 }
@@ -402,7 +387,6 @@ int main(int, char **) {
     RUN_TEST(test_display_battery_colors);
     RUN_TEST(test_display_battery_icons);
     RUN_TEST(test_display_view_refresh_decision);
-    RUN_TEST(test_queue_drop_coalescing);
     RUN_TEST(test_display_heart_redraw_leading_trailing);
     RUN_TEST(test_display_heart_redraw_wait_and_follow_up);
     RUN_TEST(test_display_heart_skip_clears_pending);

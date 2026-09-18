@@ -43,6 +43,7 @@ GitHub JSON is streamed with an ArduinoJson filter (`tag_name`, `draft`, `prerel
 | Firmware URL (OTA) | `https://github.com/EyJunge1/chaya2mqtt/releases/download/{tag}/firmware.bin` |
 | SHA-512 URL (OTA) | `https://github.com/EyJunge1/chaya2mqtt/releases/download/{tag}/firmware.sha512` |
 | Factory URL (USB / web flasher) | `https://github.com/EyJunge1/chaya2mqtt/releases/download/{tag}/firmware.factory.bin` |
+| Factory SHA-512 URL (USB / web flasher) | `https://github.com/EyJunge1/chaya2mqtt/releases/download/{tag}/firmware.factory.sha512` |
 
 OTA URLs are checked both when constructed and immediately before flashing: HTTPS, the exact
 `EyJunge1/chaya2mqtt` release path, a strict CalVer tag, and exactly `firmware.bin` or
@@ -111,7 +112,7 @@ Sequence:
 | Endpoint | Method | Description |
 |----------|--------|-------------|
 | `/api/update/status` | GET | Status snapshot |
-| `/api/update/check` | POST | Start check; optional `channel=stable\|beta` |
+| `/api/update/check` | POST | Start check; required `channel=stable\|beta` |
 | `/api/update/install` | POST | Start installation after confirmation |
 
 The `ota` SSE event provides live updates (phase, progress, error).
@@ -204,7 +205,7 @@ Local checks before commits: `make check`.
 
 1. Prefer the [web flasher](../flasher/README.md) or PlatformIO USB recovery — see [HARDWARE.md](HARDWARE.md)
 2. Connect USB-C on the 1.54G (hold **BOOT** only if the port does not enumerate)
-3. Optionally erase flash (`pio run -e esp32s3-release -t erase` or erase in the web installer)
+3. Optionally erase flash (`pio run -e esp32s3-release -t erase` or erase in the web flasher)
 4. Flash the **factory** image (web flasher) or `make upload-erase`
 5. The WPA2/WPA3 `Chaya2MQTT` SoftAP appears; the display shows a WIFI QR for phone camera join
 

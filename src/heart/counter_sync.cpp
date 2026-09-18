@@ -42,11 +42,6 @@ bool persistCounterBaselineState() {
     }
     const ChayaBaselineBlob blob{snapCntBase, snapSntBase, snapRstDay};
     const bool okBlob = prefs.putBytes(kNvsKeyChayaBaselineBlob, &blob, sizeof(blob)) == sizeof(blob);
-    if (okBlob) {
-        static_cast<void>(prefs.remove(kNvsKeyChayaCntBase));
-        static_cast<void>(prefs.remove(kNvsKeyChayaSntBase));
-        static_cast<void>(prefs.remove(kNvsKeyChayaRstDay));
-    }
     prefs.end();
     if (!okBlob) {
         ESP_LOGE(TAG, "NVS chaya: baseline blob write failed");

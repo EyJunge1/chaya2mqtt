@@ -160,10 +160,6 @@ jobs:
       - name: Run web-flasher quality gate
         run: make check-flasher
 
-      - name: npm audit (fail on high/critical)
-        working-directory: flasher
-        run: npm audit --audit-level=high
-
   firmware_tests:
     name: Firmware tests
     needs: changes

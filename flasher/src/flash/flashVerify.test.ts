@@ -19,7 +19,7 @@ describe("flashVerify", () => {
     expect(sidecarUrlForPart("https://x/firmware.factory.bin")).toBe(
       "https://x/firmware.factory.sha512",
     );
-    expect(sidecarUrlForPart("https://x/part")).toBe("https://x/part.sha512");
+    expect(() => sidecarUrlForPart("https://x/part")).toThrow(/\.bin/);
   });
 
   it("parses sidecar files", () => {

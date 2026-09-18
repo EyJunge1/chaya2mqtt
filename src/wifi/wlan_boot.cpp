@@ -114,9 +114,6 @@ static bool wlanApplyBootStaFinishRadioLocked() {
 }
 
 void setupWifiFinishStaConnected() {
-    portENTER_CRITICAL(&g_lastFailedBootSsidMux);
-    g_lastFailedBootSsid[0] = '\0';
-    portEXIT_CRITICAL(&g_lastFailedBootSsidMux);
     wlanWifiApiLock();
     const bool epdActive = s_epdRefreshActive.load(std::memory_order_acquire);
     bool inactOk = true;
@@ -282,12 +279,6 @@ void wlanEndLowInterferenceForEpd() {
 }
 
 void setupWifiStartApFallback(const char *attemptedSsid) {
-    if (attemptedSsid[0] != '\0') {
-        portENTER_CRITICAL(&g_lastFailedBootSsidMux);
-        strlcpy(g_lastFailedBootSsid, attemptedSsid, sizeof(g_lastFailedBootSsid));
-        portEXIT_CRITICAL(&g_lastFailedBootSsidMux);
-    }
-
     if (!wlanEnsureSetupApPass()) {
         ESP_LOGE(TAG, "WiFi.softAP: setup PSK unavailable");
         return;

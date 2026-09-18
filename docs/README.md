@@ -77,7 +77,7 @@ Flash both devices with the **same firmware version**. Broker credentials must b
 
 1. Open the **MQTT** page (`/mqtt`) on both devices.
 2. Enter the same broker on both devices.
-3. Note each device's own **device ID** (6 hexadecimal characters from the MAC), save it as the **partner ID** on the other device, and vice versa.
+3. Note each device's own randomly generated **device ID** (6 hexadecimal characters), save it as the **partner ID** on the other device, and vice versa.
 4. Topics are set automatically:
    - **Publish topic:** `chaya2mqtt/<own_id>` (e.g. `chaya2mqtt/a1b2c3`)
    - **Subscribe topic:** `chaya2mqtt/<partner_id>` (e.g. `chaya2mqtt/f5e6d7`)
@@ -155,8 +155,8 @@ The 1.54G has **8 MB** flash. `partitions_chaya_8mb.csv` is a dual-OTA map (~3
 | [CONFIGURATION.md](CONFIGURATION.md) | NVS namespaces, defaults |
 | [DISPLAY.md](DISPLAY.md) | Display task, Lucide icons, delta logic |
 
-> **API contract:** QUERY is only for reads with a body. Actions stay POST.
-> Details and beta note: [WEB_ADMIN.md](WEB_ADMIN.md).
+> **API contract:** Reads use GET; mutations use same-origin JSON POST.
+> Details: [WEB_ADMIN.md](WEB_ADMIN.md).
 
 ## License
 

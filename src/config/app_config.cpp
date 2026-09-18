@@ -231,10 +231,6 @@ void configLoadAudioFromNvs() {
         break;
     case NvsBlobLoad::UseDefaults:
         break;
-    case NvsBlobLoad::UseLegacy:
-        q0 = app_nvs::readUChar(kNvsNsCfg, kNvsKeyCfgSndQ0, kAudioDefaultQuiet0);
-        q1 = app_nvs::readUChar(kNvsNsCfg, kNvsKeyCfgSndQ1, kAudioDefaultQuiet1);
-        break;
     }
     uint16_t txHz = kAudioDefaultTxHz;
     uint16_t txMs = kAudioDefaultTxMs;
@@ -253,12 +249,6 @@ void configLoadAudioFromNvs() {
         break;
     case NvsBlobLoad::UseDefaults:
         break;
-    case NvsBlobLoad::UseLegacy:
-        txHz = clampAudioToneHz(app_nvs::readUInt(kNvsNsCfg, kNvsKeyCfgSndTxHz, kAudioDefaultTxHz), kAudioDefaultTxHz);
-        txMs = clampAudioToneMs(app_nvs::readUInt(kNvsNsCfg, kNvsKeyCfgSndTxMs, kAudioDefaultTxMs), kAudioDefaultTxMs);
-        rxHz = clampAudioToneHz(app_nvs::readUInt(kNvsNsCfg, kNvsKeyCfgSndRxHz, kAudioDefaultRxHz), kAudioDefaultRxHz);
-        rxMs = clampAudioToneMs(app_nvs::readUInt(kNvsNsCfg, kNvsKeyCfgSndRxMs, kAudioDefaultRxMs), kAudioDefaultRxMs);
-        break;
     }
 
     bool txEn = false;
@@ -268,15 +258,6 @@ void configLoadAudioFromNvs() {
     if (hasTxEn || hasRxEn) {
         txEn = hasTxEn && app_nvs::readUChar(kNvsNsCfg, kNvsKeyCfgSndTxEn, 0) != 0U;
         rxEn = hasRxEn && app_nvs::readUChar(kNvsNsCfg, kNvsKeyCfgSndRxEn, 0) != 0U;
-    } else if (app_nvs::hasKey(kNvsNsCfg, kNvsKeyCfgSndMute)) {
-        // One-time migration from legacy global mute: unmuted → both kinds on.
-        const bool unmuted = app_nvs::readUChar(kNvsNsCfg, kNvsKeyCfgSndMute, 0) == 0U;
-        txEn = unmuted;
-        rxEn = unmuted;
-        if (!app_nvs::writeUChar(kNvsNsCfg, kNvsKeyCfgSndTxEn, txEn ? 1U : 0U) ||
-            !app_nvs::writeUChar(kNvsNsCfg, kNvsKeyCfgSndRxEn, rxEn ? 1U : 0U)) {
-            ESP_LOGE(TAG, "NVS cfg: failed to migrate snd_mute → snd_tx_en/snd_rx_en");
-        }
     }
 
     uint8_t txVol = kAudioDefaultVolume;
@@ -286,14 +267,6 @@ void configLoadAudioFromNvs() {
     if (hasTxVol || hasRxVol) {
         txVol = hasTxVol ? app_nvs::readUChar(kNvsNsCfg, kNvsKeyCfgSndTxVol, kAudioDefaultVolume) : kAudioDefaultVolume;
         rxVol = hasRxVol ? app_nvs::readUChar(kNvsNsCfg, kNvsKeyCfgSndRxVol, kAudioDefaultVolume) : kAudioDefaultVolume;
-    } else if (app_nvs::hasKey(kNvsNsCfg, kNvsKeyCfgSndVol)) {
-        const uint8_t legacy = app_nvs::readUChar(kNvsNsCfg, kNvsKeyCfgSndVol, kAudioDefaultVolume);
-        txVol = legacy;
-        rxVol = legacy;
-        if (!app_nvs::writeUChar(kNvsNsCfg, kNvsKeyCfgSndTxVol, txVol) ||
-            !app_nvs::writeUChar(kNvsNsCfg, kNvsKeyCfgSndRxVol, rxVol)) {
-            ESP_LOGE(TAG, "NVS cfg: failed to migrate snd_vol → snd_tx_vol/snd_rx_vol");
-        }
     }
     if (txVol > kAudioVolumeMax) {
         txVol = kAudioDefaultVolume;
@@ -369,8 +342,6 @@ bool configSetAudioQuietHours(uint8_t startHour, uint8_t endHour) {
         ESP_LOGE(TAG, "NVS cfg: failed to persist snd_qB");
         return false;
     }
-    static_cast<void>(app_nvs::removeKey(kNvsNsCfg, kNvsKeyCfgSndQ0));
-    static_cast<void>(app_nvs::removeKey(kNvsNsCfg, kNvsKeyCfgSndQ1));
     s_audioQuiet0Cached.store(startHour, std::memory_order_relaxed);
     s_audioQuiet1Cached.store(endHour, std::memory_order_relaxed);
     return true;
@@ -396,10 +367,6 @@ bool configSetAudioTones(uint16_t txHz, uint16_t txMs, uint16_t rxHz, uint16_t r
         ESP_LOGE(TAG, "NVS cfg: failed to persist snd_tB");
         return false;
     }
-    static_cast<void>(app_nvs::removeKey(kNvsNsCfg, kNvsKeyCfgSndTxHz));
-    static_cast<void>(app_nvs::removeKey(kNvsNsCfg, kNvsKeyCfgSndTxMs));
-    static_cast<void>(app_nvs::removeKey(kNvsNsCfg, kNvsKeyCfgSndRxHz));
-    static_cast<void>(app_nvs::removeKey(kNvsNsCfg, kNvsKeyCfgSndRxMs));
     s_audioTxHzCached.store(tx.hz, std::memory_order_relaxed);
     s_audioTxMsCached.store(tx.ms, std::memory_order_relaxed);
     s_audioRxHzCached.store(rx.hz, std::memory_order_relaxed);

@@ -90,11 +90,6 @@ void loadBaselineFromNvs(Preferences &prefs, int32_t *cntBase, int32_t *sntBase,
         *sntBase = 0;
         *rstDay = UINT32_MAX;
         return;
-    case NvsBlobLoad::UseLegacy:
-        *cntBase = prefs.getInt(kNvsKeyChayaCntBase, 0);
-        *sntBase = prefs.getInt(kNvsKeyChayaSntBase, 0);
-        *rstDay = prefs.getUInt(kNvsKeyChayaRstDay, UINT32_MAX);
-        return;
     }
 }
 

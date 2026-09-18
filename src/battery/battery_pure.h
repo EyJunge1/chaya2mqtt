@@ -29,6 +29,4 @@ inline auto batteryPctFromMilliVolts(int mv) -> int {
     return 100;
 }
 
-inline auto batteryWarnLow(int pct) -> bool { return pct < kBatteryWarnPct; }
-
 inline auto batteryCriticalLow(int pct) -> bool { return pct < kBatteryCriticalPct; }

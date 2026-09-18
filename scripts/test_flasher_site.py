@@ -161,8 +161,8 @@ class GenerateFlasherSiteTests(unittest.TestCase):
         )
         self.assertEqual(with_hash["builds"][0]["parts"][0]["sha512"], "b" * 128)
         self.assertNotIn("sha256", with_hash["builds"][0]["parts"][0])
-        self.assertTrue(manifest["new_install_prompt_erase"])
-        self.assertEqual(manifest["new_install_improv_wait_time"], 0)
+        self.assertNotIn("new_install_prompt_erase", manifest)
+        self.assertNotIn("new_install_improv_wait_time", manifest)
 
     def test_build_site_copies_channels(self) -> None:
         """Copy stable and beta firmware into the generated site."""

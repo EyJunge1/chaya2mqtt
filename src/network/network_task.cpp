@@ -42,7 +42,7 @@ static void mqttFinishSettingsApply() {
 
 static void handleNetCommand(NetCmd cmd) {
     static const char *const kNetCmdNames[] = {
-        "MqttSettingsChanged", "MqttKillClient", "WifiGotIp", "WifiReconnect", "ChayaPublish", "FactoryResetRequested",
+        "MqttSettingsChanged", "WifiGotIp", "WifiReconnect", "ChayaPublish", "FactoryResetRequested",
     };
     const unsigned idx = static_cast<unsigned>(cmd);
     ESP_LOGI(TAG, "netCmd=%s", idx < (sizeof(kNetCmdNames) / sizeof(kNetCmdNames[0])) ? kNetCmdNames[idx] : "?");
@@ -120,13 +120,6 @@ static void handleNetCommand(NetCmd cmd) {
         ESP_LOGI(TAG, "MQTT settings apply: done (saved, postpone=3000)");
         break;
     }
-    case NetCmd::MqttKillClient:
-        if (wlanEpdRefreshActive()) {
-            mqttRequestKillClientDeferred();
-            break;
-        }
-        mqttDisconnect();
-        break;
     case NetCmd::WifiGotIp:
         wlanHandleStaGotIpNetCmd();
         break;

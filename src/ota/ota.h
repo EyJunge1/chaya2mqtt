@@ -44,8 +44,6 @@ void otaQueueInstall();
 /** Persist update channel preference. */
 auto otaSetChannel(OtaChannel channel) -> bool;
 
-auto otaGetChannel() -> OtaChannel;
-
 /** Load update channel from NVS before the HTTP server starts. */
 void otaPreloadChannelFromNvs();
 

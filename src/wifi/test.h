@@ -33,8 +33,6 @@ void wlanAbortWifiConnectionTest();
 auto wlanGetWifiConnectionTestState() -> WlanWifiConnectionTestState;
 
 /** True while Testing or Ok. Lock-free; safe under g_wifiApiMutex (RC-NET-04 / RC-NET-07). */
-auto wlanWifiConnectionTestBusy() -> bool;
-/** Same as busy — setup test owns STA until Abort/Commit. */
 auto wlanWifiConnectionTestOwnsRadio() -> bool;
 
 /** SSID currently being tested or last result context; false if Idle. */
@@ -42,6 +40,3 @@ auto wlanWifiConnectionTestSsidSnapshot(char *outSsid, size_t maxLen) -> bool;
 
 /** If state Ok and STA still has IPv4: write NVS. Caller schedules reboot. */
 auto wlanCommitWifiConnectionTest() -> bool;
-
-/** If state Ok and STA still has IPv4: write NVS, schedule reboot. */
-auto wlanCommitWifiConnectionTestAndScheduleReboot() -> bool;

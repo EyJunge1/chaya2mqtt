@@ -5,7 +5,6 @@
 #include "admin_globals.h"
 #include "routes/admin_routes.h"
 #include "web/admin_restart_pure.h"
-#include "web/deferred_reboot.h"
 #include "web/web_middleware.h"
 
 #include "async/app_task.h"
@@ -66,10 +65,6 @@ void webServerRegisterRoutes() { webAdminRegisterRoutes(); }
 void webServerBegin() { webAdminWebServer().begin(); }
 
 void webServerEnd() { webAdminWebServer().end(); }
-
-void webRequestRebootAfterWifiSave() { deferredRebootAfterWifiSave(); }
-
-void webAdminScheduleWifiConfiguredReboot() { deferredRebootAfterWifiSave(); }
 
 void webAdminClearRestartRequests() {
     g_webAdminRebootRequested.store(false, std::memory_order_release);

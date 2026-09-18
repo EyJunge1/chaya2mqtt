@@ -15,15 +15,6 @@ export async function resetMock(
   }
 }
 
-export async function setMockFault(request: APIRequestContext, fault: string, enabled = true) {
-  const res = await request.post("/api/_mock/fault", {
-    data: { fault, enabled },
-  });
-  if (!res.ok()) {
-    throw new Error(`mock fault failed: ${res.status()} ${await res.text()}`);
-  }
-}
-
 export async function waitForAppReady(page: Page) {
   await page.goto("/");
   await page.getByRole("banner").waitFor();

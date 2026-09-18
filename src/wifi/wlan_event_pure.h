@@ -21,9 +21,6 @@ inline auto wifiScanServiceShouldDeferKick(bool connectionTestOwnsRadio, bool ot
     return connectionTestOwnsRadio || otaBusy;
 }
 
-/** User refresh always sets the kick; the service coalesces in-progress scans (RC-NET-11). */
-inline auto wifiScanRefreshSetsKick(bool /*inProgress*/) -> bool { return true; }
-
 /** Do not consume the kick (or start a second sweep) while a scan is already running. */
 inline auto wifiScanServiceMayStartKick(bool inProgress) -> bool { return !inProgress; }
 

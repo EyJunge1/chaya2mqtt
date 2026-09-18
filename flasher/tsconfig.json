@@ -11,7 +11,7 @@
     "strict": true,
     "target": "ES2022",
     "module": "ESNext",
-    "types": ["svelte", "vite/client", "w3c-web-serial"]
+    "types": ["svelte", "vite/client"]
   },
   "include": ["src/**/*.d.ts", "src/**/*.ts", "src/**/*.svelte", "vite.config.ts"]
 }

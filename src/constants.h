@@ -11,7 +11,7 @@
 /** Minimum plausible Unix time (UTC) after NTP sync — rejects unset RTC (~1970). */
 constexpr uint32_t kNtpMinValidUtcEpoch = 1700000000U;
 
-/** Device pairing: 6 lowercase hex chars derived from MAC (last 3 bytes). */
+/** Device pairing: randomly generated 6-character lowercase hexadecimal ID. */
 constexpr size_t kDeviceIdHexLen = 6U;
 constexpr size_t kDeviceIdBufLen = 7U;
 

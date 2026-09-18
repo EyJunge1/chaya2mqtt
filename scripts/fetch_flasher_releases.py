@@ -105,11 +105,6 @@ def github_api_page(url: str, token: str | None) -> tuple[object, str | None]:
     return payload, next_url
 
 
-def github_api(url: str, token: str | None) -> object:
-    """Fetch and decode a single JSON response from the GitHub API."""
-    return github_api_page(url, token)[0]
-
-
 def download(url: str, dest: Path, token: str | None) -> None:
     """Download a release asset to the requested destination."""
     dest.parent.mkdir(parents=True, exist_ok=True)

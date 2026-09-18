@@ -27,8 +27,6 @@ bool displayContentAllowed() { return s_contentAllowed.load(std::memory_order_ac
 
 void displaySetDesiredHeartIcon(DisplayHeartIcon icon) { displayTaskSetDesiredHeartIcon(icon); }
 
-DisplayHeartIcon displayDesiredHeartIcon() { return displayTaskDesiredHeartIcon(); }
-
 bool displayRequest(DisplayMsg::Cmd cmd, DisplayRequestMode mode, uint32_t waitMs) {
     if (g_systemShutdownInProgress.load(std::memory_order_acquire) && mode != DisplayRequestMode::PowerOffWait) {
         return false;

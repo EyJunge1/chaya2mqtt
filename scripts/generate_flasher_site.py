@@ -119,8 +119,6 @@ def make_manifest(
     return {
         "name": name,
         "version": version,
-        "new_install_prompt_erase": True,
-        "new_install_improv_wait_time": 0,
         "builds": [
             {
                 "chipFamily": "ESP32-S3",

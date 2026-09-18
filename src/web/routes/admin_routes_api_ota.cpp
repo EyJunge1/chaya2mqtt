@@ -59,9 +59,7 @@ void handleApiUpdateCheckPost(AsyncWebServerRequest *req, JsonVariant &json) {
         return;
     }
     if (!adminJsonHasField(json, "channel")) {
-        otaQueueGithubCheck();
-        ESP_LOGI(TAG, "API OTA check queued");
-        sendOk(req, 200, "checking");
+        sendErr(req, 400, "channel");
         return;
     }
     char channelBuf[12]{};

@@ -48,8 +48,6 @@ WlanWifiScanStatus wlanWifiScanStatus() {
     return WlanWifiScanStatus::Idle;
 }
 
-bool wlanWifiScanCacheReady() { return wlanWifiScanStatus() == WlanWifiScanStatus::Ready; }
-
 size_t wlanWifiScanCopySnapshot(WlanScanRow *out, size_t maxRows) {
     if (out == nullptr || maxRows == 0U) {
         return 0;
@@ -61,27 +59,6 @@ size_t wlanWifiScanCopySnapshot(WlanScanRow *out, size_t maxRows) {
     }
     portEXIT_CRITICAL(&s_wifiScanCacheMux);
     return n;
-}
-
-size_t wlanWifiScanCachedCount() {
-    portENTER_CRITICAL(&s_wifiScanCacheMux);
-    const size_t n = s_wifiScanCacheCount;
-    portEXIT_CRITICAL(&s_wifiScanCacheMux);
-    return n;
-}
-
-bool wlanWifiScanCopyRowAt(size_t index, WlanScanRow *out) {
-    if (out == nullptr) {
-        return false;
-    }
-    portENTER_CRITICAL(&s_wifiScanCacheMux);
-    if (index >= s_wifiScanCacheCount) {
-        portEXIT_CRITICAL(&s_wifiScanCacheMux);
-        return false;
-    }
-    *out = s_wifiScanCache[index];
-    portEXIT_CRITICAL(&s_wifiScanCacheMux);
-    return true;
 }
 
 void wifiScanServiceOnMainTask() {

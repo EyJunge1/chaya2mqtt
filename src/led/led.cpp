@@ -148,8 +148,6 @@ bool ledTxBusy() {
 
 bool ledIsTxSendBusy() { return s_sendWanted.load(std::memory_order_acquire) || ledTxBusy(); }
 
-bool ledSendSequenceActive() { return ledActivityActive(); }
-
 static LedBlinkPattern ledPresetToPattern(LedPreset preset) {
     switch (preset) {
     case LedPreset::Boot:
@@ -166,7 +164,7 @@ static LedBlinkPattern ledPresetToPattern(LedPreset preset) {
     return {kLedPresetBootCount, kLedPresetBootOnMs, kLedPresetBootOffMs};
 }
 
-void ledPlayPattern(LedBlinkPattern pattern) {
+static void ledPlayPattern(LedBlinkPattern pattern) {
     ledPatternNormalize(pattern.count, pattern.onMs, pattern.offMs);
     s_patternCount.store(pattern.count, std::memory_order_relaxed);
     s_patternOnMs.store(pattern.onMs, std::memory_order_relaxed);
@@ -177,7 +175,7 @@ void ledPlayPattern(LedBlinkPattern pattern) {
 
 void ledPlayPreset(LedPreset preset) { ledPlayPattern(ledPresetToPattern(preset)); }
 
-void ledPlayPatternBlocking(LedBlinkPattern pattern) {
+static void ledPlayPatternBlocking(LedBlinkPattern pattern) {
     if (!configGetLedEnabled()) {
         ledOutput(LOW);
         return;

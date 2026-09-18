@@ -13,9 +13,6 @@
 #include <DNSServer.h>
 #include <freertos/portmacro.h>
 
-extern char g_lastFailedBootSsid[kWifiSsidMaxLen];
-extern portMUX_TYPE g_lastFailedBootSsidMux;
-
 extern DNSServer g_dnsServer;
 extern std::atomic<bool> g_apMode;
 extern std::atomic<bool> s_captiveDnsStarted;
@@ -60,8 +57,6 @@ extern std::atomic<unsigned long> s_wifiScanNextAllowedMs;
 void setupWifiFinishStaConnected();
 void setupWifiStartApFallback(const char *attemptedSsid);
 void setupWifiBeginStaConnectAsync(const WlanConfig &cfg);
-
-void wifiLoadCredentialsFromNvs(char *ssid, size_t ssidLen, char *pass, size_t passLen);
 
 void wlanBootConnectServiceLoop();
 /** Retry restoring WiFi TX power after an EPD refresh if the mutex was busy. */

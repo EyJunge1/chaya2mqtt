@@ -53,8 +53,6 @@ function localFirmwarePlugin(): Plugin {
             JSON.stringify({
               name: "Chaya2MQTT",
               version: isBeta ? "dev-beta" : "dev-stable",
-              new_install_prompt_erase: true,
-              new_install_improv_wait_time: 0,
               builds: [
                 {
                   chipFamily: "ESP32-S3",
@@ -69,7 +67,7 @@ function localFirmwarePlugin(): Plugin {
         if (pathname === "/dev/firmware.factory.bin") {
           if (!existsSync(localFactoryImage)) {
             response.statusCode = 404;
-            response.end("Run: make build ENV=esp32s3-release");
+            response.end("Run: pio run -e esp32s3-release");
             return;
           }
           response.setHeader("Content-Type", "application/octet-stream");

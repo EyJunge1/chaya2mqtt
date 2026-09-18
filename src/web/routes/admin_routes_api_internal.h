@@ -23,9 +23,6 @@ AsyncCallbackWebHandler &adminOnGet(AsyncWebServer &ws, const char *uri, ArReque
                                     ApiGuard guard = ApiGuard::None);
 AsyncCallbackJsonWebHandler &adminAddJsonPost(AsyncWebServer &ws, const char *uri, ArJsonRequestHandlerFunction fn,
                                               ApiGuard guard = ApiGuard::None);
-/** Safe, idempotent JSON read with a body (RFC 10008 / OpenAPI 3.2 `query:`). */
-AsyncCallbackJsonWebHandler &adminAddJsonQuery(AsyncWebServer &ws, const char *uri, ArJsonRequestHandlerFunction fn,
-                                               ApiGuard guard = ApiGuard::None);
 
 /** Aggregated boot snapshot: device + wifi (+ STA extras). */
 void handleApiBootstrapGet(AsyncWebServerRequest *req);

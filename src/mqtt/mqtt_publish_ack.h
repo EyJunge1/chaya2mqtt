@@ -19,17 +19,13 @@ struct MqttPublishAckState {
     int lateAckMessageId = -1;
 };
 
-/** True only for Idle/Failed — a new QoS-1 publish may Reserve/Begin. */
+/** True only for Idle/Failed — a new QoS-1 publish may reserve a slot. */
 inline auto mqttPublishAckCanBegin(const MqttPublishAckState &state) -> bool {
     return state.status == MqttPublishAckStatus::Idle || state.status == MqttPublishAckStatus::Failed;
 }
 
 /** Reserve also requires the async request still Pending (abort-without-ACK blocks Reserve). */
 inline auto mqttPublishAckBeginAllowed(bool canBegin, bool asyncStillPending) -> bool { return canBegin && asyncStillPending; }
-
-inline auto mqttPublishAckIsStarting(const MqttPublishAckState &state) -> bool {
-    return state.status == MqttPublishAckStatus::Starting;
-}
 
 /** Starting, Pending, or Acked: do not start another publish. */
 inline auto mqttPublishAckBlocksNewPublish(const MqttPublishAckState &state) -> bool {
@@ -62,19 +58,6 @@ inline auto mqttPublishAckAttach(MqttPublishAckState *state, int messageId, uint
         state->status = MqttPublishAckStatus::Acked;
         state->lateAckMessageId = -1;
     }
-    return true;
-}
-
-inline auto mqttPublishAckBegin(MqttPublishAckState *state, int messageId, uint32_t clientGeneration,
-                                int expectedCounter) -> bool {
-    if (state == nullptr || messageId < 0 || !mqttPublishAckCanBegin(*state)) {
-        return false;
-    }
-    state->status = MqttPublishAckStatus::Pending;
-    state->messageId = messageId;
-    state->clientGeneration = clientGeneration;
-    state->expectedCounter = expectedCounter;
-    state->lateAckMessageId = -1;
     return true;
 }
 
@@ -129,9 +112,6 @@ inline auto mqttPublishAckWasConfirmed(const MqttPublishAckState &state, int mes
     return state.status == MqttPublishAckStatus::Acked && state.messageId == messageId &&
            state.clientGeneration == clientGeneration;
 }
-
-/** Extra async Pending→Fail only when no PUBACK was in flight, or Fail actually ran. */
-inline auto mqttAbortMayFailAsync(bool ackPending, bool failAckSucceeded) -> bool { return !ackPending || failAckSucceeded; }
 
 /** Pending + armed timer; startMs==0 is a valid millis() snapshot (not a sentinel). */
 inline auto mqttPublishAckTimeoutDue(bool pending, bool timerArmed, unsigned long startedMs, unsigned long nowMs,

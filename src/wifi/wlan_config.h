@@ -138,8 +138,6 @@ constexpr unsigned long kApDnsPollIntervalMs = 5000UL;
 /** Factory-reset / controlled-restart wait for an in-flight EPD refresh (RC-NET-05). */
 constexpr unsigned long kWlanEpdWaitForDestructiveMs = 90000UL;
 
-/** Legacy packed credentials blob (SSID+pass only). */
-constexpr uint32_t kWifiCredPackedMagic = 0x43575631U; // "CWV1"
 /** Full network config blob (SSID+pass+IPv4+NTP). */
 constexpr uint32_t kWifiCfgPackedMagic = 0x43575632U; // "CWV2"
 
@@ -203,20 +201,6 @@ inline void wlanConfigCopyStr(char *dst, size_t dstLen, const char *src) {
     }
     std::strncpy(dst, src, dstLen - 1U);
     dst[dstLen - 1U] = '\0';
-}
-
-/**
- * Fill empty NTP with built-in fallback (runtime apply only — not for NVS storage).
- * Empty NTP in config means automatic: DHCP option 42 when offered, else Cloudflare.
- */
-inline void wlanConfigSetNtpDefaults(WlanConfig *cfg) {
-    if (cfg == nullptr) {
-        return;
-    }
-    if (cfg->ntp1[0] == '\0') {
-        wlanConfigCopyStr(cfg->ntp1, sizeof(cfg->ntp1), kWifiDefaultNtp1);
-    }
-    cfg->ntp2[0] = '\0';
 }
 
 /**

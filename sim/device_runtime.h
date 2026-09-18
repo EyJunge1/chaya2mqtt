@@ -42,8 +42,8 @@ class DeviceRuntime {
     bool mqttConnected() const { return transport_.connected; }
     long remoteCounter() const { return remoteCounter_; }
     int localTxCounter() const { return localTxCounter_; }
-    int displayRxDelta() const { return heartCounterDeltaPure(static_cast<int>(remoteCounter_), rxBaseline_); }
-    int displayTxDelta() const { return heartCounterDeltaPure(localTxCounter_, txBaseline_); }
+    int displayRxDelta() const { return heartCounterDeltaPure(static_cast<int>(remoteCounter_), 0); }
+    int displayTxDelta() const { return heartCounterDeltaPure(localTxCounter_, 0); }
 
     void configureBroker(const char *server, int port, const char *user, const char *pass) {
         std::strncpy(mqtt_.server, server ? server : "", sizeof(mqtt_.server) - 1U);
@@ -190,6 +190,4 @@ class DeviceRuntime {
     uint32_t clientGeneration_ = 1U;
     long remoteCounter_ = 0;
     int localTxCounter_ = 0;
-    int rxBaseline_ = 0;
-    int txBaseline_ = 0;
 };

@@ -177,7 +177,7 @@ inline auto otaReleaseHasRequiredAssets(JsonVariantConst root) -> bool {
  * requireAssets: skip releases that lack firmware.bin + firmware.sha512.
  */
 inline auto otaSelectReleaseFromListJson(JsonVariantConst root, bool preferPrerelease, char *tagOut, size_t tagLen,
-                                         bool *outIsPrerelease, bool requireAssets = false) -> bool {
+                                         bool *outIsPrerelease, bool requireAssets = true) -> bool {
     if (tagOut == nullptr || tagLen == 0U) {
         return false;
     }
@@ -224,7 +224,7 @@ inline auto otaSelectReleaseFromListJson(JsonVariantConst root, bool preferPrere
 }
 
 inline auto otaSelectReleaseFromListJson(const char *json, bool preferPrerelease, char *tagOut, size_t tagLen,
-                                         bool *outIsPrerelease, bool requireAssets = false) -> bool {
+                                         bool *outIsPrerelease, bool requireAssets = true) -> bool {
     if (json == nullptr || tagOut == nullptr || tagLen == 0U) {
         return false;
     }

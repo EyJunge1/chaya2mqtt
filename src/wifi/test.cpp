@@ -3,7 +3,6 @@
 #include "util/ip_format.h"
 
 #include "async/task_handles.h"
-#include "async/web_server_hooks.h"
 #include "constants.h"
 #include "diag/task_watchdog.h"
 #include "identity/device_identity.h"
@@ -210,9 +209,7 @@ WlanWifiConnectionTestState wlanGetWifiConnectionTestState() {
     return st;
 }
 
-bool wlanWifiConnectionTestBusy() { return s_wifiConnTestBusy.load(std::memory_order_acquire); }
-
-bool wlanWifiConnectionTestOwnsRadio() { return wlanWifiConnectionTestBusy(); }
+bool wlanWifiConnectionTestOwnsRadio() { return s_wifiConnTestBusy.load(std::memory_order_acquire); }
 
 void wlanAbortWifiConnectionTest() {
     wifiTestLock();
@@ -297,13 +294,5 @@ bool wlanCommitWifiConnectionTest() {
     s_wifiConnTestAbortPending = true;
     wifiConnTestResetToIdleLocked();
     wifiTestUnlock();
-    return true;
-}
-
-bool wlanCommitWifiConnectionTestAndScheduleReboot() {
-    if (!wlanCommitWifiConnectionTest()) {
-        return false;
-    }
-    webRequestRebootAfterWifiSave();
     return true;
 }

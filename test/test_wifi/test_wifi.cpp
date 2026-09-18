@@ -17,7 +17,7 @@
 #include "wifi/wlan_soft_reconnect.h"
 
 void test_setup_ap_pass_syntax_and_format() {
-    TEST_ASSERT_FALSE(setupApPassSyntaxOk("00000000")); // legacy 8-digit rejected
+    TEST_ASSERT_FALSE(setupApPassSyntaxOk("00000000")); // too short
     TEST_ASSERT_FALSE(setupApPassSyntaxOk("1234567"));
     TEST_ASSERT_FALSE(setupApPassSyntaxOk(""));
     TEST_ASSERT_FALSE(setupApPassSyntaxOk(nullptr));
@@ -182,8 +182,6 @@ void test_wlan_config_validate() {
     wlanConfigClear(&cfg);
     wlanConfigCopyStr(cfg.ssid, sizeof(cfg.ssid), "Home");
     cfg.mode = WlanIpMode::Dhcp;
-    TEST_ASSERT_NULL(wlanConfigValidate(&cfg));
-    wlanConfigSetNtpDefaults(&cfg);
     TEST_ASSERT_NULL(wlanConfigValidate(&cfg));
 
     cfg.mode = WlanIpMode::Static;
@@ -379,10 +377,7 @@ void test_soft_off_blocked_when_factory_owns() {
     TEST_ASSERT_FALSE(softOffAllowed(false, false, false, false, false, true));
 }
 
-void test_recovery_should_note_restart_only_after_claim() {
-    TEST_ASSERT_TRUE(recoveryShouldNoteRestart(true));
-    TEST_ASSERT_FALSE(recoveryShouldNoteRestart(false));
-
+void test_recovery_restart_note() {
     const RecoveryRestartNote unsynced = recoveryNextRestartNote(0U, 100U, 2U);
     TEST_ASSERT_EQUAL_UINT32(0U, unsynced.day);
     TEST_ASSERT_EQUAL_UINT8(0U, unsynced.n);
@@ -452,17 +447,15 @@ void test_wlan_force_caller_should_undo() {
     TEST_ASSERT_FALSE(wlanForceCallerShouldCountFail(WlanForceReassocResult::Deferred));
 }
 
-void test_wifi_scan_refresh_always_sets_kick() {
-    TEST_ASSERT_TRUE(wifiScanRefreshSetsKick(false));
-    TEST_ASSERT_TRUE(wifiScanRefreshSetsKick(true));
+void test_wifi_scan_may_start_kick() {
     TEST_ASSERT_TRUE(wifiScanServiceMayStartKick(false));
     TEST_ASSERT_FALSE(wifiScanServiceMayStartKick(true));
 }
 
-void test_wlan_nvs_invalid_cfg_v2_skips_legacy() {
+void test_wlan_nvs_blob_or_defaults() {
     TEST_ASSERT_EQUAL_INT(static_cast<int>(NvsBlobLoad::UseBlob),
                           static_cast<int>(nvsBlobLoadDecide(sizeof(PackedWifiConfigV2), sizeof(PackedWifiConfigV2))));
-    TEST_ASSERT_EQUAL_INT(static_cast<int>(NvsBlobLoad::UseLegacy),
+    TEST_ASSERT_EQUAL_INT(static_cast<int>(NvsBlobLoad::UseDefaults),
                           static_cast<int>(nvsBlobLoadDecide(0, sizeof(PackedWifiConfigV2))));
     TEST_ASSERT_EQUAL_INT(static_cast<int>(NvsBlobLoad::UseDefaults),
                           static_cast<int>(nvsBlobLoadDecide(4, sizeof(PackedWifiConfigV2))));
@@ -494,13 +487,13 @@ int main(int, char **) {
     RUN_TEST(test_wlan_scan_deadline_wrap);
     RUN_TEST(test_wlan_unpack_invalid_static_falls_back_dhcp);
     RUN_TEST(test_soft_off_blocked_when_factory_owns);
-    RUN_TEST(test_recovery_should_note_restart_only_after_claim);
+    RUN_TEST(test_recovery_restart_note);
     RUN_TEST(test_wifi_sta_password_apply);
     RUN_TEST(test_wlan_mdns_kick_should_consume);
     RUN_TEST(test_factory_wipe_should_abort);
     RUN_TEST(test_nvs_write_allowed_after_lock);
     RUN_TEST(test_wlan_force_caller_should_undo);
-    RUN_TEST(test_wifi_scan_refresh_always_sets_kick);
-    RUN_TEST(test_wlan_nvs_invalid_cfg_v2_skips_legacy);
+    RUN_TEST(test_wifi_scan_may_start_kick);
+    RUN_TEST(test_wlan_nvs_blob_or_defaults);
     return UNITY_END();
 }

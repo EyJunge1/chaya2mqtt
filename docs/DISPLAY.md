@@ -72,8 +72,8 @@ Displayed TX = max(0, heartSentCounter − sentCountBaseline), capped at 999
 |----------|------|---------|-----|
 | `heartCounter` | Absolute (received) | Delta via baseline | `chaya/counter` |
 | `heartSentCounter` | Absolute (sent) | Delta via baseline | `chaya/sentCount` |
-| `counterBaseline` | – | RX baseline | `chaya/baseBlob` (legacy `cntBase`) |
-| `sentCountBaseline` | – | TX baseline | `chaya/baseBlob` (legacy `sntBase`) |
+| `counterBaseline` | – | RX baseline | `chaya/baseBlob` |
+| `sentCountBaseline` | – | TX baseline | `chaya/baseBlob` |
 
 ### Example
 

@@ -476,11 +476,6 @@ bool otaSetChannel(OtaChannel channel) {
     return true;
 }
 
-OtaChannel otaGetChannel() {
-    loadChannelIfNeeded();
-    return s_channel.load(std::memory_order_acquire);
-}
-
 void otaPreloadChannelFromNvs() { loadChannelIfNeeded(); }
 
 void otaResetRamAfterFactoryClear() {

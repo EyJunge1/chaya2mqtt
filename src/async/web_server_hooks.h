@@ -9,8 +9,5 @@ void webServerRegisterRoutes();
 void webServerBegin();
 void webServerEnd();
 
-/** Ask admin to defer reboot after Wi‑Fi NVS commit. */
-void webRequestRebootAfterWifiSave();
-
 /** Drop armed admin reboot / Wi-Fi-save restart (factory owns the restart). */
 void webAdminClearRestartRequests();

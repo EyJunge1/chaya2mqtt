@@ -9,7 +9,6 @@
 #include "ota/version_cmp.h"
 
 void test_ota_queue_check_keeps_pending_release() {
-    TEST_ASSERT_FALSE(otaQueueCheckClearsPendingRelease());
     TEST_ASSERT_FALSE(otaGithubCheckMayClearPendingRelease(true));
     TEST_ASSERT_TRUE(otaGithubCheckMayClearPendingRelease(false));
 }
@@ -71,7 +70,7 @@ void test_ota_github_release_select() {
     TEST_ASSERT_FALSE(isPre);
 
     const char *onlyStable = "[{\"tag_name\":\"v2026.8.1\",\"draft\":false,\"prerelease\":false}]";
-    TEST_ASSERT_TRUE(otaSelectReleaseFromListJson(onlyStable, true, tag, sizeof(tag), &isPre));
+    TEST_ASSERT_TRUE(otaSelectReleaseFromListJson(onlyStable, true, tag, sizeof(tag), &isPre, false));
     TEST_ASSERT_EQUAL_STRING("v2026.8.1", tag);
     TEST_ASSERT_FALSE(isPre);
 
@@ -88,7 +87,7 @@ void test_ota_github_release_select() {
                             "{\"tag_name\":\"v2026.9.1-rc.1\",\"draft\":true,\"prerelease\":true},"
                             "{\"tag_name\":\"v2026.9.1-rc.2\",\"draft\":false,\"prerelease\":true}"
                             "]";
-    TEST_ASSERT_TRUE(otaSelectReleaseFromListJson(withDraft, true, tag, sizeof(tag), &isPre));
+    TEST_ASSERT_TRUE(otaSelectReleaseFromListJson(withDraft, true, tag, sizeof(tag), &isPre, false));
     TEST_ASSERT_EQUAL_STRING("v2026.9.1-rc.2", tag);
 
     const char *unordered = "["
@@ -97,7 +96,7 @@ void test_ota_github_release_select() {
                             "{\"draft\":false,\"tag_name\":\"v2026.9.1-rc.3\",\"prerelease\":true},"
                             "{\"prerelease\":true,\"tag_name\":\"v2026.9.1-rc.2\",\"draft\":false}"
                             "]";
-    TEST_ASSERT_TRUE(otaSelectReleaseFromListJson(unordered, true, tag, sizeof(tag), &isPre));
+    TEST_ASSERT_TRUE(otaSelectReleaseFromListJson(unordered, true, tag, sizeof(tag), &isPre, false));
     TEST_ASSERT_EQUAL_STRING("v2026.9.1-rc.3", tag);
 
     bool value = false;

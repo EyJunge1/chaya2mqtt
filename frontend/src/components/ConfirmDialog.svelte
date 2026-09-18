@@ -69,7 +69,6 @@
         loading={confirming}
         onclick={onConfirm}
         class="sm:w-auto sm:min-w-32 sm:px-5"
-        width="full"
       >
         {confirmLabel}
       </PrimaryButton>
@@ -79,7 +78,6 @@
         loading={confirming}
         onclick={onConfirm}
         class="sm:w-auto sm:min-w-32 sm:px-5"
-        width="full"
       >
         {confirmLabel}
       </DangerButton>
@@ -89,7 +87,6 @@
       disabled={confirming}
       onclick={onCancel}
       class="sm:w-auto sm:min-w-32 sm:px-5"
-      width="full"
     >
       {cancelLabel}
     </SecondaryButton>

@@ -109,19 +109,6 @@ class ScopedNvsWriteLock {
     bool held_;
 };
 
-inline bool clearNamespace(const char *ns) {
-    detail::lock();
-    Preferences prefs;
-    if (!prefs.begin(ns, false)) {
-        detail::unlock();
-        return false;
-    }
-    const bool ok = prefs.clear();
-    prefs.end();
-    detail::unlock();
-    return ok;
-}
-
 struct NvsClearProgress {
     bool allCleared = false;
     bool anyMutated = false;
@@ -152,17 +139,6 @@ inline NvsClearProgress clearNamespacesUnlocked(const char *const *nsList, size_
     return result;
 }
 
-/** BUG-LIFE-02: wipe several namespaces under one g_nvsMutex hold. */
-inline bool clearNamespaces(const char *const *nsList, size_t count) {
-    if (nsList == nullptr || count == 0U) {
-        return false;
-    }
-    detail::lock();
-    const bool ok = clearNamespacesUnlocked(nsList, count).allCleared;
-    detail::unlock();
-    return ok;
-}
-
 inline bool hasKey(const char *ns, const char *key) {
     detail::lock();
     Preferences prefs;
@@ -171,24 +147,6 @@ inline bool hasKey(const char *ns, const char *key) {
         return false;
     }
     const bool ok = prefs.isKey(key);
-    prefs.end();
-    detail::unlock();
-    return ok;
-}
-
-inline bool removeKey(const char *ns, const char *key) {
-    if (!detail::writePermitted(ns)) {
-        return false;
-    }
-    if (!detail::lockUnlessWritesBlocked(ns)) {
-        return false;
-    }
-    Preferences prefs;
-    if (!prefs.begin(ns, false)) {
-        detail::unlock();
-        return false;
-    }
-    const bool ok = prefs.remove(key);
     prefs.end();
     detail::unlock();
     return ok;
@@ -254,19 +212,6 @@ inline bool writeUInt(const char *ns, const char *key, uint32_t value) {
     prefs.end();
     detail::unlock();
     return w > 0U;
-}
-
-inline int readInt(const char *ns, const char *key, int defaultVal) {
-    detail::lock();
-    Preferences prefs;
-    if (!prefs.begin(ns, true)) {
-        detail::unlock();
-        return defaultVal;
-    }
-    const int v = prefs.getInt(key, defaultVal);
-    prefs.end();
-    detail::unlock();
-    return v;
 }
 
 inline bool writeInt(const char *ns, const char *key, int value) {

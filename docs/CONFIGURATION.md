@@ -15,13 +15,10 @@ All persistent settings are stored in the ESP32-S3 **NVS** (Non-Volatile Storage
 
 | Key | Type | Description |
 |-----|------|-------------|
-| `cfg_v2` | Bytes (packed) | Current format: SSID, password, IP mode, static IPv4 fields, NTP |
-| `cred_v1` | Bytes (packed) | Legacy: SSID + password only (migrated to DHCP when loaded) |
-| `ssid` | String | Legacy format (fallback) |
-| `pass` | String | Legacy format (fallback) |
-| `ap_pin` | String | SoftAP WPA-PSK (24 alphanumeric) for WIFI QR (created on first setup AP; legacy 8-digit values are regenerated) |
+| `cfg_v2` | Bytes (packed) | SSID, password, IP mode, static IPv4 fields, NTP |
+| `ap_pin` | String | SoftAP WPA-PSK (24 alphanumeric) for WIFI QR (created on first setup AP; missing or invalid values are regenerated) |
 
-When saving, legacy keys (`ssid`, `pass`, `cred_v1`) are removed and only `cfg_v2` is written.
+Missing or invalid `cfg_v2` means no STA credentials (setup AP).
 
 ### `cfg_v2` fields
 
@@ -32,7 +29,7 @@ When saving, legacy keys (`ssid`, `pass`, `cred_v1`) are removed and only `cfg_v
 | DNS1 / DNS2 | empty | Empty = DNS from DHCP; set = override (commonly Cloudflare `1.1.1.1` / `1.0.0.1`) |
 | NTP1 / NTP2 | empty | Empty = automatic (DHCP option 42, otherwise `time.cloudflare.com`); set = override |
 
-Invalid static fields in NVS are reset to DHCP when loaded. Known built-in NTP pairs are loaded as “automatic” (empty).
+Invalid static fields in NVS are reset to DHCP when loaded.
 Static addresses are not coordinated between devices; every Chaya2MQTT on the same LAN must be assigned a different IP.
 
 STA max TX power defaults to 52 quarter-dBm (13 dBm). During each E-Paper waveform the firmware
@@ -42,23 +39,16 @@ raises the configured maximum.
 **Written by:** `wlanSaveConfigToNvs()`—from web POST `/api/wifi/connect` (STA) or `/api/wifi/connect-commit` (AP test)
 
 The device ID is stored in NVS (`cfg/device_id`) as six lowercase hex characters. It is created
-randomly on first boot and after factory reset / flash erase. On OTA upgrade from firmware that
-had no `device_id` key, the ID is seeded once from the STA MAC when WiFi or MQTT config already
-exists, so pairings and hostnames stay stable until the next reset. The setup SoftAP hostname is
-`chaya2mqtt`; the LAN hostname is `chaya2mqtt-<deviceId>`.
+randomly on first boot and after factory reset / flash erase when the key is missing or invalid.
+The setup SoftAP hostname is `chaya2mqtt`; the LAN hostname is `chaya2mqtt-<deviceId>`.
 
 ## Namespace `mqtt`
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
-| `server` | String | `""` | Broker hostname or IP |
-| `port` | Int | `8883` | MQTT port (1883 plain / 8883 TLS typical) |
-| `tls` | UChar | `1` | `1` = mqtts (TLS), `0` = mqtt (plain TCP); missing key defaults to TLS |
-| `user` | String | `""` | MQTT username |
-| `pass` | String | `""` | MQTT password |
-| `partner_id` | String | `""` | Partner device ID (6 hexadecimal characters; required for heart display) |
+| `cfg_v1` | Bytes (packed) | — | Broker host, port, TLS, user, password, partner ID |
 
-Legacy keys `topic_pub` / `topic_sub` are removed when saving. Topics now exist only as derived values in RAM.
+Missing or invalid `cfg_v1` uses empty broker defaults (TLS port 8883). Topics exist only as derived values in RAM.
 
 **Written by:** `saveMQTTConfig()`—after `mqttCfgApplyPendingToActive()` in the network task
 
@@ -83,30 +73,20 @@ Legacy keys `topic_pub` / `topic_sub` are removed when saving. Topics now exist 
 | `snd_rx_en` | UChar | `0` | RX (receive) click enabled (`1` = on; default off) |
 | `snd_tx_vol` | UChar | `70` | TX click volume 0–100 |
 | `snd_rx_vol` | UChar | `70` | RX click volume 0–100 |
-| `snd_qB` | Bytes (2) | — | Packed quiet hours: start/end (current write format) |
-| `snd_q0` | UChar | `0` | Legacy quiet-hours start (load fallback only) |
-| `snd_q1` | UChar | `0` | Legacy quiet-hours end (equal to `snd_q0` = off; wraps midnight; load fallback only) |
-| `snd_tB` | Bytes (8) | — | Packed tones: `txHz`, `txMs`, `rxHz`, `rxMs` (current write format) |
-| `snd_tx_hz` | UInt | `880` | Legacy send click frequency (Hz, 40–2000; load fallback only) |
-| `snd_tx_ms` | UInt | `80` | Legacy send click duration (ms, 20–500; load fallback only) |
-| `snd_rx_hz` | UInt | `660` | Legacy receive click frequency (Hz, 40–2000; load fallback only) |
-| `snd_rx_ms` | UInt | `140` | Legacy receive click duration (ms, 20–500; load fallback only) |
+| `snd_qB` | Bytes (2) | — | Packed quiet hours: start/end |
+| `snd_tB` | Bytes (8) | — | Packed tones: `txHz`, `txMs`, `rxHz`, `rxMs` |
 | `upd_day` | UInt | `0` | Last automatic OTA check (UTC calendar day) |
 | `upd_chan` | String | `stable` | OTA channel (`stable` or `beta`) |
 
 **Written by:**
-- `device_id`: created by `buildDeviceId()` on first use (random, or one-time MAC seed on OTA migration)
+- `device_id`: created by `buildDeviceId()` on first use (random)
 - `rstPeriod` / `ui_lang` / `ui_theme` / `led_en` / `snd_tx_en` / `snd_rx_en` / `snd_tx_vol` / `snd_rx_vol` / `snd_qB` / `snd_tB`: web POST `/api/settings` (deferred via the app task)
 - `disp_view`: two-phase display transaction—`Unknown` is persisted before a full refresh and the
   completed view afterward. A reset or power loss during the waveform therefore forces a repaint.
 - `upd_day`: automatically after an OTA check
 - `upd_chan`: when selecting a channel during the update check
 
-Leftover keys from older firmware (`authEn`, `disp_dark`, `snd_custom`) are unused.
-Legacy `cfg/snd_mute` is migrated once to `snd_tx_en` / `snd_rx_en` (`unmuted` → both on) when the new keys are absent.
-Legacy `cfg/snd_vol` is migrated once to `snd_tx_vol` / `snd_rx_vol` when the new keys are absent.
-
-**Audio persistence:** Quiet hours and tones are written as `snd_qB` / `snd_tB`. On load, a valid blob is used; a missing blob falls back to the legacy scalar keys; a present but wrong-size blob uses defaults, not legacy. After a successful blob write, the legacy keys are removed.
+**Audio persistence:** Quiet hours and tones are written as `snd_qB` / `snd_tB`. On load, a valid blob is used; a missing or wrong-size blob uses defaults.
 
 ### Reset period (`rstPeriod`)
 
@@ -126,12 +106,9 @@ In addition, if a displayed delta reaches ≥ **999**, the baseline for that sid
 |-----|------|---------|-------------|
 | `counter` | Int | `0` | Received counter (absolute) |
 | `sentCount` | Int | `0` | Sent counter (absolute) |
-| `baseBlob` | Bytes (12) | — | Packed baselines: `cntBase`, `sntBase`, `rstDay` (current write format) |
-| `cntBase` | Int | `0` | Legacy RX display baseline (load fallback only) |
-| `sntBase` | Int | `0` | Legacy TX display baseline (load fallback only) |
-| `rstDay` | UInt | `UINT32_MAX` | Legacy last periodic reset UTC day (load fallback only) |
+| `baseBlob` | Bytes (12) | — | Packed baselines: `cntBase`, `sntBase`, `rstDay` |
 
-**Baseline persistence:** `persistCounterBaselineState()` writes `baseBlob` (`ChayaBaselineBlob`: two `int32_t` + one `uint32_t`). On load, a valid blob is used; a missing blob falls back to the three legacy keys (`cntBase`, `sntBase`, `rstDay`); a present but wrong-size blob uses defaults (`0` / `0` / `UINT32_MAX`), not legacy. After a successful blob write, the legacy keys are removed.
+**Baseline persistence:** `persistCounterBaselineState()` writes `baseBlob` (`ChayaBaselineBlob`: two `int32_t` + one `uint32_t`). On load, a valid blob is used; a missing or wrong-size blob uses defaults (`0` / `0` / `UINT32_MAX`).
 
 **Storage strategy:**
 - Counters (`counter` / `sentCount`): debounced save only every **≥30 s** if the value has changed
@@ -147,8 +124,8 @@ Some values are additionally cached in RAM (atomics):
 |----------|---------------|--------|
 | `heartCounter` | `chaya/counter` | counter |
 | `heartSentCounter` | `chaya/sentCount` | counter |
-| `counterBaseline` | `chaya/baseBlob` (legacy `cntBase`) | counter |
-| `sentCountBaseline` | `chaya/baseBlob` (legacy `sntBase`) | counter |
+| `counterBaseline` | `chaya/baseBlob` | counter |
+| `sentCountBaseline` | `chaya/baseBlob` | counter |
 | `s_resetPeriodDaysCached` | `cfg/rstPeriod` | app_config |
 | `s_ledEnabledCached` | `cfg/led_en` | app_config |
 | `s_displayViewCached` | `cfg/disp_view` | app_config |
@@ -188,7 +165,7 @@ MQTT and settings changes are processed **as deferred work** (not in the HTTP ha
 
 ## Constants headers
 
-Module-specific defaults and limits are located in `*_config.h` (no longer centrally in `constants.h`):
+Module-specific defaults and limits are located in `*_config.h`; shared identity, NTP, and validation constants remain in `constants.h`:
 
 | Header | Content |
 |--------|---------|

@@ -82,14 +82,6 @@ void test_spa_asset_lookup() {
     TEST_ASSERT_EQUAL_UINT32(30u, js->offset);
     TEST_ASSERT_EQUAL_UINT32(40u, js->length);
 
-    const SpaAssetEntry *index = spaFindIndex(entries, count);
-    TEST_ASSERT_NOT_NULL(index);
-    TEST_ASSERT_EQUAL_STRING("/index.html", index->path);
-
-    TEST_ASSERT_EQUAL_INT(static_cast<int>(SpaCacheClass::Immutable), static_cast<int>(spaCacheClassForPath("/assets/x.css")));
-    TEST_ASSERT_EQUAL_INT(static_cast<int>(SpaCacheClass::NoCache), static_cast<int>(spaCacheClassForPath("/index.html")));
-    TEST_ASSERT_EQUAL_STRING("text/css; charset=utf-8", spaContentTypeForPath("/assets/a.css"));
-    TEST_ASSERT_EQUAL_STRING("application/javascript; charset=utf-8", spaContentTypeForPath("/assets/a.js"));
     TEST_ASSERT_FALSE(spaAssetUsesGzip("/index.html"));
     TEST_ASSERT_TRUE(spaAssetUsesGzip("/assets/a.js"));
 }
@@ -121,9 +113,6 @@ void test_sse_tick_select_bits() {
 void test_sse_redirty_domains() {
     // RC-WEB-04: failed serialize/send marks these domain bits, which must cover kSseAll.
     TEST_ASSERT_EQUAL_UINT32(kSseAll, kSseChaya | kSseWifi | kSseMqtt | kSseOta | kSseDevice);
-    TEST_ASSERT_FALSE(sseEnqueueAccepted(0));
-    TEST_ASSERT_TRUE(sseEnqueueAccepted(1));
-    TEST_ASSERT_FALSE(sseEnqueueAccepted(2));
 }
 
 void test_web_admin_restart_blocked() {
