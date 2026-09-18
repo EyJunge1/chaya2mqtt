@@ -53,10 +53,6 @@
   @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-bg;
 }
 
-@utility interactive-surface {
-  @apply transition enabled:hover:bg-surface-hover enabled:hover:text-text-bright;
-}
-
 html {
   -webkit-tap-highlight-color: transparent;
 }

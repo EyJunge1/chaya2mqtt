@@ -67,7 +67,7 @@ function localFirmwarePlugin(): Plugin {
         if (pathname === "/dev/firmware.factory.bin") {
           if (!existsSync(localFactoryImage)) {
             response.statusCode = 404;
-            response.end("Run: make build ENV=esp32s3-release");
+            response.end("Run: pio run -e esp32s3-release");
             return;
           }
           response.setHeader("Content-Type", "application/octet-stream");

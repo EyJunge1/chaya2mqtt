@@ -182,11 +182,7 @@ Namespace `mqtt`:
 
 | Key | Type | Description |
 |-----|------|-------------|
-| `server` | String | Broker hostname/IP (**required**) |
-| `port` | Int | Port (default 8883; **required**) |
-| `user` | String | MQTT username (optional; empty = anonymous) |
-| `pass` | String | MQTT password (optional) |
-| `partner_id` | String | Partner device ID, 6 hex (required for heart display and send; empty = unpaired / waiting title) |
+| `cfg_v1` | Bytes (packed) | Broker host, port, TLS, username, password, and partner device ID |
 
 Topics are not persisted in NVS; they are derived in RAM from the device and partner IDs.
 
