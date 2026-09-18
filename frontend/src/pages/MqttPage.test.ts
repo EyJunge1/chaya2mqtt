@@ -35,6 +35,7 @@ function cfg(partial: Partial<MqttConfigView> = {}): MqttConfigView {
     topicPub: "chaya2mqtt/a1b2c3",
     topicSub: "chaya2mqtt/f5e6d7",
     partnerId: "f5e6d7",
+    pairingId: "",
     ...partial,
   };
 }
@@ -63,7 +64,7 @@ describe("MqttPage", () => {
     });
 
     await screen.findByDisplayValue("mqtt.example.com");
-    fireEvent.change(screen.getByDisplayValue("f5e6d7"), { target: { value: "abcdef" } });
+    fireEvent.change(screen.getByTestId("mqtt-partner-id"), { target: { value: "abcdef" } });
     fireEvent.click(screen.getByRole("button", { name: "common.save" }));
 
     await waitFor(() => {
@@ -73,6 +74,7 @@ describe("MqttPage", () => {
         mqtt_tls: true,
         mqtt_user: "chaya",
         mqtt_pass: undefined,
+        pairing_id: "a1b2c3",
         partner_id: "abcdef",
       });
     });
@@ -80,6 +82,24 @@ describe("MqttPage", () => {
       expect(onToast).toHaveBeenCalledWith("toast.mqtt-saved", "success");
     });
     expect(onDeviceRefresh).toHaveBeenCalled();
+  });
+
+  it("saves a shared pairing ID for an extra own device", async () => {
+    const onToast = vi.fn();
+    render(MqttPage, { props: { mqtt: { connected: true }, onToast } });
+
+    await screen.findByDisplayValue("mqtt.example.com");
+    fireEvent.change(screen.getByTestId("mqtt-pairing-id"), { target: { value: "c9d8e7" } });
+    fireEvent.click(screen.getByRole("button", { name: "common.save" }));
+
+    await waitFor(() => {
+      expect(saveMqtt).toHaveBeenCalledWith(
+        expect.objectContaining({
+          pairing_id: "c9d8e7",
+          partner_id: "f5e6d7",
+        }),
+      );
+    });
   });
 
   it("saves broker without username or password when partner is set", async () => {
@@ -99,6 +119,7 @@ describe("MqttPage", () => {
         mqtt_tls: true,
         mqtt_user: "",
         mqtt_pass: undefined,
+        pairing_id: "a1b2c3",
         partner_id: "f5e6d7",
       });
     });
@@ -124,6 +145,7 @@ describe("MqttPage", () => {
         mqtt_tls: true,
         mqtt_user: "chaya",
         mqtt_pass: undefined,
+        pairing_id: "a1b2c3",
         partner_id: "",
       });
     });
@@ -173,7 +195,7 @@ describe("MqttPage", () => {
     render(MqttPage, { props: { mqtt: { connected: false }, onToast } });
 
     await screen.findByDisplayValue("mqtt.example.com");
-    fireEvent.change(screen.getByDisplayValue("f5e6d7"), { target: { value: "a1b2c3" } });
+    fireEvent.change(screen.getByTestId("mqtt-partner-id"), { target: { value: "a1b2c3" } });
     fireEvent.click(screen.getByRole("button", { name: "common.save" }));
 
     await waitFor(() => {
@@ -190,14 +212,14 @@ describe("MqttPage", () => {
     expect(screen.getAllByText("-").length).toBeGreaterThan(0);
   });
 
-  it("copies the device ID without a toast when the clipboard helper succeeds", async () => {
+  it("copies the pairing ID without a toast when the clipboard helper succeeds", async () => {
     const writeText = vi.fn().mockResolvedValue(undefined);
     vi.stubGlobal("isSecureContext", true);
     vi.stubGlobal("navigator", { ...navigator, clipboard: { writeText } });
     const onToast = vi.fn();
     render(MqttPage, { props: { mqtt: { connected: false }, onToast } });
 
-    fireEvent.click(await screen.findByRole("button", { name: "mqtt.copy-device-id" }));
+    fireEvent.click(await screen.findByRole("button", { name: "mqtt.copy-pairing-id" }));
 
     await waitFor(() => {
       expect(writeText).toHaveBeenCalledWith("a1b2c3");
@@ -205,7 +227,7 @@ describe("MqttPage", () => {
     expect(onToast).not.toHaveBeenCalled();
   });
 
-  it("toasts when copying the device ID fails", async () => {
+  it("toasts when copying the pairing ID fails", async () => {
     vi.stubGlobal("isSecureContext", false);
     vi.stubGlobal("navigator", { ...navigator, clipboard: undefined });
     Object.defineProperty(document, "execCommand", {
@@ -215,10 +237,10 @@ describe("MqttPage", () => {
     const onToast = vi.fn();
     render(MqttPage, { props: { mqtt: { connected: false }, onToast } });
 
-    fireEvent.click(await screen.findByRole("button", { name: "mqtt.copy-device-id" }));
+    fireEvent.click(await screen.findByRole("button", { name: "mqtt.copy-pairing-id" }));
 
     await waitFor(() => {
-      expect(onToast).toHaveBeenCalledWith("toast.device-id-copy-failed", "error");
+      expect(onToast).toHaveBeenCalledWith("toast.id-copy-failed", "error");
     });
   });
 
@@ -228,7 +250,7 @@ describe("MqttPage", () => {
       props: { mqtt: { connected: false }, onToast: vi.fn() },
     });
 
-    await screen.findByText("a1b2c3");
+    await screen.findByRole("button", { name: "mqtt.copy-pairing-id" });
     expect(container.querySelector(".lucide-radio-off")).toBeInTheDocument();
   });
 
@@ -260,7 +282,7 @@ describe("MqttPage", () => {
     render(MqttPage, { props: { mqtt: { connected: true }, onToast } });
 
     await screen.findByDisplayValue("mqtt.example.com");
-    fireEvent.change(screen.getByDisplayValue("f5e6d7"), { target: { value: "abcdef" } });
+    fireEvent.change(screen.getByTestId("mqtt-partner-id"), { target: { value: "abcdef" } });
     fireEvent.click(screen.getByRole("button", { name: "common.save" }));
 
     await waitFor(() => {
@@ -322,7 +344,7 @@ describe("MqttPage", () => {
       props: { mqtt: { connected: false }, refreshSeq: 1, onToast: vi.fn() },
     });
 
-    await screen.findByText("a1b2c3");
+    await screen.findByRole("button", { name: "mqtt.copy-pairing-id" });
     expect(screen.getAllByText("-").length).toBeGreaterThan(0);
     await rerender({ mqtt: { connected: true }, refreshSeq: 2, onToast: vi.fn() });
 
@@ -336,7 +358,7 @@ describe("MqttPage", () => {
 
     await screen.findByDisplayValue("mqtt.example.com");
     getMqttConfig.mockResolvedValue(cfg({ partnerId: "f5e6d7", applyPending: true }));
-    fireEvent.change(screen.getByDisplayValue("f5e6d7"), { target: { value: "abcdef" } });
+    fireEvent.change(screen.getByTestId("mqtt-partner-id"), { target: { value: "abcdef" } });
     fireEvent.click(screen.getByRole("button", { name: "common.save" }));
     await waitFor(() => expect(saveMqtt).toHaveBeenCalledTimes(1));
 
@@ -360,7 +382,7 @@ describe("MqttPage", () => {
 
     await screen.findByDisplayValue("mqtt.example.com");
     getMqttConfig.mockResolvedValue(cfg({ partnerId: "f5e6d7", applyPending: true }));
-    fireEvent.change(screen.getByDisplayValue("f5e6d7"), { target: { value: "abcdef" } });
+    fireEvent.change(screen.getByTestId("mqtt-partner-id"), { target: { value: "abcdef" } });
     fireEvent.click(screen.getByRole("button", { name: "common.save" }));
     await waitFor(() => expect(saveMqtt).toHaveBeenCalledTimes(1));
 
@@ -394,7 +416,7 @@ describe("MqttPage", () => {
 
     await screen.findByDisplayValue("mqtt.example.com");
     getMqttConfig.mockResolvedValue(cfg({ partnerId: "f5e6d7", applyPending: true }));
-    fireEvent.change(screen.getByDisplayValue("f5e6d7"), { target: { value: "abcdef" } });
+    fireEvent.change(screen.getByTestId("mqtt-partner-id"), { target: { value: "abcdef" } });
     fireEvent.click(screen.getByRole("button", { name: "common.save" }));
     await waitFor(() => expect(saveMqtt).toHaveBeenCalledTimes(1));
 
@@ -419,7 +441,7 @@ describe("MqttPage", () => {
 
     await screen.findByDisplayValue("mqtt.example.com");
     getMqttConfig.mockResolvedValue(cfg({ partnerId: "f5e6d7", applyPending: true }));
-    fireEvent.change(screen.getByDisplayValue("f5e6d7"), { target: { value: "abcdef" } });
+    fireEvent.change(screen.getByTestId("mqtt-partner-id"), { target: { value: "abcdef" } });
     fireEvent.click(screen.getByRole("button", { name: "common.save" }));
     await waitFor(() => expect(saveMqtt).toHaveBeenCalledTimes(1));
 
@@ -440,7 +462,7 @@ describe("MqttPage", () => {
 
     await screen.findByDisplayValue("mqtt.example.com");
     getMqttConfig.mockResolvedValue(cfg({ partnerId: "f5e6d7", applyPending: true }));
-    fireEvent.change(screen.getByDisplayValue("f5e6d7"), { target: { value: "abcdef" } });
+    fireEvent.change(screen.getByTestId("mqtt-partner-id"), { target: { value: "abcdef" } });
     fireEvent.click(screen.getByRole("button", { name: "common.save" }));
     await waitFor(() => expect(saveMqtt).toHaveBeenCalledTimes(1));
 

@@ -109,6 +109,8 @@ export interface MqttConfigView {
   topicPub: string;
   topicSub: string;
   partnerId: string;
+  /** Empty means this device's own ID is the publish identity. */
+  pairingId: string;
   /** Present when firmware reports deferred MQTT NVS apply status (QUAL-01). */
   nvsOk?: boolean;
   /** True while a changing POST is queued or the network task is still applying (QUAL-04). */

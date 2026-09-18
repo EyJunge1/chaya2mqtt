@@ -213,6 +213,12 @@ bool mqttCfgHasUnappliedPending() {
 }
 
 static bool mqttCfgTryReadBlob(Preferences &prefs, MqttConfig &out) {
+    if (prefs.getBytesLength(kNvsKeyMqttCfgV2) == sizeof(PackedMqttConfigV2)) {
+        PackedMqttConfigV2 pk{};
+        if (prefs.getBytes(kNvsKeyMqttCfgV2, &pk, sizeof(pk)) == sizeof(pk) && mqttUnpackConfigV2(pk, &out)) {
+            return true;
+        }
+    }
     if (prefs.getBytesLength(kNvsKeyMqttCfgV1) != sizeof(PackedMqttConfigV1)) {
         return false;
     }
@@ -263,7 +269,7 @@ void loadMQTTConfig() {
         if (!prefs.begin(kNvsNsMqtt, true)) {
             ESP_LOGI(TAG, "NVS mqtt namespace not present, using MQTT defaults");
         } else if (mqttCfgTryReadBlob(prefs, loaded)) {
-            ESP_LOGD(TAG, "MQTT NVS: cfg_v1 loaded");
+            ESP_LOGD(TAG, "MQTT NVS: cfg blob loaded");
             prefs.end();
         } else {
             ESP_LOGI(TAG, "MQTT not configured yet in NVS, using defaults");
@@ -290,8 +296,8 @@ bool saveMQTTConfig() {
     MqttConfig snap{};
     mqttCfgSnapshot(&snap);
 
-    PackedMqttConfigV1 pk{};
-    mqttPackConfigV1(snap, &pk);
+    PackedMqttConfigV2 pk{};
+    mqttPackConfigV2(snap, &pk);
 
     app_nvs::ScopedNvsWriteLock lock(kNvsNsMqtt);
     if (!lock) {
@@ -303,11 +309,14 @@ bool saveMQTTConfig() {
         ESP_LOGE(TAG, "NVS mqtt: begin failed");
         return false;
     }
-    const size_t w = prefs.putBytes(kNvsKeyMqttCfgV1, &pk, sizeof(pk));
+    const size_t w = prefs.putBytes(kNvsKeyMqttCfgV2, &pk, sizeof(pk));
     if (w != sizeof(pk)) {
         prefs.end();
-        ESP_LOGE(TAG, "NVS mqtt: cfg_v1 persist failed");
+        ESP_LOGE(TAG, "NVS mqtt: cfg_v2 persist failed");
         return false;
+    }
+    if (prefs.isKey(kNvsKeyMqttCfgV1)) {
+        static_cast<void>(prefs.remove(kNvsKeyMqttCfgV1));
     }
     prefs.end();
     return true;

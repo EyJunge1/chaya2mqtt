@@ -20,6 +20,8 @@ auto heartDisplayTxDelta() -> int;
 /** Update remote counter and apply publish-side TX increment under display mux. */
 void heartCounterStoreFromRemote(int value);
 auto heartSentCounterApplyAfterSuccessfulPublish(int expected) -> bool;
+/** Sibling / retain TX on the own pairing topic: apply only when incoming > local TX. */
+auto heartSentCounterStoreFromRemoteIfGreater(int value) -> bool;
 
 struct HeartCounterDrawSnapshot {
     int heartCounterRaw{};

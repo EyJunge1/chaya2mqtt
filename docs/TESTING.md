@@ -18,7 +18,7 @@ Playwright once: `cd frontend && npx playwright install chromium`. clang-tidy / 
 
 PRs run only the jobs matching changed paths. Docs-only PRs skip builds. `main` and release tags run the full gate.
 
-REST/SSE source of truth: [api/openapi.yaml](api/openapi.yaml), [api/asyncapi.yaml](api/asyncapi.yaml). Contract: `frontend/src/api/contract.test.ts`.
+REST/SSE source of truth: [api/openapi.yaml](api/openapi.yaml), [api/asyncapi.yaml](api/asyncapi.yaml). Contract: `frontend/src/api/contract.test.ts`. Pairing / extra own devices: [README.md](README.md#pairing).
 
 Hardware (SKU 34586 + TLS broker, not in CI):
 

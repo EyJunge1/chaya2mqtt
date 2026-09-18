@@ -187,6 +187,21 @@ describe("mock API parity", () => {
     });
   });
 
+  it("applies a shared pairing ID to the publish topic", async () => {
+    const post = await callJson("POST", "/api/mqtt", {
+      pairing_id: "c9d8e7",
+      partner_id: "f5e6d7",
+    });
+    expect(post.status).toBe(200);
+    await vi.waitFor(async () => {
+      const idle = await callApi("GET", "/api/mqtt");
+      expect(idle.body.applyPending).toBe(false);
+      expect(idle.body.pairingId).toBe("c9d8e7");
+      expect(idle.body.topicPub).toBe("chaya2mqtt/c9d8e7");
+      expect(idle.body.partnerId).toBe("f5e6d7");
+    });
+  });
+
   it("returns stored wifi config SSID when the link SSID differs", async () => {
     getState().wifiSsid = "LinkNet";
     getState().wifiConfig.ssid = "SavedNet";

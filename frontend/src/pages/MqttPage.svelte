@@ -1,7 +1,7 @@
 <script lang="ts" module>
   import type { MqttConfigView } from "../api/types.ts";
 
-  let lastSubmittedMqtt: { view: MqttConfigView; partner: string } | null = null;
+  let lastSubmittedMqtt: { view: MqttConfigView; partner: string; pairing: string } | null = null;
   let mqttApplyToken = 0;
 
   export function resetMqttApplySession() {
@@ -53,21 +53,28 @@
 
   let cfg = $state<MqttConfigView | null>(null);
   let password = $state("");
+  let pairing = $state("");
   let partner = $state("");
   let busy = $state(false);
   let loadError = $state(false);
-  let copied = $state(false);
+  let copiedKey = $state<string | null>(null);
   let copiedReset: ReturnType<typeof setTimeout> | undefined;
   let loadSeq = 0;
 
+  function effectivePairingId(view: MqttConfigView) {
+    return view.pairingId.trim() || view.deviceId.trim();
+  }
+
   function applyMqttForm(next: MqttConfigView) {
     cfg = next;
+    pairing = effectivePairingId(next);
     partner = next.partnerId;
   }
 
   function restoreSubmittedMqtt() {
     if (!lastSubmittedMqtt) return;
     applyMqttForm({ ...lastSubmittedMqtt.view });
+    pairing = lastSubmittedMqtt.pairing;
     partner = lastSubmittedMqtt.partner;
     busy = true;
   }
@@ -193,13 +200,20 @@
     return last.applyPending ? "timeout" : last;
   }
 
-  async function persist(nextPartner: string) {
+  async function persist(nextPartner: string, nextPairing: string) {
     if (!cfg || busy) return;
     const token = ++mqttApplyToken;
     const submittedTls = cfg.tls;
     const submittedPartner = nextPartner.trim().toLowerCase();
+    const submittedPairing = nextPairing.trim().toLowerCase();
     lastSubmittedMqtt = {
-      view: { ...cfg, partnerId: submittedPartner, applyPending: true },
+      view: {
+        ...cfg,
+        pairingId: submittedPairing,
+        partnerId: submittedPartner,
+        applyPending: true,
+      },
+      pairing: submittedPairing,
       partner: submittedPartner,
     };
     busy = true;
@@ -210,13 +224,18 @@
         mqtt_tls: cfg.tls,
         mqtt_user: cfg.username,
         mqtt_pass: password || undefined,
+        pairing_id: submittedPairing,
         partner_id: submittedPartner,
       });
       if (token !== mqttApplyToken) return;
       if (!res.ok) {
         lastSubmittedMqtt = null;
         onToast(
-          res.error === "partner" ? i18n.t("toast.partner-invalid") : i18n.t("toast.save-failed"),
+          res.error === "partner"
+            ? i18n.t("toast.partner-invalid")
+            : res.error === "pairing"
+              ? i18n.t("toast.pairing-invalid")
+              : i18n.t("toast.save-failed"),
           "error",
         );
         return;
@@ -250,32 +269,34 @@
 
   async function save(e: SubmitEvent) {
     e.preventDefault();
-    await persist(partner);
+    await persist(partner, pairing);
   }
 
   async function unpair() {
     partner = "";
-    await persist("");
+    await persist("", pairing);
   }
 
-  async function copyDeviceId() {
-    const id = cfg?.deviceId?.trim();
-    if (!id) return;
-    if (await copyText(id)) {
-      copied = true;
+  async function copyId(key: string, id: string | undefined) {
+    const value = id?.trim();
+    if (!value) return;
+    if (await copyText(value)) {
+      copiedKey = key;
       clearTimeout(copiedReset);
       copiedReset = setTimeout(() => {
-        copied = false;
+        copiedKey = null;
       }, 1500);
       return;
     }
-    onToast(i18n.t("toast.device-id-copy-failed"), "error");
+    onToast(i18n.t("toast.id-copy-failed"), "error");
   }
 
   const brokerConfigured = $derived(Boolean(cfg?.server.trim()));
   const paired = $derived(Boolean(cfg?.partnerId));
   const MqttIcon = $derived(brokerConfigured ? Radio : RadioOff);
-  const hasDeviceId = $derived(Boolean(cfg?.deviceId?.trim()));
+  const shownPairingId = $derived(cfg ? effectivePairingId(cfg) : "");
+  const hasPairingId = $derived(Boolean(shownPairingId));
+  const hasPartnerId = $derived(Boolean(cfg?.partnerId?.trim()));
   const brokerDisplay = $derived(
     cfg && brokerConfigured ? `${cfg.tls ? "mqtts" : "mqtt"}://${cfg.server}:${cfg.port}` : "-",
   );
@@ -292,20 +313,20 @@
   <LoadingBlock label={i18n.t("mqtt.loading")} />
 {:else}
   <div class="space-y-4">
-    {#snippet deviceIdValue()}
+    {#snippet copyableId(key: string, value: string, canCopy: boolean, copyLabel: string)}
       <span class="inline-flex items-center gap-1.5 tracking-widest">
-        {dash(cfg?.deviceId)}
-        {#if hasDeviceId}
+        {dash(value)}
+        {#if canCopy}
           <button
             type="button"
-            aria-label={i18n.t("mqtt.copy-device-id")}
+            aria-label={copyLabel}
             class={cn(
               "inline-flex size-7 shrink-0 items-center justify-center rounded-full text-muted transition focus-ring",
               HOVER_SURFACE,
             )}
-            onclick={() => void copyDeviceId()}
+            onclick={() => void copyId(key, value)}
           >
-            {#if copied}
+            {#if copiedKey === key}
               <Check size={14} strokeWidth={2.25} class="pointer-events-none" aria-hidden="true" />
             {:else}
               <Copy size={14} strokeWidth={2.25} class="pointer-events-none" aria-hidden="true" />
@@ -313,6 +334,17 @@
           </button>
         {/if}
       </span>
+    {/snippet}
+    {#snippet pairingIdValue()}
+      {@render copyableId("pairing", shownPairingId, hasPairingId, i18n.t("mqtt.copy-pairing-id"))}
+    {/snippet}
+    {#snippet partnerIdValue()}
+      {@render copyableId(
+        "partner",
+        cfg?.partnerId ?? "",
+        hasPartnerId,
+        i18n.t("mqtt.copy-partner-id"),
+      )}
     {/snippet}
     <Panel>
       {#snippet title()}
@@ -328,10 +360,13 @@
       <KeyValueGrid
         items={[
           {
-            label: i18n.t("mqtt.device-id"),
-            value: deviceIdValue,
+            label: i18n.t("mqtt.pairing-id"),
+            value: pairingIdValue,
           },
-          { label: i18n.t("mqtt.partner-id"), value: dash(cfg.partnerId) },
+          {
+            label: i18n.t("mqtt.partner-id"),
+            value: partnerIdValue,
+          },
           {
             label: i18n.t("mqtt.server"),
             value: brokerDisplay,
@@ -386,12 +421,22 @@
           />
         </Field>
 
+        <Field label={i18n.t("mqtt.pairing-id")} hint={i18n.t("mqtt.pairing-hint")}>
+          <TextInput
+            bind:value={pairing}
+            maxlength={6}
+            pattern={"[0-9a-fA-F]{6}"}
+            placeholder={cfg.deviceId || "a1b2c3"}
+            data-testid="mqtt-pairing-id"
+          />
+        </Field>
         <Field label={i18n.t("mqtt.partner-id")} hint={i18n.t("mqtt.partner-hint")}>
           <TextInput
             bind:value={partner}
             maxlength={6}
             pattern={"[0-9a-fA-F]{6}"}
             placeholder="f5e6d7"
+            data-testid="mqtt-partner-id"
           />
         </Field>
 

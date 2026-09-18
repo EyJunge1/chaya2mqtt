@@ -39,7 +39,7 @@ void handleApiWifiConnectAbortPost(AsyncWebServerRequest *req, JsonVariant &json
 void handleApiWifiConnectRetryPost(AsyncWebServerRequest *req, JsonVariant &json);
 
 void handleApiMqttGet(AsyncWebServerRequest *req);
-void normalizePartnerIdInput(char *id, size_t idLen);
+void normalizeHexIdInput(char *id, size_t idLen);
 void handleApiMqttPost(AsyncWebServerRequest *req, JsonVariant &json);
 
 void handleApiSettingsGet(AsyncWebServerRequest *req);

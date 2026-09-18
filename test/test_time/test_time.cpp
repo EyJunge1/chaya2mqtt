@@ -33,6 +33,8 @@ void test_counter_delta_and_cap() {
     TEST_ASSERT_FALSE(heartCounterShouldShowPlusPure(1009, 10));
     TEST_ASSERT_EQUAL_INT(INT_MAX, heartSentCounterNextPure(INT_MAX));
     TEST_ASSERT_EQUAL_INT(1, heartSentCounterNextPure(0));
+    TEST_ASSERT_TRUE(heartSentRemoteShouldApply(5, 4));
+    TEST_ASSERT_FALSE(heartSentRemoteShouldApply(4, 4));
 }
 
 void test_heart_apply_allowed() {

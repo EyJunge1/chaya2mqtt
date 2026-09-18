@@ -346,6 +346,13 @@ paths:
                   type: string
                   maxLength: 63
                   description: Omit or empty to keep the stored password
+                pairing_id:
+                  type: string
+                  maxLength: 6
+                  description: >
+                    Shared publish identity (6 hex digits). Empty or omitted-equal-to-deviceId
+                    uses this device's own ID. Extra own devices (office) copy the home pairing ID.
+                  pattern: "^([0-9a-f]{6})?$"
                 partner_id:
                   type: string
                   maxLength: 6
@@ -669,7 +676,7 @@ components:
             $ref: "#/components/schemas/WifiScanAp"
     MqttConfigView:
       type: object
-      required: [deviceId, server, port, tls, username, hasPassword, topicPub, topicSub, partnerId]
+      required: [deviceId, server, port, tls, username, hasPassword, topicPub, topicSub, partnerId, pairingId]
       properties:
         deviceId:
           type: string
@@ -683,11 +690,14 @@ components:
         hasPassword: { type: boolean }
         topicPub:
           type: string
-          description: "`chaya2mqtt/<deviceId>`"
+          description: "`chaya2mqtt/<pairingId or deviceId>`"
         topicSub:
           type: string
           description: "`chaya2mqtt/<partnerId>`, empty if unpaired"
         partnerId: { type: string }
+        pairingId:
+          type: string
+          description: Shared publish identity; empty means this device's own ID
         nvsOk:
           { type: boolean, description: false if last NVS persist failed }
         applyPending:

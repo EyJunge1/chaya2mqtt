@@ -34,6 +34,7 @@ void fillMqttConfigJson(JsonObject obj, const MqttConfig &cfg, bool applyPending
     obj["topicPub"] = cfg.topicPub;
     obj["topicSub"] = cfg.topicSub;
     obj["partnerId"] = cfg.partnerDeviceId;
+    obj["pairingId"] = cfg.pairingDeviceId;
     obj["nvsOk"] = nvsOk;
     obj["applyPending"] = applyPending;
 }
@@ -51,7 +52,7 @@ void handleApiMqttGet(AsyncWebServerRequest *req) {
     webSendJsonDoc(req, 200, doc);
 }
 
-void normalizePartnerIdInput(char *id, size_t idLen) {
+void normalizeHexIdInput(char *id, size_t idLen) {
     if (id == nullptr || idLen == 0U) {
         return;
     }
@@ -62,13 +63,21 @@ void normalizePartnerIdInput(char *id, size_t idLen) {
     }
 }
 
-bool partnerIdInputValid(const char *partnerId) {
-    if (!deviceIdSyntaxOk(partnerId)) {
+bool pairingIdInputValid(const char *pairingId) {
+    return pairingId != nullptr && (pairingId[0] == '\0' || deviceIdSyntaxOk(pairingId));
+}
+
+bool partnerIdInputValid(const char *partnerId, const char *pairingId, const char *ownId) {
+    if (!deviceIdSyntaxOk(partnerId) || ownId == nullptr) {
         return false;
     }
-    char ownId[kDeviceIdBufLen];
-    buildDeviceId(ownId, sizeof(ownId));
-    return strcmp(partnerId, ownId) != 0;
+    if (strcmp(partnerId, ownId) == 0) {
+        return false;
+    }
+    if (pairingId != nullptr && pairingId[0] != '\0' && strcmp(partnerId, pairingId) == 0) {
+        return false;
+    }
+    return true;
 }
 
 void handleApiMqttPost(AsyncWebServerRequest *req, JsonVariant &json) {
@@ -145,16 +154,37 @@ void handleApiMqttPost(AsyncWebServerRequest *req, JsonVariant &json) {
             strlcpy(pending.password, passBuf, sizeof(pending.password));
         }
     }
+    if (!adminApplyOptionalString(json, "pairing_id", pending.pairingDeviceId, sizeof(pending.pairingDeviceId))) {
+        sendErr(req, 400, "pairing");
+        return;
+    }
     if (!adminApplyOptionalString(json, "partner_id", pending.partnerDeviceId, sizeof(pending.partnerDeviceId))) {
         sendErr(req, 400, "partner");
         return;
     }
+    char ownId[kDeviceIdBufLen];
+    buildDeviceId(ownId, sizeof(ownId));
+    if (adminJsonHasField(json, "pairing_id")) {
+        normalizeHexIdInput(pending.pairingDeviceId, sizeof(pending.pairingDeviceId));
+        if (!pairingIdInputValid(pending.pairingDeviceId)) {
+            sendErr(req, 400, "pairing");
+            return;
+        }
+        if (pending.pairingDeviceId[0] != '\0' && strcmp(pending.pairingDeviceId, ownId) == 0) {
+            pending.pairingDeviceId[0] = '\0';
+        }
+    }
     if (adminJsonHasField(json, "partner_id")) {
-        normalizePartnerIdInput(pending.partnerDeviceId, sizeof(pending.partnerDeviceId));
-        if (pending.partnerDeviceId[0] != '\0' && !partnerIdInputValid(pending.partnerDeviceId)) {
+        normalizeHexIdInput(pending.partnerDeviceId, sizeof(pending.partnerDeviceId));
+        if (pending.partnerDeviceId[0] != '\0' && !partnerIdInputValid(pending.partnerDeviceId, pending.pairingDeviceId, ownId)) {
             sendErr(req, 400, "partner");
             return;
         }
+    }
+    if (pending.partnerDeviceId[0] != '\0' && pending.pairingDeviceId[0] != '\0' &&
+        strcmp(pending.partnerDeviceId, pending.pairingDeviceId) == 0) {
+        sendErr(req, 400, "partner");
+        return;
     }
     mqttCfgApplyPairingTopics(&pending);
     if (!mqttServerSyntaxOk(pending.server, sizeof(pending.server))) {

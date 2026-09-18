@@ -31,22 +31,23 @@ Or flash in Chrome/Edge: [web flasher](https://eyjunge1.github.io/chaya2mqtt/). 
 1. Power on (on battery: press **PWR**; firmware holds GPIO17 HIGH).
 2. No Wi‑Fi yet → SoftAP **`Chaya2MQTT`**. Scan the WIFI QR on the panel, or open `http://chaya2mqtt.local` / `http://4.3.2.1`.
 3. Enter Wi‑Fi (AP mode tests the STA link before saving).
-4. On **MQTT**: broker host, port **8883** (TLS default), optional user/password, partner ID (6 hex).
+4. On **MQTT**: broker host, port **8883** (TLS default), optional user/password, pairing ID (defaults to this device), partner ID (6 hex).
 5. After STA: admin is `http://chaya2mqtt-<deviceId>.local`.
 
 Broker must use a public CA (Let's Encrypt, …). Two devices can set up in parallel; same SSID, isolated APs — scan the QR on the intended display.
 
 ## Pairing
 
-Same firmware version. Same broker. Wi‑Fi may differ.
+Same firmware version. Same broker. Wi‑Fi may differ. Pairing is still one person ↔ one person; extra boards (home + office) **reuse the same two IDs**.
 
-1. Open `/mqtt` on both.
-2. Put each device's ID as the other's **partner ID**. Unpair clears the partner only.
-3. Topics (not editable): pub `chaya2mqtt/<own>`, sub `chaya2mqtt/<partner>`.
+1. Open `/mqtt` on both first devices.
+2. **Pairing ID** defaults to this device's ID. **Partner ID** is the other person's pairing ID. Unpair clears the partner only.
+3. Topics (not editable): pub `chaya2mqtt/<pairingId or own>`, sub `chaya2mqtt/<partner>`. When paired, the device also subscribes to its own publish topic so a second board of the same person stays in sync.
+4. **Office / extra own device:** enter the same pairing ID and partner ID as the home device of that person. The unique device ID (hostname, MQTT client, LWT `chaya2mqtt/<deviceId>/lwt`) stays on this board.
 
 No partner → broker may still connect; no subscribe, no heart send, waiting title on the panel.
 
-Payload is a decimal absolute counter, QoS 1, retained. Display shows deltas (`raw − baseline`, max `999+`).
+Payload is a decimal absolute counter, QoS 1, retained. Display shows deltas (`raw − baseline`, max `999+`). Own-topic updates only move TX forward (self-echo after send is ignored).
 
 ## Factory reset
 
@@ -57,7 +58,7 @@ Payload is a decimal absolute counter, QoS 1, retained. Display shows deltas (`r
 | NS | What |
 |----|------|
 | `wifi` | STA + SoftAP PSK |
-| `mqtt` | Broker + partner (topics derived in RAM) |
+| `mqtt` | Broker + partner + pairing (`cfg_v2`; legacy `cfg_v1` still loads) |
 | `cfg` | Device ID, UI, LED, audio, display view, OTA day/channel |
 | `chaya` | Absolute counters + baselines |
 

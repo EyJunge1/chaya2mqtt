@@ -140,6 +140,7 @@ export interface MockState {
     topicPub: string;
     topicSub: string;
     partnerId: string;
+    pairingId: string;
   };
   resetDays: number;
   lang: "de" | "en";
@@ -253,6 +254,7 @@ function defaultMqtt(deviceId: string) {
     topicPub: `chaya2mqtt/${deviceId}`,
     topicSub: "chaya2mqtt/f5e6d7",
     partnerId: "f5e6d7",
+    pairingId: "",
   };
 }
 
@@ -555,6 +557,7 @@ export function applyScenario(state: MockState, scenario: MockScenario): void {
         topicPub: `chaya2mqtt/${state.deviceId}`,
         topicSub: "",
         partnerId: "",
+        pairingId: "",
       };
       state.mqttConnected = false;
       setOtaIdle(state);

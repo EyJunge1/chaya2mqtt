@@ -53,6 +53,23 @@ bool heartSentCounterApplyAfterSuccessfulPublish(int expected) {
     return applied;
 }
 
+bool heartSentCounterStoreFromRemoteIfGreater(int value) {
+    bool applied = false;
+    portENTER_CRITICAL(&s_heartDisplayMux);
+    const int current = heartSentCounter.load(std::memory_order_relaxed);
+    if (heartApplyAllowed(g_systemShutdownInProgress.load(std::memory_order_acquire),
+                          g_chayaNvsWritesSuspended.load(std::memory_order_acquire)) &&
+        heartSentRemoteShouldApply(value, current)) {
+        heartSentCounter.store(value, std::memory_order_relaxed);
+        applied = true;
+    }
+    portEXIT_CRITICAL(&s_heartDisplayMux);
+    if (applied) {
+        sseMarkDirty(kSseChaya);
+    }
+    return applied;
+}
+
 void heartCounterFillDrawSnapshot(HeartCounterDrawSnapshot *out) {
     if (out == nullptr) {
         return;

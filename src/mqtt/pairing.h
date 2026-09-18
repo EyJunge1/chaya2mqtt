@@ -7,16 +7,52 @@
 #include "mqtt/config.h"
 #include "mqtt/mqtt_config.h"
 
+/** Lowercase A-F in a hex device / pairing / partner id. */
+inline void mqttNormalizeHexIdInPlace(char *id) {
+    if (id == nullptr) {
+        return;
+    }
+    for (char *p = id; *p != '\0'; ++p) {
+        if (*p >= 'A' && *p <= 'F') {
+            *p = static_cast<char>(*p - 'A' + 'a');
+        }
+    }
+}
+
 /**
- * Derive topicPub/topicSub from explicit own + partner IDs (no MAC/NVS).
- * Empty partner clears topicSub. Invalid own ID clears topicPub.
+ * Publish identity: stored pairing ID when valid, otherwise own device ID.
+ * Empty pairing means this device is the 1:1 default (topicPub uses own ID).
+ */
+inline auto mqttEffectivePairingId(const MqttConfig &cfg, const char *ownId) -> const char * {
+    if (cfg.pairingDeviceId[0] != '\0' && deviceIdSyntaxOk(cfg.pairingDeviceId)) {
+        return cfg.pairingDeviceId;
+    }
+    return ownId;
+}
+
+/** Format per-device LWT topic `chaya2mqtt/<deviceId>/lwt` (never the shared heart topic). */
+inline void mqttFormatDeviceLwtTopic(char *out, size_t outLen, const char *deviceId) {
+    if (out == nullptr || outLen == 0U) {
+        return;
+    }
+    if (deviceId != nullptr && deviceIdSyntaxOk(deviceId)) {
+        static_cast<void>(std::snprintf(out, outLen, "%s%s/lwt", kMqttPairTopicPrefix, deviceId));
+        return;
+    }
+    out[0] = '\0';
+}
+
+/**
+ * Derive topicPub/topicSub from pairing + partner IDs (no MAC/NVS).
+ * Empty partner clears topicSub. Invalid own/pairing ID clears topicPub.
  */
 inline void mqttApplyPairingTopicsWithIds(MqttConfig *cfg, const char *ownId) {
     if (cfg == nullptr) {
         return;
     }
-    if (ownId != nullptr && deviceIdSyntaxOk(ownId)) {
-        static_cast<void>(std::snprintf(cfg->topicPub, sizeof(cfg->topicPub), "%s%s", kMqttPairTopicPrefix, ownId));
+    const char *pubId = mqttEffectivePairingId(*cfg, ownId);
+    if (pubId != nullptr && deviceIdSyntaxOk(pubId)) {
+        static_cast<void>(std::snprintf(cfg->topicPub, sizeof(cfg->topicPub), "%s%s", kMqttPairTopicPrefix, pubId));
     } else {
         cfg->topicPub[0] = '\0';
     }
@@ -28,30 +64,47 @@ inline void mqttApplyPairingTopicsWithIds(MqttConfig *cfg, const char *ownId) {
     }
 }
 
-/** Lowercase A-F in partner id; clear if invalid or equal to ownId. */
+/** Lowercase A-F in pairing id; clear if invalid or equal to ownId (empty = default). */
+inline void mqttSanitizePairingId(MqttConfig &cfg, const char *ownId) {
+    if (cfg.pairingDeviceId[0] == '\0') {
+        return;
+    }
+    mqttNormalizeHexIdInPlace(cfg.pairingDeviceId);
+    if (!deviceIdSyntaxOk(cfg.pairingDeviceId)) {
+        cfg.pairingDeviceId[0] = '\0';
+        return;
+    }
+    if (ownId != nullptr && std::strcmp(cfg.pairingDeviceId, ownId) == 0) {
+        cfg.pairingDeviceId[0] = '\0';
+    }
+}
+
+/** Lowercase A-F in partner id; clear if invalid, equal to ownId, or equal to pairing id. */
 inline void mqttSanitizePartnerId(MqttConfig &cfg, const char *ownId) {
     if (cfg.partnerDeviceId[0] == '\0') {
         return;
     }
-    for (char *p = cfg.partnerDeviceId; *p != '\0'; ++p) {
-        if (*p >= 'A' && *p <= 'F') {
-            *p = static_cast<char>(*p - 'A' + 'a');
-        }
-    }
+    mqttNormalizeHexIdInPlace(cfg.partnerDeviceId);
     if (!deviceIdSyntaxOk(cfg.partnerDeviceId)) {
         cfg.partnerDeviceId[0] = '\0';
         return;
     }
     if (ownId != nullptr && std::strcmp(cfg.partnerDeviceId, ownId) == 0) {
         cfg.partnerDeviceId[0] = '\0';
+        return;
+    }
+    const char *pairingId = mqttEffectivePairingId(cfg, ownId);
+    if (pairingId != nullptr && std::strcmp(cfg.partnerDeviceId, pairingId) == 0) {
+        cfg.partnerDeviceId[0] = '\0';
     }
 }
 
-/** Sanitize server + partner + port and apply pairing topics. */
+/** Sanitize server + pairing + partner + port and apply pairing topics. */
 inline void mqttSanitizeConfigAfterLoad(MqttConfig &cfg, const char *ownId) {
     if (cfg.server[0] != '\0' && !mqttServerSyntaxOk(cfg.server, sizeof(cfg.server))) {
         cfg.server[0] = '\0';
     }
+    mqttSanitizePairingId(cfg, ownId);
     mqttSanitizePartnerId(cfg, ownId);
     mqttApplyPairingTopicsWithIds(&cfg, ownId);
     cfg.port = normalizeMqttPort(static_cast<int>(cfg.port));
