@@ -25,13 +25,13 @@ test("mqtt save and unpair @smoke", async ({ page, request }) => {
   await page.goto("/mqtt");
   await expect(fieldInput(page, "Broker")).toHaveValue(/.+/);
 
-  await fieldInput(page, "Partner ID").fill("abcdef");
+  await page.getByTestId("mqtt-partner-id").fill("abcdef");
   await page.getByRole("main").getByRole("button", { name: "Save", exact: true }).first().click();
   await expect(page.getByText(/Saved\. MQTT is reconnecting/i)).toBeVisible();
 
   await page.getByRole("main").getByRole("button", { name: "Unpair", exact: true }).click();
   await expect(page.getByText(/Saved\. MQTT is reconnecting/i)).toBeVisible();
-  await expect(fieldInput(page, "Partner ID")).toHaveValue("");
+  await expect(page.getByTestId("mqtt-partner-id")).toHaveValue("");
 });
 
 test("wifi test then commit in AP mode", async ({ page, request }) => {

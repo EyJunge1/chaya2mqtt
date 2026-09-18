@@ -67,6 +67,32 @@ class DeviceRuntime {
         return mqtt_.partnerDeviceId[0] != '\0' || partnerId == nullptr || partnerId[0] == '\0';
     }
 
+    bool setPairingId(const char *pairingId) {
+        if (pairingId == nullptr || pairingId[0] == '\0') {
+            mqtt_.pairingDeviceId[0] = '\0';
+        } else {
+            std::strncpy(mqtt_.pairingDeviceId, pairingId, sizeof(mqtt_.pairingDeviceId) - 1U);
+            mqtt_.pairingDeviceId[sizeof(mqtt_.pairingDeviceId) - 1U] = '\0';
+        }
+        mqttSanitizeConfigAfterLoad(mqtt_, ownId_.c_str());
+        return mqtt_.pairingDeviceId[0] != '\0' || pairingId == nullptr || pairingId[0] == '\0';
+    }
+
+    bool applyOwnTopicCounter(const char *payload) {
+        if (payload == nullptr) {
+            return false;
+        }
+        long parsed = 0;
+        if (!mqttParseCounterPayload(payload, static_cast<unsigned>(std::strlen(payload)), &parsed)) {
+            return false;
+        }
+        if (!heartSentRemoteShouldApply(static_cast<int>(parsed), localTxCounter_)) {
+            return false;
+        }
+        localTxCounter_ = static_cast<int>(parsed);
+        return true;
+    }
+
     void unpair() {
         mqtt_.partnerDeviceId[0] = '\0';
         mqttApplyPairingTopicsWithIds(&mqtt_, ownId_.c_str());
@@ -176,6 +202,9 @@ class DeviceRuntime {
         mqttBackoffResetOnConnect(backoff_);
         if (mqtt_.topicSub[0] != '\0') {
             static_cast<void>(transport_.subscribe(mqtt_.topicSub));
+        }
+        if (mqtt_.topicPub[0] != '\0' && mqtt_.partnerDeviceId[0] != '\0' && std::strcmp(mqtt_.topicPub, mqtt_.topicSub) != 0) {
+            static_cast<void>(transport_.subscribe(mqtt_.topicPub));
         }
     }
 

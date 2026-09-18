@@ -12,14 +12,16 @@ struct MqttConfig {
     bool tls = true;
     char username[64] = "";
     char password[64] = "";
-    /** Derived: chaya2mqtt/<own device id>. Not user-editable. */
+    /** Derived: chaya2mqtt/<pairing id or own device id>. Not user-editable. */
     char topicPub[128] = "";
     /** Derived: chaya2mqtt/<partner id>, or empty when unpaired. Not user-editable. */
     char topicSub[128] = "";
     char partnerDeviceId[kDeviceIdBufLen] = "";
+    /** Empty means use this device's own ID as the publish identity. */
+    char pairingDeviceId[kDeviceIdBufLen] = "";
 };
 
-/** Derive topicPub/topicSub from own + partner IDs (empty topicSub when unpaired). */
+/** Derive topicPub/topicSub from pairing + partner IDs (empty topicSub when unpaired). */
 void mqttCfgApplyPairingTopics(MqttConfig *cfg);
 
 /** Active broker config lives in mqtt/config.cpp — use mqttCfgSnapshot / mqttCfgStorePendingTimed /

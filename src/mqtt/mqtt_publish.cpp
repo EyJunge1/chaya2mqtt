@@ -98,6 +98,14 @@ void applySuccessfulPublishSideEffects(int expected) {
 
 } // namespace
 
+bool mqttOwnPublishEchoShouldIgnore(int incoming) {
+    portENTER_CRITICAL(&s_publishAckMux);
+    const bool inFlight = mqttPublishAckIsReserved(s_publishAckState);
+    const int expected = s_publishAckState.expectedCounter;
+    portEXIT_CRITICAL(&s_publishAckMux);
+    return inFlight && incoming <= expected;
+}
+
 void mqttHandlePublishedAck(int messageId, uint32_t clientGeneration) {
     int expected = 0;
     portENTER_CRITICAL(&s_publishAckMux);

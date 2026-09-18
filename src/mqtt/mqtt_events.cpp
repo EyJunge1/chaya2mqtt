@@ -13,8 +13,10 @@
 #include "display/display.h"
 #include "heart/counter.h"
 #include "heart/counter_pure.h"
+#include "identity/device_identity.h"
 #include "led/led.h"
 #include "led/led_config.h"
+#include "pairing.h"
 #include "wifi/wlan.h"
 
 #include <Arduino.h>
@@ -41,11 +43,15 @@ static uint32_t s_fragExpectTotal = 0;
 static unsigned s_fragHave = 0;
 static portMUX_TYPE s_mqttFragmentMux = portMUX_INITIALIZER_UNLOCKED;
 
+enum class MqttHeartTopicKind : uint8_t { None = 0, Partner = 1, Own = 2 };
+static MqttHeartTopicKind s_fragTopicKind = MqttHeartTopicKind::None;
+
 void mqttResetFragmentState() {
     portENTER_CRITICAL(&s_mqttFragmentMux);
     s_fragExpectTotal = 0;
     s_fragHave = 0;
     portEXIT_CRITICAL(&s_mqttFragmentMux);
+    s_fragTopicKind = MqttHeartTopicKind::None;
 }
 
 void applyDisconnectFailureBackoff(bool wifiSuspectDuringFailure) {
@@ -67,7 +73,14 @@ void applyDisconnectFailureBackoff(bool wifiSuspectDuringFailure) {
     ESP_LOGI(TAG, "Next connect attempt in %lu s", waitMs / 1000UL);
 }
 
-static void handleCounterPayload(const char *payload, unsigned int length) {
+static void requestHeartContentRedraw() {
+    audioRequest(AudioMsg::Kind::Rx);
+    ledRefreshPulseBegin();
+    ledRefreshPulseEndAfter(kLedRefreshAckMs); // Display Begin overrides if a refresh actually starts.
+    (void)displayRequest(DisplayMsg::Cmd::DrawHeart, DisplayRequestMode::Content, 0U);
+}
+
+static void handlePartnerCounterPayload(const char *payload, unsigned int length) {
     long parsed = 0;
     if (!mqttParseCounterPayload(payload, length, &parsed)) {
         ESP_LOGD(TAG, "Invalid counter payload (len=%u)", length);
@@ -86,11 +99,31 @@ static void handleCounterPayload(const char *payload, unsigned int length) {
 
     ESP_LOGI(TAG, "Heart counter from MQTT (remote): %d", newCounter);
     heartCounterStoreFromRemote(newCounter);
-    audioRequest(AudioMsg::Kind::Rx);
-    ledRefreshPulseBegin();
-    ledRefreshPulseEndAfter(kLedRefreshAckMs); // Display Begin overrides if a refresh actually starts.
-    // Display layer owns the 30 s leading/trailing coalesce; always report the change.
-    (void)displayRequest(DisplayMsg::Cmd::DrawHeart, DisplayRequestMode::Content, 0U);
+    requestHeartContentRedraw();
+}
+
+static void handleOwnCounterPayload(const char *payload, unsigned int length) {
+    long parsed = 0;
+    if (!mqttParseCounterPayload(payload, length, &parsed)) {
+        ESP_LOGD(TAG, "Invalid own-topic counter payload (len=%u)", length);
+        return;
+    }
+
+    const int newCounter = static_cast<int>(parsed);
+    const int localTx = heartSentCounter.load(std::memory_order_relaxed);
+    if (mqttOwnPublishEchoShouldIgnore(newCounter) || !heartSentRemoteShouldApply(newCounter, localTx)) {
+        return;
+    }
+    if (!heartApplyAllowed(g_systemShutdownInProgress.load(std::memory_order_acquire),
+                           g_chayaNvsWritesSuspended.load(std::memory_order_acquire))) {
+        ESP_LOGD(TAG, "Own-topic heart counter ignored (shutdown or factory suspend)");
+        return;
+    }
+
+    ESP_LOGI(TAG, "Heart counter from MQTT (own pairing): %d", newCounter);
+    if (heartSentCounterStoreFromRemoteIfGreater(newCounter)) {
+        requestHeartContentRedraw();
+    }
 }
 
 static bool feedFragmentedPayload(esp_mqtt_event_handle_t ev) {
@@ -141,6 +174,7 @@ static bool feedFragmentedPayload(esp_mqtt_event_handle_t ev) {
     portEXIT_CRITICAL(&s_mqttFragmentMux);
 
     if (rejected) {
+        s_fragTopicKind = MqttHeartTopicKind::None;
         ESP_LOGD(TAG, "Ignoring malformed MQTT fragment");
         return false;
     }
@@ -152,20 +186,34 @@ static bool feedFragmentedPayload(esp_mqtt_event_handle_t ev) {
         return false;
     }
     ESP_LOGV(TAG, "MQTT fragment: complete %" PRIu32 " bytes", completeLength);
-    handleCounterPayload(completePayload, completeLength);
+    if (s_fragTopicKind == MqttHeartTopicKind::Own) {
+        handleOwnCounterPayload(completePayload, completeLength);
+    } else if (s_fragTopicKind == MqttHeartTopicKind::Partner) {
+        handlePartnerCounterPayload(completePayload, completeLength);
+    }
     return true;
 }
 
-static bool topicMatchesSubscribe(const esp_mqtt_event_handle_t ev) {
+static bool topicMatchesCached(const esp_mqtt_event_handle_t ev, const char *cache, size_t cachedLen) {
+    return (ev->topic != nullptr) && (ev->topic_len > 0) && (cachedLen > 0U) &&
+           (static_cast<size_t>(ev->topic_len) == cachedLen) && (memcmp(ev->topic, cache, cachedLen) == 0);
+}
+
+static MqttHeartTopicKind classifyHeartTopic(const esp_mqtt_event_handle_t ev) {
     if (ev->topic == nullptr || ev->topic_len <= 0) {
-        return false;
+        return MqttHeartTopicKind::None;
     }
     portENTER_CRITICAL(&s_mqttSubTopicMux);
-    const size_t cachedLen = s_mqttSubTopicLen;
-    const bool match = (cachedLen > 0U) && (static_cast<size_t>(ev->topic_len) == cachedLen) &&
-                       (memcmp(ev->topic, s_mqttSubTopicCache, cachedLen) == 0);
+    const bool partner = topicMatchesCached(ev, s_mqttSubTopicCache, s_mqttSubTopicLen);
+    const bool own = topicMatchesCached(ev, s_mqttOwnTopicCache, s_mqttOwnTopicLen);
     portEXIT_CRITICAL(&s_mqttSubTopicMux);
-    return match;
+    if (partner) {
+        return MqttHeartTopicKind::Partner;
+    }
+    if (own) {
+        return MqttHeartTopicKind::Own;
+    }
+    return MqttHeartTopicKind::None;
 }
 
 static bool mqttEventClientStillLive(esp_mqtt_client_handle_t cli, uint32_t *outGeneration) {
@@ -229,24 +277,44 @@ void mqttEventHandler(void * /*handler_args*/, esp_event_base_t /*base*/, int32_
             mqttAbortConnectPendingIfLive(ev->client, handlerGeneration);
             break;
         }
+        char deviceId[kDeviceIdBufLen]{};
+        buildDeviceId(deviceId, sizeof(deviceId));
         char lwtPublishTopic[sizeof(s_lwtTopicBuf)];
-        static_cast<void>(snprintf(lwtPublishTopic, sizeof(lwtPublishTopic), "%s/lwt", cfg.topicPub));
+        mqttFormatDeviceLwtTopic(lwtPublishTopic, sizeof(lwtPublishTopic), deviceId);
 
         portENTER_CRITICAL(&s_mqttBackoffMux);
         mqttCurrentBackoffMs = kMqttBackoffInitialMs;
         portEXIT_CRITICAL(&s_mqttBackoffMux);
 
-        const bool shouldSubscribe = cfg.partnerDeviceId[0] != '\0' && mqttTopicSyntaxOk(cfg.topicSub, sizeof(cfg.topicSub));
-        if (shouldSubscribe) {
+        const bool paired = cfg.partnerDeviceId[0] != '\0';
+        const bool shouldSubscribePartner = paired && mqttTopicSyntaxOk(cfg.topicSub, sizeof(cfg.topicSub));
+        const bool shouldSubscribeOwn = paired && mqttTopicSyntaxOk(cfg.topicPub, sizeof(cfg.topicPub)) &&
+                                        (!shouldSubscribePartner || strcmp(cfg.topicPub, cfg.topicSub) != 0);
+        if (shouldSubscribePartner || shouldSubscribeOwn) {
             portENTER_CRITICAL(&s_mqttSubTopicMux);
-            strlcpy(s_mqttSubTopicCache, cfg.topicSub, sizeof(s_mqttSubTopicCache));
-            s_mqttSubTopicLen = strlen(s_mqttSubTopicCache);
+            if (shouldSubscribePartner) {
+                strlcpy(s_mqttSubTopicCache, cfg.topicSub, sizeof(s_mqttSubTopicCache));
+                s_mqttSubTopicLen = strlen(s_mqttSubTopicCache);
+            } else {
+                s_mqttSubTopicCache[0] = '\0';
+                s_mqttSubTopicLen = 0U;
+            }
+            if (shouldSubscribeOwn) {
+                strlcpy(s_mqttOwnTopicCache, cfg.topicPub, sizeof(s_mqttOwnTopicCache));
+                s_mqttOwnTopicLen = strlen(s_mqttOwnTopicCache);
+            } else {
+                s_mqttOwnTopicCache[0] = '\0';
+                s_mqttOwnTopicLen = 0U;
+            }
             portEXIT_CRITICAL(&s_mqttSubTopicMux);
-            ESP_LOGI(TAG, "MQTT connected; subscribing (QoS 1): %s", cfg.topicSub);
+            ESP_LOGI(TAG, "MQTT connected; subscribing (QoS 1): partner=%s own=%s", shouldSubscribePartner ? cfg.topicSub : "-",
+                     shouldSubscribeOwn ? cfg.topicPub : "-");
         } else {
             portENTER_CRITICAL(&s_mqttSubTopicMux);
             s_mqttSubTopicCache[0] = '\0';
             s_mqttSubTopicLen = 0U;
+            s_mqttOwnTopicCache[0] = '\0';
+            s_mqttOwnTopicLen = 0U;
             portEXIT_CRITICAL(&s_mqttSubTopicMux);
             ESP_LOGI(TAG, "MQTT connected; no partner — skipping subscribe");
         }
@@ -258,14 +326,21 @@ void mqttEventHandler(void * /*handler_args*/, esp_event_base_t /*base*/, int32_
         bool subscribeFailed = false;
         bool publishFailed = false;
         const bool live = mqttWithLiveClient(ev->client, handlerGeneration, [&](esp_mqtt_client_handle_t c) {
-            if (shouldSubscribe) {
+            if (shouldSubscribePartner) {
                 const int mid = esp_mqtt_client_subscribe(c, cfg.topicSub, 1);
                 if (mid < 0) {
                     subscribeFailed = true;
                     return;
                 }
             }
-            if (esp_mqtt_client_publish(c, lwtPublishTopic, kOnline, kOnlineLen, 1, 1) < 0) {
+            if (shouldSubscribeOwn) {
+                const int mid = esp_mqtt_client_subscribe(c, cfg.topicPub, 1);
+                if (mid < 0) {
+                    subscribeFailed = true;
+                    return;
+                }
+            }
+            if (lwtPublishTopic[0] != '\0' && esp_mqtt_client_publish(c, lwtPublishTopic, kOnline, kOnlineLen, 1, 1) < 0) {
                 publishFailed = true;
                 return;
             }
@@ -298,11 +373,15 @@ void mqttEventHandler(void * /*handler_args*/, esp_event_base_t /*base*/, int32_
         }
         if (ev->topic == nullptr || ev->topic_len <= 0) {
             feedFragmentedPayload(ev);
-        } else if (topicMatchesSubscribe(ev)) {
-            feedFragmentedPayload(ev);
         } else {
-            ESP_LOGD(TAG, "Ignoring MQTT payload (wrong topic)");
-            mqttResetFragmentState();
+            const MqttHeartTopicKind kind = classifyHeartTopic(ev);
+            if (kind == MqttHeartTopicKind::None) {
+                ESP_LOGD(TAG, "Ignoring MQTT payload (wrong topic)");
+                mqttResetFragmentState();
+            } else {
+                s_fragTopicKind = kind;
+                feedFragmentedPayload(ev);
+            }
         }
         break;
 

@@ -25,7 +25,12 @@ extern char s_clientIdBuf[24];
 extern char s_lwtTopicBuf[sizeof(MqttConfig::topicPub) + 16U];
 extern char s_mqttSubTopicCache[sizeof(MqttConfig::topicSub)];
 extern size_t s_mqttSubTopicLen;
+extern char s_mqttOwnTopicCache[sizeof(MqttConfig::topicPub)];
+extern size_t s_mqttOwnTopicLen;
 extern portMUX_TYPE s_mqttSubTopicMux;
+
+/** True when an in-flight own publish would treat `incoming` as a self-echo. */
+auto mqttOwnPublishEchoShouldIgnore(int incoming) -> bool;
 
 bool mqttClientLockTimed();
 /** Fail-closed timed lock (same timeout as mqttClientLockTimed). */

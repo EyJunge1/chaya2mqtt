@@ -145,6 +145,7 @@ export const api = {
     mqtt_tls: boolean;
     mqtt_user?: string;
     mqtt_pass?: string;
+    pairing_id?: string;
     partner_id?: string;
   }) => apiPost("/api/mqtt", fields),
   getSettings: () => apiGet<SettingsInfo>("/api/settings"),

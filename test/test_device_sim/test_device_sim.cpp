@@ -14,8 +14,33 @@ void test_sim_first_connect_and_pair() {
     dev.net().setReadyForMqtt();
     dev.tick(1000);
     TEST_ASSERT_TRUE(dev.mqttConnected());
-    TEST_ASSERT_EQUAL_UINT32(1U, static_cast<unsigned>(dev.transport().subscribeLog.size()));
+    TEST_ASSERT_EQUAL_UINT32(2U, static_cast<unsigned>(dev.transport().subscribeLog.size()));
     TEST_ASSERT_EQUAL_STRING("chaya2mqtt/f5e6d7", dev.transport().subscribeLog[0].c_str());
+    TEST_ASSERT_EQUAL_STRING("chaya2mqtt/a1b2c3", dev.transport().subscribeLog[1].c_str());
+}
+
+void test_sim_shared_pairing_id() {
+    DeviceRuntime office("c9d8e7");
+    office.configureBroker("broker.example.com", 8883, "", "");
+    TEST_ASSERT_TRUE(office.setPairingId("a1b2c3"));
+    TEST_ASSERT_TRUE(office.pair("f5e6d7"));
+    TEST_ASSERT_EQUAL_STRING("chaya2mqtt/a1b2c3", office.mqtt().topicPub);
+    TEST_ASSERT_EQUAL_STRING("chaya2mqtt/f5e6d7", office.mqtt().topicSub);
+
+    office.net().setReadyForMqtt();
+    office.tick(1);
+    TEST_ASSERT_TRUE(office.mqttConnected());
+    TEST_ASSERT_EQUAL_UINT32(2U, static_cast<unsigned>(office.transport().subscribeLog.size()));
+    TEST_ASSERT_TRUE(office.applyOwnTopicCounter("7"));
+    TEST_ASSERT_EQUAL_INT(7, office.localTxCounter());
+    TEST_ASSERT_FALSE(office.applyOwnTopicCounter("7"));
+    TEST_ASSERT_TRUE(office.persist());
+
+    DeviceRuntime restarted("c9d8e7");
+    restarted.nvs() = office.nvs();
+    TEST_ASSERT_TRUE(restarted.restore());
+    TEST_ASSERT_EQUAL_STRING("a1b2c3", restarted.mqtt().pairingDeviceId);
+    TEST_ASSERT_EQUAL_STRING("chaya2mqtt/a1b2c3", restarted.mqtt().topicPub);
 }
 
 void test_sim_disconnect_reconnect_backoff() {
@@ -230,8 +255,17 @@ void test_sim_mqtt_pack_and_apply_finish() {
     TEST_ASSERT_TRUE(mqttUnpackConfigV1(pk, &loaded));
     TEST_ASSERT_EQUAL_STRING("broker.example.com", loaded.server);
     TEST_ASSERT_EQUAL_STRING("f5e6d7", loaded.partnerDeviceId);
+    TEST_ASSERT_EQUAL_STRING("", loaded.pairingDeviceId);
     pk.magic = 0xDEADBEEFU;
     TEST_ASSERT_FALSE(mqttUnpackConfigV1(pk, &loaded));
+
+    std::strncpy(cfg.pairingDeviceId, "a1b2c3", sizeof(cfg.pairingDeviceId) - 1U);
+    PackedMqttConfigV2 pk2{};
+    mqttPackConfigV2(cfg, &pk2);
+    TEST_ASSERT_EQUAL_UINT32(kMqttCfgPackedMagicV2, pk2.magic);
+    MqttConfig loadedV2{};
+    TEST_ASSERT_TRUE(mqttUnpackConfigV2(pk2, &loadedV2));
+    TEST_ASSERT_EQUAL_STRING("a1b2c3", loadedV2.pairingDeviceId);
 
     TEST_ASSERT_TRUE(mqttSettingsApplyShouldClearPending(false));
     TEST_ASSERT_FALSE(mqttSettingsApplyShouldClearPending(true));
@@ -297,6 +331,7 @@ void test_sim_late_ack_after_fail_and_begin() {
 int main(int, char **) {
     UNITY_BEGIN();
     RUN_TEST(test_sim_first_connect_and_pair);
+    RUN_TEST(test_sim_shared_pairing_id);
     RUN_TEST(test_sim_disconnect_reconnect_backoff);
     RUN_TEST(test_sim_invalid_and_changed_broker);
     RUN_TEST(test_sim_unpair_and_publish);

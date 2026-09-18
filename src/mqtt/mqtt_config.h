@@ -2,7 +2,7 @@
 
 #include <cstdint>
 
-/** Prefix for auto-generated MQTT pair topics: chaya2mqtt/<device_id>. */
+/** Prefix for auto-generated MQTT pair topics: chaya2mqtt/<pairing_or_device_id>. */
 constexpr const char kMqttPairTopicPrefix[] = "chaya2mqtt/";
 
 constexpr uint16_t kMqttDefaultTlsPort = 8883;

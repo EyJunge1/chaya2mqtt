@@ -510,6 +510,7 @@ export async function handleApi(req: IncomingMessage, res: ServerResponse): Prom
       topicPub: state.mqtt.topicPub,
       topicSub: state.mqtt.topicSub,
       partnerId: state.mqtt.partnerId,
+      pairingId: state.mqtt.pairingId,
       nvsOk: state.mqttNvsOk !== false,
       applyPending: state.mqttApplyPending === true,
     });
@@ -535,6 +536,19 @@ export async function handleApi(req: IncomingMessage, res: ServerResponse): Prom
     }
     if (typeof body.mqtt_user === "string") pending.username = body.mqtt_user;
     applyIncomingBrokerSecret(pending, body.mqtt_pass);
+    if (Object.prototype.hasOwnProperty.call(body, "pairing_id")) {
+      const pairing = (typeof body.pairing_id === "string" ? body.pairing_id : "")
+        .trim()
+        .toLowerCase();
+      if (pairing === "" || pairing === state.deviceId) {
+        pending.pairingId = "";
+      } else if (!/^[0-9a-f]{6}$/.test(pairing)) {
+        sendJson(res, 400, { ok: false, error: "pairing" });
+        return true;
+      } else {
+        pending.pairingId = pairing;
+      }
+    }
     if (Object.prototype.hasOwnProperty.call(body, "partner_id")) {
       const partner = (typeof body.partner_id === "string" ? body.partner_id : "")
         .trim()
@@ -550,7 +564,13 @@ export async function handleApi(req: IncomingMessage, res: ServerResponse): Prom
         pending.topicSub = `chaya2mqtt/${partner}`;
       }
     }
-    pending.topicPub = `chaya2mqtt/${state.deviceId}`;
+    const effectivePairing = pending.pairingId || state.deviceId;
+    if (pending.partnerId && pending.partnerId === effectivePairing) {
+      sendJson(res, 400, { ok: false, error: "partner" });
+      return true;
+    }
+    pending.topicPub = `chaya2mqtt/${effectivePairing}`;
+    pending.topicSub = pending.partnerId ? `chaya2mqtt/${pending.partnerId}` : "";
     mqttPending = pending;
     state.mqttApplyPending = true;
     const mqttEpoch = nextMqttApplyEpoch();

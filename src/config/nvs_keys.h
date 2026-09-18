@@ -28,5 +28,7 @@ constexpr const char kNvsKeyChayaCounter[] = "counter";
 constexpr const char kNvsKeyChayaSentCount[] = "sentCount";
 constexpr const char kNvsKeyChayaBaselineBlob[] = "baseBlob";
 
-/** Atomic MQTT broker+partner blob (PackedMqttConfigV1). */
+/** Legacy MQTT broker+partner blob (PackedMqttConfigV1). */
 constexpr const char kNvsKeyMqttCfgV1[] = "cfg_v1";
+/** Atomic MQTT broker+partner+pairing blob (PackedMqttConfigV2). */
+constexpr const char kNvsKeyMqttCfgV2[] = "cfg_v2";

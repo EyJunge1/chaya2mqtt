@@ -113,6 +113,26 @@ void test_pairing_topics() {
     TEST_ASSERT_EQUAL_STRING("", cfg.topicSub);
 }
 
+void test_pairing_topics_shared_id() {
+    MqttConfig cfg{};
+    std::strncpy(cfg.pairingDeviceId, "a1b2c3", sizeof(cfg.pairingDeviceId));
+    std::strncpy(cfg.partnerDeviceId, "f5e6d7", sizeof(cfg.partnerDeviceId));
+    mqttApplyPairingTopicsWithIds(&cfg, "c9d8e7");
+    TEST_ASSERT_EQUAL_STRING("chaya2mqtt/a1b2c3", cfg.topicPub);
+    TEST_ASSERT_EQUAL_STRING("chaya2mqtt/f5e6d7", cfg.topicSub);
+    TEST_ASSERT_EQUAL_STRING("a1b2c3", mqttEffectivePairingId(cfg, "c9d8e7"));
+}
+
+void test_device_lwt_topic() {
+    char topic[48]{};
+    mqttFormatDeviceLwtTopic(topic, sizeof(topic), "a1b2c3");
+    TEST_ASSERT_EQUAL_STRING("chaya2mqtt/a1b2c3/lwt", topic);
+
+    topic[0] = 'x';
+    mqttFormatDeviceLwtTopic(topic, sizeof(topic), "A1B2C3");
+    TEST_ASSERT_EQUAL_STRING("", topic);
+}
+
 void test_sanitize_partner_and_server() {
     MqttConfig cfg{};
     TEST_ASSERT_TRUE(cfg.tls);
@@ -130,6 +150,22 @@ void test_sanitize_partner_and_server() {
     std::strncpy(cfg.partnerDeviceId, "f5e6d7", sizeof(cfg.partnerDeviceId));
     mqttSanitizePartnerId(cfg, "f5e6d7");
     TEST_ASSERT_EQUAL_STRING("", cfg.partnerDeviceId);
+
+    MqttConfig pairingCfg{};
+    std::strncpy(pairingCfg.pairingDeviceId, "A1B2C3", sizeof(pairingCfg.pairingDeviceId));
+    std::strncpy(pairingCfg.partnerDeviceId, "f5e6d7", sizeof(pairingCfg.partnerDeviceId));
+    mqttSanitizeConfigAfterLoad(pairingCfg, "c9d8e7");
+    TEST_ASSERT_EQUAL_STRING("a1b2c3", pairingCfg.pairingDeviceId);
+    TEST_ASSERT_EQUAL_STRING("chaya2mqtt/a1b2c3", pairingCfg.topicPub);
+
+    std::strncpy(pairingCfg.pairingDeviceId, "c9d8e7", sizeof(pairingCfg.pairingDeviceId));
+    mqttSanitizePairingId(pairingCfg, "c9d8e7");
+    TEST_ASSERT_EQUAL_STRING("", pairingCfg.pairingDeviceId);
+
+    std::strncpy(pairingCfg.pairingDeviceId, "a1b2c3", sizeof(pairingCfg.pairingDeviceId));
+    std::strncpy(pairingCfg.partnerDeviceId, "a1b2c3", sizeof(pairingCfg.partnerDeviceId));
+    mqttSanitizePartnerId(pairingCfg, "c9d8e7");
+    TEST_ASSERT_EQUAL_STRING("", pairingCfg.partnerDeviceId);
 }
 
 void test_counter_payload_parse() {
@@ -239,8 +275,41 @@ void test_mqtt_pack_roundtrip() {
     TEST_ASSERT_EQUAL_STRING("user", out.username);
     TEST_ASSERT_EQUAL_STRING("roundtrip", out.password);
     TEST_ASSERT_EQUAL_STRING("f5e6d7", out.partnerDeviceId);
+    TEST_ASSERT_EQUAL_STRING("", out.pairingDeviceId);
     TEST_ASSERT_EQUAL_STRING("", out.topicPub);
     TEST_ASSERT_EQUAL_STRING("", out.topicSub);
+}
+
+void test_mqtt_pack_v2_roundtrip() {
+    MqttConfig cfg{};
+    std::strncpy(cfg.server, "broker.example.com", sizeof(cfg.server));
+    cfg.port = 8883;
+    cfg.tls = true;
+    std::strncpy(cfg.partnerDeviceId, "f5e6d7", sizeof(cfg.partnerDeviceId));
+    std::strncpy(cfg.pairingDeviceId, "a1b2c3", sizeof(cfg.pairingDeviceId));
+
+    PackedMqttConfigV2 pk{};
+    mqttPackConfigV2(cfg, &pk);
+    TEST_ASSERT_EQUAL_UINT32(kMqttCfgPackedMagicV2, pk.magic);
+
+    MqttConfig out{};
+    TEST_ASSERT_TRUE(mqttUnpackConfigV2(pk, &out));
+    TEST_ASSERT_EQUAL_STRING("broker.example.com", out.server);
+    TEST_ASSERT_EQUAL_STRING("f5e6d7", out.partnerDeviceId);
+    TEST_ASSERT_EQUAL_STRING("a1b2c3", out.pairingDeviceId);
+    TEST_ASSERT_EQUAL_STRING("", out.topicPub);
+
+    pk.magic = kMqttCfgPackedMagic;
+    TEST_ASSERT_FALSE(mqttUnpackConfigV2(pk, &out));
+}
+
+void test_own_topic_tx_apply() {
+    TEST_ASSERT_TRUE(heartSentRemoteShouldApply(11, 10));
+    TEST_ASSERT_FALSE(heartSentRemoteShouldApply(10, 10));
+    TEST_ASSERT_FALSE(heartSentRemoteShouldApply(9, 10));
+    TEST_ASSERT_FALSE(mqttOwnTopicTxShouldApply(11, 10, true, 11));
+    TEST_ASSERT_TRUE(mqttOwnTopicTxShouldApply(12, 10, true, 11));
+    TEST_ASSERT_TRUE(mqttOwnTopicTxShouldApply(11, 10, false, 11));
 }
 
 void test_mqtt_pack_reject_bad_magic() {
@@ -385,12 +454,16 @@ int main(int, char **) {
     RUN_TEST(test_device_sta_hostname_format);
     RUN_TEST(test_normalize_mqtt_port);
     RUN_TEST(test_pairing_topics);
+    RUN_TEST(test_pairing_topics_shared_id);
+    RUN_TEST(test_device_lwt_topic);
     RUN_TEST(test_sanitize_partner_and_server);
     RUN_TEST(test_counter_payload_parse);
     RUN_TEST(test_backoff_helpers);
     RUN_TEST(test_publish_ack_state);
     RUN_TEST(test_publish_ack_begin_blocked_after_confirm);
     RUN_TEST(test_mqtt_pack_roundtrip);
+    RUN_TEST(test_mqtt_pack_v2_roundtrip);
+    RUN_TEST(test_own_topic_tx_apply);
     RUN_TEST(test_mqtt_pack_reject_bad_magic);
     RUN_TEST(test_mqtt_settings_apply_clear_pending);
     RUN_TEST(test_publish_ack_begin_blocked_when_async_not_pending);

@@ -5,6 +5,7 @@
 #include "constants.h"
 #include "identity/device_identity.h"
 #include "mqtt_config.h"
+#include "pairing.h"
 #include "tls/tls_bundle.h"
 #include "tls/tls_bundle_setup.h"
 
@@ -46,6 +47,8 @@ char s_clientIdBuf[24]{};
 char s_lwtTopicBuf[sizeof(MqttConfig::topicPub) + 16U]{};
 char s_mqttSubTopicCache[sizeof(MqttConfig::topicSub)]{};
 size_t s_mqttSubTopicLen = 0;
+char s_mqttOwnTopicCache[sizeof(MqttConfig::topicPub)]{};
+size_t s_mqttOwnTopicLen = 0;
 portMUX_TYPE s_mqttSubTopicMux = portMUX_INITIALIZER_UNLOCKED;
 
 bool mqttClientLockTimed() {
@@ -94,7 +97,9 @@ bool mqttEnsureClientAllocated() {
 
     mqttFillStableClientId();
 
-    snprintf(s_lwtTopicBuf, sizeof(s_lwtTopicBuf), "%s/lwt", cfg.topicPub);
+    char deviceId[kDeviceIdBufLen]{};
+    buildDeviceId(deviceId, sizeof(deviceId));
+    mqttFormatDeviceLwtTopic(s_lwtTopicBuf, sizeof(s_lwtTopicBuf), deviceId);
 
     if (cfg.tls && installCaBundleLocked() != ESP_OK) {
         ESP_LOGE(TAG, "esp_crt_bundle_set failed");
@@ -199,6 +204,8 @@ void mqttKillClientImpl() {
     portENTER_CRITICAL(&s_mqttSubTopicMux);
     s_mqttSubTopicLen = 0;
     s_mqttSubTopicCache[0] = '\0';
+    s_mqttOwnTopicLen = 0;
+    s_mqttOwnTopicCache[0] = '\0';
     portEXIT_CRITICAL(&s_mqttSubTopicMux);
 
     // stop/destroy may legitimately exceed the default TWDT while TLS unwinds.

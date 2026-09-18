@@ -218,12 +218,18 @@ describe("api contract", () => {
       "mqtt_tls",
       "mqtt_user",
       "mqtt_pass",
+      "pairing_id",
       "partner_id",
     ]) {
       expect(client).toContain(field);
       expect(mock).toContain(field);
       expect(openapi).toContain(field);
       expect(firmware).toContain(field);
+    }
+    for (const field of ["pairingId", "partnerId"]) {
+      expect(mock).toContain(field);
+      expect(openapi).toContain(field);
+      expect(firmware).toContain(`"${field}"`);
     }
   });
 

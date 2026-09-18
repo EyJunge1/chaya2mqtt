@@ -45,3 +45,6 @@ inline auto heartSentCounterNextPure(int current) -> int {
     }
     return current + 1;
 }
+
+/** Sibling / retain TX on the own pairing topic: only move the local sent count forward. */
+inline auto heartSentRemoteShouldApply(int incoming, int localTx) -> bool { return incoming > localTx; }
