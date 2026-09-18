@@ -277,7 +277,7 @@
     await persist("", pairing);
   }
 
-  async function copyId(key: string, id: string | undefined, failKey: string) {
+  async function copyId(key: string, id: string | undefined) {
     const value = id?.trim();
     if (!value) return;
     if (await copyText(value)) {
@@ -288,7 +288,7 @@
       }, 1500);
       return;
     }
-    onToast(i18n.t(failKey), "error");
+    onToast(i18n.t("toast.id-copy-failed"), "error");
   }
 
   const brokerConfigured = $derived(Boolean(cfg?.server.trim()));
@@ -313,13 +313,7 @@
   <LoadingBlock label={i18n.t("mqtt.loading")} />
 {:else}
   <div class="space-y-4">
-    {#snippet copyableId(
-      key: string,
-      value: string,
-      canCopy: boolean,
-      copyLabel: string,
-      failKey: string,
-    )}
+    {#snippet copyableId(key: string, value: string, canCopy: boolean, copyLabel: string)}
       <span class="inline-flex items-center gap-1.5 tracking-widest">
         {dash(value)}
         {#if canCopy}
@@ -330,7 +324,7 @@
               "inline-flex size-7 shrink-0 items-center justify-center rounded-full text-muted transition focus-ring",
               HOVER_SURFACE,
             )}
-            onclick={() => void copyId(key, value, failKey)}
+            onclick={() => void copyId(key, value)}
           >
             {#if copiedKey === key}
               <Check size={14} strokeWidth={2.25} class="pointer-events-none" aria-hidden="true" />
@@ -342,13 +336,7 @@
       </span>
     {/snippet}
     {#snippet pairingIdValue()}
-      {@render copyableId(
-        "pairing",
-        shownPairingId,
-        hasPairingId,
-        i18n.t("mqtt.copy-pairing-id"),
-        "toast.id-copy-failed",
-      )}
+      {@render copyableId("pairing", shownPairingId, hasPairingId, i18n.t("mqtt.copy-pairing-id"))}
     {/snippet}
     {#snippet partnerIdValue()}
       {@render copyableId(
@@ -356,7 +344,6 @@
         cfg?.partnerId ?? "",
         hasPartnerId,
         i18n.t("mqtt.copy-partner-id"),
-        "toast.id-copy-failed",
       )}
     {/snippet}
     <Panel>
