@@ -92,8 +92,6 @@ bool mqttCfgConsumeDirtySnapshotNeeded() { return s_mqttCfgDirty.exchange(false,
 
 void mqttCfgSetNvsWriteFailed(bool failed) { s_mqttNvsWriteFailed.store(failed, std::memory_order_release); }
 
-bool mqttCfgNvsWriteFailed() { return s_mqttNvsWriteFailed.load(std::memory_order_acquire); }
-
 void mqttCfgResetRamAfterFactoryClear() {
     mqttCfgLock();
     mqttCfg = MqttConfig{};
@@ -186,15 +184,6 @@ void mqttCfgTopicPubLockedCopy(char *out, size_t outLen) {
     mqttCfgUnlock();
 }
 
-void mqttCfgStorePending(const MqttConfig *pending) {
-    if (pending == nullptr) {
-        return;
-    }
-    mqttCfgLock();
-    s_mqttPendingCfg = *pending;
-    mqttCfgUnlock();
-}
-
 bool mqttCfgStorePendingTimed(const MqttConfig *pending, uint32_t timeoutMs) {
     if (pending == nullptr) {
         return false;
@@ -216,31 +205,11 @@ void mqttCfgApplyPendingToActive() {
     mqttCfgMarkDirty();
 }
 
-void mqttCfgPendingSnapshot(MqttConfig *out) {
-    if (out == nullptr) {
-        return;
-    }
-    mqttCfgLock();
-    *out = s_mqttPendingCfg;
-    mqttCfgUnlock();
-}
-
 bool mqttCfgHasUnappliedPending() {
     mqttCfgLock();
     const bool differs = memcmp(&mqttCfg, &s_mqttPendingCfg, sizeof(MqttConfig)) != 0;
     mqttCfgUnlock();
     return differs;
-}
-
-/** Read broker fields from an open Preferences handle into `out` (raw port, not normalized). */
-static void mqttCfgReadFromPrefs(Preferences &prefs, MqttConfig &out) {
-    prefs.getString(kNvsKeyMqttServer, out.server, sizeof(out.server));
-    out.port = static_cast<uint16_t>(prefs.getInt(kNvsKeyMqttPort, static_cast<int>(kMqttDefaultTlsPort)));
-    // Missing key → TLS (backward compatible with pre-tls-flag firmware).
-    out.tls = prefs.getUChar(kNvsKeyMqttTls, 1U) != 0U;
-    prefs.getString(kNvsKeyMqttUser, out.username, sizeof(out.username));
-    prefs.getString(kNvsKeyMqttPass, out.password, sizeof(out.password));
-    prefs.getString(kNvsKeyMqttPartnerId, out.partnerDeviceId, sizeof(out.partnerDeviceId));
 }
 
 static bool mqttCfgTryReadBlob(Preferences &prefs, MqttConfig &out) {
@@ -254,20 +223,10 @@ static bool mqttCfgTryReadBlob(Preferences &prefs, MqttConfig &out) {
     return mqttUnpackConfigV1(pk, &out);
 }
 
-static bool mqttCfgLegacyKeysPresent(Preferences &prefs) {
-    return prefs.isKey(kNvsKeyMqttServer) || prefs.isKey(kNvsKeyMqttPort) || prefs.isKey(kNvsKeyMqttTls) ||
-           prefs.isKey(kNvsKeyMqttUser) || prefs.isKey(kNvsKeyMqttPass) || prefs.isKey(kNvsKeyMqttPartnerId);
-}
-
-static void mqttCfgRemoveLegacyKeys(Preferences &prefs) {
-    static_cast<void>(prefs.remove(kNvsKeyMqttServer));
-    static_cast<void>(prefs.remove(kNvsKeyMqttPort));
-    static_cast<void>(prefs.remove(kNvsKeyMqttTls));
-    static_cast<void>(prefs.remove(kNvsKeyMqttUser));
-    static_cast<void>(prefs.remove(kNvsKeyMqttPass));
-    static_cast<void>(prefs.remove(kNvsKeyMqttTopicPub));
-    static_cast<void>(prefs.remove(kNvsKeyMqttTopicSub));
-    static_cast<void>(prefs.remove(kNvsKeyMqttPartnerId));
+static void mqttCfgApplyUnconfiguredDefaults(MqttConfig &cfg) {
+    cfg = {};
+    cfg.port = kMqttDefaultTlsPort;
+    cfg.tls = true;
 }
 
 bool mqttCfgMatchesNvs() {
@@ -282,48 +241,33 @@ bool mqttCfgMatchesNvs() {
         if (!prefs.begin(kNvsNsMqtt, true)) {
             return active.server[0] == '\0';
         }
-        nvsPresent = true;
-        if (!mqttCfgTryReadBlob(prefs, stored)) {
-            mqttCfgReadFromPrefs(prefs, stored);
-            stored.port = normalizeMqttPort(static_cast<int>(stored.port));
-        }
+        nvsPresent = mqttCfgTryReadBlob(prefs, stored);
         prefs.end();
     }
 
     // Sanitize outside the NVS lock: buildDeviceId() also takes g_nvsMutex.
-    if (nvsPresent) {
-        mqttCfgSanitizeAfterNvsLoad(stored);
+    if (!nvsPresent) {
+        mqttCfgApplyUnconfiguredDefaults(stored);
     }
+    mqttCfgSanitizeAfterNvsLoad(stored);
     return memcmp(&active, &stored, sizeof(MqttConfig)) == 0;
 }
 
 void loadMQTTConfig() {
     MqttConfig loaded{};
-    bool migrateLegacy = false;
+    mqttCfgApplyUnconfiguredDefaults(loaded);
 
     {
         app_nvs::ScopedNvsLock lock;
         Preferences prefs;
         if (!prefs.begin(kNvsNsMqtt, true)) {
             ESP_LOGI(TAG, "NVS mqtt namespace not present, using MQTT defaults");
-            loaded.server[0] = '\0';
-            loaded.username[0] = '\0';
-            loaded.password[0] = '\0';
-            loaded.port = kMqttDefaultTlsPort;
-            loaded.tls = true;
         } else if (mqttCfgTryReadBlob(prefs, loaded)) {
             ESP_LOGD(TAG, "MQTT NVS: cfg_v1 loaded");
             prefs.end();
-        } else if (mqttCfgLegacyKeysPresent(prefs)) {
-            ESP_LOGI(TAG, "MQTT NVS: migrating legacy keys to cfg_v1");
-            mqttCfgReadFromPrefs(prefs, loaded);
-            loaded.port = normalizeMqttPort(static_cast<int>(loaded.port));
-            migrateLegacy = true;
-            prefs.end();
         } else {
             ESP_LOGI(TAG, "MQTT not configured yet in NVS, using defaults");
-            loaded.server[0] = '\0';
-            loaded.tls = true;
+            mqttCfgApplyUnconfiguredDefaults(loaded);
             prefs.end();
         }
     }
@@ -335,9 +279,6 @@ void loadMQTTConfig() {
     s_mqttPendingCfg = loaded;
     mqttCfgRefreshFlagsLocked();
     mqttCfgUnlock();
-    if (migrateLegacy && !saveMQTTConfig()) {
-        ESP_LOGW(TAG, "MQTT NVS: cfg_v1 migrate write failed");
-    }
     mqttCfgMarkDirty();
 }
 
@@ -368,7 +309,6 @@ bool saveMQTTConfig() {
         ESP_LOGE(TAG, "NVS mqtt: cfg_v1 persist failed");
         return false;
     }
-    mqttCfgRemoveLegacyKeys(prefs);
     prefs.end();
     return true;
 }

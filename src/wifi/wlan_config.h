@@ -138,8 +138,6 @@ constexpr unsigned long kApDnsPollIntervalMs = 5000UL;
 /** Factory-reset / controlled-restart wait for an in-flight EPD refresh (RC-NET-05). */
 constexpr unsigned long kWlanEpdWaitForDestructiveMs = 90000UL;
 
-/** Legacy packed credentials blob (SSID+pass only). */
-constexpr uint32_t kWifiCredPackedMagic = 0x43575631U; // "CWV1"
 /** Full network config blob (SSID+pass+IPv4+NTP). */
 constexpr uint32_t kWifiCfgPackedMagic = 0x43575632U; // "CWV2"
 

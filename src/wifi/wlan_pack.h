@@ -6,12 +6,6 @@
 #include "util/net_validate.h"
 #include "wifi/wlan_config.h"
 
-struct PackedWifiCredentials {
-    uint32_t magic;
-    char ssid[kWifiSsidMaxLen];
-    char pass[kWifiPassMaxLen];
-};
-
 struct PackedWifiConfigV2 {
     uint32_t magic;
     char ssid[kWifiSsidMaxLen];
@@ -96,11 +90,6 @@ inline auto wlanUnpackConfigV2(const PackedWifiConfigV2 &pk, WlanConfig *cfg) ->
     wlanPackCopyOctetsToStr(local.dns2, cfg->dns2, sizeof(cfg->dns2));
     wlanConfigCopyStr(cfg->ntp1, sizeof(cfg->ntp1), local.ntp1);
     wlanConfigCopyStr(cfg->ntp2, sizeof(cfg->ntp2), local.ntp2);
-    if ((std::strcmp(cfg->ntp1, "pool.ntp.org") == 0 && std::strcmp(cfg->ntp2, "time.cloudflare.com") == 0) ||
-        (std::strcmp(cfg->ntp1, "time.cloudflare.com") == 0 && std::strcmp(cfg->ntp2, "pool.ntp.org") == 0) ||
-        (std::strcmp(cfg->ntp1, kWifiDefaultNtp1) == 0 && cfg->ntp2[0] == '\0')) {
-        cfg->ntp1[0] = cfg->ntp2[0] = '\0';
-    }
     if (wlanConfigValidate(cfg) != nullptr && cfg->mode == WlanIpMode::Static) {
         cfg->mode = WlanIpMode::Dhcp;
         cfg->ip[0] = cfg->gateway[0] = cfg->netmask[0] = '\0';

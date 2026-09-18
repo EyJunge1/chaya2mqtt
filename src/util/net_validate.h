@@ -56,11 +56,6 @@ inline auto parseIpv4Dotted(const char *s, uint8_t out[4]) -> bool {
     return true;
 }
 
-inline auto ipv4SyntaxOk(const char *s) -> bool {
-    uint8_t tmp[4];
-    return parseIpv4Dotted(s, tmp);
-}
-
 /** True for 0.0.0.0. */
 inline auto ipv4IsZero(const uint8_t ip[4]) -> bool {
     return ip != nullptr && ip[0] == 0U && ip[1] == 0U && ip[2] == 0U && ip[3] == 0U;

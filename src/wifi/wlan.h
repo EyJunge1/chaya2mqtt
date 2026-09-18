@@ -18,7 +18,7 @@ auto wlanIsBootWifiSettled() -> bool;
 /** Persist full WLAN config (SSID/pass + IP mode + NTP). */
 auto wlanSaveConfigToNvs(const WlanConfig &cfg) -> bool;
 
-/** Load config; migrates legacy cred_v1 / ssid+pass to DHCP + default NTP. */
+/** Load packed cfg_v2; false if missing or invalid. */
 auto wlanLoadConfigFromNvs(WlanConfig *cfg) -> bool;
 
 /**
@@ -29,9 +29,6 @@ auto wlanCopyCachedConfig(WlanConfig *out) -> bool;
 
 /** Drop NVS WiFi cache + active boot config after factory wipe (RC-LIFE-07). */
 void wlanResetRamAfterFactoryClear();
-
-/** @deprecated Prefer wlanSaveConfigToNvs; saves DHCP-only config. */
-auto configSaveWiFiCredentials(const char *ssid, const char *password) -> bool;
 
 auto configIsApMode() -> bool;
 
@@ -69,22 +66,12 @@ enum class WlanWifiScanStatus : uint8_t {
 
 auto wlanWifiScanStatus() -> WlanWifiScanStatus;
 
-auto wlanWifiScanCacheReady() -> bool;
-
 auto wlanWifiScanCopySnapshot(WlanScanRow *out, size_t maxRows) -> size_t;
 
-auto wlanWifiScanCachedCount() -> size_t;
-
-auto wlanWifiScanCopyRowAt(size_t index, WlanScanRow *out) -> bool;
-
-auto wlanFillStaLinkSnapshot(bool *outConnected, char *ipStr, size_t ipLen, char *ssidBuf, size_t ssidLen, int *outRssi) -> bool;
-
-/** Extended STA link snapshot including DHCP-assigned topology. */
+/** STA link snapshot including DHCP-assigned topology. */
 auto wlanFillStaNetSnapshot(bool *outConnected, char *ssidBuf, size_t ssidLen, char *ipStr, size_t ipLen, char *gatewayStr,
                             size_t gatewayLen, char *netmaskStr, size_t netmaskLen, char *dns1Str, size_t dns1Len, char *dns2Str,
                             size_t dns2Len, int *outRssi) -> bool;
-
-auto wlanLastStaBootFailureSsidSnapshot(char *outSsid, size_t maxLen) -> bool;
 
 void wlanWifiApiLock();
 void wlanWifiApiUnlock();

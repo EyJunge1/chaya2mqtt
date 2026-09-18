@@ -29,9 +29,6 @@
 
 DEFINE_LOG_TAG("WIFI");
 
-char g_lastFailedBootSsid[kWifiSsidMaxLen]{};
-portMUX_TYPE g_lastFailedBootSsidMux = portMUX_INITIALIZER_UNLOCKED;
-
 DNSServer g_dnsServer;
 std::atomic<bool> g_apMode{false};
 std::atomic<bool> s_captiveDnsStarted{false};
@@ -193,21 +190,6 @@ bool wlanWifiApiLockTimed(uint32_t timeoutMs) {
     return xSemaphoreTake(g_wifiApiMutex, pdMS_TO_TICKS(timeoutMs)) == pdTRUE;
 }
 
-bool wlanLastStaBootFailureSsidSnapshot(char *outSsid, size_t maxLen) {
-    if (outSsid == nullptr || maxLen == 0U) {
-        return false;
-    }
-    portENTER_CRITICAL(&g_lastFailedBootSsidMux);
-    if (g_lastFailedBootSsid[0] == '\0') {
-        portEXIT_CRITICAL(&g_lastFailedBootSsidMux);
-        outSsid[0] = '\0';
-        return false;
-    }
-    strlcpy(outSsid, g_lastFailedBootSsid, maxLen);
-    portEXIT_CRITICAL(&g_lastFailedBootSsidMux);
-    return true;
-}
-
 bool wlanApplyStaIpConfigLocked(const WlanConfig &cfg) {
     IPAddress dns1(0, 0, 0, 0);
     IPAddress dns2(0, 0, 0, 0);
@@ -287,15 +269,6 @@ bool wlanFillStaNetSnapshot(bool *outConnected, char *ssidBuf, size_t ssidLen, c
     *outRssi = static_cast<int>(WiFi.RSSI());
     wlanWifiApiUnlock();
     return true;
-}
-
-bool wlanFillStaLinkSnapshot(bool *outConnected, char *ipStr, size_t ipLen, char *ssidBuf, size_t ssidLen, int *outRssi) {
-    char gateway[kIpv4StrMaxLen]{};
-    char netmask[kIpv4StrMaxLen]{};
-    char dns1[kIpv4StrMaxLen]{};
-    char dns2[kIpv4StrMaxLen]{};
-    return wlanFillStaNetSnapshot(outConnected, ssidBuf, ssidLen, ipStr, ipLen, gateway, sizeof(gateway), netmask,
-                                  sizeof(netmask), dns1, sizeof(dns1), dns2, sizeof(dns2), outRssi);
 }
 
 bool wlanReadStaLocalIpForCommit(char *outIp, size_t ipLen) {

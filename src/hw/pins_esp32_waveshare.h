@@ -40,7 +40,4 @@ constexpr int kSdClk = 39;
 constexpr int kSdMiso = 40;
 constexpr int kSdMosi = 41;
 
-/** Board identity for compile-time diagnostics. */
-constexpr const char *kBoardId = "esp32s3-epaper-154g";
-
 } // namespace pins

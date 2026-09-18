@@ -8,21 +8,14 @@
     md: "size-9",
   } as const;
 
-  const variantClass = {
-    ghost: cn("text-muted", HOVER_SURFACE),
-    bordered: cn("border border-border bg-surface text-muted", HOVER_SURFACE),
-  } as const;
-
   let {
     children,
-    variant = "ghost",
     size = "md",
     class: className = "",
     type = "button",
     ...rest
   }: {
     children: import("svelte").Snippet;
-    variant?: "ghost" | "bordered";
     size?: "sm" | "md";
     class?: string;
   } & HTMLButtonAttributes = $props();
@@ -31,9 +24,9 @@
 <button
   {type}
   class={cn(
-    "inline-flex shrink-0 items-center justify-center rounded-lg transition focus-ring",
+    "inline-flex shrink-0 items-center justify-center rounded-lg text-muted transition focus-ring",
+    HOVER_SURFACE,
     sizeClass[size],
-    variantClass[variant],
     className,
   )}
   {...rest}

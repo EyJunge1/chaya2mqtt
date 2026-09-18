@@ -7,8 +7,7 @@
 
 /**
  * Build this device's 6-char lowercase hex ID (NVS `cfg/device_id`).
- * Created randomly on first boot / after factory reset; OTA upgrades without
- * that key seed once from the STA MAC when WiFi/MQTT config already exists.
+ * Created randomly on first boot / after factory reset when the key is missing.
  */
 void buildDeviceId(char *out, size_t outLen);
 

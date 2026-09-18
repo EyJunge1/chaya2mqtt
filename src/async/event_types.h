@@ -5,7 +5,6 @@
 /** Network-task command queue. */
 enum class NetCmd : uint8_t {
     MqttSettingsChanged,
-    MqttKillClient,
     WifiGotIp,
     WifiReconnect,
     ChayaPublish,

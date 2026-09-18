@@ -163,7 +163,6 @@ export async function handleApi(req: IncomingMessage, res: ServerResponse): Prom
   const url = req.url ?? "/";
   const path = pathOf(url);
   const method = (req.method ?? "GET").toUpperCase();
-  // RFC 10008 QUERY: safe read with JSON body. No such route yet; matchers use method === "QUERY".
   const state = getState();
 
   if (path === "/api/_mock/scenario" && method === "POST") {

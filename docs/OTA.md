@@ -111,7 +111,7 @@ Sequence:
 | Endpoint | Method | Description |
 |----------|--------|-------------|
 | `/api/update/status` | GET | Status snapshot |
-| `/api/update/check` | POST | Start check; optional `channel=stable\|beta` |
+| `/api/update/check` | POST | Start check; required `channel=stable\|beta` |
 | `/api/update/install` | POST | Start installation after confirmation |
 
 The `ota` SSE event provides live updates (phase, progress, error).

@@ -53,8 +53,6 @@ function localFirmwarePlugin(): Plugin {
             JSON.stringify({
               name: "Chaya2MQTT",
               version: isBeta ? "dev-beta" : "dev-stable",
-              new_install_prompt_erase: true,
-              new_install_improv_wait_time: 0,
               builds: [
                 {
                   chipFamily: "ESP32-S3",

@@ -9,17 +9,15 @@
     children,
   }: {
     href: string;
-    variant?: "primary" | "secondary" | "warning";
+    variant?: "secondary" | "warning";
     class?: string;
     children: import("svelte").Snippet;
   } = $props();
 
   const variantClass = $derived(
-    variant === "primary"
-      ? "bg-accent text-bg enabled:hover:opacity-90"
-      : variant === "warning"
-        ? "border border-warning/35 bg-surface text-text-bright hover:bg-surface-hover"
-        : "border border-border bg-surface text-text-bright hover:bg-surface-hover",
+    variant === "warning"
+      ? "border border-warning/35 bg-surface text-text-bright hover:bg-surface-hover"
+      : "border border-border bg-surface text-text-bright hover:bg-surface-hover",
   );
 </script>
 

@@ -15,6 +15,3 @@ constexpr int kMqttOutboxLimitBytes = 4096;
 inline constexpr auto normalizeMqttPort(int p) -> uint16_t {
     return (p > 0 && p <= 65535) ? static_cast<uint16_t>(p) : kMqttDefaultTlsPort;
 }
-
-/** Standard port for the given transport (mqtt vs mqtts). */
-inline constexpr auto mqttDefaultPortForTls(bool tls) -> uint16_t { return tls ? kMqttDefaultTlsPort : kMqttDefaultPlainPort; }

@@ -2,8 +2,6 @@
 
 #include "admin_routes_api_internal.h"
 
-#include "heart/counter.h"
-#include "mqtt/config.h"
 #include "mqtt/mqtt.h"
 
 #include <ESPAsyncWebServer.h>
@@ -14,13 +12,6 @@ void fillChayaJson(JsonObject obj, int rx, int tx, bool connected, bool configur
     obj["connected"] = connected;
     obj["configured"] = configured;
     obj["paired"] = paired;
-}
-
-void fillChayaJson(JsonObject obj) {
-    int rx = 0;
-    int tx = 0;
-    heartCounterFillChayaDeltas(&rx, &tx);
-    fillChayaJson(obj, rx, tx, mqttIsConnected(), mqttCfgIsBrokerConfigured(), mqttCfgIsPaired());
 }
 
 void handleApiChayaSendPost(AsyncWebServerRequest *req, JsonVariant &json) {

@@ -22,7 +22,7 @@ struct MqttConfig {
 /** Derive topicPub/topicSub from own + partner IDs (empty topicSub when unpaired). */
 void mqttCfgApplyPairingTopics(MqttConfig *cfg);
 
-/** Active broker config lives in mqtt/config.cpp — use mqttCfgSnapshot / mqttCfgStorePending /
+/** Active broker config lives in mqtt/config.cpp — use mqttCfgSnapshot / mqttCfgStorePendingTimed /
  *  mqttCfgApplyPendingToActive / mqttCfgTopicPubLockedCopy only (FreeRTOS mutex, not ISR-safe).
  */
 void loadMQTTConfig();
@@ -36,14 +36,10 @@ auto mqttCfgIsPaired() -> bool;
 auto mqttCfgIsHeartReady() -> bool;
 void mqttCfgTopicPubLockedCopy(char *out, size_t outLen);
 
-void mqttCfgStorePending(const MqttConfig *pending);
 /** Store pending with bounded wait; false if cfg mutex unavailable (RC-WEB-17). */
 auto mqttCfgStorePendingTimed(const MqttConfig *pending, uint32_t timeoutMs) -> bool;
 void mqttCfgApplyPendingToActive();
 auto mqttCfgConsumeDirtySnapshotNeeded() -> bool;
-
-/** Pending form snapshot (web POST before network task applies). */
-void mqttCfgPendingSnapshot(MqttConfig *out);
 
 /** True when pending differs from active (saved banner still applying). */
 auto mqttCfgHasUnappliedPending() -> bool;
@@ -63,7 +59,6 @@ auto mqttCfgPendingSnapshotTimed(MqttConfig *out, uint32_t timeoutMs) -> bool;
 
 /** Last MQTT NVS save failed (web MQTT page status). Owner: mqtt/config (QUAL-06). */
 void mqttCfgSetNvsWriteFailed(bool failed);
-auto mqttCfgNvsWriteFailed() -> bool;
 
 /** True from a changing POST /api/mqtt until network-task apply finishes (including NVS). */
 void mqttCfgSetApplyPending(bool pending);

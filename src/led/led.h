@@ -46,11 +46,10 @@ void ledRefreshPulseEnd();
 void ledRefreshPulseEndAfter(unsigned long durationMs);
 
 /**
- * Queue a finite blink pattern (thread-safe).
+ * Queue a finite blink preset (thread-safe).
  * Replaces a pending/running pattern; does not interrupt an MQTT TX sequence.
  * Priority: TX > pattern > refresh pulse.
  */
-void ledPlayPattern(LedBlinkPattern pattern);
 void ledPlayPreset(LedPreset preset);
 
 /**
@@ -58,5 +57,4 @@ void ledPlayPreset(LedPreset preset);
  * Use only when the button/LED task is not running yet, or during shutdown
  * where queued patterns would stall.
  */
-void ledPlayPatternBlocking(LedBlinkPattern pattern);
 void ledPlayPresetBlocking(LedPreset preset);

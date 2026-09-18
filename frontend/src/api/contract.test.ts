@@ -232,16 +232,6 @@ describe("api contract", () => {
     expect(openapi).toContain('error: "host"');
   });
 
-  it("keeps RFC 10008 QUERY plumbing ready for OpenAPI query operations", () => {
-    const firmware = readFirmwareApiRoutes();
-    const client = read("frontend/src/api/client.ts");
-    const mock = read("frontend/mock/mockPlugin.ts");
-    expect(firmware).toContain("adminAddJsonQuery");
-    expect(firmware).toContain("HTTP_QUERY");
-    expect(client).toContain('"QUERY"');
-    expect(mock).toContain('method === "QUERY"');
-  });
-
   it("applies Host once on the server and mode gates via ApiGuard", () => {
     const firmware = readFirmwareApiRoutes();
     const admin = read("src/web/admin.cpp");

@@ -43,8 +43,6 @@
     const b = ntp2.trim();
     if (!a && !b) return true;
     if (a === DEFAULT_NTP && !b) return true;
-    if (a === DEFAULT_NTP && b === "pool.ntp.org") return true;
-    if (a === "pool.ntp.org" && b === DEFAULT_NTP) return true;
     return false;
   }
 

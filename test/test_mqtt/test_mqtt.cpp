@@ -58,18 +58,6 @@ void test_device_id_syntax() {
     TEST_ASSERT_FALSE(deviceIdSyntaxOk(nullptr));
 }
 
-void test_device_id_create_mode() {
-    TEST_ASSERT_EQUAL(static_cast<int>(DeviceIdCreateMode::FromMacMigrate), static_cast<int>(deviceIdCreateMode(true)));
-    TEST_ASSERT_EQUAL(static_cast<int>(DeviceIdCreateMode::FromRandom), static_cast<int>(deviceIdCreateMode(false)));
-}
-
-void test_had_prior_mqtt_setup_keys() {
-    TEST_ASSERT_FALSE(hadPriorMqttSetupKeys(false, false));
-    TEST_ASSERT_TRUE(hadPriorMqttSetupKeys(true, false));
-    TEST_ASSERT_TRUE(hadPriorMqttSetupKeys(false, true));
-    TEST_ASSERT_TRUE(hadPriorMqttSetupKeys(true, true));
-}
-
 void test_mqtt_chaya_publish_try_is_fail() {
     TEST_ASSERT_FALSE(mqttChayaPublishTryIsFail(MqttChayaPublishTry::Ok));
     TEST_ASSERT_FALSE(mqttChayaPublishTryIsFail(MqttChayaPublishTry::Retry));
@@ -108,10 +96,8 @@ void test_normalize_mqtt_port() {
     TEST_ASSERT_EQUAL_UINT16(8883, normalizeMqttPort(0));
     TEST_ASSERT_EQUAL_UINT16(8883, normalizeMqttPort(-1));
     TEST_ASSERT_EQUAL_UINT16(8883, normalizeMqttPort(70000));
-    TEST_ASSERT_EQUAL_UINT16(1883, normalizeMqttPort(1883));
+    TEST_ASSERT_EQUAL_UINT16(kMqttDefaultPlainPort, normalizeMqttPort(1883));
     TEST_ASSERT_EQUAL_UINT16(65535, normalizeMqttPort(65535));
-    TEST_ASSERT_EQUAL_UINT16(8883, mqttDefaultPortForTls(true));
-    TEST_ASSERT_EQUAL_UINT16(1883, mqttDefaultPortForTls(false));
 }
 
 void test_pairing_topics() {
@@ -394,8 +380,6 @@ int main(int, char **) {
     RUN_TEST(test_mqtt_username_syntax);
     RUN_TEST(test_mqtt_password_syntax);
     RUN_TEST(test_device_id_syntax);
-    RUN_TEST(test_device_id_create_mode);
-    RUN_TEST(test_had_prior_mqtt_setup_keys);
     RUN_TEST(test_mqtt_chaya_publish_try_is_fail);
     RUN_TEST(test_device_id_format_from_bytes);
     RUN_TEST(test_device_sta_hostname_format);

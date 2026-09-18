@@ -182,7 +182,6 @@ The `NetCmd` enum (`async/event_types.h`) serializes network-related actions:
 | Command | Trigger | Effect |
 |---------|---------|--------|
 | `MqttSettingsChanged` | Web POST `/api/mqtt` | Kill client, pending → active, save NVS, `mqttSetup`, delay connection by 3 s, queue heart or waiting splash via `BootIfChanged` depending on `mqttCfgIsHeartReady()` |
-| `MqttKillClient` | Internal | `mqttDisconnect()` |
 | `WifiGotIp` | `WiFi.onEvent` (`GOT_IP`) | Finish STA boot, apply power/NTP/mDNS, and queue the operational screen in the network task |
 | `WifiReconnect` | `WiFi.onEvent` (disconnect / LOST_IP) | Soft reconnect, then forced reassociation (`disconnect+begin`) with backoff after the threshold |
 | `ChayaPublish` | LED button / `mqttRequestChayaPublishAsync()` | `mqttRunChayaPublishOnNetworkTask()` (QoS-1 retain publish on network task) |

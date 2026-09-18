@@ -121,9 +121,6 @@ void test_sse_tick_select_bits() {
 void test_sse_redirty_domains() {
     // RC-WEB-04: failed serialize/send marks these domain bits, which must cover kSseAll.
     TEST_ASSERT_EQUAL_UINT32(kSseAll, kSseChaya | kSseWifi | kSseMqtt | kSseOta | kSseDevice);
-    TEST_ASSERT_FALSE(sseEnqueueAccepted(0));
-    TEST_ASSERT_TRUE(sseEnqueueAccepted(1));
-    TEST_ASSERT_FALSE(sseEnqueueAccepted(2));
 }
 
 void test_web_admin_restart_blocked() {

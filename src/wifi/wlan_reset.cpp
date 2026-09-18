@@ -35,9 +35,6 @@ static void prepareForResetAndRestart() {
     g_systemShutdownInProgress.store(true, std::memory_order_release);
     vTaskDelay(pdMS_TO_TICKS(100));
     wlanAbortWifiConnectionTest();
-    portENTER_CRITICAL(&g_lastFailedBootSsidMux);
-    g_lastFailedBootSsid[0] = '\0';
-    portEXIT_CRITICAL(&g_lastFailedBootSsidMux);
     if (s_captiveDnsStarted.exchange(false, std::memory_order_acq_rel)) {
         g_dnsServer.stop();
     }

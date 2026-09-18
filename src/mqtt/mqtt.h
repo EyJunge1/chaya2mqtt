@@ -7,7 +7,7 @@
  *   1. g_chayaPublishMutex (`mqttPublishChaya*`),
  *   2. g_mqttClientMutex (allocate client / esp_mqtt_*).
  *  Access broker configuration only through mqtt/config.h APIs (mqttCfgSnapshot,
- *  mqttCfgStorePending, …).
+ *  mqttCfgStorePendingTimed, …).
  */
 auto mqttSetup() -> bool;
 auto mqttDisconnect() -> bool;

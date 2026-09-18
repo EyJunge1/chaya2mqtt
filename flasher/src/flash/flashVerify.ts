@@ -24,10 +24,10 @@ export function resolvePartUrl(partPath: string, manifestHref: string): string {
 
 /** Sidecar next to the binary: firmware.factory.bin → firmware.factory.sha512 */
 export function sidecarUrlForPart(partUrl: string): string {
-  if (/\.bin$/i.test(partUrl)) {
-    return partUrl.replace(/\.bin$/i, ".sha512");
+  if (!/\.bin$/i.test(partUrl)) {
+    throw new Error("Firmware part is not a .bin");
   }
-  return `${partUrl}.sha512`;
+  return partUrl.replace(/\.bin$/i, ".sha512");
 }
 
 export function parseSha512SidecarText(text: string): string | null {

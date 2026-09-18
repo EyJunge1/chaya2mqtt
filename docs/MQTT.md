@@ -15,7 +15,7 @@
 | Outbox limit | 4096 bytes (`kMqttOutboxLimitBytes`) |
 | Auto-reconnect (ESP-IDF) | Disabled—reconnect only in `mqttLoop()` |
 
-NVS key `mqtt/tls` stores the choice (`1`/`0`). Firmware without that key keeps TLS behavior.
+TLS is stored in the packed `mqtt/cfg_v1` blob. Missing config defaults to TLS.
 
 ## Topics
 
@@ -31,9 +31,7 @@ does not accept heart send (button / web) until a partner is set.
 
 The device ID is a random 6-character lowercase hex string stored in NVS (`cfg/device_id`).
 Factory reset and flash erase clear that key so the next boot gets a **new** ID (and therefore
-new MQTT topics), which avoids picking up old retained broker state after a wipe. On OTA from
-older firmware without `device_id`, the previous MAC-derived ID is written once when WiFi/MQTT
-config already exists.
+new MQTT topics), which avoids picking up old retained broker state after a wipe.
 
 ```
 Device-ID = sprintf("%02x%02x%02x", random_byte0, random_byte1, random_byte2)  // persisted in NVS
@@ -154,7 +152,7 @@ The active MQTT configuration exists only in `mqtt/config.cpp`. It is accessed e
 | Function | Purpose |
 |----------|---------|
 | `mqttCfgSnapshot(MqttConfig*)` | Thread-safe copy of the active configuration |
-| `mqttCfgStorePending(const MqttConfig*)` | Web form → pending configuration |
+| `mqttCfgStorePendingTimed(const MqttConfig*, uint32_t)` | Web form → pending configuration |
 | `mqttCfgApplyPendingToActive()` | Pending → active (network task) |
 | `mqttCfgApplyPairingTopics(MqttConfig*)` | Derive topics from own ID + partner ID |
 | `mqttCfgTopicPubLockedCopy(char*, size_t)` | Copy publish topic under mutex |
@@ -190,7 +188,7 @@ Namespace `mqtt`:
 | `pass` | String | MQTT password (optional) |
 | `partner_id` | String | Partner device ID, 6 hex (required for heart display and send; empty = unpaired / waiting title) |
 
-Topics are no longer persisted in NVS; legacy keys `topic_pub` / `topic_sub` are removed when saving.
+Topics are not persisted in NVS; they are derived in RAM from the device and partner IDs.
 
 Details: [CONFIGURATION.md](CONFIGURATION.md)
 
@@ -203,7 +201,7 @@ sequenceDiagram
     participant N as network_task
     participant M as mqtt
 
-    W->>W: mqttCfgStorePending
+    W->>W: mqttCfgStorePendingTimed
     W->>W: mqttCfgSetApplyPending true
     W->>W: g_webAdminMqttApplyVersion.fetch_add(1)
     A->>A: webAdminLoop detects flag

@@ -93,7 +93,7 @@ Namespaces stay separate (`wifi` / `mqtt` / `cfg` / `chaya`). Do not fold MQTT/W
 
 ```cpp
 enum class NetCmd : uint8_t {
-    MqttSettingsChanged, MqttKillClient, WifiGotIp, WifiReconnect,
+    MqttSettingsChanged, WifiGotIp, WifiReconnect,
     ChayaPublish, FactoryResetRequested,
 };
 
@@ -191,9 +191,8 @@ NVS debouncing: saves only every **≥30 s** (`kHeartCounterSaveMinIntervalMs`).
 **Files:** `identity/device_identity.h`, `identity/device_identity.cpp`, `identity/device_identity_pure.h`
 
 `buildDeviceId()` loads or creates the six-character ID in NVS `cfg/device_id` (random via
-`esp_fill_random`; one-time STA-MAC seed when upgrading a device that already has WiFi/MQTT
-config). Result is cached in RAM. Pure helpers in `device_identity_pure.h` cover create-mode
-selection and hex formatting. Formatting helpers turn the ID into the unique STA/DHCP/mDNS
+`esp_fill_random` when the key is missing or invalid). Result is cached in RAM. Pure helpers in
+`device_identity_pure.h` format hex IDs. Formatting helpers turn the ID into the unique STA/DHCP/mDNS
 hostname `chaya2mqtt-<deviceId>`; the setup AP keeps the unsuffixed hostname.
 
 ---
@@ -208,7 +207,7 @@ The active `MqttConfig` is static in `config.cpp`. It is accessed only through A
 |----------|-------------|
 | `loadMQTTConfig()` / `saveMQTTConfig()` | Read/write NVS `mqtt` |
 | `mqttCfgSnapshot(MqttConfig*)` | Thread-safe copy |
-| `mqttCfgStorePending(...)` | Web form → pending |
+| `mqttCfgStorePendingTimed(...)` | Web form → pending |
 | `mqttCfgApplyPendingToActive()` | Pending → Active |
 | `mqttCfgSetApplyPending(bool)` / `mqttCfgApplyPending()` | Web apply in flight (POST until NVS/apply finishes); GET `/api/mqtt` `applyPending` |
 | `mqttCfgApplyPairingTopics(MqttConfig*)` | Derive topics from own ID + partner ID (without a partner: empty subscribe topic) |
@@ -256,7 +255,7 @@ Event handler (`MQTT_EVENT_DATA`): parse payload → `heartCounterStoreFromRemot
 | `wlan_boot.cpp` | `setupWiFi()`, STA or WPA2/WPA3 setup AP, mDNS/NTP |
 | `wlan_events.cpp` | STA events, reconnect backoff |
 | `wlan_recovery.cpp` / `wlan_recovery.h` | Stage 2 recovery (forced reassociation / restart with OTA guard) |
-| `wlan_nvs.cpp` | NVS WiFi configuration (packed `cfg_v2`, migration from `cred_v1`) |
+| `wlan_nvs.cpp` | NVS WiFi configuration (packed `cfg_v2`) |
 | `wlan_scan.cpp` | Scan cache, refresh |
 
 | Function | Description |
@@ -267,7 +266,6 @@ Event handler (`MQTT_EVENT_DATA`): parse payload → `heartCounterStoreFromRemot
 | `wlanApSetupSnapshot(...)` | SoftAP SSID and IP for display and API |
 | `wlanApSetupPassSnapshot(...)` | SoftAP WPA-PSK for WIFI QR payload (not shown as plain text) |
 | `wlanSaveConfigToNvs(...)` | Write NVS `wifi` (packed `cfg_v2`: DHCP/static, DNS, NTP) |
-| `configSaveWiFiCredentials(...)` | Compatibility wrapper: stores a DHCP-only configuration |
 | `configIsApMode()` | SoftAP setup mode? |
 | `resetAllSettings()` | Factory reset: delete NVS, restart |
 | `wlanStaConnectedOk()` | STA connected + IP? |
@@ -397,8 +395,8 @@ LED priority: MQTT TX sequence > finite pattern > E-Ink/RX refresh pulse > idle.
 | `ledIsTxSendBusy()` | MQTT TX send sequence running (blocks a second send) |
 | `ledStartChayaSendSequence()` | Arm TX sequence (prefer `chayaRequestSend()`) |
 | `ledRefreshPulseBegin/End` | Pulse GPIO3 during E-Ink refresh / RX ack |
-| `ledPlayPattern` / `ledPlayPreset` | Queue finite blink or Boot/WifiUp/MqttUp/LinkDown/SoftOff |
-| `ledPlayPatternBlocking` / `ledPlayPresetBlocking` | Blocking blink (boot / soft-off ack; same timings as queued) |
+| `ledPlayPreset` | Queue finite blink: Boot/WifiUp/MqttUp/LinkDown/SoftOff |
+| `ledPlayPresetBlocking` | Blocking blink (boot / soft-off ack; same timings as queued) |
 
 Presets: Boot (startup), WifiUp (STA ready / reconnect), MqttUp (broker connected), LinkDown (heart → crack), SoftOff (PWR armed).
 
@@ -499,7 +497,7 @@ Thread-safe `Preferences` wrapper with `g_nvsMutex`:
 | `config/version.h` | `kAppVersion` (bump by hand before tagging; release CI checks it matches the tag) |
 | `util/log_tag.h` | `DEFINE_LOG_TAG` macro |
 | `util/ip_format.h` | IP address formatting |
-| `util/time_helpers.h` | Wrap-safe time helpers (`elapsedMs`, `deadlineReached`, `remainingMs`) |
+| `util/time_helpers.h` | Wrap-safe time helpers (`elapsedMs`, `deadlineReached`) |
 | `config/nvs_keys.h` | Central NVS namespace and key constants |
 | `async/task_config.h` | FreeRTOS task stack sizes and queue depths |
 
