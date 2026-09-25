@@ -5,14 +5,15 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
 if [[ -z "${CLANG_FORMAT:-}" ]]; then
-  if command -v clang-format-18 >/dev/null 2>&1; then
-    CLANG_FORMAT=clang-format-18
-  elif command -v clang-format >/dev/null 2>&1; then
-    CLANG_FORMAT=clang-format
-  fi
+  for cand in clang-format-23 clang-format-22 clang-format-21 clang-format-18 clang-format; do
+    if command -v "$cand" >/dev/null 2>&1; then
+      CLANG_FORMAT=$cand
+      break
+    fi
+  done
 fi
 if [[ -z "${CLANG_FORMAT:-}" ]] || ! command -v "$CLANG_FORMAT" >/dev/null 2>&1; then
-  echo "clang-format is required (install clang-format-18 or set CLANG_FORMAT)." >&2
+  echo "clang-format is required (install clang-format-23 or set CLANG_FORMAT)." >&2
   exit 1
 fi
 

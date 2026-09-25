@@ -15,13 +15,16 @@
 
 #include "qr/qrcodegen.h"
 
+#include "util/format_buf.h"
+
 #include <Arduino.h>
 #include <algorithm>
 #include <cstddef>
 #include <cstdint>
-#include <cstdio>
 #include <cstring>
 #include <esp_log.h>
+#include <span>
+#include <utility>
 
 #include "util/log_tag.h"
 
@@ -158,11 +161,14 @@ void drawCenteredTextScreen(const char *text, uint8_t startSize, uint8_t minSize
 }
 
 static void formatCappedCounterForDisplay(int rawCounter, int baseline, char *buf, size_t buflen) {
-    if (heartCounterShouldShowPlusPure(rawCounter, baseline)) {
-        static_cast<void>(snprintf(buf, buflen, "%d+", kDisplayCounterMax));
+    if (buf == nullptr || buflen == 0U) {
         return;
     }
-    static_cast<void>(snprintf(buf, buflen, "%d", heartCounterShownDeltaPure(rawCounter, baseline)));
+    if (heartCounterShouldShowPlusPure(rawCounter, baseline)) {
+        static_cast<void>(formatToBuf(std::span<char>{buf, buflen}, "{}+", kDisplayCounterMax));
+        return;
+    }
+    static_cast<void>(formatToBuf(std::span<char>{buf, buflen}, "{}", heartCounterShownDeltaPure(rawCounter, baseline)));
 }
 
 } // namespace
@@ -182,7 +188,7 @@ HeartCounterDrawSnapshot drawHeartWithNumber(DisplayHeartIcon icon) {
     HeartCounterDrawSnapshot snap{};
     heartCounterFillDrawSnapshot(&snap);
     snap.batteryPercent = batteryPercent();
-    snap.batteryIcon = static_cast<uint8_t>(displayBatteryIcon(snap.batteryPercent));
+    snap.batteryIcon = std::to_underlying(displayBatteryIcon(snap.batteryPercent));
 
     char recvBuf[16]{};
     char sentBuf[16]{};

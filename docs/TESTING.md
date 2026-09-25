@@ -14,7 +14,7 @@ pio test -e native-asan
 python3 scripts/simulator.py --smoke
 ```
 
-Playwright once: `cd frontend && npx playwright install chromium`. clang-tidy / clang-format **18** are required in CI; locally `make check-firmware-tests` skips them if missing.
+Playwright once: `cd frontend && npx playwright install chromium`. clang-tidy / clang-format **23** are required in CI (`scripts/ci_install_clang_tools.sh`); locally `make check-firmware-tests` skips them if missing.
 
 PRs run only the jobs matching changed paths. Docs-only PRs skip builds. `main` and release tags run the full gate.
 

@@ -2,6 +2,7 @@
 
 #include <cstdint>
 #include <cstring>
+#include <utility>
 
 #include "util/net_validate.h"
 #include "wifi/wlan_config.h"
@@ -49,7 +50,7 @@ inline void wlanPackConfigV2(const WlanConfig &cfg, PackedWifiConfigV2 *out) {
     out->magic = kWifiCfgPackedMagic;
     std::strncpy(out->ssid, cfg.ssid, sizeof(out->ssid) - 1U);
     std::strncpy(out->pass, cfg.pass, sizeof(out->pass) - 1U);
-    out->mode = static_cast<uint8_t>(cfg.mode);
+    out->mode = std::to_underlying(cfg.mode);
     if (cfg.mode == WlanIpMode::Static) {
         wlanPackOctetsOrZero(cfg.ip, out->ip);
         wlanPackOctetsOrZero(cfg.gateway, out->gateway);
@@ -82,7 +83,7 @@ inline auto wlanUnpackConfigV2(const PackedWifiConfigV2 &pk, WlanConfig *cfg) ->
     }
     wlanConfigCopyStr(cfg->ssid, sizeof(cfg->ssid), local.ssid);
     wlanConfigCopyStr(cfg->pass, sizeof(cfg->pass), local.pass);
-    cfg->mode = (local.mode == static_cast<uint8_t>(WlanIpMode::Static)) ? WlanIpMode::Static : WlanIpMode::Dhcp;
+    cfg->mode = (local.mode == std::to_underlying(WlanIpMode::Static)) ? WlanIpMode::Static : WlanIpMode::Dhcp;
     wlanPackCopyOctetsToStr(local.ip, cfg->ip, sizeof(cfg->ip));
     wlanPackCopyOctetsToStr(local.gateway, cfg->gateway, sizeof(cfg->gateway));
     wlanPackCopyOctetsToStr(local.netmask, cfg->netmask, sizeof(cfg->netmask));

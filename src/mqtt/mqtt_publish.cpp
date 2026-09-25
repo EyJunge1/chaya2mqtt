@@ -16,9 +16,12 @@
 
 #include <Arduino.h>
 
+#include "util/format_buf.h"
+
 #include <climits>
-#include <cstdio>
 #include <cstring>
+#include <span>
+#include <utility>
 
 #include <esp_log.h>
 #include <freertos/FreeRTOS.h>
@@ -38,7 +41,7 @@ static std::atomic<bool> s_ackTimerArmed{false};
 namespace {
 
 enum class PublishAsyncState : uint8_t { Idle = 0, Pending = 1, Ok = 2, Fail = 3 };
-std::atomic<uint8_t> s_publishAsync{static_cast<uint8_t>(PublishAsyncState::Idle)};
+std::atomic<uint8_t> s_publishAsync{std::to_underlying(PublishAsyncState::Idle)};
 
 bool publishAckPending() {
     portENTER_CRITICAL(&s_publishAckMux);
@@ -63,8 +66,8 @@ void resetAckStateUnlessPending() {
 }
 
 void completePublishAsync(PublishAsyncState state) {
-    uint8_t expected = static_cast<uint8_t>(PublishAsyncState::Pending);
-    (void)s_publishAsync.compare_exchange_strong(expected, static_cast<uint8_t>(state), std::memory_order_acq_rel);
+    uint8_t expected = std::to_underlying(PublishAsyncState::Pending);
+    (void)s_publishAsync.compare_exchange_strong(expected, std::to_underlying(state), std::memory_order_acq_rel);
 }
 
 void failPendingPublishAck(uint32_t clientGeneration) {
@@ -136,8 +139,8 @@ void mqttAbortPendingPublish() {
         return;
     }
     // BUG-MQTT-10: Starting stays reserved so Attach can bind msg-id after publish returns.
-    uint8_t expected = static_cast<uint8_t>(PublishAsyncState::Pending);
-    (void)s_publishAsync.compare_exchange_strong(expected, static_cast<uint8_t>(PublishAsyncState::Fail),
+    uint8_t expected = std::to_underlying(PublishAsyncState::Pending);
+    (void)s_publishAsync.compare_exchange_strong(expected, std::to_underlying(PublishAsyncState::Fail),
                                                  std::memory_order_acq_rel);
     portEXIT_CRITICAL(&s_publishAckMux);
 }
@@ -193,7 +196,7 @@ static MqttChayaPublishTry mqttPublishChayaLocked() {
         return MqttChayaPublishTry::Fail;
     }
     const int nextVal = heartSentCounterNextPure(cur);
-    static_cast<void>(snprintf(buf, sizeof(buf), "%d", nextVal));
+    static_cast<void>(formatToBuf(std::span<char>{buf}, "{}", nextVal));
 
     if (!mqttClientLockTimed()) {
         ESP_LOGW(TAG, "Publish skipped: mqtt client mutex timeout");
@@ -209,9 +212,9 @@ static MqttChayaPublishTry mqttPublishChayaLocked() {
 
     bool reserved = false;
     portENTER_CRITICAL(&s_publishAckMux);
-    const bool canReserve = mqttPublishAckBeginAllowed(mqttPublishAckCanBegin(s_publishAckState),
-                                                       s_publishAsync.load(std::memory_order_acquire) ==
-                                                           static_cast<uint8_t>(PublishAsyncState::Pending));
+    const bool canReserve =
+        mqttPublishAckBeginAllowed(mqttPublishAckCanBegin(s_publishAckState), s_publishAsync.load(std::memory_order_acquire) ==
+                                                                                  std::to_underlying(PublishAsyncState::Pending));
     if (canReserve) {
         reserved = mqttPublishAckReserve(&s_publishAckState, clientGeneration, nextVal);
     }
@@ -279,8 +282,8 @@ MqttChayaPublishAsync mqttRequestChayaPublishAsync() {
         mqttAbortPendingPublish();
         return MqttChayaPublishAsync::Fail;
     }
-    uint8_t expected = static_cast<uint8_t>(PublishAsyncState::Idle);
-    if (s_publishAsync.compare_exchange_strong(expected, static_cast<uint8_t>(PublishAsyncState::Pending),
+    uint8_t expected = std::to_underlying(PublishAsyncState::Idle);
+    if (s_publishAsync.compare_exchange_strong(expected, std::to_underlying(PublishAsyncState::Pending),
                                                std::memory_order_acq_rel)) {
         resetAckStateUnlessPending();
         if (!netCmdTrySend(NetCmd::ChayaPublish)) {
@@ -310,7 +313,7 @@ void mqttRunChayaPublishOnNetworkTask() {
         mqttAbortPendingPublish();
         return;
     }
-    if (s_publishAsync.load(std::memory_order_acquire) != static_cast<uint8_t>(PublishAsyncState::Pending)) {
+    if (s_publishAsync.load(std::memory_order_acquire) != std::to_underlying(PublishAsyncState::Pending)) {
         return;
     }
     if (publishAckBlocksNewPublish()) {
@@ -323,11 +326,11 @@ void mqttRunChayaPublishOnNetworkTask() {
 }
 
 bool mqttChayaPublishAsyncIsPending() {
-    return s_publishAsync.load(std::memory_order_acquire) == static_cast<uint8_t>(PublishAsyncState::Pending);
+    return s_publishAsync.load(std::memory_order_acquire) == std::to_underlying(PublishAsyncState::Pending);
 }
 
 void mqttClearChayaPublishAsync() {
-    s_publishAsync.store(static_cast<uint8_t>(PublishAsyncState::Idle), std::memory_order_release);
+    s_publishAsync.store(std::to_underlying(PublishAsyncState::Idle), std::memory_order_release);
 }
 
 bool mqttPublishBlocked() {

@@ -15,6 +15,8 @@
 #include <algorithm>
 #include <esp_log.h>
 #include <esp_wifi.h>
+#include <ranges>
+#include <span>
 
 DEFINE_LOG_TAG("WIFI");
 
@@ -54,8 +56,8 @@ size_t wlanWifiScanCopySnapshot(WlanScanRow *out, size_t maxRows) {
     }
     portENTER_CRITICAL(&s_wifiScanCacheMux);
     const size_t n = std::min(maxRows, s_wifiScanCacheCount);
-    for (size_t i = 0; i < n; ++i) {
-        out[i] = s_wifiScanCache[i];
+    for (auto &&[i, row] : std::views::enumerate(std::span{s_wifiScanCache, n})) {
+        out[i] = row;
     }
     portEXIT_CRITICAL(&s_wifiScanCacheMux);
     return n;
@@ -130,13 +132,13 @@ void wifiScanServiceOnMainTask() {
     const esp_err_t recErr = esp_wifi_scan_get_ap_records(&apCount, records);
     if (recErr == ESP_OK && apCount > 0U) {
         rowCount = std::min(static_cast<size_t>(apCount), usable);
-        for (size_t i = 0; i < rowCount; ++i) {
-            s_wifiScanRowWork[i].rssi = records[i].rssi;
-            s_wifiScanRowWork[i].open = (records[i].authmode == WIFI_AUTH_OPEN);
-            strlcpy(s_wifiScanRowWork[i].ssid, reinterpret_cast<const char *>(records[i].ssid),
-                    sizeof(s_wifiScanRowWork[i].ssid));
+        for (auto &&[i, rec] : std::views::enumerate(std::span{records, rowCount})) {
+            s_wifiScanRowWork[i].rssi = rec.rssi;
+            s_wifiScanRowWork[i].open = (rec.authmode == WIFI_AUTH_OPEN);
+            strlcpy(s_wifiScanRowWork[i].ssid, reinterpret_cast<const char *>(rec.ssid), sizeof(s_wifiScanRowWork[i].ssid));
         }
     } else {
+        // Index required: Arduino API takes the scan slot by position.
         for (size_t i = 0; i < usable; ++i) {
             const auto *rec = static_cast<const wifi_ap_record_t *>(WiFi.getScanInfoByIndex(static_cast<int>(i)));
             if (rec == nullptr) {
@@ -152,8 +154,8 @@ void wifiScanServiceOnMainTask() {
     }
     portENTER_CRITICAL(&s_wifiScanCacheMux);
     s_wifiScanCacheCount = rowCount;
-    for (size_t i = 0; i < rowCount; ++i) {
-        s_wifiScanCache[i] = s_wifiScanRowWork[i];
+    for (auto &&[i, row] : std::views::enumerate(std::span{s_wifiScanRowWork, rowCount})) {
+        s_wifiScanCache[i] = row;
     }
     portEXIT_CRITICAL(&s_wifiScanCacheMux);
     WiFi.scanDelete();

@@ -14,7 +14,7 @@
     "before 6am on Monday"
   ],
   "timezone": "Etc/UTC",
-  "prConcurrentLimit": 3,
+  "prConcurrentLimit": 5,
   "rangeStrategy": "pin",
   "customDatasources": {
     "platformio-library": {
@@ -22,6 +22,13 @@
       "format": "json",
       "transformTemplates": [
         "{\"releases\": [$map($.versions, function($v) { {\"version\": $v.name, \"releaseTimestamp\": $v.released_at} })], \"homepage\": $.repository_url}"
+      ]
+    },
+    "arduino-esp32-libs": {
+      "defaultRegistryUrlTemplate": "https://raw.githubusercontent.com/espressif/arduino-esp32/master/package/package_esp32_index.template.json",
+      "format": "json",
+      "transformTemplates": [
+        "{\"releases\":[{\"version\":\"1.0.0\",\"digest\":$replace($.packages[0].tools[name=\"esp32-arduino-libs\"].systems[0].url,\"https://github.com/espressif/esp32-arduino-lib-builder/releases/download/\",\"\")}],\"homepage\":\"https://github.com/espressif/arduino-esp32\"}"
       ]
     }
   },
@@ -37,6 +44,59 @@
       ],
       "datasourceTemplate": "custom.platformio-library",
       "versioningTemplate": "semver"
+    },
+    {
+      "customType": "regex",
+      "description": "Follow the pioarduino platform branch tip. Only the commit digest is updated.",
+      "managerFilePatterns": [
+        "/^platformio\\.ini$/"
+      ],
+      "matchStrings": [
+        "platform\\s*=\\s*https://github.com/(?<depName>pioarduino/platform-espressif32)\\.git#(?<currentDigest>[0-9a-f]{40})"
+      ],
+      "currentValueTemplate": "main",
+      "packageNameTemplate": "https://github.com/pioarduino/platform-espressif32",
+      "datasourceTemplate": "git-refs"
+    },
+    {
+      "customType": "regex",
+      "description": "Follow the arduino-esp32 framework branch tip. Only the commit digest is updated.",
+      "managerFilePatterns": [
+        "/^platformio\\.ini$/"
+      ],
+      "matchStrings": [
+        "framework-arduinoespressif32\\s*@\\s*https://github.com/(?<depName>espressif/arduino-esp32)\\.git#(?<currentDigest>[0-9a-f]{40})"
+      ],
+      "currentValueTemplate": "master",
+      "packageNameTemplate": "https://github.com/espressif/arduino-esp32",
+      "datasourceTemplate": "git-refs"
+    },
+    {
+      "customType": "regex",
+      "description": "Follow the esp32-arduino-libs URL from arduino-esp32 master. The version token is fixed; the download path is the digest.",
+      "managerFilePatterns": [
+        "/^platformio\\.ini$/"
+      ],
+      "matchStrings": [
+        "framework-arduinoespressif32-libs\\s*@\\s*https://github.com/espressif/esp32-arduino-lib-builder/releases/download/(?<currentDigest>idf-release_v[0-9]+(?:\\.[0-9]+)*/esp32-arduino-libs-idf-release_v[0-9]+(?:\\.[0-9]+)*-[0-9a-f]+(?:-v[0-9]+)?\\.zip)"
+      ],
+      "currentValueTemplate": "1.0.0",
+      "depNameTemplate": "framework-arduinoespressif32-libs",
+      "datasourceTemplate": "custom.arduino-esp32-libs",
+      "versioningTemplate": "semver"
+    },
+    {
+      "customType": "regex",
+      "description": "Update the PlatformIO CLI pin in GitHub Actions",
+      "managerFilePatterns": [
+        "/^\\.github/workflows/.*\\.yml$/"
+      ],
+      "matchStrings": [
+        "pip install platformio==(?<currentValue>[0-9]+\\.[0-9]+\\.[0-9]+)"
+      ],
+      "depNameTemplate": "platformio",
+      "datasourceTemplate": "pypi",
+      "versioningTemplate": "pep440"
     }
   ],
   "packageRules": [
@@ -60,6 +120,59 @@
         "major"
       ],
       "groupName": "PlatformIO libraries (major)"
+    },
+    {
+      "description": "Keep the libs zip on its fixed version token",
+      "matchDatasources": [
+        "custom.arduino-esp32-libs"
+      ],
+      "matchUpdateTypes": [
+        "major",
+        "minor",
+        "patch",
+        "pin",
+        "rollback",
+        "replacement"
+      ],
+      "enabled": false
+    },
+    {
+      "description": "Group platform, framework, and libs digest updates",
+      "matchDatasources": [
+        "git-refs",
+        "custom.arduino-esp32-libs"
+      ],
+      "matchUpdateTypes": [
+        "digest"
+      ],
+      "groupName": "PlatformIO platform and framework"
+    },
+    {
+      "description": "Group PlatformIO CLI minor/patch updates",
+      "matchDatasources": [
+        "pypi"
+      ],
+      "matchDepNames": [
+        "platformio"
+      ],
+      "matchUpdateTypes": [
+        "minor",
+        "patch"
+      ],
+      "groupName": "PlatformIO CLI"
+    },
+    {
+      "description": "Group PlatformIO CLI major updates",
+      "matchDatasources": [
+        "pypi"
+      ],
+      "matchDepNames": [
+        "platformio"
+      ],
+      "matchUpdateTypes": [
+        "major"
+      ],
+      "groupName": "PlatformIO CLI (major)"
     }
   ]
 }

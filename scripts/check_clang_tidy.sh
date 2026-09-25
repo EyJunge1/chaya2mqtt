@@ -5,9 +5,17 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
-if ! command -v clang-tidy >/dev/null 2>&1; then
+if [[ -z "${CLANG_TIDY:-}" ]]; then
+  for cand in clang-tidy-23 clang-tidy-22 clang-tidy-21 clang-tidy-18 clang-tidy; do
+    if command -v "$cand" >/dev/null 2>&1; then
+      CLANG_TIDY=$cand
+      break
+    fi
+  done
+fi
+if [[ -z "${CLANG_TIDY:-}" ]] || ! command -v "$CLANG_TIDY" >/dev/null 2>&1; then
   if [[ "${CI:-}" == "true" || "${CHAYA_REQUIRE_CLANG_TIDY:-}" == "1" ]]; then
-    echo "clang-tidy is required (install it or set PATH). CI must not skip TEST-05." >&2
+    echo "clang-tidy is required (install clang-tidy-23 or set CLANG_TIDY). CI must not skip TEST-05." >&2
     exit 1
   fi
   echo "clang-tidy not installed — skipping host-pure header lint (TEST-05)"
@@ -36,7 +44,7 @@ required_extra=(
   src/wifi/wlan_soft_reconnect.h
 )
 
-cxx_incs=(-std=c++17 -I"$ROOT/src" -I"$ROOT")
+cxx_incs=(-std=c++23 -I"$ROOT/src" -I"$ROOT")
 arduinojson_inc="$ROOT/.pio/libdeps/native/ArduinoJson/src"
 if [[ -d "$arduinojson_inc" ]]; then
   cxx_incs+=(-I"$arduinojson_inc")
@@ -61,7 +69,7 @@ add_header() {
   [[ -n "$h" ]] || return 0
   [[ -f "$h" ]] || return 0
   case "$h" in
-    src/display/qr/*) return 0 ;;
+    src/display/qr/*|src/web/assets/*) return 0 ;;
   esac
   if grep -Fxq "$h" "$seen_file"; then
     return 0
@@ -98,7 +106,7 @@ for h in "${headers[@]}"; do
 #include "$ROOT/$h"
 auto main() -> int { return 0; }
 EOF
-  if ! clang-tidy "$stub" --config-file="$ROOT/.clang-tidy" -- \
+  if ! "$CLANG_TIDY" "$stub" --config-file="$ROOT/.clang-tidy" -- \
       "${cxx_incs[@]}" >"$tmpdir/out" 2>"$tmpdir/err"; then
     echo "clang-tidy failed for $h:"
     cat "$tmpdir/out" "$tmpdir/err" || true
@@ -116,4 +124,4 @@ if [[ "$fails" -ne 0 ]]; then
   echo "$fails host-pure header(s) failed clang-tidy"
   exit 1
 fi
-echo "clang-tidy host-pure headers: $found ok"
+echo "clang-tidy host-pure headers ($CLANG_TIDY): $found ok"

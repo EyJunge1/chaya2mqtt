@@ -18,6 +18,7 @@
 #include <ESPmDNS.h>
 #include <IPAddress.h>
 #include <WiFi.h>
+#include <bit>
 #include <cstring>
 #include <esp_log.h>
 #include <esp_random.h>
@@ -161,6 +162,8 @@ bool wlanCopyCachedStaIp(char *out, size_t len) {
         out[0] = '\0';
         return false;
     }
+    // lwIP stores IPv4 host-order as little-endian on ESP32; unpack octets by shift.
+    static_assert(std::endian::native == std::endian::little);
     const uint8_t oct[4]{
         static_cast<uint8_t>(addr),
         static_cast<uint8_t>(addr >> 8),

@@ -45,13 +45,13 @@ inline auto displayHeartSkipClearsPending(DisplayHeartRedrawDecision decision) -
 }
 
 /** Clear pending only when a re-read is still SkipUnchanged (RC-UI-02). */
-inline auto displayHeartSkipClearsPendingAfterReread(DisplayHeartRedrawDecision first,
-                                                     DisplayHeartRedrawDecision second) -> bool {
+inline auto displayHeartSkipClearsPendingAfterReread(DisplayHeartRedrawDecision first, DisplayHeartRedrawDecision second)
+    -> bool {
     return displayHeartSkipClearsPending(first) && displayHeartSkipClearsPending(second);
 }
 
-inline auto displayHeartRedrawWaitMs(unsigned long nowMs, unsigned long lastEnqueueMs, unsigned long minIntervalMs,
-                                     bool pending) -> unsigned long {
+inline auto displayHeartRedrawWaitMs(unsigned long nowMs, unsigned long lastEnqueueMs, unsigned long minIntervalMs, bool pending)
+    -> unsigned long {
     if (!pending) {
         return ULONG_MAX;
     }

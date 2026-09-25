@@ -9,6 +9,9 @@
 #include <atomic>
 #include <cstddef>
 #include <cstdint>
+#include <expected>
+#include <optional>
+#include <variant>
 
 extern std::atomic<bool> g_webAdminRebootRequested;
 extern std::atomic<bool> g_webAdminWifiReconnectRequested;
@@ -71,15 +74,19 @@ extern uint16_t g_webAdminPendingRxHz;
 extern uint16_t g_webAdminPendingRxMs;
 extern portMUX_TYPE g_webAdminSettingsPendingMux;
 
-/** Optional JSON fields: absent vs. present-and-ok vs. present-but-invalid. */
-enum class AdminJsonParam : uint8_t { Absent, Ok, Invalid };
+/** Present-but-invalid optional JSON field. */
+enum class AdminJsonError : uint8_t { Invalid };
+
+/** nullopt = absent, value = ok, unexpected = invalid. */
+template <typename T> using AdminJsonResult = std::expected<std::optional<T>, AdminJsonError>;
 
 bool adminJsonHasField(JsonVariantConst obj, const char *name);
 
-AdminJsonParam adminOptionalJsonInt(JsonVariantConst obj, const char *name, int *out);
-AdminJsonParam adminOptionalJsonBool(JsonVariantConst obj, const char *name, bool *out);
-/** Absent if missing; Ok if copied; Invalid if present but not a fitting string. */
-AdminJsonParam adminOptionalJsonString(JsonVariantConst obj, const char *name, char *out, size_t outLen);
+[[nodiscard]] auto adminOptionalJsonInt(JsonVariantConst obj, const char *name) -> AdminJsonResult<int>;
+[[nodiscard]] auto adminOptionalJsonBool(JsonVariantConst obj, const char *name) -> AdminJsonResult<bool>;
+/** Absent if missing; Ok if copied into out; Invalid if present but not a fitting string. */
+[[nodiscard]] auto adminOptionalJsonString(JsonVariantConst obj, const char *name, char *out, size_t outLen)
+    -> AdminJsonResult<std::monostate>;
 
 /**
  * Apply optional JSON fields (Absent leaves *out unchanged).

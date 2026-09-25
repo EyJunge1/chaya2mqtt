@@ -10,12 +10,14 @@
 
 #include "tls/tls_bundle.h"
 
+#include "util/format_buf.h"
+
 #include <Arduino.h>
 #include <HTTPClient.h>
 #include <WiFiClientSecure.h>
-#include <cstdio>
 #include <cstring>
 #include <esp_log.h>
+#include <span>
 
 #include "diag/task_watchdog.h"
 #include "util/log_tag.h"
@@ -25,8 +27,6 @@ DEFINE_LOG_TAG("OTA");
 namespace {
 
 constexpr const char kGithubLatestReleaseApiUrl[] = "https://api.github.com/repos/EyJunge1/chaya2mqtt/releases/latest";
-
-constexpr const char kGithubReleasesListApiUrlFmt[] = "https://api.github.com/repos/EyJunge1/chaya2mqtt/releases?per_page=%u";
 
 constexpr const char kGithubDownloadBase[] = "https://github.com/EyJunge1/chaya2mqtt/releases/download/";
 
@@ -114,11 +114,9 @@ bool fillReleaseUrls(const char *tag, OtaReleaseInfo *out) {
     }
     strlcpy(out->tag, tag, sizeof(out->tag));
     stripLeadingV(tag, out->version, sizeof(out->version));
-    const int nBin = snprintf(out->binUrl, sizeof(out->binUrl), "%s%s/firmware.bin", kGithubDownloadBase, tag);
-    const int nSha512 = snprintf(out->sha512Url, sizeof(out->sha512Url), "%s%s/firmware.sha512", kGithubDownloadBase, tag);
-    return nBin > 0 && static_cast<size_t>(nBin) < sizeof(out->binUrl) && nSha512 > 0 &&
-           static_cast<size_t>(nSha512) < sizeof(out->sha512Url) &&
-           otaReleaseDownloadUrlAllowed(out->binUrl, OtaDownloadAsset::Firmware) &&
+    const bool binOk = formatToBuf(std::span<char>{out->binUrl}, "{}{}/firmware.bin", kGithubDownloadBase, tag);
+    const bool shaOk = formatToBuf(std::span<char>{out->sha512Url}, "{}{}/firmware.sha512", kGithubDownloadBase, tag);
+    return binOk && shaOk && otaReleaseDownloadUrlAllowed(out->binUrl, OtaDownloadAsset::Firmware) &&
            otaReleaseDownloadUrlAllowed(out->sha512Url, OtaDownloadAsset::Sha512);
 }
 
@@ -252,8 +250,8 @@ GithubCheckResult otaGithubEvaluateChannel(OtaChannel channel, OtaReleaseInfo *o
     }
 
     char listUrl[192]{};
-    const int n = snprintf(listUrl, sizeof(listUrl), kGithubReleasesListApiUrlFmt, kGithubReleasesPerPage);
-    if (n <= 0 || static_cast<size_t>(n) >= sizeof(listUrl)) {
+    if (!formatToBuf(std::span<char>{listUrl}, "https://api.github.com/repos/EyJunge1/chaya2mqtt/releases?per_page={}",
+                     kGithubReleasesPerPage)) {
         return GithubCheckResult::ApiError;
     }
     JsonDocument doc;
