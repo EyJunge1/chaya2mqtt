@@ -184,13 +184,13 @@ jobs:
         run: pip install platformio==6.1.19
 
       - name: Install clang-tidy and clang-format
-        run: sudo bash scripts/ci_install_clang_tools.sh
+        run: bash scripts/ci_install_clang_tools.sh
 
       - name: Run native and static firmware checks
         run: make check-firmware-tests PIO=pio
         env:
           CLANG_FORMAT: clang-format-23
-          CLANG_TIDY: clang-tidy-23
+          CLANG_TIDY: clang-tidy-22
 
   firmware_build:
     name: Firmware release build

@@ -74,7 +74,7 @@ jobs:
         run: pip install platformio==6.1.19
 
       - name: Install clang-tidy and clang-format
-        run: sudo bash scripts/ci_install_clang_tools.sh
+        run: bash scripts/ci_install_clang_tools.sh
 
       - name: Install Playwright browser
         run: |
@@ -86,7 +86,7 @@ jobs:
         run: "make check PIO=pio FRONTEND_NPM_CI=:"
         env:
           CLANG_FORMAT: clang-format-23
-          CLANG_TIDY: clang-tidy-23
+          CLANG_TIDY: clang-tidy-22
 
       - name: Prepare release artifacts
         id: hashes

@@ -1,37 +1,41 @@
 #!/usr/bin/env bash
-# Install versioned clang-format / clang-tidy for CI (matches Homebrew LLVM 23.1.x).
-# Uses the official GitHub release tarball; apt.llvm.org often lacks clang-*-23 packages.
-# Usage: sudo bash scripts/ci_install_clang_tools.sh
+# Install clang-format / clang-tidy for CI.
+# - clang-format: PyPI wheel pinned to LLVM 23.1.x (matches Homebrew; apt.llvm.org
+#   snapshot meta still depends on missing clang-format-23).
+# - clang-tidy: apt.llvm.org qualification branch (stable package set).
+# Usage: bash scripts/ci_install_clang_tools.sh
 set -euo pipefail
 
-LLVM_VERSION="${LLVM_VERSION:-23.1.2}"
-LLVM_MAJOR="${LLVM_VERSION%%.*}"
-PREFIX="${LLVM_PREFIX:-/opt/llvm-${LLVM_MAJOR}}"
-ASSET="LLVM-${LLVM_VERSION}-Linux-X64.tar.xz"
-URL="https://github.com/llvm/llvm-project/releases/download/llvmorg-${LLVM_VERSION}/${ASSET}"
+LLVM_FORMAT_VERSION="${LLVM_FORMAT_VERSION:-23.1.1}"
+LLVM_TIDY_MAJOR="${LLVM_TIDY_MAJOR:-22}"
 
-if [[ "$(id -u)" -ne 0 ]]; then
-  echo "run as root: sudo bash $0" >&2
+python3 -m pip install --disable-pip-version-check "clang-format==${LLVM_FORMAT_VERSION}"
+
+. /etc/os-release
+codename="${VERSION_CODENAME:-}"
+if [[ -z "$codename" ]]; then
+  echo "could not detect Ubuntu/Debian codename" >&2
   exit 1
 fi
 
-tmpdir="$(mktemp -d)"
-trap 'rm -rf "$tmpdir"' EXIT
+if [[ "$(id -u)" -eq 0 ]]; then
+  SUDO=()
+else
+  SUDO=(sudo)
+fi
 
-echo "Downloading ${URL}"
-wget -qO "${tmpdir}/${ASSET}" "$URL"
+wget -qO- https://apt.llvm.org/llvm-snapshot.gpg.key \
+  | "${SUDO[@]}" tee /etc/apt/trusted.gpg.d/apt.llvm.org.asc >/dev/null
 
-mkdir -p "${PREFIX}/bin"
-tar -xJf "${tmpdir}/${ASSET}" -C "$tmpdir"
-src_bin="${tmpdir}/LLVM-${LLVM_VERSION}-Linux-X64/bin"
-install -m 0755 "${src_bin}/clang-format" "${PREFIX}/bin/clang-format"
-install -m 0755 "${src_bin}/clang-tidy" "${PREFIX}/bin/clang-tidy"
+echo "deb http://apt.llvm.org/${codename}/ llvm-toolchain-${codename}-${LLVM_TIDY_MAJOR} main" \
+  | "${SUDO[@]}" tee "/etc/apt/sources.list.d/llvm-${LLVM_TIDY_MAJOR}.list" >/dev/null
 
-ln -sfn "${PREFIX}/bin/clang-format" "/usr/local/bin/clang-format-${LLVM_MAJOR}"
-ln -sfn "${PREFIX}/bin/clang-tidy" "/usr/local/bin/clang-tidy-${LLVM_MAJOR}"
-# Unversioned names help scripts that look for plain clang-format / clang-tidy.
-ln -sfn "${PREFIX}/bin/clang-format" /usr/local/bin/clang-format
-ln -sfn "${PREFIX}/bin/clang-tidy" /usr/local/bin/clang-tidy
+"${SUDO[@]}" apt-get update
+"${SUDO[@]}" apt-get install -y "clang-tidy-${LLVM_TIDY_MAJOR}"
 
-"clang-format-${LLVM_MAJOR}" --version
-"clang-tidy-${LLVM_MAJOR}" --version
+# Stable name expected by workflows for format (matches local LLVM 23).
+format_bin="$(command -v clang-format)"
+"${SUDO[@]}" ln -sfn "$format_bin" /usr/local/bin/clang-format-23
+
+clang-format-23 --version
+"clang-tidy-${LLVM_TIDY_MAJOR}" --version
