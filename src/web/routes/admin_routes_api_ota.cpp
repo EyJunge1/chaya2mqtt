@@ -63,7 +63,8 @@ void handleApiUpdateCheckPost(AsyncWebServerRequest *req, JsonVariant &json) {
         return;
     }
     char channelBuf[12]{};
-    if (adminOptionalJsonString(json, "channel", channelBuf, sizeof(channelBuf)) != AdminJsonParam::Ok) {
+    const auto channelField = adminOptionalJsonString(json, "channel", channelBuf, sizeof(channelBuf));
+    if (!channelField.has_value() || !channelField->has_value()) {
         sendErr(req, 400, "channel");
         return;
     }

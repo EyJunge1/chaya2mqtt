@@ -22,8 +22,8 @@
 #include <Arduino.h>
 
 #include <cinttypes>
-#include <cstdio>
 #include <cstring>
+#include <utility>
 
 #include <esp_log.h>
 #include <freertos/FreeRTOS.h>
@@ -151,7 +151,7 @@ static bool feedFragmentedPayload(esp_mqtt_event_handle_t ev) {
 
     if (!rejected && s_fragExpectTotal > 0U) {
         const unsigned add = static_cast<unsigned>(ev->data_len);
-        const bool offsetMatches = static_cast<uint32_t>(ev->current_data_offset) == static_cast<uint32_t>(s_fragHave);
+        const bool offsetMatches = std::cmp_equal(ev->current_data_offset, s_fragHave);
         if (!offsetMatches || s_fragHave > s_fragExpectTotal || add > s_fragExpectTotal - s_fragHave) {
             s_fragExpectTotal = 0;
             s_fragHave = 0;

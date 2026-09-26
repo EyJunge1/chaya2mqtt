@@ -25,6 +25,7 @@
 #include <ctime>
 #include <esp_ota_ops.h>
 #include <esp_partition.h>
+#include <utility>
 
 #include "util/log_tag.h"
 
@@ -107,7 +108,7 @@ void applyPendingHttpChannelIfAny() {
     if (raw == kOtaNoPendingHttpChannel) {
         return;
     }
-    const OtaChannel channel = (raw == static_cast<uint8_t>(OtaChannel::Beta)) ? OtaChannel::Beta : OtaChannel::Stable;
+    const OtaChannel channel = (raw == std::to_underlying(OtaChannel::Beta)) ? OtaChannel::Beta : OtaChannel::Stable;
     if (!otaSetChannel(channel)) {
         ESP_LOGE(TAG, "pending HTTP channel persist failed — NVS channel remains source of truth");
     }
@@ -525,7 +526,7 @@ void otaQueueGithubCheck() {
 }
 
 void otaQueueGithubCheck(OtaChannel channel) {
-    s_pendingHttpChannel.store(static_cast<uint8_t>(channel), std::memory_order_release);
+    s_pendingHttpChannel.store(std::to_underlying(channel), std::memory_order_release);
     otaQueueGithubCheck();
 }
 

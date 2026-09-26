@@ -1,9 +1,9 @@
 # Host-pure header lint (clangd + scripts/check_clang_tidy.sh).
 # Skip Arduino/ESP translation units; those stay on cppcheck + compiler warnings.
 #
-# modernize-* / cppcoreguidelines-* are on as groups. The minus lines are not
-# "style we skipped" — they ban C buffers, snprintf, pointer walks, and numeric
-# literals (ports, shifts, timeouts) that this firmware uses on purpose.
+# modernize-* / cppcoreguidelines-* are on as groups. Remaining minus lines keep
+# NVS/ESP-IDF C layouts and numeric literals (ports, shifts, timeouts) that this
+# firmware still uses on purpose at those boundaries — not the default for own helpers.
 ---
 Checks: >
   clang-diagnostic-*,
@@ -15,6 +15,7 @@ Checks: >
   performance-*,
   modernize-*,
   -modernize-avoid-c-arrays,
+  -modernize-use-designated-initializers,
   cppcoreguidelines-*,
   -cppcoreguidelines-avoid-c-arrays,
   -cppcoreguidelines-avoid-magic-numbers,

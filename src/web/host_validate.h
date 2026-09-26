@@ -2,37 +2,50 @@
 
 #include <cctype>
 #include <cstddef>
-#include <cstdio>
 #include <cstring>
+#include <span>
+#include <string_view>
+
+#include "util/format_buf.h"
 
 /** Case-insensitive full-string host equality. */
-inline auto hostEqualsIgnoreCase(const char *host, const char *ref) -> bool {
+[[nodiscard]] inline auto hostEqualsIgnoreCase(std::string_view host, std::string_view ref) -> bool {
+    if (host.size() != ref.size()) {
+        return false;
+    }
+    for (size_t i = 0; i < host.size(); ++i) {
+        if (std::tolower(static_cast<unsigned char>(host[i])) != std::tolower(static_cast<unsigned char>(ref[i]))) {
+            return false;
+        }
+    }
+    return true;
+}
+
+[[nodiscard]] inline auto hostEqualsIgnoreCase(const char *host, const char *ref) -> bool {
     if (host == nullptr || ref == nullptr) {
         return false;
     }
-    while (*host != '\0' && *ref != '\0') {
-        if (std::tolower(static_cast<unsigned char>(*host)) != std::tolower(static_cast<unsigned char>(*ref))) {
-            return false;
-        }
-        ++host;
-        ++ref;
-    }
-    return *host == '\0' && *ref == '\0';
+    return hostEqualsIgnoreCase(std::string_view{host}, std::string_view{ref});
 }
 
 /** True when host equals prefix (case-insensitive) or prefix followed by ':port'. */
-inline auto hostPrefixIgnoreCaseThenPortOrEnd(const char *host, const char *prefix) -> bool {
+[[nodiscard]] inline auto hostPrefixIgnoreCaseThenPortOrEnd(std::string_view host, std::string_view prefix) -> bool {
+    if (host.size() < prefix.size()) {
+        return false;
+    }
+    for (size_t i = 0; i < prefix.size(); ++i) {
+        if (std::tolower(static_cast<unsigned char>(host[i])) != std::tolower(static_cast<unsigned char>(prefix[i]))) {
+            return false;
+        }
+    }
+    return host.size() == prefix.size() || host[prefix.size()] == ':';
+}
+
+[[nodiscard]] inline auto hostPrefixIgnoreCaseThenPortOrEnd(const char *host, const char *prefix) -> bool {
     if (host == nullptr || prefix == nullptr) {
         return false;
     }
-    while (*prefix != '\0') {
-        if (std::tolower(static_cast<unsigned char>(*host)) != std::tolower(static_cast<unsigned char>(*prefix))) {
-            return false;
-        }
-        ++host;
-        ++prefix;
-    }
-    return *host == '\0' || *host == ':';
+    return hostPrefixIgnoreCaseThenPortOrEnd(std::string_view{host}, std::string_view{prefix});
 }
 
 /**
@@ -42,23 +55,25 @@ inline auto hostPrefixIgnoreCaseThenPortOrEnd(const char *host, const char *pref
  * @param deviceHostname current station hostname (without .local)
  * @param staIp optional STA IPv4 string; nullptr/empty skips IP match
  */
-inline auto webHostCStringAllowed(const char *host, bool apMode, const char *deviceHostname, const char *staIp) -> bool {
+[[nodiscard]] inline auto webHostCStringAllowed(const char *host, bool apMode, const char *deviceHostname, const char *staIp)
+    -> bool {
     if (host == nullptr || host[0] == '\0') {
         // HTTP/1.1 requires Host. Keep hostless HTTP/1.0 captive probes working only in AP mode.
         return apMode;
     }
+    const std::string_view hostView{host};
     if (apMode) {
         // SEC-04: SoftAP allowlist only — setup IP / captive hostname (not arbitrary Host).
-        if (hostEqualsIgnoreCase(host, "4.3.2.1")) {
+        if (hostEqualsIgnoreCase(hostView, "4.3.2.1")) {
             return true;
         }
-        if (hostPrefixIgnoreCaseThenPortOrEnd(host, "4.3.2.1")) {
+        if (hostPrefixIgnoreCaseThenPortOrEnd(hostView, "4.3.2.1")) {
             return true;
         }
-        if (hostPrefixIgnoreCaseThenPortOrEnd(host, "chaya2mqtt")) {
+        if (hostPrefixIgnoreCaseThenPortOrEnd(hostView, "chaya2mqtt")) {
             return true;
         }
-        if (hostPrefixIgnoreCaseThenPortOrEnd(host, "chaya2mqtt.local")) {
+        if (hostPrefixIgnoreCaseThenPortOrEnd(hostView, "chaya2mqtt.local")) {
             return true;
         }
         return false;
@@ -66,20 +81,21 @@ inline auto webHostCStringAllowed(const char *host, bool apMode, const char *dev
     if (deviceHostname == nullptr || deviceHostname[0] == '\0') {
         return false;
     }
-    if (hostPrefixIgnoreCaseThenPortOrEnd(host, deviceHostname)) {
+    const std::string_view hostnameView{deviceHostname};
+    if (hostPrefixIgnoreCaseThenPortOrEnd(hostView, hostnameView)) {
         return true;
     }
     char localPrefix[48];
-    static_cast<void>(std::snprintf(localPrefix, sizeof(localPrefix), "%s.local", deviceHostname));
-    if (hostPrefixIgnoreCaseThenPortOrEnd(host, localPrefix)) {
+    if (formatToBuf(std::span<char>{localPrefix}, "{}.local", deviceHostname) &&
+        hostPrefixIgnoreCaseThenPortOrEnd(hostView, std::string_view{localPrefix})) {
         return true;
     }
     if (staIp != nullptr && staIp[0] != '\0') {
-        if (hostEqualsIgnoreCase(host, staIp)) {
+        const std::string_view ipView{staIp};
+        if (hostEqualsIgnoreCase(hostView, ipView)) {
             return true;
         }
-        const size_t ipLen = std::strlen(staIp);
-        if (std::strncmp(host, staIp, ipLen) == 0 && host[ipLen] == ':') {
+        if (hostView.starts_with(ipView) && hostView.size() > ipView.size() && hostView[ipView.size()] == ':') {
             return true;
         }
     }

@@ -9,8 +9,10 @@
 #include "tls/tls_bundle.h"
 #include "tls/tls_bundle_setup.h"
 
-#include <cstdio>
+#include "util/format_buf.h"
+
 #include <cstring>
+#include <span>
 
 #include <esp_crt_bundle.h>
 #include <esp_err.h>
@@ -75,10 +77,10 @@ static void mqttFillStableClientId() {
     char deviceId[kDeviceIdBufLen]{};
     buildDeviceId(deviceId, sizeof(deviceId));
     if (deviceIdSyntaxOk(deviceId)) {
-        static_cast<void>(snprintf(s_clientIdBuf, sizeof(s_clientIdBuf), "Chaya2MQTT-%s", deviceId));
+        static_cast<void>(formatToBuf(std::span<char>{s_clientIdBuf}, "Chaya2MQTT-{}", deviceId));
     } else {
-        static_cast<void>(snprintf(s_clientIdBuf, sizeof(s_clientIdBuf), "Chaya2MQTT-%04lX",
-                                   static_cast<unsigned long>(esp_random() & 0xffffU)));
+        static_cast<void>(
+            formatToBuf(std::span<char>{s_clientIdBuf}, "Chaya2MQTT-{:04X}", static_cast<unsigned>(esp_random() & 0xffffU)));
     }
 }
 

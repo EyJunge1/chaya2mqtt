@@ -7,6 +7,7 @@
 #include "config/app_config.h"
 #include "constants.h"
 #include "ota/ota.h"
+#include "util/format_buf.h"
 #include "util/log_tag.h"
 #include "web/deferred_reboot.h"
 #include "web/web_utils.h"
@@ -17,6 +18,7 @@
 #include <ESPAsyncWebServer.h>
 #include <cstring>
 #include <esp_log.h>
+#include <span>
 
 DEFINE_LOG_TAG("WEBAPI");
 
@@ -62,56 +64,45 @@ bool parseWifiConfigFromJson(JsonVariantConst json, WlanConfig *cfg, const char 
     *err = "ssid";
     wlanConfigClear(cfg);
 
-    if (adminOptionalJsonString(json, "ssid", cfg->ssid, sizeof(cfg->ssid)) != AdminJsonParam::Ok || cfg->ssid[0] == '\0' ||
+    const auto ssidField = adminOptionalJsonString(json, "ssid", cfg->ssid, sizeof(cfg->ssid));
+    if (!ssidField.has_value() || !ssidField->has_value() || cfg->ssid[0] == '\0' ||
         !wifiSsidSyntaxOk(cfg->ssid, sizeof(cfg->ssid))) {
         *err = "ssid";
         return false;
     }
 
     auto parseOptional = [&](const char *name, char *out, size_t outLen) {
-        switch (adminOptionalJsonString(json, name, out, outLen)) {
-        case AdminJsonParam::Absent:
-            return true;
-        case AdminJsonParam::Ok:
-            return true;
-        case AdminJsonParam::Invalid:
+        const auto field = adminOptionalJsonString(json, name, out, outLen);
+        if (!field.has_value()) {
             *err = name;
             return false;
         }
-        *err = name;
-        return false;
+        return true;
     };
-    switch (adminOptionalJsonString(json, "password", cfg->pass, sizeof(cfg->pass))) {
-    case AdminJsonParam::Invalid:
+    const auto passwordField = adminOptionalJsonString(json, "password", cfg->pass, sizeof(cfg->pass));
+    if (!passwordField.has_value()) {
         *err = "password";
         return false;
-    case AdminJsonParam::Ok:
-        if (passwordPresent != nullptr) {
-            *passwordPresent = true;
-        }
-        break;
-    case AdminJsonParam::Absent:
-        break;
+    }
+    if (passwordField->has_value() && passwordPresent != nullptr) {
+        *passwordPresent = true;
     }
 
     char modeBuf[12]{};
-    switch (adminOptionalJsonString(json, "mode", modeBuf, sizeof(modeBuf))) {
-    case AdminJsonParam::Invalid:
+    const auto modeField = adminOptionalJsonString(json, "mode", modeBuf, sizeof(modeBuf));
+    if (!modeField.has_value()) {
         *err = "mode";
         return false;
-    case AdminJsonParam::Absent:
+    }
+    if (!modeField->has_value()) {
         cfg->mode = WlanIpMode::Dhcp;
-        break;
-    case AdminJsonParam::Ok:
-        if (strcmp(modeBuf, "static") == 0) {
-            cfg->mode = WlanIpMode::Static;
-        } else if (strcmp(modeBuf, "dhcp") == 0) {
-            cfg->mode = WlanIpMode::Dhcp;
-        } else {
-            *err = "mode";
-            return false;
-        }
-        break;
+    } else if (strcmp(modeBuf, "static") == 0) {
+        cfg->mode = WlanIpMode::Static;
+    } else if (strcmp(modeBuf, "dhcp") == 0) {
+        cfg->mode = WlanIpMode::Dhcp;
+    } else {
+        *err = "mode";
+        return false;
     }
 
     if (!parseOptional("ip", cfg->ip, sizeof(cfg->ip)) || !parseOptional("gateway", cfg->gateway, sizeof(cfg->gateway)) ||
@@ -285,8 +276,7 @@ void handleApiWifiConnectCommitPost(AsyncWebServerRequest *req, JsonVariant &jso
     }
     deferredRebootAfterWifiSave();
     char next[32]{};
-    const int n = snprintf(next, sizeof(next), "http://%s/", staIp);
-    if (n < 0 || static_cast<size_t>(n) >= sizeof(next)) {
+    if (!formatToBuf(std::span<char>{next}, "http://{}/", staIp)) {
         sendOk(req, 200, "committed");
         return;
     }

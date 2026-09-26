@@ -1,20 +1,23 @@
 #pragma once
 
-#include <cstdio>
+#include <cstddef>
 #include <cstring>
+#include <span>
 
 #include "constants.h"
 #include "mqtt/config.h"
 #include "mqtt/mqtt_config.h"
+#include "util/format_buf.h"
 
 /** Lowercase A-F in a hex device / pairing / partner id. */
 inline void mqttNormalizeHexIdInPlace(char *id) {
     if (id == nullptr) {
         return;
     }
-    for (char *p = id; *p != '\0'; ++p) {
-        if (*p >= 'A' && *p <= 'F') {
-            *p = static_cast<char>(*p - 'A' + 'a');
+    const size_t len = std::strlen(id);
+    for (char &c : std::span<char>{id, len}) {
+        if (c >= 'A' && c <= 'F') {
+            c = static_cast<char>(c - 'A' + 'a');
         }
     }
 }
@@ -23,7 +26,7 @@ inline void mqttNormalizeHexIdInPlace(char *id) {
  * Publish identity: stored pairing ID when valid, otherwise own device ID.
  * Empty pairing means this device is the 1:1 default (topicPub uses own ID).
  */
-inline auto mqttEffectivePairingId(const MqttConfig &cfg, const char *ownId) -> const char * {
+[[nodiscard]] inline auto mqttEffectivePairingId(const MqttConfig &cfg, const char *ownId) -> const char * {
     if (cfg.pairingDeviceId[0] != '\0' && deviceIdSyntaxOk(cfg.pairingDeviceId)) {
         return cfg.pairingDeviceId;
     }
@@ -36,7 +39,7 @@ inline void mqttFormatDeviceLwtTopic(char *out, size_t outLen, const char *devic
         return;
     }
     if (deviceId != nullptr && deviceIdSyntaxOk(deviceId)) {
-        static_cast<void>(std::snprintf(out, outLen, "%s%s/lwt", kMqttPairTopicPrefix, deviceId));
+        static_cast<void>(formatToBuf(std::span<char>{out, outLen}, "{}{}/lwt", kMqttPairTopicPrefix, deviceId));
         return;
     }
     out[0] = '\0';
@@ -52,13 +55,12 @@ inline void mqttApplyPairingTopicsWithIds(MqttConfig *cfg, const char *ownId) {
     }
     const char *pubId = mqttEffectivePairingId(*cfg, ownId);
     if (pubId != nullptr && deviceIdSyntaxOk(pubId)) {
-        static_cast<void>(std::snprintf(cfg->topicPub, sizeof(cfg->topicPub), "%s%s", kMqttPairTopicPrefix, pubId));
+        static_cast<void>(formatToBuf(std::span<char>{cfg->topicPub}, "{}{}", kMqttPairTopicPrefix, pubId));
     } else {
         cfg->topicPub[0] = '\0';
     }
     if (cfg->partnerDeviceId[0] != '\0' && deviceIdSyntaxOk(cfg->partnerDeviceId)) {
-        static_cast<void>(
-            std::snprintf(cfg->topicSub, sizeof(cfg->topicSub), "%s%s", kMqttPairTopicPrefix, cfg->partnerDeviceId));
+        static_cast<void>(formatToBuf(std::span<char>{cfg->topicSub}, "{}{}", kMqttPairTopicPrefix, cfg->partnerDeviceId));
     } else {
         cfg->topicSub[0] = '\0';
     }

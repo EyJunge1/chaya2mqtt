@@ -17,8 +17,8 @@ inline auto webAdminApplyCommitAllowed(bool shutdown, bool armed, bool factoryQu
 inline auto adminApplyBlockedByOta(bool otaBusy) -> bool { return otaBusy; }
 
 /** OTA check/install waits for Settings/MQTT apply — RAM pending dies on reboot. */
-inline auto webAdminOtaStartBlocked(bool mqttApplyPending, bool settingsApplyPending, bool mqttApplyUnqueued,
-                                    bool applyInFlight) -> bool {
+inline auto webAdminOtaStartBlocked(bool mqttApplyPending, bool settingsApplyPending, bool mqttApplyUnqueued, bool applyInFlight)
+    -> bool {
     return webAdminRestartBlocked(false, mqttApplyPending, settingsApplyPending, mqttApplyUnqueued, applyInFlight);
 }
 

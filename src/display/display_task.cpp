@@ -26,6 +26,7 @@
 #include <freertos/FreeRTOS.h>
 #include <freertos/semphr.h>
 #include <freertos/task.h>
+#include <utility>
 
 DEFINE_LOG_TAG("DISP");
 
@@ -39,8 +40,8 @@ static std::atomic<int> s_lastDrawnTx{INT32_MIN};
 static std::atomic<int> s_lastDrawnShownRx{INT32_MIN};
 static std::atomic<int> s_lastDrawnShownTx{INT32_MIN};
 static std::atomic<unsigned long> s_lastHeartRedrawEnqueueMs{0};
-static std::atomic<uint8_t> s_desiredHeartIcon{static_cast<uint8_t>(DisplayHeartIcon::Filled)};
-static std::atomic<uint8_t> s_lastDrawnHeartIcon{static_cast<uint8_t>(DisplayHeartIcon::Filled)};
+static std::atomic<uint8_t> s_desiredHeartIcon{std::to_underlying(DisplayHeartIcon::Filled)};
+static std::atomic<uint8_t> s_lastDrawnHeartIcon{std::to_underlying(DisplayHeartIcon::Filled)};
 /** Sentinel until the first heart paint records a real battery glyph. */
 static constexpr uint8_t kBatteryIconUnset = 0xFFU;
 static std::atomic<uint8_t> s_lastDrawnBatteryIcon{kBatteryIconUnset};
@@ -54,7 +55,7 @@ static SemaphoreHandle_t s_displayPostMutex = nullptr;
 void displayTaskClearPowerOffPending() { s_powerOffPending.store(false, std::memory_order_release); }
 
 void displayTaskSetDesiredHeartIcon(DisplayHeartIcon icon) {
-    s_desiredHeartIcon.store(static_cast<uint8_t>(icon), std::memory_order_release);
+    s_desiredHeartIcon.store(std::to_underlying(icon), std::memory_order_release);
 }
 
 DisplayHeartIcon displayTaskDesiredHeartIcon() {
@@ -97,7 +98,7 @@ bool displayPostHeartRedraw(TickType_t waitTicks) {
     const unsigned long lastMs = s_lastHeartRedrawEnqueueMs.load(std::memory_order_relaxed);
     const bool iconChanged =
         s_desiredHeartIcon.load(std::memory_order_acquire) != s_lastDrawnHeartIcon.load(std::memory_order_acquire);
-    const uint8_t batteryIcon = static_cast<uint8_t>(displayBatteryIcon(batteryPercent()));
+    const uint8_t batteryIcon = std::to_underlying(displayBatteryIcon(batteryPercent()));
     const bool batteryIconChanged = batteryIcon != s_lastDrawnBatteryIcon.load(std::memory_order_acquire);
     const DisplayHeartRedrawDecision decision = displayHeartRedrawDecide(
         rx, tx, s_lastDrawnRx.load(std::memory_order_relaxed), s_lastDrawnTx.load(std::memory_order_relaxed), iconChanged,
@@ -110,7 +111,7 @@ bool displayPostHeartRedraw(TickType_t waitTicks) {
         const int shownTxAgain = heartDisplayTxDelta();
         const bool iconChangedAgain =
             s_desiredHeartIcon.load(std::memory_order_acquire) != s_lastDrawnHeartIcon.load(std::memory_order_acquire);
-        const uint8_t batteryIconAgain = static_cast<uint8_t>(displayBatteryIcon(batteryPercent()));
+        const uint8_t batteryIconAgain = std::to_underlying(displayBatteryIcon(batteryPercent()));
         const bool batteryIconChangedAgain = batteryIconAgain != s_lastDrawnBatteryIcon.load(std::memory_order_acquire);
         const DisplayHeartRedrawDecision again = displayHeartRedrawDecide(
             rxAgain, txAgain, s_lastDrawnRx.load(std::memory_order_relaxed), s_lastDrawnTx.load(std::memory_order_relaxed),
@@ -305,13 +306,13 @@ static void displayTaskFn(void *) {
             s_lastDrawnTx.store(drawn.heartSentCounterRaw, std::memory_order_relaxed);
             s_lastDrawnShownRx.store(paintedShownRx, std::memory_order_relaxed);
             s_lastDrawnShownTx.store(paintedShownTx, std::memory_order_relaxed);
-            s_lastDrawnHeartIcon.store(static_cast<uint8_t>(icon), std::memory_order_release);
+            s_lastDrawnHeartIcon.store(std::to_underlying(icon), std::memory_order_release);
             const uint8_t paintedBatteryIcon = drawn.batteryIcon;
             s_lastDrawnBatteryIcon.store(paintedBatteryIcon, std::memory_order_release);
             s_heartDrawQueued.store(false, std::memory_order_release);
             const bool hadPending = s_heartDrawPending.exchange(false, std::memory_order_acq_rel);
             const bool iconChanged = displayTaskDesiredHeartIcon() != icon;
-            const bool batteryIconChanged = static_cast<uint8_t>(displayBatteryIcon(batteryPercent())) != paintedBatteryIcon;
+            const bool batteryIconChanged = std::to_underlying(displayBatteryIcon(batteryPercent())) != paintedBatteryIcon;
             if (displayHeartNeedsFollowUpRedraw(
                     drawn.heartCounterRaw, drawn.heartSentCounterRaw, heartCounter.load(std::memory_order_relaxed),
                     heartSentCounter.load(std::memory_order_relaxed), iconChanged, batteryIconChanged, hadPending, paintedShownRx,

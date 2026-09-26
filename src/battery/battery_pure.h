@@ -2,6 +2,8 @@
 
 #include "battery_config.h"
 
+#include <iterator>
+
 /** Piecewise-linear LiPo estimate from pack millivolts (0–100). */
 inline auto batteryPctFromMilliVolts(int mv) -> int {
     struct Point {
@@ -14,7 +16,7 @@ inline auto batteryPctFromMilliVolts(int mv) -> int {
     if (mv <= kCurve[0].mv) {
         return 0;
     }
-    constexpr int kLast = static_cast<int>(sizeof(kCurve) / sizeof(kCurve[0]) - 1U);
+    constexpr auto kLast = static_cast<int>(std::size(kCurve) - 1U);
     if (mv >= kCurve[kLast].mv) {
         return 100;
     }

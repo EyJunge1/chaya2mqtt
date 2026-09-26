@@ -5,19 +5,25 @@
 #include <ArduinoJson.h>
 
 #include <cstddef>
+#include <cstdint>
 #include <cstring>
+#include <expected>
 #include <utility>
 
 /** GitHub release JSON helpers (ArduinoJson, header-only, native-testable). */
 
-inline auto otaDeserializeJson(const char *json, JsonDocument &doc) -> bool {
+enum class OtaJsonError : uint8_t { Invalid };
+
+template <typename T> using OtaJsonResult = std::expected<T, OtaJsonError>;
+
+[[nodiscard]] inline auto otaDeserializeJson(const char *json, JsonDocument &doc) -> bool {
     if (json == nullptr) {
         return false;
     }
     return deserializeJson(doc, json) == DeserializationError::Ok && !doc.overflowed();
 }
 
-inline auto otaGithubJsonRootIsArray(const char *json) -> bool {
+[[nodiscard]] inline auto otaGithubJsonRootIsArray(const char *json) -> bool {
     if (json == nullptr) {
         return false;
     }
@@ -40,69 +46,89 @@ inline void otaFillGithubReleaseFilter(JsonDocument &filter, bool list) {
     rel["assets"][0]["name"] = true;
 }
 
-template <typename TInput> inline auto otaDeserializeGithubReleaseJson(TInput &&input, JsonDocument &doc, bool list) -> bool {
+template <typename TInput>
+[[nodiscard]] inline auto otaDeserializeGithubReleaseJson(TInput &&input, JsonDocument &doc, bool list) -> bool {
     JsonDocument filter;
     otaFillGithubReleaseFilter(filter, list);
     return deserializeJson(doc, std::forward<TInput>(input), DeserializationOption::Filter(filter)) == DeserializationError::Ok &&
            !doc.overflowed();
 }
 
-inline auto otaDeserializeGithubReleaseJson(const char *json, JsonDocument &doc) -> bool {
+[[nodiscard]] inline auto otaDeserializeGithubReleaseJson(const char *json, JsonDocument &doc) -> bool {
     if (json == nullptr) {
         return false;
     }
     return otaDeserializeGithubReleaseJson(json, doc, otaGithubJsonRootIsArray(json));
 }
 
-inline auto otaCopyJsonString(JsonVariantConst v, char *out, size_t outLen) -> bool {
+[[nodiscard]] inline auto otaCopyJsonString(JsonVariantConst v, char *out, size_t outLen) -> OtaJsonResult<void> {
     if (out == nullptr || outLen == 0U) {
-        return false;
+        return std::unexpected(OtaJsonError::Invalid);
     }
     out[0] = '\0';
     if (!v.is<const char *>()) {
-        return false;
+        return std::unexpected(OtaJsonError::Invalid);
     }
     const char *s = v.as<const char *>();
     if (s == nullptr || s[0] == '\0' || strlen(s) >= outLen) {
-        return false;
+        return std::unexpected(OtaJsonError::Invalid);
     }
     strlcpy(out, s, outLen);
-    return true;
+    return {};
 }
 
-inline auto otaParseJsonStringField(const char *json, const char *key, char *out, size_t outLen) -> bool {
+[[nodiscard]] inline auto otaParseJsonStringField(const char *json, const char *key, char *out, size_t outLen)
+    -> OtaJsonResult<void> {
     if (json == nullptr || key == nullptr || out == nullptr || outLen == 0U) {
-        return false;
+        return std::unexpected(OtaJsonError::Invalid);
     }
     out[0] = '\0';
     JsonDocument doc;
     if (!otaDeserializeJson(json, doc)) {
-        return false;
+        return std::unexpected(OtaJsonError::Invalid);
     }
     return otaCopyJsonString(doc[key], out, outLen);
 }
 
-inline auto otaParseJsonBoolField(JsonVariantConst obj, const char *key, bool *out) -> bool {
-    if (key == nullptr || out == nullptr) {
-        return false;
+[[nodiscard]] inline auto otaParseJsonBoolField(JsonVariantConst obj, const char *key) -> OtaJsonResult<bool> {
+    if (key == nullptr) {
+        return std::unexpected(OtaJsonError::Invalid);
     }
     const JsonVariantConst v = obj[key];
     if (!v.is<bool>()) {
-        return false;
+        return std::unexpected(OtaJsonError::Invalid);
     }
-    *out = v.as<bool>();
-    return true;
+    return v.as<bool>();
 }
 
-inline auto otaParseJsonBoolField(const char *json, const char *key, bool *out) -> bool {
-    if (json == nullptr || key == nullptr || out == nullptr) {
-        return false;
+[[nodiscard]] inline auto otaParseJsonBoolField(const char *json, const char *key) -> OtaJsonResult<bool> {
+    if (json == nullptr || key == nullptr) {
+        return std::unexpected(OtaJsonError::Invalid);
     }
     JsonDocument doc;
     if (!otaDeserializeJson(json, doc)) {
+        return std::unexpected(OtaJsonError::Invalid);
+    }
+    return otaParseJsonBoolField(doc.as<JsonVariantConst>(), key);
+}
+
+/** Legacy out-pointer wrappers for call sites that still write through bool*. */
+[[nodiscard]] inline auto otaParseJsonBoolField(JsonVariantConst obj, const char *key, bool *out) -> bool {
+    const auto r = otaParseJsonBoolField(obj, key);
+    if (!r.has_value() || out == nullptr) {
         return false;
     }
-    return otaParseJsonBoolField(doc.as<JsonVariantConst>(), key, out);
+    *out = *r;
+    return true;
+}
+
+[[nodiscard]] inline auto otaParseJsonBoolField(const char *json, const char *key, bool *out) -> bool {
+    const auto r = otaParseJsonBoolField(json, key);
+    if (!r.has_value() || out == nullptr) {
+        return false;
+    }
+    *out = *r;
+    return true;
 }
 
 inline auto otaJsonArrayHasAssetName(JsonArrayConst assets, const char *assetName) -> bool {

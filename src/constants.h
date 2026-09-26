@@ -7,6 +7,7 @@
 #include <cstdint>
 #include <cstring>
 #include <ctime>
+#include <utility>
 
 /** Minimum plausible Unix time (UTC) after NTP sync — rejects unset RTC (~1970). */
 constexpr uint32_t kNtpMinValidUtcEpoch = 1700000000U;
@@ -27,7 +28,9 @@ constexpr const char kSetupApIp[] = "4.3.2.1";
 /** Absolute captive-portal landing URL (Android/Windows prefer absolute). */
 constexpr const char kSetupApCaptiveRedirect[] = "http://4.3.2.1/";
 
-inline auto ntpTimeLooksSynced(time_t utcNow) -> bool { return utcNow > static_cast<time_t>(kNtpMinValidUtcEpoch); }
+[[nodiscard]] inline auto ntpTimeLooksSynced(time_t utcNow) -> bool {
+    return std::cmp_greater(utcNow, 0) && std::cmp_greater_equal(static_cast<uint64_t>(utcNow), kNtpMinValidUtcEpoch);
+}
 
 /**
  * Basic MQTT topic rules: non-empty, within maxLen (including NUL), no spaces or wildcards.
@@ -114,20 +117,24 @@ inline auto uiThemeSyntaxOk(const char *theme) -> bool {
     return theme != nullptr && (strcmp(theme, "system") == 0 || strcmp(theme, "dark") == 0 || strcmp(theme, "light") == 0);
 }
 
-inline auto audioVolumeInRange(int v) -> bool { return v >= 0 && v <= static_cast<int>(kAudioVolumeMax); }
-
-inline auto quietHourInRange(int v) -> bool { return v >= 0 && v <= static_cast<int>(kAudioHourMax); }
-
-inline auto audioToneHzInRange(int v) -> bool {
-    return v >= static_cast<int>(kAudioToneHzMin) && v <= static_cast<int>(kAudioToneHzMax);
+[[nodiscard]] inline auto audioVolumeInRange(int v) -> bool {
+    return std::cmp_greater_equal(v, 0) && std::cmp_less_equal(v, kAudioVolumeMax);
 }
 
-inline auto audioToneMsInRange(int v) -> bool {
-    return v >= static_cast<int>(kAudioToneMsMin) && v <= static_cast<int>(kAudioToneMsMax);
+[[nodiscard]] inline auto quietHourInRange(int v) -> bool {
+    return std::cmp_greater_equal(v, 0) && std::cmp_less_equal(v, kAudioHourMax);
+}
+
+[[nodiscard]] inline auto audioToneHzInRange(int v) -> bool {
+    return std::cmp_greater_equal(v, kAudioToneHzMin) && std::cmp_less_equal(v, kAudioToneHzMax);
+}
+
+[[nodiscard]] inline auto audioToneMsInRange(int v) -> bool {
+    return std::cmp_greater_equal(v, kAudioToneMsMin) && std::cmp_less_equal(v, kAudioToneMsMax);
 }
 
 /** Display reset period days: 0 = off, otherwise 1–30. */
-inline auto resetPeriodDaysInRange(int v) -> bool { return v >= 0 && v <= 30; }
+[[nodiscard]] inline auto resetPeriodDaysInRange(int v) -> bool { return v >= 0 && v <= 30; }
 
 /** Six lowercase hex digits (a-f0-9), e.g. a1b2c3. */
 inline auto deviceIdSyntaxOk(const char *id) -> bool {

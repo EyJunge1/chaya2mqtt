@@ -3,9 +3,9 @@
 #include "constants.h"
 
 #include <Arduino.h>
-#include <cerrno>
 #include <climits>
 #include <cstring>
+#include <variant>
 
 std::atomic<bool> g_webAdminRebootRequested{false};
 std::atomic<bool> g_webAdminWifiReconnectRequested{false};
@@ -35,81 +35,77 @@ bool adminJsonHasField(JsonVariantConst obj, const char *name) {
     return name != nullptr && obj.is<JsonObjectConst>() && !obj[name].isUnbound();
 }
 
-AdminJsonParam adminOptionalJsonInt(JsonVariantConst obj, const char *name, int *out) {
-    if (out == nullptr || name == nullptr || !obj.is<JsonObjectConst>()) {
-        return AdminJsonParam::Invalid;
+auto adminOptionalJsonInt(JsonVariantConst obj, const char *name) -> AdminJsonResult<int> {
+    if (name == nullptr || !obj.is<JsonObjectConst>()) {
+        return std::unexpected(AdminJsonError::Invalid);
     }
     const JsonVariantConst v = obj[name];
     if (v.isUnbound()) {
-        return AdminJsonParam::Absent;
+        return std::optional<int>{};
     }
     if (v.is<int>()) {
-        *out = v.as<int>();
-        return AdminJsonParam::Ok;
+        return std::optional<int>{v.as<int>()};
     }
     if (v.is<unsigned int>()) {
         const unsigned int u = v.as<unsigned int>();
         if (u > static_cast<unsigned int>(INT_MAX)) {
-            return AdminJsonParam::Invalid;
+            return std::unexpected(AdminJsonError::Invalid);
         }
-        *out = static_cast<int>(u);
-        return AdminJsonParam::Ok;
+        return std::optional<int>{static_cast<int>(u)};
     }
-    return AdminJsonParam::Invalid;
+    return std::unexpected(AdminJsonError::Invalid);
 }
 
-AdminJsonParam adminOptionalJsonBool(JsonVariantConst obj, const char *name, bool *out) {
-    if (out == nullptr || name == nullptr || !obj.is<JsonObjectConst>()) {
-        return AdminJsonParam::Invalid;
+auto adminOptionalJsonBool(JsonVariantConst obj, const char *name) -> AdminJsonResult<bool> {
+    if (name == nullptr || !obj.is<JsonObjectConst>()) {
+        return std::unexpected(AdminJsonError::Invalid);
     }
     const JsonVariantConst v = obj[name];
     if (v.isUnbound()) {
-        return AdminJsonParam::Absent;
+        return std::optional<bool>{};
     }
     if (!v.is<bool>()) {
-        return AdminJsonParam::Invalid;
+        return std::unexpected(AdminJsonError::Invalid);
     }
-    *out = v.as<bool>();
-    return AdminJsonParam::Ok;
+    return std::optional<bool>{v.as<bool>()};
 }
 
-AdminJsonParam adminOptionalJsonString(JsonVariantConst obj, const char *name, char *out, size_t outLen) {
+auto adminOptionalJsonString(JsonVariantConst obj, const char *name, char *out, size_t outLen)
+    -> AdminJsonResult<std::monostate> {
     if (out == nullptr || outLen == 0U || name == nullptr || !obj.is<JsonObjectConst>()) {
-        return AdminJsonParam::Invalid;
+        return std::unexpected(AdminJsonError::Invalid);
     }
     const JsonVariantConst v = obj[name];
     if (v.isUnbound()) {
-        return AdminJsonParam::Absent;
+        return std::optional<std::monostate>{};
     }
     if (!v.is<const char *>()) {
-        return AdminJsonParam::Invalid;
+        return std::unexpected(AdminJsonError::Invalid);
     }
     const char *s = v.as<const char *>();
     if (s == nullptr || strlen(s) >= outLen) {
-        return AdminJsonParam::Invalid;
+        return std::unexpected(AdminJsonError::Invalid);
     }
     strlcpy(out, s, outLen);
-    return AdminJsonParam::Ok;
+    return std::optional<std::monostate>{std::monostate{}};
 }
 
 bool adminApplyOptionalInt(JsonVariantConst obj, const char *name, bool (*inRange)(int), int *out) {
     if (out == nullptr) {
         return false;
     }
-    int v = 0;
-    switch (adminOptionalJsonInt(obj, name, &v)) {
-    case AdminJsonParam::Absent:
-        return true;
-    case AdminJsonParam::Invalid:
+    const auto field = adminOptionalJsonInt(obj, name);
+    if (!field.has_value()) {
         return false;
-    case AdminJsonParam::Ok:
-        if (inRange != nullptr && !inRange(v)) {
-            return false;
-        }
-        *out = v;
+    }
+    if (!field->has_value()) {
         return true;
     }
-    return false;
+    if (inRange != nullptr && !inRange(**field)) {
+        return false;
+    }
+    *out = **field;
+    return true;
 }
 
 bool adminApplyOptionalU8(JsonVariantConst obj, const char *name, bool (*inRange)(int), uint8_t *out) {
@@ -140,31 +136,26 @@ bool adminApplyOptionalBool(JsonVariantConst obj, const char *name, bool *out) {
     if (out == nullptr) {
         return false;
     }
-    switch (adminOptionalJsonBool(obj, name, out)) {
-    case AdminJsonParam::Absent:
-        return true;
-    case AdminJsonParam::Invalid:
+    const auto field = adminOptionalJsonBool(obj, name);
+    if (!field.has_value()) {
         return false;
-    case AdminJsonParam::Ok:
-        return true;
     }
-    return false;
+    if (field->has_value()) {
+        *out = **field;
+    }
+    return true;
 }
 
 bool adminApplyOptionalString(JsonVariantConst obj, const char *name, char *out, size_t outLen, bool (*syntaxOk)(const char *)) {
     if (out == nullptr || outLen == 0U) {
         return false;
     }
-    switch (adminOptionalJsonString(obj, name, out, outLen)) {
-    case AdminJsonParam::Absent:
-        return true;
-    case AdminJsonParam::Invalid:
+    const auto field = adminOptionalJsonString(obj, name, out, outLen);
+    if (!field.has_value()) {
         return false;
-    case AdminJsonParam::Ok:
-        if (syntaxOk != nullptr && !syntaxOk(out)) {
-            return false;
-        }
+    }
+    if (!field->has_value()) {
         return true;
     }
-    return false;
+    return syntaxOk == nullptr || syntaxOk(out);
 }

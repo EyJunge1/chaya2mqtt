@@ -1,8 +1,11 @@
 #pragma once
 
+#include <algorithm>
 #include <cstddef>
 #include <cstdint>
-#include <cstring>
+#include <ranges>
+#include <span>
+#include <string_view>
 
 /** Lookup helpers for the embedded SPA blob (pure C++, native-testable). */
 
@@ -19,43 +22,53 @@ struct SpaAssetEntry {
     SpaCacheClass cache;
 };
 
-inline auto spaPathEquals(const char *a, const char *b) -> bool {
-    if (!a || !b) {
+[[nodiscard]] inline auto spaPathEquals(std::string_view a, std::string_view b) -> bool { return a == b; }
+
+[[nodiscard]] inline auto spaPathEquals(const char *a, const char *b) -> bool {
+    if (a == nullptr || b == nullptr) {
         return false;
     }
-    return std::strcmp(a, b) == 0;
+    return spaPathEquals(std::string_view{a}, std::string_view{b});
 }
 
-inline auto spaIsAssetPath(const char *uri) -> bool { return uri && std::strncmp(uri, "/assets/", 8) == 0; }
+[[nodiscard]] inline auto spaIsAssetPath(std::string_view uri) -> bool { return uri.starts_with("/assets/"); }
+
+[[nodiscard]] inline auto spaIsAssetPath(const char *uri) -> bool {
+    return uri != nullptr && spaIsAssetPath(std::string_view{uri});
+}
 
 /**
  * Blob assets under /assets/ are stored gzip-compressed and served with
  * Content-Encoding: gzip. URLs keep normal extensions (.js/.css) — never .gz —
  * so Safari/iOS CNA can render them. index.html is not in the blob.
  */
-inline auto spaAssetUsesGzip(const char *path) -> bool { return spaIsAssetPath(path); }
+[[nodiscard]] inline auto spaAssetUsesGzip(std::string_view path) -> bool { return spaIsAssetPath(path); }
 
-inline auto spaIsApiOrEventsPath(const char *uri) -> bool {
-    if (!uri) {
-        return false;
-    }
-    return std::strncmp(uri, "/api/", 5) == 0 || spaPathEquals(uri, "/events");
+[[nodiscard]] inline auto spaAssetUsesGzip(const char *path) -> bool { return spaIsAssetPath(path); }
+
+[[nodiscard]] inline auto spaIsApiOrEventsPath(std::string_view uri) -> bool {
+    return uri.starts_with("/api/") || spaPathEquals(uri, "/events");
+}
+
+[[nodiscard]] inline auto spaIsApiOrEventsPath(const char *uri) -> bool {
+    return uri != nullptr && spaIsApiOrEventsPath(std::string_view{uri});
 }
 
 /** OS captive-portal connectivity checks (handled by dedicated routes in AP mode). */
-inline auto spaIsCaptivePortalProbe(const char *uri) -> bool {
-    if (!uri) {
-        return false;
-    }
+[[nodiscard]] inline auto spaIsCaptivePortalProbe(std::string_view uri) -> bool {
     return spaPathEquals(uri, "/generate_204") || spaPathEquals(uri, "/gen_204") || spaPathEquals(uri, "/hotspot-detect.html") ||
            spaPathEquals(uri, "/library/test/success.html") || spaPathEquals(uri, "/canonical.html") ||
            spaPathEquals(uri, "/ncsi.txt") || spaPathEquals(uri, "/connecttest.txt") || spaPathEquals(uri, "/redirect") ||
            spaPathEquals(uri, "/success.txt") || spaPathEquals(uri, "/wpad.dat");
 }
 
+[[nodiscard]] inline auto spaIsCaptivePortalProbe(const char *uri) -> bool {
+    return uri != nullptr && spaIsCaptivePortalProbe(std::string_view{uri});
+}
+
 /** True when an unknown GET path should receive the SPA index (client router). */
-inline auto spaShouldFallbackToIndex(const char *uri) -> bool {
-    if (!uri || uri[0] != '/') {
+[[nodiscard]] inline auto spaShouldFallbackToIndex(std::string_view uri) -> bool {
+    if (uri.empty() || uri.front() != '/') {
         return false;
     }
     if (spaIsApiOrEventsPath(uri)) {
@@ -67,14 +80,20 @@ inline auto spaShouldFallbackToIndex(const char *uri) -> bool {
     return true;
 }
 
-inline auto spaFindAsset(const SpaAssetEntry *entries, size_t count, const char *uri) -> const SpaAssetEntry * {
-    if (!entries || !uri) {
+[[nodiscard]] inline auto spaShouldFallbackToIndex(const char *uri) -> bool {
+    return uri != nullptr && spaShouldFallbackToIndex(std::string_view{uri});
+}
+
+[[nodiscard]] inline auto spaFindAsset(std::span<const SpaAssetEntry> entries, std::string_view uri) -> const SpaAssetEntry * {
+    const auto it = std::ranges::find_if(entries, [uri](const SpaAssetEntry &e) -> bool {
+        return e.path != nullptr && spaPathEquals(std::string_view{e.path}, uri);
+    });
+    return it == entries.end() ? nullptr : &*it;
+}
+
+[[nodiscard]] inline auto spaFindAsset(const SpaAssetEntry *entries, size_t count, const char *uri) -> const SpaAssetEntry * {
+    if (entries == nullptr || uri == nullptr) {
         return nullptr;
     }
-    for (size_t i = 0; i < count; ++i) {
-        if (spaPathEquals(entries[i].path, uri)) {
-            return &entries[i];
-        }
-    }
-    return nullptr;
+    return spaFindAsset(std::span{entries, count}, std::string_view{uri});
 }

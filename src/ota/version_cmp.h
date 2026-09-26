@@ -1,8 +1,7 @@
 #pragma once
 
-#include <cerrno>
-#include <cstdlib>
-#include <cstring>
+#include <charconv>
+#include <string_view>
 
 /** Pure CalVer / beta (`-rc.N`) helpers for OTA (header-only, native-testable). */
 
@@ -14,22 +13,25 @@ struct OtaParsedVersion {
     bool isRc = false;
 };
 
-inline auto otaParseUintToken(const char *p, unsigned maxVal, unsigned *out, const char **endOut) -> bool {
+[[nodiscard]] constexpr auto otaParseUintToken(const char *p, unsigned maxVal, unsigned *out, const char **endOut) -> bool {
     if (p == nullptr || out == nullptr || endOut == nullptr || *p < '0' || *p > '9') {
         return false;
     }
-    errno = 0;
-    char *end = nullptr;
-    const unsigned long v = std::strtoul(p, &end, 10);
-    if (end == p || errno == ERANGE || v > static_cast<unsigned long>(maxVal)) {
+    const char *digitsEnd = p;
+    while (*digitsEnd >= '0' && *digitsEnd <= '9') {
+        ++digitsEnd;
+    }
+    unsigned v = 0;
+    const auto result = std::from_chars(p, digitsEnd, v);
+    if (result.ec != std::errc{} || result.ptr == p || v > maxVal) {
         return false;
     }
-    *out = static_cast<unsigned>(v);
-    *endOut = end;
+    *out = v;
+    *endOut = result.ptr;
     return true;
 }
 
-inline auto otaVersionParse(const char *tag, OtaParsedVersion *out) -> bool {
+[[nodiscard]] constexpr auto otaVersionParse(const char *tag, OtaParsedVersion *out) -> bool {
     if (out == nullptr) {
         return false;
     }
@@ -56,7 +58,8 @@ inline auto otaVersionParse(const char *tag, OtaParsedVersion *out) -> bool {
     if (*end == '\0') {
         return true;
     }
-    if (strncmp(end, "-rc.", 4) != 0 && strncmp(end, "-RC.", 4) != 0) {
+    const std::string_view rem{end};
+    if (!rem.starts_with("-rc.") && !rem.starts_with("-RC.")) {
         return false;
     }
     p = end + 4;
@@ -67,13 +70,13 @@ inline auto otaVersionParse(const char *tag, OtaParsedVersion *out) -> bool {
     return true;
 }
 
-inline auto otaVersionIsRc(const char *tag) -> bool {
+[[nodiscard]] constexpr auto otaVersionIsRc(const char *tag) -> bool {
     OtaParsedVersion parsed{};
     return otaVersionParse(tag, &parsed) && parsed.isRc;
 }
 
 /** Strict release-tag format shared with CI: vYYYY.M.PATCH[-rc.N]. */
-inline auto otaReleaseTagIsAllowed(const char *tag) -> bool {
+[[nodiscard]] constexpr auto otaReleaseTagIsAllowed(const char *tag) -> bool {
     if (tag == nullptr || tag[0] != 'v') {
         return false;
     }
@@ -103,7 +106,7 @@ inline auto otaReleaseTagIsAllowed(const char *tag) -> bool {
     if (*p == '\0') {
         return true;
     }
-    if (strncmp(p, "-rc.", 4) != 0) {
+    if (!std::string_view{p}.starts_with("-rc.")) {
         return false;
     }
     p += 4;
@@ -118,12 +121,12 @@ inline auto otaReleaseTagIsAllowed(const char *tag) -> bool {
 }
 
 /** True if remote is a usable newer version than local (no downgrade). */
-inline auto otaVersionIsNewer(const char *remoteTag, const char *localVersion) -> bool {
+[[nodiscard]] constexpr auto otaVersionIsNewer(const char *remoteTag, const char *localVersion) -> bool {
     OtaParsedVersion remote{};
     if (!otaVersionParse(remoteTag, &remote)) {
         return false;
     }
-    if (localVersion != nullptr && strcmp(localVersion, "dev") == 0) {
+    if (localVersion != nullptr && std::string_view{localVersion} == "dev") {
         return true;
     }
     OtaParsedVersion local{};
