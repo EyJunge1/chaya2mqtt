@@ -1,7 +1,5 @@
 # chaya2mqtt — primary local commands (production = Rust / esp-hal)
 
-ENV ?= esp32s3
-PIO ?= $(HOME)/.platformio/penv/bin/pio
 FRONTEND_NPM_CI ?= npm ci
 FLASHER_NPM_CI ?= npm ci
 # Optional: make upload UPLOAD_PORT=/dev/cu.usbmodem101
@@ -12,7 +10,7 @@ RUST_ELF := rust/target/xtensa-esp32s3-none-elf/release/chaya-fw
 RUST_OUT := out/rust-release
 
 .PHONY: help check check-frontend check-flasher check-firmware check-firmware-tests check-firmware-build \
-	check-firmware-cpp upload upload-erase monitor monitor-cpp upload-cpp upload-erase-cpp \
+	upload upload-erase monitor \
 	dev clean flasher rust-build
 
 help:
@@ -23,7 +21,6 @@ help:
 	@echo "  make upload          # build + flash Rust release (keep NVS)"
 	@echo "  make upload-erase    # erase flash, then Rust release flash"
 	@echo "  make monitor         # serial monitor (espflash)"
-	@echo "  make upload-cpp      # legacy PlatformIO flash"
 	@echo "  make dev             # frontend Vite"
 	@echo "  make flasher         # local web-flasher site (needs RELEASES_DIR)"
 	@echo "  make clean           # remove build artifacts"
@@ -51,19 +48,6 @@ check-firmware-build:
 	bash scripts/build_rust_release.sh
 	python3 scripts/check_firmware_size.py
 
-# Legacy C++ gate (optional)
-check-firmware-cpp:
-	"$(PIO)" test -e native
-	"$(PIO)" test -e native-asan
-	"$(PIO)" pkg install -g -t tool-cppcheck
-	"$(PIO)" check -e esp32s3 --fail-on-defect=high -f "-<*>" -f "+<src/>"
-	bash scripts/check_clang_tidy.sh
-	bash scripts/check_firmware_format.sh
-	python3 scripts/test_check_firmware_size.py
-	CHAYA_SKIP_FRONTEND_BUILD=1 "$(PIO)" run -e esp32s3-release
-	python3 scripts/test_embed_web_assets.py
-	python3 scripts/prepare_release_artifacts.py --build-dir .pio/build/esp32s3-release
-
 rust-build:
 	bash scripts/build_rust_release.sh
 
@@ -86,21 +70,9 @@ upload-erase:
 monitor:
 	espflash monitor $(UPLOAD_PORT_FLAG)
 
-upload-cpp:
-	"$(PIO)" run -e $(ENV) -t upload $(if $(UPLOAD_PORT),--upload-port $(UPLOAD_PORT),)
-
-upload-erase-cpp:
-	"$(PIO)" run -e $(ENV) -t erase $(if $(UPLOAD_PORT),--upload-port $(UPLOAD_PORT),)
-	"$(PIO)" run -e $(ENV) -t upload $(if $(UPLOAD_PORT),--upload-port $(UPLOAD_PORT),)
-
-monitor-cpp:
-	"$(PIO)" run -e $(ENV) -t monitor $(if $(UPLOAD_PORT),--upload-port $(UPLOAD_PORT),)
-
 dev:
 	cd frontend && npm run dev
 
 clean:
-	"$(PIO)" run -e $(ENV) -t clean || true
 	$(RM) -r frontend/dist flasher/dist flasher/_site $(RUST_OUT)
 	$(RM) -r rust/target
-	$(RM) src/web/assets/web_ui.bin src/web/assets/web_ui_blob.S src/web/assets/web_ui_manifest.h

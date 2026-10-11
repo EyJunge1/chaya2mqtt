@@ -373,6 +373,7 @@ name = "chaya-fw"
 version = "0.1.0"
 dependencies = [
  "chaya-pure",
+ "critical-section",
  "edge-captive",
  "edge-dhcp",
  "edge-http",
@@ -414,6 +415,7 @@ dependencies = [
  "sha2 0.10.9",
  "sntpc",
  "static_cell",
+ "tinyrlibc",
 ]
 
 [[package]]
@@ -3587,6 +3589,15 @@ name = "time-core"
 version = "0.1.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9e1c906769ad99c88eaa54e728060edef082f8e358ff32030cb7c7d315e81109"
+
+[[package]]
+name = "tinyrlibc"
+version = "0.5.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9af8adde15cc59c61328c5d709b41b8464522a733033584d33def687b26bd009"
+dependencies = [
+ "cc",
+]
 
 [[package]]
 name = "toml"

@@ -2,19 +2,19 @@
 
 Host tests run firmware logic with fakes. The Svelte UI uses Vitest + Playwright against the device mock. No CI HIL.
 
+Primary firmware gate is Rust (`make check-firmware` → `cargo test` + release images). The legacy C++/PlatformIO tree has been removed.
+
 ```bash
 make check                 # full hardware-free gate
 make check-frontend
 make check-flasher
-make check-firmware
+make check-firmware        # cargo test (chaya-pure, chaya-fw) + rust-build + size check
 cd frontend && npm test
 cd frontend && npm run test:e2e
-pio test -e native
-pio test -e native-asan
 python3 scripts/simulator.py --smoke
 ```
 
-Playwright once: `cd frontend && npx playwright install chromium`. CI installs clang-format **23.1.x** (PyPI) and clang-tidy **22** (`scripts/ci_install_clang_tools.sh`); locally `make check-firmware-tests` skips them if missing.
+Playwright once: `cd frontend && npx playwright install chromium`.
 
 PRs run only the jobs matching changed paths. Docs-only PRs skip builds. `main` and release tags run the full gate.
 

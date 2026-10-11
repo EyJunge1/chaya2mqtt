@@ -22,10 +22,14 @@ impl OtaChannel {
     }
 
     pub fn parse(s: &str) -> Self {
-        if s == "beta" {
-            Self::Beta
-        } else {
-            Self::Stable
+        Self::try_parse(s).unwrap_or(Self::Stable)
+    }
+
+    pub fn try_parse(s: &str) -> Option<Self> {
+        match s {
+            "stable" => Some(Self::Stable),
+            "beta" => Some(Self::Beta),
+            _ => None,
         }
     }
 }

@@ -12,6 +12,7 @@ use crate::mqtt::MqttConfig;
 use crate::ota::{OtaChannel, OtaService};
 use crate::util::platform::KvStore;
 use crate::wifi::WlanConfig;
+use crate::led::LedPreset;
 use chaya_pure::audio::AudioKind;
 
 pub async fn handle(
@@ -28,15 +29,11 @@ pub async fn handle(
     use alloc::string::String;
 
     if (path == "/api/chaya/send" || path == "/api/send") && method == Method::Post && !s.ap_mode {
-        let next = {
-            let mut t = s.heart_tx.lock().await;
-            *t = t.saturating_add(1);
-            *t
-        };
-        s.heart_bump.signal(next);
+        // Request only — HEART_TX / HEART_DIRTY apply after MQTT PUBACK (C++ parity).
+        // LED TxPending now; TxAck/TxFail from MQTT session on PUBACK/timeout.
+        s.heart_bump.signal(1);
         s.audio_beep.signal(AudioKind::Tx);
-        s.heart_dirty.signal(());
-        s.epd_redraw.signal(());
+        s.led_preset.signal(LedPreset::TxPending);
         return Some((202, String::from(json::json_ok()), "application/json"));
     }
 

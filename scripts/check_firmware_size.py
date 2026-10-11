@@ -51,7 +51,7 @@ def size_tool_from_espressif(tools: Path) -> str | None:
 
 
 def find_size_tool() -> str | None:
-    """Find the Xtensa size tool on PATH, espup, or PlatformIO packages."""
+    """Find the Xtensa size tool on PATH, espup, or leftover toolchain packages."""
     for name in ("xtensa-esp-elf-size", "xtensa-esp32s3-elf-size"):
         found = which(name)
         if found:
@@ -99,7 +99,7 @@ def measure(root: Path) -> dict[str, Sizes]:
     """Read firmware.bin size and ELF RAM for each shipping env."""
     reports: dict[str, Sizes] = {}
     for name in TARGETS:
-        build = root / BUILD_DIRS.get(name, Path(".pio") / "build" / name)
+        build = root / BUILD_DIRS[name]
         firmware = build / "firmware.bin"
         if not firmware.is_file():
             message = f"missing {firmware}"

@@ -3,10 +3,10 @@
 use embassy_net::{IpEndpoint, Stack, dns::DnsQueryType, tcp::TcpSocket};
 use embassy_time::{Duration, Instant, Timer, with_timeout};
 use embedded_io_async::{Read, Write};
-use crate::tls::HostPinProvider;
+use crate::led::LedPreset;
 use chaya_pure::audio::AudioKind;
+use chaya_pure::heart::heart_sent_counter_next_pure;
 use chaya_pure::mqtt::{mqtt_own_topic_tx_should_apply, MQTT_PUBLISH_ACK_WAIT_MS};
-use embedded_tls::{TlsConfig, TlsConnection, TlsContext};
 use esp_println::println;
 use rand_core::{CryptoRng, Error as RandError, RngCore};
 
@@ -105,6 +105,10 @@ async fn mqtt_session_body<S: Read + Write>(
         embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex,
         (),
     >,
+    led_preset: &embassy_sync::signal::Signal<
+        embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex,
+        LedPreset,
+    >,
 ) -> bool {
     let pkt = build_connect(client_id, user, pass, lwt_topic);
     if stream.write_all(&pkt).await.is_err() {
@@ -157,6 +161,8 @@ async fn mqtt_session_body<S: Read + Write>(
     let mut pending_expected = 0i32;
     let mut pending_packet_id: Option<u16> = None;
     let mut puback_deadline: Option<Instant> = None;
+    /// User bump (button/API): LED TxAck/TxFail on PUBACK outcome. Seed republish: no LED.
+    let mut pending_led = false;
     let own_topic_bytes = own_topic.as_bytes();
     let sub_topic_bytes = sub_topic.as_bytes();
 
@@ -168,31 +174,54 @@ async fn mqtt_session_body<S: Read + Write>(
                         "MQTT: PUBACK timeout (wait_ms={})",
                         MQTT_PUBLISH_ACK_WAIT_MS
                     );
+                    if pending_led {
+                        led_preset.signal(LedPreset::TxFail);
+                    }
                     publish_in_flight = false;
                     pending_packet_id = None;
                     puback_deadline = None;
+                    pending_led = false;
                 }
             }
         }
 
         if !publish_in_flight {
-            if let Some(abs) = bump.try_take() {
+            if let Some(req) = bump.try_take() {
+                // req <= 0: republish current abs (connect seed). req > 0: request TX+1.
+                let user_bump = req > 0;
+                let cur = *tx_abs.lock().await;
+                let next = if !user_bump {
+                    cur
+                } else {
+                    let n = heart_sent_counter_next_pure(cur);
+                    if n == cur {
+                        println!("MQTT: bump skipped (tx at max)");
+                        led_preset.signal(LedPreset::TxFail);
+                        continue;
+                    }
+                    n
+                };
                 let mut payload = heapless::String::<16>::new();
-                itoa_into(&mut payload, abs);
+                itoa_into(&mut payload, next);
                 let pid = next_packet_id(&mut packet_id_seq);
                 let pub_pkt =
                     build_publish_qos1_retain(pub_topic, payload.as_str(), pid);
                 if stream.write_all(&pub_pkt).await.is_err() {
+                    if user_bump {
+                        led_preset.signal(LedPreset::TxFail);
+                    }
                     return true;
                 }
                 let _ = stream.flush().await;
                 publish_in_flight = true;
-                pending_expected = abs;
+                pending_expected = next;
                 pending_packet_id = Some(pid);
+                pending_led = user_bump;
                 puback_deadline = Some(
                     Instant::now()
                         + Duration::from_millis(MQTT_PUBLISH_ACK_WAIT_MS as u64),
                 );
+                println!("MQTT: publish heart={next} (pid={pid})");
             }
         }
 
@@ -214,6 +243,18 @@ async fn mqtt_session_body<S: Read + Write>(
                                 publish_in_flight = false;
                                 pending_packet_id = None;
                                 puback_deadline = None;
+                                // Apply TX only after PUBACK (C++ heartSentCounterApplyAfterSuccessfulPublish).
+                                {
+                                    let mut t = tx_abs.lock().await;
+                                    *t = pending_expected;
+                                }
+                                heart_dirty.signal(());
+                                crate::sse_dirty::sse_mark(chaya_pure::constants::SSE_CHAYA);
+                                if pending_led {
+                                    led_preset.signal(LedPreset::TxAck);
+                                }
+                                pending_led = false;
+                                println!("MQTT: PUBACK applied tx={pending_expected}");
                             }
                         }
                         ParsedMqtt::Publish {
@@ -240,6 +281,7 @@ async fn mqtt_session_body<S: Read + Write>(
                                         println!("MQTT: rx heart={v}");
                                         rx_beep.signal(AudioKind::Rx);
                                         heart_dirty.signal(());
+                                        crate::sse_dirty::sse_mark(chaya_pure::constants::SSE_CHAYA);
                                     }
                                 } else if !own_topic_bytes.is_empty()
                                     && topic == own_topic_bytes
@@ -254,6 +296,7 @@ async fn mqtt_session_body<S: Read + Write>(
                                         *local = v;
                                         println!("MQTT: own-topic heart={v}");
                                         heart_dirty.signal(());
+                                        crate::sse_dirty::sse_mark(chaya_pure::constants::SSE_CHAYA);
                                     }
                                 }
                             }
@@ -313,6 +356,10 @@ pub async fn session_loop(
         embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex,
         (),
     >,
+    led_preset: &'static embassy_sync::signal::Signal<
+        embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex,
+        LedPreset,
+    >,
     mut rng: EspRng,
 ) -> ! {
     let use_tls = port >= 8883;
@@ -323,6 +370,9 @@ pub async fn session_loop(
             let mut ok = mqtt_ok.lock().await;
             *ok = false;
         }
+        crate::sse_dirty::sse_mark(
+            chaya_pure::constants::SSE_CHAYA | chaya_pure::constants::SSE_MQTT,
+        );
         let Some(addr) = resolve(stack, host).await else {
             Timer::after(Duration::from_secs(5)).await;
             continue;
@@ -341,24 +391,20 @@ pub async fn session_loop(
         let up = if use_tls {
             let mut tls_rx = [0u8; 8192];
             let mut tls_tx = [0u8; 4096];
-            let config = TlsConfig::new()
-                .with_server_name(host)
-                .enable_rsa_signatures();
-            let mut tls = TlsConnection::new(socket, &mut tls_rx, &mut tls_tx);
-            let mut provider = HostPinProvider::new(&mut rng);
-            if tls
-                .open(TlsContext::new(&config, &mut provider))
-                .await
-                .is_err()
-            {
+            let Ok(mut tls) =
+                crate::tls::connect(socket, host, &mut rng, &mut tls_rx, &mut tls_tx).await
+            else {
                 println!("MQTT: TLS handshake failed");
                 Timer::after(Duration::from_secs(3)).await;
                 continue;
-            }
+            };
             {
                 let mut ok = mqtt_ok.lock().await;
                 *ok = true;
             }
+            crate::sse_dirty::sse_mark(
+                chaya_pure::constants::SSE_CHAYA | chaya_pure::constants::SSE_MQTT,
+            );
             mqtt_session_body(
                 &mut tls,
                 pub_topic,
@@ -374,6 +420,7 @@ pub async fn session_loop(
                 rx_beep,
                 heart_dirty,
                 mqtt_up,
+                led_preset,
             )
             .await
         } else {
@@ -381,6 +428,9 @@ pub async fn session_loop(
                 let mut ok = mqtt_ok.lock().await;
                 *ok = true;
             }
+            crate::sse_dirty::sse_mark(
+                chaya_pure::constants::SSE_CHAYA | chaya_pure::constants::SSE_MQTT,
+            );
             mqtt_session_body(
                 &mut socket,
                 pub_topic,
@@ -396,6 +446,7 @@ pub async fn session_loop(
                 rx_beep,
                 heart_dirty,
                 mqtt_up,
+                led_preset,
             )
             .await
         };

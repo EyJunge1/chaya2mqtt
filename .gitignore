@@ -1,4 +1,3 @@
-.pio
 .venv/
 __pycache__/
 .DS_Store
@@ -8,7 +7,6 @@ __pycache__/
 .env
 .env.local
 .env.*.local
-compile_commands.json
 node_modules/
 .cursor/*
 !.cursor/rules/
@@ -25,9 +23,6 @@ frontend/node_modules/.tmp/
 flasher/node_modules/
 flasher/dist/
 flasher/_site/
-src/web/assets/web_ui.bin
-src/web/assets/web_ui_blob.S
-src/web/assets/web_ui_manifest.h
 out/
 baseline/
 rust/target/

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Unit tests for check_firmware_size.py (no PlatformIO required)."""
+"""Unit tests for check_firmware_size.py."""
 
 from __future__ import annotations
 
@@ -59,7 +59,7 @@ class MarkdownTests(unittest.TestCase):
 
 
 class SizeToolTests(unittest.TestCase):
-    """Locate the GNU size binary in PlatformIO package layouts."""
+    """Locate the GNU size binary in toolchain package layouts."""
 
     def test_prefers_pioarduino_toolchain(self) -> None:
         """Use toolchain-xtensa-esp-elf when that is what the build installed."""

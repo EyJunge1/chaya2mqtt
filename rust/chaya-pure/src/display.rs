@@ -1,5 +1,7 @@
 //! From display `*_pure.h` and `view_state.h` helpers used by pure code.
 
+pub use crate::constants::DISPLAY_OFFLINE_GRACE_MS;
+
 pub const HEART_REDRAW_MIN_INTERVAL_MS: u32 = 20_000;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -209,6 +211,8 @@ mod tests {
             display_view_for_heart_icon(DisplayHeartIcon::Crack),
             DisplayView::HeartCrack
         );
+        // C++ default grace is 5 minutes.
+        assert_eq!(DISPLAY_OFFLINE_GRACE_MS, 300_000);
     }
 
     #[test]

@@ -57,6 +57,7 @@ async fn do_scan(wifi: &'static WifiMutex, scan: &'static Mutex<Cs, ScanCache>) 
         cache.status = ScanStatus::Pending;
         cache.aps.clear();
     }
+    crate::sse_dirty::sse_mark(chaya_pure::constants::SSE_WIFI);
     let cfg = ScanConfig::default().with_max(24);
     let result = {
         let mut ctrl = wifi.lock().await;
@@ -91,6 +92,7 @@ async fn do_scan(wifi: &'static WifiMutex, scan: &'static Mutex<Cs, ScanCache>) 
             cache.status = ScanStatus::Failed;
         }
     }
+    crate::sse_dirty::sse_mark(chaya_pure::constants::SSE_WIFI);
 }
 
 async fn do_connect_test(

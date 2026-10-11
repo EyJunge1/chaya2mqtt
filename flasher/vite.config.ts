@@ -6,7 +6,7 @@ import { svelte } from "@sveltejs/vite-plugin-svelte";
 import tailwindcss from "@tailwindcss/vite";
 
 const localFactoryImage = fileURLToPath(
-  new URL("../.pio/build/esp32s3-release/firmware.factory.bin", import.meta.url),
+  new URL("../out/rust-release/firmware.factory.bin", import.meta.url),
 );
 
 /**
@@ -67,7 +67,7 @@ function localFirmwarePlugin(): Plugin {
         if (pathname === "/dev/firmware.factory.bin") {
           if (!existsSync(localFactoryImage)) {
             response.statusCode = 404;
-            response.end("Run: pio run -e esp32s3-release");
+            response.end("Run: make rust-build  (or bash scripts/build_rust_release.sh)");
             return;
           }
           response.setHeader("Content-Type", "application/octet-stream");

@@ -86,6 +86,8 @@ pub async fn run_sta(
     println!("STA: waiting for DHCP…");
     stack.wait_config_up().await;
     fw.flags.wifi_ok = true;
+    *crate::async_rt::state::WIFI_OK.lock().await = true;
+    crate::async_rt::state::sse_mark(chaya_pure::constants::SSE_WIFI);
     println!("STA: IP up");
     crate::async_rt::state::LED_PRESET.signal(LedPreset::WifiUp);
     spawner.spawn(crate::async_rt::ntp::ntp_task(stack).unwrap());
@@ -107,8 +109,8 @@ pub async fn run_sta(
         let lwt_topic =
             crate::boot::util::leak(mqtt_cfg.lwt_topic(report.device_id.as_str()).as_str());
         let port = mqtt_cfg.port;
-        // seed outbound with current absolute
-        crate::async_rt::state::HEART_BUMP.signal(fw.heart.tx);
+        // Republish current abs (req<=0): no TX increment; session publishes *HEART_TX.
+        crate::async_rt::state::HEART_BUMP.signal(0);
         let mqtt_rng = EspRng(Rng::new());
         spawner
             .spawn(
@@ -143,6 +145,6 @@ pub async fn run_sta(
     let _ = DEVICE_HOSTNAME;
     spawner.spawn(crate::async_rt::net::mdns_task(stack, hostname).unwrap());
 
-    crate::boot::http_start::start_http(stack, kv, report, false, None).await
+    crate::boot::http_start::start_http(stack, kv, report, false, None, hostname).await
 }
 

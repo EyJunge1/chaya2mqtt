@@ -6,6 +6,7 @@ use embassy_sync::mutex::Mutex;
 use embassy_sync::signal::Signal;
 
 use crate::audio::AudioConfig;
+use crate::led::LedPreset;
 use crate::ota::client::OtaStatus;
 use crate::config::flash_kv::FlashKv;
 use crate::wifi::scan::ScanCache;
@@ -19,6 +20,8 @@ pub type KvMutex = Mutex<Cs, FlashKv>;
 pub struct HttpShared {
     pub kv: &'static KvMutex,
     pub device_id: &'static str,
+    /// SoftAP: `chaya2mqtt`; STA: `chaya2mqtt-<id>` (SEC-04 Host allowlist / mDNS).
+    pub device_hostname: &'static str,
     pub ap_mode: bool,
     pub ap_psk: Option<&'static str>,
     pub heart_tx: &'static Mutex<Cs, i32>,
@@ -27,6 +30,8 @@ pub struct HttpShared {
     pub bat_pct: &'static Mutex<Cs, i32>,
     pub bat_mv: &'static Mutex<Cs, i32>,
     pub audio_cfg: &'static Mutex<Cs, AudioConfig>,
+    pub led_enabled: &'static Mutex<Cs, bool>,
+    pub led_preset: &'static Signal<Cs, LedPreset>,
     pub ota_status: &'static Mutex<Cs, OtaStatus>,
     pub wifi_scan: &'static Mutex<Cs, ScanCache>,
     pub wifi_pending: &'static Mutex<Cs, WlanConfig>,

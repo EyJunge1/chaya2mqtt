@@ -70,26 +70,8 @@ jobs:
                 scripts/test_check_firmware_size.py)
                   firmware_tests=true
                   ;;
-                src/*|sim/*|test/*|platformio.ini|sdkconfig.defaults)
-                  # Legacy C++ tree — still exercise Rust production gate when touched
-                  firmware_tests=true
-                  firmware_build=true
-                  ;;
-                .clang-tidy|.clang-format|.clangd)
-                  firmware_tests=true
-                  ;;
-                scripts/embed_web_assets.py|scripts/test_embed_web_assets.py|scripts/pio_pre_frontend.py)
-                  firmware_build=true
-                  ;;
                 scripts/fetch_flasher_releases.py|scripts/generate_flasher_site.py|scripts/test_flasher_site.py)
                   flasher=true
-                  ;;
-                scripts/pio_native_asan.py)
-                  firmware_tests=true
-                  firmware_build=true
-                  ;;
-                scripts/check_clang_tidy.sh|scripts/check_firmware_format.sh|scripts/format.sh)
-                  firmware_tests=true
                   ;;
                 *)
                   echo "Central or unknown path; enabling the complete gate: $path"

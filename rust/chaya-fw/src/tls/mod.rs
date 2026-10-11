@@ -1,106 +1,15 @@
-//! Lightweight TLS verifier: require leaf cert + hostname in DER (no full CA chain).
-//! Full webpki + CA bundle needs NTP time; this is the best no_std step without that.
+//! TLS client backends for MQTT and OTA HTTPS.
+//!
+//! - Default (`device`): `embedded-tls` + host-presence pin (no CA chain).
+//! - Optional (`device,mbedtls`): `mbedtls-rs` with curated CA bundle verification.
 
-use core::marker::PhantomData;
-use embedded_tls::{
-    Aes128GcmSha256, CertificateEntryRef, CertificateRef, CertificateVerifyRef, CryptoProvider,
-    TlsCipherSuite, TlsError, TlsVerifier,
-};
-use rand_core::CryptoRngCore;
+#[cfg(not(feature = "mbedtls"))]
+mod host_pin;
+#[cfg(feature = "mbedtls")]
+mod mbedtls_ca;
 
-/// Verifier that rejects empty chains and requires the SNI hostname bytes in the leaf DER.
-pub struct HostPresenceVerifier<CipherSuite: TlsCipherSuite> {
-    host: Option<heapless::String<64>>,
-    saw_cert: bool,
-    _cs: PhantomData<CipherSuite>,
-}
+#[cfg(not(feature = "mbedtls"))]
+pub use host_pin::{connect, backend_name, HostPinProvider, HostPresenceVerifier, TlsStream};
 
-impl<CipherSuite: TlsCipherSuite> HostPresenceVerifier<CipherSuite> {
-    pub const fn new() -> Self {
-        Self {
-            host: None,
-            saw_cert: false,
-            _cs: PhantomData,
-        }
-    }
-}
-
-impl<CipherSuite: TlsCipherSuite> Default for HostPresenceVerifier<CipherSuite> {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl<CipherSuite: TlsCipherSuite> TlsVerifier<CipherSuite> for HostPresenceVerifier<CipherSuite> {
-    fn set_hostname_verification(&mut self, hostname: &str) -> Result<(), TlsError> {
-        self.host = Some(
-            heapless::String::try_from(hostname).map_err(|_| TlsError::InsufficientSpace)?,
-        );
-        Ok(())
-    }
-
-    fn verify_certificate(
-        &mut self,
-        _transcript: &CipherSuite::Hash,
-        cert: CertificateRef,
-    ) -> Result<(), TlsError> {
-        if cert.entries.is_empty() {
-            return Err(TlsError::InvalidCertificate);
-        }
-        let Some(host) = self.host.as_deref() else {
-            return Err(TlsError::InvalidCertificate);
-        };
-        let host_bytes = host.as_bytes();
-        let mut found = false;
-        for entry in cert.entries.iter() {
-            if let CertificateEntryRef::X509(der) = entry {
-                if der.windows(host_bytes.len()).any(|w| w == host_bytes) {
-                    found = true;
-                    break;
-                }
-            }
-        }
-        if !found {
-            return Err(TlsError::InvalidCertificate);
-        }
-        self.saw_cert = true;
-        Ok(())
-    }
-
-    fn verify_signature(&mut self, _verify: CertificateVerifyRef) -> Result<(), TlsError> {
-        // Full signature crypto needs webpki + CA; hostname presence already gated above.
-        if self.saw_cert {
-            Ok(())
-        } else {
-            Err(TlsError::InvalidSignature)
-        }
-    }
-}
-
-/// Crypto provider used for MQTT / GitHub TLS (hostname presence check).
-pub struct HostPinProvider<RNG> {
-    rng: RNG,
-    verifier: HostPresenceVerifier<Aes128GcmSha256>,
-}
-
-impl<RNG: CryptoRngCore> HostPinProvider<RNG> {
-    pub fn new(rng: RNG) -> Self {
-        Self {
-            rng,
-            verifier: HostPresenceVerifier::new(),
-        }
-    }
-}
-
-impl<RNG: CryptoRngCore> CryptoProvider for HostPinProvider<RNG> {
-    type CipherSuite = Aes128GcmSha256;
-    type Signature = &'static [u8];
-
-    fn rng(&mut self) -> impl CryptoRngCore {
-        &mut self.rng
-    }
-
-    fn verifier(&mut self) -> Result<&mut impl TlsVerifier<Self::CipherSuite>, TlsError> {
-        Ok(&mut self.verifier)
-    }
-}
+#[cfg(feature = "mbedtls")]
+pub use mbedtls_ca::{connect, backend_name, TlsStream};

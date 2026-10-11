@@ -3,7 +3,7 @@
 use core::net::Ipv4Addr;
 use core::str::FromStr;
 
-use chaya_fw::config::SETUP_AP_IP;
+use chaya_fw::config::{DEVICE_HOSTNAME, SETUP_AP_IP};
 use chaya_fw::wifi::ops::WifiMutex;
 use chaya_fw::wifi::WlanService;
 use chaya_fw::BootReport;
@@ -86,6 +86,7 @@ pub async fn run_softap(
     stack.wait_config_up().await;
     println!("HTTP+captive DNS http://{SETUP_AP_IP}/");
 
-    crate::boot::http_start::start_http(stack, kv, report, true, Some(ap_psk)).await
+    crate::boot::http_start::start_http(stack, kv, report, true, Some(ap_psk), DEVICE_HOSTNAME)
+        .await
 }
 

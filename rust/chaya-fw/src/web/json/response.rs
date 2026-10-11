@@ -51,6 +51,17 @@ pub fn response_json(code: u16, body: &str) -> String {
     response(line, "application/json", body)
 }
 
+/// SSE `device` payload (C++ `fillDeviceBatteryJson`) — battery only.
+pub fn device_battery_json(bat_mv: i32, bat_pct: i32) -> String {
+    let mut s = String::new();
+    s.push_str("{\"batteryMv\":");
+    push_i32(&mut s, bat_mv);
+    s.push_str(",\"batteryPct\":");
+    push_i32(&mut s, bat_pct.max(0).min(100));
+    s.push('}');
+    s
+}
+
 pub fn device_json(
     device_id: &str,
     ap_mode: bool,

@@ -1,11 +1,14 @@
 //! GitHub Releases OTA: tag check + SHA-512 verified flash via esp-hal-ota.
 
 use crate::config::flash_shared::{FlashCell, FlashProxy};
-use crate::tls::HostPinProvider;
+use crate::config::APP_VERSION;
+use chaya_pure::ota::{
+    ota_release_download_redirect_url_allowed, ota_release_download_url_allowed, ota_release_tag_is_allowed,
+    ota_select_best_release_tag, ota_version_is_newer, ota_version_is_rc, OtaDownloadAsset,
+};
 use embassy_net::{IpEndpoint, Stack, dns::DnsQueryType, tcp::TcpSocket};
 use embassy_time::{Duration, Timer};
 use embedded_io_async::Write;
-use embedded_tls::{TlsConfig, TlsConnection, TlsContext};
 use esp_hal_ota::Ota;
 use esp_println::println;
 use rand_core::{CryptoRng, Error as RandError, RngCore};
@@ -177,18 +180,9 @@ async fn tls_get(
 
     let mut tls_rx = [0u8; 16384];
     let mut tls_tx = [0u8; 4096];
-    let config = TlsConfig::new()
-        .with_server_name(host)
-        .enable_rsa_signatures();
-    let mut provider = HostPinProvider::new(rng);
-    let mut tls = TlsConnection::new(socket, &mut tls_rx, &mut tls_tx);
-    if tls
-        .open(TlsContext::new(&config, &mut provider))
-        .await
-        .is_err()
-    {
+    let Ok(mut tls) = crate::tls::connect(socket, host, rng, &mut tls_rx, &mut tls_tx).await else {
         return Err(());
-    }
+    };
 
     let mut req = heapless::String::<384>::new();
     let _ = req.push_str("GET ");
@@ -228,17 +222,20 @@ async fn tls_get(
 }
 
 /// HTTPS GET latest release tag (`stable` → `/releases/latest`, `beta` → list).
+///
+/// Sets `flash_ready` only when the remote tag is allowed and newer than `APP_VERSION`.
 pub async fn check_latest(
     stack: Stack<'static>,
     rng: &mut EspRng,
     status: &mut OtaStatus,
 ) -> bool {
     status.checking = true;
+    status.flash_ready = false;
     status.last_error.clear();
     let mut buf = [0u8; 8192];
     let beta = status.channel.as_str() == "beta";
     let path = if beta {
-        "/repos/EyJunge1/chaya2mqtt/releases?per_page=5"
+        "/repos/EyJunge1/chaya2mqtt/releases?per_page=20"
     } else {
         "/repos/EyJunge1/chaya2mqtt/releases/latest"
     };
@@ -263,19 +260,49 @@ pub async fn check_latest(
         return false;
     }
     let body = core::str::from_utf8(&buf[header_end..total]).unwrap_or("");
-    if extract_tag(body, &mut status.last_tag) {
-        println!(
-            "OTA: {} → {}",
-            if beta { "beta" } else { "stable" },
-            status.last_tag.as_str()
-        );
+
+    status.last_tag.clear();
+    let tag_ok = if beta {
+        if let Some(tag) = ota_select_best_release_tag(body, true) {
+            let _ = status.last_tag.push_str(tag);
+            true
+        } else {
+            false
+        }
+    } else {
+        extract_tag(body, &mut status.last_tag)
+    };
+
+    if !tag_ok {
+        let _ = status.last_error.push_str("parse");
+        status.checking = false;
+        return false;
+    }
+    let tag = status.last_tag.as_str();
+    if !ota_release_tag_is_allowed(tag) || (!beta && ota_version_is_rc(tag)) {
+        status.last_tag.clear();
+        let _ = status.last_error.push_str("tag");
+        status.checking = false;
+        return false;
+    }
+
+    println!(
+        "OTA: {} → {} (local={})",
+        if beta { "beta" } else { "stable" },
+        tag,
+        APP_VERSION
+    );
+
+    if ota_version_is_newer(tag, APP_VERSION) {
         status.flash_ready = true;
         status.checking = false;
         true
     } else {
-        let _ = status.last_error.push_str("parse");
+        // Successful check, but no upgrade available (parity with ParsedNoUpgrade).
+        status.last_tag.clear();
+        status.flash_ready = false;
         status.checking = false;
-        false
+        true
     }
 }
 
@@ -287,6 +314,26 @@ async fn download_asset(
     body_buf: &mut [u8],
 ) -> Result<(usize, Option<u32>), ()> {
     // returns (body_len in body_buf, content_length if known) — for small assets (sha512)
+    let kind = if asset == "firmware.bin" {
+        OtaDownloadAsset::Firmware
+    } else if asset == "firmware.sha512" {
+        OtaDownloadAsset::Sha512
+    } else {
+        return Err(());
+    };
+    let mut full = heapless::String::<192>::new();
+    let _ = full.push_str("https://");
+    let _ = full.push_str(DL_HOST);
+    let _ = full.push_str("/");
+    let _ = full.push_str(REPO);
+    let _ = full.push_str("/releases/download/");
+    let _ = full.push_str(tag);
+    let _ = full.push('/');
+    let _ = full.push_str(asset);
+    if !ota_release_download_url_allowed(full.as_str(), kind) {
+        return Err(());
+    }
+
     let mut path = heapless::String::<160>::new();
     let _ = path.push_str("/");
     let _ = path.push_str(REPO);
@@ -319,6 +366,9 @@ async fn download_asset(
             let Some(loc) = parse_location(headers) else {
                 return Err(());
             };
+            if !ota_release_download_redirect_url_allowed(loc) {
+                return Err(());
+            }
             let Some((h, p)) = split_url(loc) else {
                 return Err(());
             };
@@ -351,12 +401,17 @@ pub async fn install_latest(
 ) -> bool {
     status.installing = true;
     status.last_error.clear();
-    if status.last_tag.is_empty() {
-        let _ = status.last_error.push_str("no-tag");
+    if !status.flash_ready || status.last_tag.is_empty() {
+        let _ = status.last_error.push_str("not-ready");
         status.installing = false;
         return false;
     }
     let tag = status.last_tag.clone();
+    if !ota_release_tag_is_allowed(tag.as_str()) {
+        let _ = status.last_error.push_str("tag");
+        status.installing = false;
+        return false;
+    }
 
     // 1) SHA-512 file
     let mut sha_buf = [0u8; 256];
@@ -375,6 +430,20 @@ pub async fn install_latest(
     }
 
     // 2) Resolve firmware.bin URL (follow redirects) then stream
+    let mut bin_url = heapless::String::<192>::new();
+    let _ = bin_url.push_str("https://");
+    let _ = bin_url.push_str(DL_HOST);
+    let _ = bin_url.push_str("/");
+    let _ = bin_url.push_str(REPO);
+    let _ = bin_url.push_str("/releases/download/");
+    let _ = bin_url.push_str(tag.as_str());
+    let _ = bin_url.push_str("/firmware.bin");
+    if !ota_release_download_url_allowed(bin_url.as_str(), OtaDownloadAsset::Firmware) {
+        let _ = status.last_error.push_str("url");
+        status.installing = false;
+        return false;
+    }
+
     let mut path = heapless::String::<160>::new();
     let _ = path.push_str("/");
     let _ = path.push_str(REPO);
@@ -411,6 +480,11 @@ pub async fn install_latest(
                 status.installing = false;
                 return false;
             };
+            if !ota_release_download_redirect_url_allowed(loc) {
+                let _ = status.last_error.push_str("redir-deny");
+                status.installing = false;
+                return false;
+            }
             let Some((h, p)) = split_url(loc) else {
                 let _ = status.last_error.push_str("redir-url");
                 status.installing = false;

@@ -1,6 +1,100 @@
-//! From `src/web/*_pure.h`.
+//! From `src/web/*_pure.h` and `src/web/host_validate.h`.
 
 use crate::constants::{IPV4_STR_MAX_LEN, SSE_ALL, SSE_DEVICE, SSE_WIFI, WIFI_SSID_MAX_LEN};
+
+/// Case-insensitive full-string host equality (C++ `hostEqualsIgnoreCase`).
+pub fn host_equals_ignore_case(host: &str, reference: &str) -> bool {
+    host.eq_ignore_ascii_case(reference)
+}
+
+/// True when `host` equals `prefix` (case-insensitive) or `prefix` followed by `:port`
+/// (C++ `hostPrefixIgnoreCaseThenPortOrEnd`).
+pub fn host_prefix_ignore_case_then_port_or_end(host: &str, prefix: &str) -> bool {
+    let hb = host.as_bytes();
+    let pb = prefix.as_bytes();
+    if hb.len() < pb.len() {
+        return false;
+    }
+    if !hb[..pb.len()].eq_ignore_ascii_case(pb) {
+        return false;
+    }
+    hb.len() == pb.len() || hb[pb.len()] == b':'
+}
+
+/// `{hostname}.local` or `{hostname}.local:port` without allocating
+/// (C++ `formatToBuf("{}.local")` + `hostPrefixIgnoreCaseThenPortOrEnd`).
+fn host_prefix_hostname_local_then_port_or_end(host: &str, hostname: &str) -> bool {
+    const LOCAL: &[u8] = b".local";
+    let need = hostname.len() + LOCAL.len();
+    let hb = host.as_bytes();
+    if hb.len() < need {
+        return false;
+    }
+    if !hb[..hostname.len()].eq_ignore_ascii_case(hostname.as_bytes()) {
+        return false;
+    }
+    if !hb[hostname.len()..need].eq_ignore_ascii_case(LOCAL) {
+        return false;
+    }
+    hb.len() == need || hb[need] == b':'
+}
+
+/// Host allow-list (C++ `webHostCStringAllowed`).
+///
+/// - `host`: request Host (may include `:port`); empty = missing (HTTP/1.0)
+/// - `ap_mode`: SoftAP captive portal allowlist
+/// - `device_hostname`: STA hostname without `.local`; empty rejects in STA
+/// - `sta_ip`: optional STA IPv4 string; `None`/empty skips IP match
+pub fn web_host_allowed(
+    host: &str,
+    ap_mode: bool,
+    device_hostname: &str,
+    sta_ip: Option<&str>,
+) -> bool {
+    if host.is_empty() {
+        // HTTP/1.1 requires Host. Keep hostless HTTP/1.0 captive probes working only in AP mode.
+        return ap_mode;
+    }
+    if ap_mode {
+        // SEC-04: SoftAP allowlist only — setup IP / captive hostname (not arbitrary Host).
+        if host_equals_ignore_case(host, "4.3.2.1") {
+            return true;
+        }
+        if host_prefix_ignore_case_then_port_or_end(host, "4.3.2.1") {
+            return true;
+        }
+        if host_prefix_ignore_case_then_port_or_end(host, "chaya2mqtt") {
+            return true;
+        }
+        if host_prefix_ignore_case_then_port_or_end(host, "chaya2mqtt.local") {
+            return true;
+        }
+        return false;
+    }
+    if device_hostname.is_empty() {
+        return false;
+    }
+    if host_prefix_ignore_case_then_port_or_end(host, device_hostname) {
+        return true;
+    }
+    if host_prefix_hostname_local_then_port_or_end(host, device_hostname) {
+        return true;
+    }
+    if let Some(ip) = sta_ip {
+        if !ip.is_empty() {
+            if host_equals_ignore_case(host, ip) {
+                return true;
+            }
+            let hb = host.as_bytes();
+            let ib = ip.as_bytes();
+            // C++ uses case-sensitive `starts_with` for the `:port` IP form.
+            if hb.len() > ib.len() && hb[..ib.len()] == *ib && hb[ib.len()] == b':' {
+                return true;
+            }
+        }
+    }
+    false
+}
 
 pub fn web_admin_restart_blocked(
     ota_busy: bool,
@@ -139,6 +233,47 @@ pub fn wifi_sta_net_resolve_snapshot(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn host_validate() {
+        // Mirror `test/test_web/test_web.cpp` `test_host_validate`.
+        const HOSTNAME: &str = "chaya2mqtt-a1b2c3";
+        const DEVICE_HOSTNAME: &str = "chaya2mqtt";
+
+        assert!(!web_host_allowed("", false, HOSTNAME, None));
+        assert!(web_host_allowed("", true, DEVICE_HOSTNAME, None));
+        assert!(web_host_allowed("chaya2mqtt-a1b2c3", false, HOSTNAME, None));
+        assert!(web_host_allowed("chaya2mqtt-a1b2c3:80", false, HOSTNAME, None));
+        assert!(web_host_allowed("Chaya2MQTT-a1b2c3.local", false, HOSTNAME, None));
+        assert!(web_host_allowed("chaya2mqtt-a1b2c3.local:80", false, HOSTNAME, None));
+        assert!(web_host_allowed("4.3.2.1", true, DEVICE_HOSTNAME, None));
+        assert!(web_host_allowed("chaya2mqtt", true, DEVICE_HOSTNAME, None));
+        assert!(web_host_allowed("chaya2mqtt:80", true, DEVICE_HOSTNAME, None));
+        assert!(web_host_allowed("chaya2mqtt.local", true, DEVICE_HOSTNAME, None));
+        assert!(!web_host_allowed("captive.apple.com", true, DEVICE_HOSTNAME, None));
+        assert!(!web_host_allowed("evil.example", true, DEVICE_HOSTNAME, None));
+        assert!(!web_host_allowed("chaya2mqtt.local", false, HOSTNAME, None));
+        assert!(!web_host_allowed("evil.example", false, HOSTNAME, None));
+        assert!(web_host_allowed(
+            "192.168.1.2",
+            false,
+            HOSTNAME,
+            Some("192.168.1.2")
+        ));
+        assert!(web_host_allowed(
+            "192.168.1.2:8080",
+            false,
+            HOSTNAME,
+            Some("192.168.1.2")
+        ));
+        assert!(!web_host_allowed(
+            "192.168.1.3",
+            false,
+            HOSTNAME,
+            Some("192.168.1.2")
+        ));
+        assert!(!web_host_allowed("chaya2mqtt-a1b2c3", false, "", None));
+    }
 
     #[test]
     fn sse_keepalive() {

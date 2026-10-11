@@ -1,4 +1,4 @@
-//! Boot orchestration — mirrors `src/main.cpp` `setup()` order.
+//! Boot orchestration — device `setup()` order.
 
 use crate::audio::AudioService;
 use crate::battery::BatteryService;

@@ -2,7 +2,7 @@
 
 Chaya2MQTT is firmware for two [Waveshare ESP32-S3-ePaper-1.54G](https://docs.waveshare.com/ESP32-S3-ePaper-1.54G) boards (SKU **34586**). Press BOOT on one; a red heart appears on the other via MQTT.
 
-Product page: [README.md](../README.md). Board: [Waveshare 1.54G](https://docs.waveshare.com/ESP32-S3-ePaper-1.54G) (pins in `src/hw/pins_esp32_waveshare.h`). Tests: [TESTING.md](TESTING.md). Admin: [WEB_ADMIN.md](WEB_ADMIN.md).
+Product page: [README.md](../README.md). Board: [Waveshare 1.54G](https://docs.waveshare.com/ESP32-S3-ePaper-1.54G) (pins in `rust/chaya-fw/src/hw/mod.rs`). Tests: [TESTING.md](TESTING.md). Admin: [WEB_ADMIN.md](WEB_ADMIN.md).
 
 ## Build
 
@@ -17,7 +17,7 @@ bash scripts/build_rust_release.sh   # → out/rust-release/{firmware,firmware.f
 
 Or flash in Chrome/Edge: [web flasher](https://eyjunge1.github.io/chaya2mqtt/). Erase is on by default. Local flasher: [flasher/README.md](../flasher/README.md).
 
-Legacy C++/PlatformIO: `make upload-cpp` (needs [PlatformIO](https://platformio.org/); `~/.platformio/penv/bin/pio` if `pio` is missing).
+The legacy C++/PlatformIO tree has been removed; firmware is Rust-only.
 
 8 MB flash, dual OTA (`partitions_chaya_8mb.csv`).
 ## First setup
@@ -60,7 +60,7 @@ Device ID is 6 hex in `cfg/device_id`. Wipe/erase → new ID and new topics.
 
 ## OTA
 
-GitHub Releases, HTTPS + SHA-512 sidecar, Arduino `HTTPUpdate` into the next OTA slot. USB/first install uses `firmware.factory.bin` (bootloader + partitions + app). OTA uses **`firmware.bin` only**.
+GitHub Releases, HTTPS + SHA-512 sidecar (`firmware.sha512`), verified flash via `esp-hal-ota` into the next OTA slot. USB/first install uses `firmware.factory.bin` (bootloader + partitions + app). OTA uses **`firmware.bin` only**.
 
 Daily check in STA (`stable` / `beta`). Install is manual. After OTA, image stays pending until ~30 s stable STA. Brick: web flasher or `make upload-erase`.
 
@@ -68,7 +68,6 @@ Daily check in STA (`stable` / `beta`). Install is manual. After OTA, image stay
 
 ```
 rust/         production firmware (esp-hal) — [RUST_ESP_HAL.md](RUST_ESP_HAL.md)
-src/          legacy C++ firmware (PlatformIO)
 frontend/     Svelte admin SPA — [frontend/README.md](../frontend/README.md)
 flasher/      browser installer — [flasher/README.md](../flasher/README.md)
 docs/         this folder; REST [api/openapi.yaml](api/openapi.yaml), SSE [api/asyncapi.yaml](api/asyncapi.yaml)

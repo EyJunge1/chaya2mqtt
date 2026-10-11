@@ -44,6 +44,8 @@ pub async fn connection_sta(wifi: &'static WifiMutex) {
         match result {
             Ok(info) => {
                 println!("STA: connected ssid={}", info.ssid.as_str());
+                *WIFI_OK.lock().await = true;
+                sse_mark(chaya_pure::constants::SSE_WIFI);
                 recovery.link_down_since_ms = 0;
                 if let Ok(rssi) = {
                     let ctrl = wifi.lock().await;
@@ -55,6 +57,8 @@ pub async fn connection_sta(wifi: &'static WifiMutex) {
                     let controller = wifi.lock().await;
                     let _ = controller.wait_for_disconnect_async().await;
                 }
+                *WIFI_OK.lock().await = false;
+                sse_mark(chaya_pure::constants::SSE_WIFI);
                 println!("STA: disconnected");
             }
             Err(e) => {

@@ -144,7 +144,18 @@ impl MqttService {
 }
 
 pub fn transport_backend_status() -> &'static str {
-    "device: MQTT 3.1.1 TCP + TLS1.3 when port>=8883 (host DER pin)"
+    #[cfg(all(feature = "device", feature = "mbedtls"))]
+    {
+        "device: MQTT 3.1.1 TCP + TLS (mbedtls-rs CA) when port>=8883"
+    }
+    #[cfg(all(feature = "device", not(feature = "mbedtls")))]
+    {
+        "device: MQTT 3.1.1 TCP + TLS1.3 when port>=8883 (host DER pin)"
+    }
+    #[cfg(not(feature = "device"))]
+    {
+        "host: MQTT config/proto only (no TLS transport)"
+    }
 }
 
 /// Packet builders/parsers are host-testable (no device HAL).

@@ -37,6 +37,7 @@ pub async fn mqtt_session_task(
         &AUDIO_BEEP,
         &HEART_DIRTY,
         &MQTT_UP,
+        &LED_PRESET,
         rng,
     )
     .await

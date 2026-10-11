@@ -21,6 +21,8 @@ pub mod mqtt;
 pub mod network;
 pub mod ota;
 #[cfg(feature = "device")]
+pub mod sse_dirty;
+#[cfg(feature = "device")]
 pub mod tls;
 pub mod util;
 pub mod web;

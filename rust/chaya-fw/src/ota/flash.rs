@@ -1,12 +1,10 @@
 //! OTA binary stream + SHA-512 verified flash.
 
-use crate::tls::HostPinProvider;
 use super::{EspRng, OtaStatus};
 use crate::config::flash_shared::{FlashCell, FlashProxy};
 use embassy_net::{IpEndpoint, Stack, dns::DnsQueryType, tcp::TcpSocket};
 use embassy_time::{Duration, Timer};
 use embedded_io_async::Write;
-use embedded_tls::{TlsConfig, TlsConnection, TlsContext};
 use esp_hal_ota::Ota;
 use esp_println::println;
 use sha2::{Digest, Sha512};
@@ -81,19 +79,10 @@ pub async fn stream_flash_bin(
 
     let mut tls_rx = [0u8; 16384];
     let mut tls_tx = [0u8; 2048];
-    let config = TlsConfig::new()
-        .with_server_name(host)
-        .enable_rsa_signatures();
-    let mut provider = HostPinProvider::new(rng);
-    let mut tls = TlsConnection::new(socket, &mut tls_rx, &mut tls_tx);
-    if tls
-        .open(TlsContext::new(&config, &mut provider))
-        .await
-        .is_err()
-    {
+    let Ok(mut tls) = crate::tls::connect(socket, host, rng, &mut tls_rx, &mut tls_tx).await else {
         let _ = status.last_error.push_str("tls");
         return false;
-    }
+    };
 
     let mut req = heapless::String::<320>::new();
     let _ = req.push_str("GET ");

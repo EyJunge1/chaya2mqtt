@@ -20,9 +20,13 @@ pub async fn ota_task(stack: Stack<'static>, mut rng: OtaRng, flash: &'static Fl
                     let mut st = OTA_STATUS.lock().await;
                     st.checking = true;
                 }
+                sse_mark(chaya_pure::constants::SSE_OTA);
                 let _ = ota_client::check_latest(stack, &mut rng, &mut local).await;
-                let mut st = OTA_STATUS.lock().await;
-                *st = local;
+                {
+                    let mut st = OTA_STATUS.lock().await;
+                    *st = local;
+                }
+                sse_mark(chaya_pure::constants::SSE_OTA);
             }
             embassy_futures::select::Either::Second(()) => {
                 let mut local = {
@@ -33,11 +37,13 @@ pub async fn ota_task(stack: Stack<'static>, mut rng: OtaRng, flash: &'static Fl
                     let mut st = OTA_STATUS.lock().await;
                     st.installing = true;
                 }
+                sse_mark(chaya_pure::constants::SSE_OTA);
                 let ok = ota_client::install_latest(stack, &mut rng, flash, &mut local).await;
                 {
                     let mut st = OTA_STATUS.lock().await;
                     *st = local;
                 }
+                sse_mark(chaya_pure::constants::SSE_OTA);
                 if ok {
                     println!("OTA: rebooting into new image");
                     REBOOT.signal(());

@@ -1,10 +1,5 @@
 version: 2
 
-# PlatformIO (platformio.ini / lib_deps) is not yet supported by Dependabot.
-# See: https://github.com/dependabot/dependabot-core/issues/13206
-# PlatformIO libraries, platform/framework pins, and the pip PlatformIO CLI pin
-# are updated by Renovate (renovate.json), grouped by update type.
-
 updates:
   - package-ecosystem: github-actions
     directory: /

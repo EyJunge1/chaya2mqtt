@@ -2,7 +2,7 @@
 
 | Crate | Role |
 |-------|------|
-| [`chaya-pure`](chaya-pure/) | Pure logic from C++ `*_pure.h` |
+| [`chaya-pure`](chaya-pure/) | Host-testable pure logic |
 | [`chaya-fw`](chaya-fw/) | Device firmware binary |
 
 ```bash

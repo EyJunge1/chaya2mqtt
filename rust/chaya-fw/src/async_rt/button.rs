@@ -50,28 +50,33 @@ pub async fn button_led_task(
     let mut led_gpio = LedGpio { led };
     let mut button = chaya_fw::button::ButtonService::default();
     let mut led_svc = chaya_fw::led::LedService::default();
-    led_svc.startup_blink();
+    let led_on = *LED_ENABLED.lock().await;
+    if led_on {
+        led_svc.startup_blink();
+    } else {
+        led_svc.force_off(&mut led_gpio);
+    }
     let clock = MonoClock;
 
     loop {
+        let led_on = *LED_ENABLED.lock().await;
+        if !led_on && led_svc.active {
+            led_svc.force_off(&mut led_gpio);
+        }
         let _ = led_svc.tick_phase_done(&mut led_gpio);
         if button.poll_boot_press(&mut btns, &clock) {
-            let next = {
-                let mut t = HEART_TX.lock().await;
-                *t = t.saturating_add(1);
-                *t
-            };
-            HEART_BUMP.signal(next);
+            // Request only — HEART_TX / HEART_DIRTY apply after MQTT PUBACK (C++ parity).
+            // LED: TxPending now; TxAck/TxFail come from session on PUBACK/timeout.
+            HEART_BUMP.signal(1);
             AUDIO_BEEP.signal(AudioKind::Tx);
-            HEART_DIRTY.signal(());
-            led_svc.play_preset(LedPreset::TxAck);
-            println!("BTN: heart bump → {next}");
+            LED_PRESET.signal(LedPreset::TxPending);
+            println!("BTN: heart bump requested");
         }
         if let Some(p) = LED_PRESET.try_take() {
-            led_svc.play_preset(p);
+            led_svc.play_preset_gated(p, led_on, &mut led_gpio);
         }
         if MQTT_UP.try_take().is_some() {
-            led_svc.play_preset(LedPreset::MqttUp);
+            led_svc.play_preset_gated(LedPreset::MqttUp, led_on, &mut led_gpio);
         }
         if button.soft_off_ready(&mut btns, &clock) {
             let ota_busy = {
@@ -82,7 +87,7 @@ pub async fn button_led_task(
                 println!("PWR: soft-off deferred (OTA busy)");
             } else {
                 println!("PWR: soft-off — EPD power-off + deep sleep");
-                led_svc.play_preset(LedPreset::SoftOff);
+                led_svc.play_preset_gated(LedPreset::SoftOff, led_on, &mut led_gpio);
                 for _ in 0..10 {
                     let _ = led_svc.tick_phase_done(&mut led_gpio);
                     Timer::after(Duration::from_millis(40)).await;

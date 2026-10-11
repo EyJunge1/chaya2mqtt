@@ -109,6 +109,7 @@ pub async fn handle(
             let _ = ui.save(&mut *kv);
         }
         *s.audio_cfg.lock().await = audio;
+        *s.led_enabled.lock().await = ui.led_enabled;
         return Some((200, String::from(json::json_ok()), "application/json"));
     }
 

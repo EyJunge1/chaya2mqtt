@@ -12,6 +12,7 @@ mod async_rt;
 use core::cell::RefCell;
 
 use chaya_fw::audio::{AudioConfig, AudioHw};
+use chaya_fw::config::UiPrefs;
 use chaya_fw::hw::{battery_latch_on, display_power_enable, pins, sd_hold_off};
 use chaya_fw::display::epd::EpdPanel;
 use chaya_fw::battery::adc::BatteryAdc;
@@ -40,7 +41,8 @@ use static_cell::StaticCell;
 
 use crate::boot::util::leak;
 use crate::async_rt::state::{
-    AUDIO_CFG, HEART_RX, HEART_TX, KvMutex, OTA_STATUS,
+    AUDIO_CFG, HEART_LAST_RESET_DAY, HEART_RX, HEART_RX_BASE, HEART_TX, HEART_TX_BASE, KvMutex,
+    LED_ENABLED, OTA_STATUS,
 };
 use crate::async_rt::MonoClock;
 
@@ -117,10 +119,11 @@ async fn main(spawner: Spawner) -> ! {
     println!("ap_mode={} heart_ready={}", report.ap_mode, report.heart_ready);
 
     {
-        let mut t = HEART_TX.lock().await;
-        *t = fw.heart.tx;
-        let mut r = HEART_RX.lock().await;
-        *r = fw.heart.rx;
+        *HEART_TX.lock().await = fw.heart.tx;
+        *HEART_RX.lock().await = fw.heart.rx;
+        *HEART_TX_BASE.lock().await = fw.heart.tx_baseline;
+        *HEART_RX_BASE.lock().await = fw.heart.rx_baseline;
+        *HEART_LAST_RESET_DAY.lock().await = fw.heart.last_reset_day;
     }
 
     let mut ap_entropy = [0u8; 20];
@@ -137,6 +140,8 @@ async fn main(spawner: Spawner) -> ! {
         let _ = st.channel.push_str(ota.channel.as_str());
         let audio = AudioConfig::load(&mut kv);
         *AUDIO_CFG.lock().await = audio;
+        let ui = UiPrefs::load(&mut kv);
+        *LED_ENABLED.lock().await = ui.led_enabled;
     }
 
     let kv: &'static KvMutex = mk_static!(KvMutex, Mutex::new(kv));

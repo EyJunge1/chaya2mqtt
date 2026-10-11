@@ -27,18 +27,27 @@ pub async fn handle(
     use alloc::string::String;
 
     if (path == "/api/update/check" || path == "/api/ota/check") && method == Method::Post && !s.ap_mode {
-        if let Ok(req) = crate::web::json::from_slice::<crate::web::json::UpdateCheckReq>(body) {
-            if let Some(ch) = req.channel {
-                let channel = OtaChannel::parse(ch);
-                let mut kv = s.kv.lock().await;
-                let mut ota = OtaService::load(&mut *kv);
-                ota.channel = channel;
-                let _ = ota.save_channel(&mut *kv);
-                let mut st = s.ota_status.lock().await;
-                st.channel.clear();
-                let _ = st.channel.push_str(channel.as_str());
+        let Ok(req) = crate::web::json::from_slice::<crate::web::json::UpdateCheckReq>(body) else {
+            return Some((400, json::json_err("channel"), "application/json"));
+        };
+        let Some(ch) = req.channel else {
+            return Some((400, json::json_err("channel"), "application/json"));
+        };
+        let Some(channel) = OtaChannel::try_parse(ch) else {
+            return Some((400, json::json_err("channel"), "application/json"));
+        };
+        {
+            let mut st = s.ota_status.lock().await;
+            if st.checking || st.installing {
+                return Some((503, json::json_err("busy"), "application/json"));
             }
+            st.channel.clear();
+            let _ = st.channel.push_str(channel.as_str());
         }
+        let mut kv = s.kv.lock().await;
+        let mut ota = OtaService::load(&mut *kv);
+        ota.channel = channel;
+        let _ = ota.save_channel(&mut *kv);
         s.ota_check.signal(());
         return Some((200, String::from(json::json_ok()), "application/json"));
     }
@@ -47,6 +56,14 @@ pub async fn handle(
         && method == Method::Post
         && !s.ap_mode
     {
+        let st = s.ota_status.lock().await;
+        if st.checking || st.installing {
+            return Some((409, json::json_err("busy"), "application/json"));
+        }
+        if !st.flash_ready {
+            return Some((409, json::json_err("not_available"), "application/json"));
+        }
+        drop(st);
         s.ota_install.signal(());
         return Some((200, String::from(json::json_ok()), "application/json"));
     }

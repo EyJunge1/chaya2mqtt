@@ -1,13 +1,13 @@
 #!/usr/bin/env node
 /**
- * Rasterize Lucide SVGs into Adafruit-GFX 1-bit PROGMEM bitmaps for the E-Ink panel.
+ * Rasterize Lucide SVGs into Adafruit-GFX 1-bit bitmaps for the E-Ink panel.
  *
  * Usage (from repo root, once when icons change):
  *   node scripts/generate_display_icons.mjs
  *
  * Requires network access to fetch Lucide SVGs, and installs @resvg/resvg-js
- * into a temporary directory. The generated header is checked in so normal
- * PlatformIO builds need no SVG tooling.
+ * into a temporary directory. The generated Rust module is checked in so
+ * normal builds need no SVG tooling.
  *
  * Lucide Icons — ISC License — https://lucide.dev / https://github.com/lucide-icons/lucide
  */
@@ -21,7 +21,7 @@ import { fileURLToPath } from "node:url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, "..");
-const outHeader = path.join(repoRoot, "src/display/icons_lucide.h");
+const outRust = path.join(repoRoot, "rust/chaya-fw/src/display/icons.rs");
 
 /** Pin Lucide icon source for reproducible bitmaps. */
 const LUCIDE_REF = "0.468.0";
@@ -35,7 +35,6 @@ const ICONS = [
     size: 162,
     strokeWidth: 2,
     fill: true,
-    symbol: "kIconHeart",
   },
   {
     id: "heart_crack",
@@ -43,7 +42,6 @@ const ICONS = [
     size: 162,
     strokeWidth: 2.25,
     fill: false,
-    symbol: "kIconHeartCrack",
   },
   {
     id: "heart_off",
@@ -51,7 +49,6 @@ const ICONS = [
     size: 162,
     strokeWidth: 2.25,
     fill: false,
-    symbol: "kIconHeartOff",
   },
   {
     id: "battery_full",
@@ -59,7 +56,6 @@ const ICONS = [
     size: 32,
     strokeWidth: 1.5,
     fill: false,
-    symbol: "kIconBatteryFull",
   },
   {
     id: "battery_medium",
@@ -67,7 +63,6 @@ const ICONS = [
     size: 32,
     strokeWidth: 1.5,
     fill: false,
-    symbol: "kIconBatteryMedium",
   },
   {
     id: "battery_low",
@@ -75,7 +70,6 @@ const ICONS = [
     size: 32,
     strokeWidth: 1.5,
     fill: false,
-    symbol: "kIconBatteryLow",
   },
   {
     id: "battery_empty",
@@ -83,7 +77,6 @@ const ICONS = [
     size: 32,
     strokeWidth: 1.5,
     fill: false,
-    symbol: "kIconBatteryEmpty",
   },
   {
     id: "move_down",
@@ -91,7 +84,6 @@ const ICONS = [
     size: 32,
     strokeWidth: 1.5,
     fill: false,
-    symbol: "kIconMoveDown",
   },
   {
     id: "move_up",
@@ -99,7 +91,6 @@ const ICONS = [
     size: 32,
     strokeWidth: 1.5,
     fill: false,
-    symbol: "kIconMoveUp",
   },
 ];
 
@@ -173,41 +164,37 @@ async function main() {
         );
       }
       const { bytes, rowBytes, trimW, trimH } = trimAndPack(maybe, width, height);
+      const rustName = icon.id.toUpperCase();
 
       hashes.push(
         `${icon.id}:${createHash("sha256").update(bytes).digest("hex").slice(0, 16)}`,
       );
 
-      blocks.push(`/** Lucide "${icon.svgName}" @ ${LUCIDE_REF}, ${trimW}x${trimH} 1-bit. */
-static constexpr int16_t ${icon.symbol}W = ${trimW};
-static constexpr int16_t ${icon.symbol}H = ${trimH};
-static const uint8_t ${icon.symbol}[] PROGMEM = {${formatByteArray(bytes)}
-};
+      blocks.push(`/// Lucide "${icon.svgName}" @ ${LUCIDE_REF}, ${trimW}x${trimH} 1-bit (Adafruit GFX MSB).
+pub const ${rustName}_W: i16 = ${trimW};
+pub const ${rustName}_H: i16 = ${trimH};
+pub static ${rustName}: &[u8] = &[${formatByteArray(bytes)}
+];
 `);
       console.log(
         `  ${icon.id}: ${width}x${height} -> ${trimW}x${trimH} (${bytes.length} bytes, row=${rowBytes})`,
       );
     }
 
-    const header = `#pragma once
+    const rust = `//! Auto-generated Lucide icon bitmaps for the 1.54" E-Ink panel (Adafruit GFX MSB format).
+//! Do not edit by hand — regenerate with: \`node scripts/generate_display_icons.mjs\`
+//!
+//! Source: Lucide Icons (${LUCIDE_REF}) — https://lucide.dev
+//! License: ISC — https://github.com/lucide-icons/lucide/blob/main/LICENSE
+//!
+//! Content digests: ${hashes.join(", ")}
 
-/**
- * Auto-generated Lucide icon bitmaps for the 1.54\" E-Ink panel (Adafruit GFX MSB format).
- * Do not edit by hand — regenerate with: node scripts/generate_display_icons.mjs
- *
- * Source: Lucide Icons (${LUCIDE_REF}) — https://lucide.dev
- * License: ISC — https://github.com/lucide-icons/lucide/blob/main/LICENSE
- *
- * Content digests: ${hashes.join(", ")}
- */
+#![allow(dead_code)]
 
-#include <Arduino.h>
-#include <cstdint>
+${blocks.join("")}`;
 
-${blocks.join("\n")}`;
-
-    fs.writeFileSync(outHeader, header);
-    console.log(`Wrote ${path.relative(repoRoot, outHeader)}`);
+    fs.writeFileSync(outRust, rust);
+    console.log(`Wrote ${path.relative(repoRoot, outRust)}`);
   } finally {
     fs.rmSync(tmp, { recursive: true, force: true });
   }

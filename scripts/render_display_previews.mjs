@@ -2,9 +2,9 @@
 /**
  * Render simulated 1.54" E-Ink views (200×200, 4-color) as PNGs for the docs.
  *
- * Layout mirrors src/display/draw.cpp. Lucide bitmaps come from
- * src/display/icons_lucide.h (same assets as firmware). Text uses the
- * Adafruit GFX classic 5×7 font so counters/titles match the panel.
+ * Lucide bitmaps come from rust/chaya-fw/src/display/icons.rs (same assets as
+ * firmware). Text uses the Adafruit GFX classic 5×7 font so counters/titles
+ * match the panel.
  *
  * Usage (from repo root):
  *   node scripts/render_display_previews.mjs
@@ -21,7 +21,7 @@ import { fileURLToPath } from "node:url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, "..");
-const iconsHeader = path.join(repoRoot, "src/display/icons_lucide.h");
+const iconsRust = path.join(repoRoot, "rust/chaya-fw/src/display/icons.rs");
 const outDir = path.join(repoRoot, "docs/images");
 
 const PANEL = 200;
@@ -127,21 +127,20 @@ if (GLCD_FONT.length !== 1280) {
   throw new Error(`GLCD font length ${GLCD_FONT.length}, expected 1280`);
 }
 
-function parseIcons(headerText) {
+function parseIcons(rustText) {
   const icons = {};
   const dimRe =
-    /static constexpr int16_t (kIcon\w+)W = (\d+);\s*\nstatic constexpr int16_t \1H = (\d+);/g;
+    /pub const ([A-Z0-9_]+)_W: i16 = (\d+);\s*\npub const \1_H: i16 = (\d+);/g;
   let m;
-  while ((m = dimRe.exec(headerText))) {
+  while ((m = dimRe.exec(rustText))) {
     icons[m[1]] = {
       w: Number(m[2]),
       h: Number(m[3]),
       bytes: null,
     };
   }
-  const arrRe =
-    /static const uint8_t (kIcon\w+)\[\] PROGMEM = \{([^}]+)\};/g;
-  while ((m = arrRe.exec(headerText))) {
+  const arrRe = /pub static ([A-Z0-9_]+): &\[u8\] = &\[([^\]]+)\];/g;
+  while ((m = arrRe.exec(rustText))) {
     const name = m[1];
     if (!icons[name]) {
       throw new Error(`Bitmap for unknown icon ${name}`);
@@ -244,10 +243,10 @@ function drawCenteredText(frame, text, startSize, minSize, colorName) {
 }
 
 function batteryIconName(pct) {
-  if (pct >= 80) return "kIconBatteryFull";
-  if (pct >= 40) return "kIconBatteryMedium";
-  if (pct >= 15) return "kIconBatteryLow";
-  return "kIconBatteryEmpty";
+  if (pct >= 80) return "BATTERY_FULL";
+  if (pct >= 40) return "BATTERY_MEDIUM";
+  if (pct >= 15) return "BATTERY_LOW";
+  return "BATTERY_EMPTY";
 }
 
 function batteryColor(pct) {
@@ -258,7 +257,7 @@ function batteryColor(pct) {
 
 function drawBatteryTopRight(frame, icons, pct) {
   const icon = icons[batteryIconName(pct)];
-  const x = PANEL - RIGHT_MARGIN - icons.kIconBatteryFull.w;
+  const x = PANEL - RIGHT_MARGIN - icons.BATTERY_FULL.w;
   drawBitmap(frame, x, BATTERY_TOP, icon, batteryColor(pct));
 }
 
@@ -268,12 +267,12 @@ function footerTextSize(digitLen) {
 
 function drawHeartOnline(icons, { rx = 42, tx = 7, battery = 92 } = {}) {
   const frame = createFrame();
-  const heart = icons.kIconHeart;
+  const heart = icons.HEART;
   const heartX = Math.floor((PANEL - heart.w) / 2);
   const heartY = FOOTER_TEXT_TOP - heart.h - HEART_FOOTER_GAP;
   drawBitmap(frame, heartX, heartY, heart, "red");
 
-  const arrowLane = icons.kIconMoveDown.w + 5;
+  const arrowLane = icons.MOVE_DOWN.w + 5;
   const recvBuf = String(rx);
   const sentBuf = String(tx);
   const recvSize = footerTextSize(Math.max(recvBuf.length, 1));
@@ -285,12 +284,12 @@ function drawHeartOnline(icons, { rx = 42, tx = 7, battery = 92 } = {}) {
   const sentX =
     PANEL - RIGHT_MARGIN - arrowLane - sentBounds.w - sentBounds.x1 + sentTrailingBlankPx;
 
-  drawBitmap(frame, LEFT_MARGIN, FOOTER_TEXT_TOP, icons.kIconMoveDown, "black");
+  drawBitmap(frame, LEFT_MARGIN, FOOTER_TEXT_TOP, icons.MOVE_DOWN, "black");
   drawBitmap(
     frame,
-    PANEL - RIGHT_MARGIN - icons.kIconMoveUp.w,
+    PANEL - RIGHT_MARGIN - icons.MOVE_UP.w,
     FOOTER_TEXT_TOP,
-    icons.kIconMoveUp,
+    icons.MOVE_UP,
     "black",
   );
   drawText(frame, recvX, FOOTER_TEXT_TOP, recvBuf, recvSize, "black");
@@ -301,7 +300,7 @@ function drawHeartOnline(icons, { rx = 42, tx = 7, battery = 92 } = {}) {
 
 function drawHeartOffline(icons, { battery = 55 } = {}) {
   const frame = createFrame();
-  const heart = icons.kIconHeartCrack;
+  const heart = icons.HEART_CRACK;
   const heartX = Math.floor((PANEL - heart.w) / 2);
   const heartY = Math.floor((PANEL - heart.h) / 2);
   drawBitmap(frame, heartX, heartY, heart, "red");
@@ -325,7 +324,7 @@ function drawPowerOff(icons) {
   const titleTop = gap;
   const bounds = textBounds(title, titleSize);
   const titleX = Math.floor((PANEL - bounds.w) / 2) - bounds.x1;
-  const heart = icons.kIconHeartOff;
+  const heart = icons.HEART_OFF;
   const heartX = Math.floor((PANEL - heart.w) / 2);
   const heartY = titleTop + bounds.h + gap - visualTopInset;
   drawText(frame, titleX, titleTop, title, titleSize, "red");
@@ -476,8 +475,8 @@ async function loadQrModules(payload) {
 }
 
 async function main() {
-  const headerText = fs.readFileSync(iconsHeader, "utf8");
-  const icons = parseIcons(headerText);
+  const rustText = fs.readFileSync(iconsRust, "utf8");
+  const icons = parseIcons(rustText);
   fs.mkdirSync(outDir, { recursive: true });
 
   console.log("Rendering display previews…");

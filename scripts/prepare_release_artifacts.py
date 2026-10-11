@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Validate and checksum release artifacts (Rust out/rust-release or legacy PIO)."""
+"""Validate and checksum release artifacts under out/rust-release."""
 
 from __future__ import annotations
 

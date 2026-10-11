@@ -17,19 +17,19 @@ npm run dev
 
 Open `http://127.0.0.1:4174/`. The Vite development server provides local
 Stable/Beta metadata and serves the current
-`.pio/build/esp32s3-release/firmware.factory.bin`. Build the release firmware
+`out/rust-release/firmware.factory.bin`. Build the Rust release firmware
 first if you want to test the actual flash dialog.
 
 ## Full local preview with firmware
 
 1. Build a release firmware once so a factory image exists:
    ```bash
-   pio run -e esp32s3-release
+   make rust-build
    ```
 2. Stage local release folders:
    ```bash
    mkdir -p /tmp/chaya-releases/v2026.8.1
-   cp .pio/build/esp32s3-release/firmware.factory.bin /tmp/chaya-releases/v2026.8.1/
+   cp out/rust-release/firmware.factory.bin /tmp/chaya-releases/v2026.8.1/
    make flasher RELEASES_DIR=/tmp/chaya-releases
    ```
 3. Serve the site (Web Serial needs HTTPS or localhost):

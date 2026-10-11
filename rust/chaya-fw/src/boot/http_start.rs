@@ -21,12 +21,14 @@ pub async fn start_http(
     report: &BootReport,
     ap_mode: bool,
     ap_psk: Option<&'static str>,
+    device_hostname: &'static str,
 ) -> ! {
     let shared: &'static HttpShared = mk_static!(
         HttpShared,
         HttpShared {
             kv,
             device_id: crate::boot::util::leak(report.device_id.as_str()),
+            device_hostname,
             ap_mode,
             ap_psk,
             heart_tx: &crate::async_rt::state::HEART_TX,
@@ -35,6 +37,8 @@ pub async fn start_http(
             bat_pct: &crate::async_rt::state::BAT_PCT,
             bat_mv: &crate::async_rt::state::BAT_MV,
             audio_cfg: &crate::async_rt::state::AUDIO_CFG,
+            led_enabled: &crate::async_rt::state::LED_ENABLED,
+            led_preset: &crate::async_rt::state::LED_PRESET,
             ota_status: &crate::async_rt::state::OTA_STATUS,
             wifi_scan: &crate::async_rt::state::WIFI_SCAN,
             wifi_pending: &crate::async_rt::state::WIFI_PENDING,
