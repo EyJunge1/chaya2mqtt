@@ -2,14 +2,14 @@
 
 use alloc::string::String;
 use edge_http::Method;
-use crate::http::form;
-use crate::http::json;
-use crate::http::shared::HttpShared;
-use crate::http::sse;
-use crate::http::spa;
+use crate::web::form;
+use crate::web::json;
+use crate::web::shared::HttpShared;
+use crate::web::sse;
+use crate::web::spa;
 use crate::mqtt::MqttConfig;
 use crate::ota::{OtaChannel, OtaService};
-use crate::storage::platform::KvStore;
+use crate::util::platform::KvStore;
 use crate::wifi::WlanConfig;
 use chaya_pure::audio::AudioKind;
 
@@ -27,7 +27,7 @@ pub async fn handle(
     use alloc::string::String;
 
     if (path == "/api/update/check" || path == "/api/ota/check") && method == Method::Post && !s.ap_mode {
-        if let Ok(req) = crate::http::json::from_slice::<crate::http::json::UpdateCheckReq>(body) {
+        if let Ok(req) = crate::web::json::from_slice::<crate::web::json::UpdateCheckReq>(body) {
             if let Some(ch) = req.channel {
                 let channel = OtaChannel::parse(ch);
                 let mut kv = s.kv.lock().await;

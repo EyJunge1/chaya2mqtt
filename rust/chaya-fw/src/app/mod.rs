@@ -1,19 +1,19 @@
 //! Boot orchestration — mirrors `src/main.cpp` `setup()` order.
 
 use crate::audio::AudioService;
-use crate::input::BatteryService;
-use crate::board::{battery_latch_on, sd_hold_off};
-use crate::input::ButtonService;
-use crate::storage::config::RuntimeFlags;
+use crate::battery::BatteryService;
+use crate::hw::{battery_latch_on, sd_hold_off};
+use crate::button::ButtonService;
+use crate::config::RuntimeFlags;
 use crate::display::DisplayService;
-use crate::identity::HeartCounters;
+use crate::heart::HeartCounters;
 use crate::identity::DeviceId;
-use crate::input::LedService;
+use crate::led::LedService;
 use crate::mqtt::MqttService;
-use crate::net::NetworkService;
+use crate::network::NetworkService;
 use crate::ota::OtaService;
-use crate::storage::platform::{ClockMs, GpioOut, KvStore};
-use crate::identity::APP_VERSION;
+use crate::util::platform::{ClockMs, GpioOut, KvStore};
+use crate::config::APP_VERSION;
 use crate::web::WebAdminState;
 use crate::wifi::{WlanMode, WlanService};
 
@@ -140,13 +140,13 @@ pub fn request_send(fw: &mut Firmware) -> bool {
         return false;
     }
     fw.network
-        .enqueue(crate::net::NetCmd::ChayaPublish)
+        .enqueue(crate::network::NetCmd::ChayaPublish)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::storage::platform::{SimClock, SimGpio, SimKv};
+    use crate::util::platform::{SimClock, SimGpio, SimKv};
 
     #[test]
     fn boot_softap_without_wifi_nvs() {
@@ -157,7 +157,7 @@ mod tests {
         assert!(report.ap_mode);
         assert!(!report.heart_ready);
         assert_eq!(fw.device_id.as_str(), "112233");
-        assert_eq!(gpio.get(crate::board::pins::BAT_CONTROL), Some(true));
+        assert_eq!(gpio.get(crate::hw::pins::BAT_CONTROL), Some(true));
         assert!(report.backends.radio.contains("SoftAP"));
     }
 }

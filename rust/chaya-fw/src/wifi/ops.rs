@@ -10,7 +10,7 @@ use esp_radio::wifi::{
     ap::AccessPointConfig, scan::ScanConfig, sta::StationConfig,
 };
 
-use crate::storage::config::SETUP_AP_SSID;
+use crate::config::SETUP_AP_SSID;
 use crate::wifi::scan::{ScanAp, ScanCache, ScanStatus};
 use crate::wifi::WlanConfig;
 

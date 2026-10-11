@@ -35,7 +35,7 @@ fn main() {
     let out = PathBuf::from(env::var("OUT_DIR").unwrap());
 
     println!("cargo:rerun-if-changed=../../frontend/dist");
-    println!("cargo:rerun-if-changed=src/http/assets/admin.html");
+    println!("cargo:rerun-if-changed=src/web/assets/admin.html");
 
     let Some(dist) = dist.filter(|p| p.join("index.html").is_file()) else {
         write_empty(&out);
@@ -93,7 +93,7 @@ fn write_empty(out: &Path) {
     writeln!(man, "pub const SPA_BLOB: &[u8] = &[];").unwrap();
     writeln!(man, "pub struct SpaAsset {{ pub path: &'static str, pub offset: usize, pub length: usize, pub content_type: &'static str, pub gzip: bool }}").unwrap();
     writeln!(man, "pub const SPA_ASSETS: &[SpaAsset] = &[];").unwrap();
-    writeln!(man, "pub const SPA_INDEX_HTML: &str = include_str!(concat!(env!(\"CARGO_MANIFEST_DIR\"), \"/src/http/assets/admin.html\"));").unwrap();
+    writeln!(man, "pub const SPA_INDEX_HTML: &str = include_str!(concat!(env!(\"CARGO_MANIFEST_DIR\"), \"/src/web/assets/admin.html\"));").unwrap();
     writeln!(man, "pub const SPA_EMBEDDED: bool = false;").unwrap();
 }
 

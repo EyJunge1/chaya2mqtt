@@ -1,7 +1,7 @@
 //! Audio beep task.
 use chaya_fw::audio::AudioHw;
 use esp_println::println;
-use crate::runtime::state::*;
+use crate::async_rt::state::*;
 
 #[embassy_executor::task]
 pub async fn audio_task(mut audio: AudioHw) {

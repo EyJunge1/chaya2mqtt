@@ -1,7 +1,7 @@
 //! OTA from GitHub Releases + SHA-512 (flash backend + GitHub client pending).
 
-use crate::storage::config::NS_CFG;
-use crate::storage::platform::KvStore;
+use crate::config::NS_CFG;
+use crate::util::platform::KvStore;
 use chaya_pure::ota::ota_github_check_may_clear_pending_release;
 
 const KEY_CHANNEL: &str = "upd_chan";

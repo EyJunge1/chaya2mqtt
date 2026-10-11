@@ -1,7 +1,7 @@
 //! ES8311 (I2C via `es8311` crate) + PA rails + I2S DMA beep samples (TX/RX tones).
 
-use crate::board::{audio_amp_enable, audio_rail_enable, pins};
-use crate::storage::platform::GpioOut;
+use crate::hw::{audio_amp_enable, audio_rail_enable, pins};
+use crate::util::platform::GpioOut;
 use chaya_pure::audio::AudioKind;
 use embassy_time::{Duration, Timer};
 use es8311::{ClockConfig, Es8311, Resolution};

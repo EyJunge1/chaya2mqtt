@@ -2,10 +2,10 @@
 
 use alloc::string::String;
 use crate::audio::AudioConfig;
-use crate::storage::config::{DEVICE_HOSTNAME, SETUP_AP_IP, SETUP_AP_SSID, STA_HOSTNAME_PREFIX};
+use crate::config::{DEVICE_HOSTNAME, SETUP_AP_IP, SETUP_AP_SSID, STA_HOSTNAME_PREFIX};
 use crate::ota::client::OtaStatus;
 use crate::mqtt::MqttConfig;
-use crate::identity::APP_VERSION;
+use crate::config::APP_VERSION;
 use crate::wifi::WlanConfig;
 
 pub fn json_ok() -> &'static str {
@@ -280,7 +280,7 @@ pub fn sse_typed(event: &str, data_json: &str) -> String {
 }
 
 pub fn parse_wlan_connect(body: &[u8], cfg: &mut WlanConfig, password_present: &mut bool) -> Result<(), &'static str> {
-    use crate::http::form::form_value;
+    use crate::web::form::form_value;
     use super::dto::{from_slice, WifiConnectReq};
 
     if let Ok(req) = from_slice::<WifiConnectReq>(body) {

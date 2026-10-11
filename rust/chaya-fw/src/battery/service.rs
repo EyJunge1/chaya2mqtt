@@ -1,7 +1,7 @@
 //! Battery ADC + soft-off sleep.
 
-use crate::board::pins;
-use crate::storage::platform::{GpioIn, GpioOut};
+use crate::hw::pins;
+use crate::util::platform::{GpioIn, GpioOut};
 use chaya_pure::battery::{battery_critical_low, battery_pct_from_milli_volts};
 
 #[derive(Clone, Debug, Default)]

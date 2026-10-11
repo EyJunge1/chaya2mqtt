@@ -3,7 +3,7 @@
 use core::net::Ipv4Addr;
 use core::str::FromStr;
 
-use chaya_fw::storage::config::SETUP_AP_IP;
+use chaya_fw::config::SETUP_AP_IP;
 use chaya_fw::wifi::ops::WifiMutex;
 use chaya_fw::wifi::WlanService;
 use chaya_fw::BootReport;
@@ -17,7 +17,7 @@ use esp_radio::wifi::{
 };
 use static_cell::StaticCell;
 
-use crate::runtime::state::KvMutex;
+use crate::async_rt::state::KvMutex;
 
 macro_rules! mk_static {
     ($t:ty, $val:expr) => {{
@@ -74,15 +74,15 @@ pub async fn run_softap(
     );
 
     {
-        let mut st = crate::runtime::state::WIFI_TEST_STATE.lock().await;
+        let mut st = crate::async_rt::state::WIFI_TEST_STATE.lock().await;
         st.clear();
         let _ = st.push_str("idle");
     }
 
-    spawner.spawn(crate::runtime::wifi::wifi_ops_task(wifi_ctrl, ap_psk).unwrap());
-    spawner.spawn(crate::runtime::net::net_task(runner).unwrap());
-    spawner.spawn(crate::runtime::dhcp::run_dhcp(stack, SETUP_AP_IP).unwrap());
-    spawner.spawn(crate::runtime::dhcp::run_captive_dns(stack, SETUP_AP_IP).unwrap());
+    spawner.spawn(crate::async_rt::wifi::wifi_ops_task(wifi_ctrl, ap_psk).unwrap());
+    spawner.spawn(crate::async_rt::net::net_task(runner).unwrap());
+    spawner.spawn(crate::async_rt::dhcp::run_dhcp(stack, SETUP_AP_IP).unwrap());
+    spawner.spawn(crate::async_rt::dhcp::run_captive_dns(stack, SETUP_AP_IP).unwrap());
     stack.wait_config_up().await;
     println!("HTTP+captive DNS http://{SETUP_AP_IP}/");
 

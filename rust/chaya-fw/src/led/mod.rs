@@ -1,7 +1,7 @@
 //! Header LED patterns (active-low on board).
 
-use crate::board::pins;
-use crate::storage::platform::GpioOut;
+use crate::hw::pins;
+use crate::util::platform::GpioOut;
 use chaya_pure::led::{led_pattern_advance, led_pattern_begin, LedPatternRuntime};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

@@ -7,19 +7,19 @@
 extern crate alloc;
 
 mod boot;
-mod runtime;
+mod async_rt;
 
 use core::cell::RefCell;
 
 use chaya_fw::audio::{AudioConfig, AudioHw};
-use chaya_fw::board::{battery_latch_on, display_power_enable, pins, sd_hold_off};
+use chaya_fw::hw::{battery_latch_on, display_power_enable, pins, sd_hold_off};
 use chaya_fw::display::epd::EpdPanel;
-use chaya_fw::input::battery_adc::BatteryAdc;
+use chaya_fw::battery::adc::BatteryAdc;
 use chaya_fw::ota::OtaService;
-use chaya_fw::storage::config::SETUP_AP_SSID;
-use chaya_fw::storage::flash_kv::FlashKv;
-use chaya_fw::storage::flash_shared::FlashCell;
-use chaya_fw::storage::platform::GpioOut;
+use chaya_fw::config::SETUP_AP_SSID;
+use chaya_fw::config::flash_kv::FlashKv;
+use chaya_fw::config::flash_shared::FlashCell;
+use chaya_fw::util::platform::GpioOut;
 use chaya_fw::wifi::WlanService;
 use chaya_fw::BootReport;
 use embassy_executor::Spawner;
@@ -39,10 +39,10 @@ use esp_storage::FlashStorage;
 use static_cell::StaticCell;
 
 use crate::boot::util::leak;
-use crate::runtime::state::{
+use crate::async_rt::state::{
     AUDIO_CFG, HEART_RX, HEART_TX, KvMutex, OTA_STATUS,
 };
-use crate::runtime::MonoClock;
+use crate::async_rt::MonoClock;
 
 esp_bootloader_esp_idf::esp_app_desc!();
 
@@ -150,10 +150,10 @@ async fn main(spawner: Spawner) -> ! {
         InputConfig::default().with_pull(Pull::Up),
     );
     spawner
-        .spawn(runtime::button::button_led_task(boot_btn, pwr_btn, led, early.bat).unwrap());
+        .spawn(async_rt::button::button_led_task(boot_btn, pwr_btn, led, early.bat).unwrap());
 
     let bat = BatteryAdc::new(peripherals.ADC1, peripherals.GPIO4);
-    spawner.spawn(runtime::battery::battery_task(bat).unwrap());
+    spawner.spawn(async_rt::battery::battery_task(bat).unwrap());
 
     let audio = AudioHw::new(
         peripherals.I2C0,
@@ -168,9 +168,9 @@ async fn main(spawner: Spawner) -> ! {
         peripherals.I2S0,
         peripherals.DMA_CH0,
     );
-    spawner.spawn(runtime::audio::audio_task(audio).unwrap());
-    spawner.spawn(runtime::heart::heart_persist_task(kv).unwrap());
-    spawner.spawn(runtime::heart::reboot_task().unwrap());
+    spawner.spawn(async_rt::audio::audio_task(audio).unwrap());
+    spawner.spawn(async_rt::heart::heart_persist_task(kv).unwrap());
+    spawner.spawn(async_rt::heart::reboot_task().unwrap());
 
     if let Some(panel) = EpdPanel::new(
         peripherals.SPI2,
@@ -182,7 +182,7 @@ async fn main(spawner: Spawner) -> ! {
         peripherals.GPIO8,
     ) {
         spawner
-            .spawn(runtime::epd::epd_task(panel, report.ap_mode, SETUP_AP_SSID, ap_psk).unwrap());
+            .spawn(async_rt::epd::epd_task(panel, report.ap_mode, SETUP_AP_SSID, ap_psk).unwrap());
     }
 
     let wifi = peripherals.WIFI;

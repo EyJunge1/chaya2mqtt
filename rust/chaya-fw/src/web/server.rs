@@ -11,11 +11,11 @@ use edge_nal_embassy::{Tcp, TcpBuffers};
 use embedded_io_async::{Read, Write};
 use esp_println::println;
 
-use crate::http::json;
-use crate::http::routes;
-use crate::http::shared::HttpShared;
-use crate::http::sse;
-use crate::storage::config::SETUP_AP_SSID;
+use crate::web::json;
+use crate::web::routes;
+use crate::web::shared::HttpShared;
+use crate::web::sse;
+use crate::config::SETUP_AP_SSID;
 
 pub struct AdminHandler {
     pub shared: &'static HttpShared,

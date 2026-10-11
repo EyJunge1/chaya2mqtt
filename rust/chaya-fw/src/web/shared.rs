@@ -7,7 +7,7 @@ use embassy_sync::signal::Signal;
 
 use crate::audio::AudioConfig;
 use crate::ota::client::OtaStatus;
-use crate::storage::flash_kv::FlashKv;
+use crate::config::flash_kv::FlashKv;
 use crate::wifi::scan::ScanCache;
 use crate::wifi::WlanConfig;
 use chaya_pure::audio::AudioKind;

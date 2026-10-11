@@ -1,10 +1,10 @@
 //! Shared Embassy signals / mutexes for device tasks.
 
 use chaya_fw::audio::AudioConfig;
-use chaya_fw::input::LedPreset;
-use chaya_fw::net::ntp::WallClock;
+use chaya_fw::led::LedPreset;
+use chaya_fw::network::ntp::WallClock;
 use chaya_fw::ota::client::OtaStatus;
-use chaya_fw::storage::flash_kv::FlashKv;
+use chaya_fw::config::flash_kv::FlashKv;
 use chaya_fw::wifi::scan::{ScanCache, ScanStatus};
 use chaya_fw::wifi::{IpMode, WlanConfig};
 use chaya_pure::audio::AudioKind;

@@ -1,7 +1,7 @@
 //! MQTT session task.
 use chaya_fw::mqtt::session::{self as mqtt_tcp, EspRng};
 use embassy_net::Stack;
-use crate::runtime::state::*;
+use crate::async_rt::state::*;
 
 #[embassy_executor::task]
 pub async fn mqtt_session_task(

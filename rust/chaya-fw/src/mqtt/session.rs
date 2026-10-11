@@ -3,7 +3,7 @@
 use embassy_net::{IpEndpoint, Stack, dns::DnsQueryType, tcp::TcpSocket};
 use embassy_time::{Duration, Instant, Timer, with_timeout};
 use embedded_io_async::{Read, Write};
-use crate::mqtt::tls::HostPinProvider;
+use crate::tls::HostPinProvider;
 use chaya_pure::audio::AudioKind;
 use embedded_tls::{TlsConfig, TlsConnection, TlsContext};
 use esp_println::println;

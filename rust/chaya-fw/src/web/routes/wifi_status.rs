@@ -3,8 +3,8 @@
 use core::fmt::Write as _;
 use core::net::Ipv4Addr;
 
-use crate::http::json;
-use crate::http::shared::HttpShared;
+use crate::web::json;
+use crate::web::shared::HttpShared;
 
 pub async fn wifi_status_json(s: &HttpShared) -> alloc::string::String {
     if s.ap_mode {

@@ -1,7 +1,7 @@
 //! Battery ADC poll task.
-use chaya_fw::input::battery_adc::BatteryAdc;
+use chaya_fw::battery::adc::BatteryAdc;
 use embassy_time::{Duration, Timer};
-use crate::runtime::state::*;
+use crate::async_rt::state::*;
 
 #[embassy_executor::task]
 pub async fn battery_task(mut bat: BatteryAdc) {

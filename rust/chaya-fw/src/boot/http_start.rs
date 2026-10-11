@@ -1,11 +1,11 @@
 //! Build HttpShared and run edge-http.
 
-use chaya_fw::http::{self as http_server, HttpShared};
+use chaya_fw::web::{self as http_server, HttpShared};
 use chaya_fw::BootReport;
 use embassy_net::Stack;
 use static_cell::StaticCell;
 
-use crate::runtime::state::KvMutex;
+use crate::async_rt::state::KvMutex;
 
 macro_rules! mk_static {
     ($t:ty, $val:expr) => {{
@@ -29,30 +29,30 @@ pub async fn start_http(
             device_id: crate::boot::util::leak(report.device_id.as_str()),
             ap_mode,
             ap_psk,
-            heart_tx: &crate::runtime::state::HEART_TX,
-            heart_rx: &crate::runtime::state::HEART_RX,
-            mqtt_ok: &crate::runtime::state::MQTT_OK,
-            bat_pct: &crate::runtime::state::BAT_PCT,
-            bat_mv: &crate::runtime::state::BAT_MV,
-            audio_cfg: &crate::runtime::state::AUDIO_CFG,
-            ota_status: &crate::runtime::state::OTA_STATUS,
-            wifi_scan: &crate::runtime::state::WIFI_SCAN,
-            wifi_pending: &crate::runtime::state::WIFI_PENDING,
-            wifi_test_state: &crate::runtime::state::WIFI_TEST_STATE,
-            wifi_test_ssid: &crate::runtime::state::WIFI_TEST_SSID,
-            wifi_test_owns: &crate::runtime::state::WIFI_TEST_OWNS,
-            sta_ssid: &crate::runtime::state::STA_SSID,
-            sta_rssi: &crate::runtime::state::STA_RSSI,
+            heart_tx: &crate::async_rt::state::HEART_TX,
+            heart_rx: &crate::async_rt::state::HEART_RX,
+            mqtt_ok: &crate::async_rt::state::MQTT_OK,
+            bat_pct: &crate::async_rt::state::BAT_PCT,
+            bat_mv: &crate::async_rt::state::BAT_MV,
+            audio_cfg: &crate::async_rt::state::AUDIO_CFG,
+            ota_status: &crate::async_rt::state::OTA_STATUS,
+            wifi_scan: &crate::async_rt::state::WIFI_SCAN,
+            wifi_pending: &crate::async_rt::state::WIFI_PENDING,
+            wifi_test_state: &crate::async_rt::state::WIFI_TEST_STATE,
+            wifi_test_ssid: &crate::async_rt::state::WIFI_TEST_SSID,
+            wifi_test_owns: &crate::async_rt::state::WIFI_TEST_OWNS,
+            sta_ssid: &crate::async_rt::state::STA_SSID,
+            sta_rssi: &crate::async_rt::state::STA_RSSI,
             stack,
-            heart_bump: &crate::runtime::state::HEART_BUMP,
-            audio_beep: &crate::runtime::state::AUDIO_BEEP,
-            heart_dirty: &crate::runtime::state::HEART_DIRTY,
-            epd_redraw: &crate::runtime::state::EPD_REDRAW,
-            reboot: &crate::runtime::state::REBOOT,
-            ota_check: &crate::runtime::state::OTA_CHECK,
-            ota_install: &crate::runtime::state::OTA_INSTALL,
-            scan_kick: &crate::runtime::state::SCAN_KICK,
-            wifi_test_kick: &crate::runtime::state::WIFI_TEST_KICK,
+            heart_bump: &crate::async_rt::state::HEART_BUMP,
+            audio_beep: &crate::async_rt::state::AUDIO_BEEP,
+            heart_dirty: &crate::async_rt::state::HEART_DIRTY,
+            epd_redraw: &crate::async_rt::state::EPD_REDRAW,
+            reboot: &crate::async_rt::state::REBOOT,
+            ota_check: &crate::async_rt::state::OTA_CHECK,
+            ota_install: &crate::async_rt::state::OTA_INSTALL,
+            scan_kick: &crate::async_rt::state::SCAN_KICK,
+            wifi_test_kick: &crate::async_rt::state::WIFI_TEST_KICK,
         }
     );
     http_server::run_admin_http(shared).await

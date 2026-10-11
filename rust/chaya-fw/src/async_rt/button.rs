@@ -1,15 +1,15 @@
 //! Button + LED task.
 
-use chaya_fw::board::pins;
-use chaya_fw::input::LedPreset;
-use chaya_fw::storage::platform::{GpioIn, GpioOut};
+use chaya_fw::hw::pins;
+use chaya_fw::led::LedPreset;
+use chaya_fw::util::platform::{GpioIn, GpioOut};
 use chaya_pure::audio::AudioKind;
 use embassy_time::{Duration, Timer};
 use esp_hal::gpio::{Input, Level, Output};
 use esp_println::println;
 
-use crate::runtime::state::*;
-use crate::runtime::util::MonoClock;
+use crate::async_rt::state::*;
+use crate::async_rt::util::MonoClock;
 
 struct BtnGpio {
     boot: Input<'static>,
@@ -47,8 +47,8 @@ pub async fn button_led_task(
 ) {
     let mut btns = BtnGpio { boot, pwr };
     let mut led_gpio = LedGpio { led };
-    let mut button = chaya_fw::input::ButtonService::default();
-    let mut led_svc = chaya_fw::input::LedService::default();
+    let mut button = chaya_fw::button::ButtonService::default();
+    let mut led_svc = chaya_fw::led::LedService::default();
     led_svc.startup_blink();
     let clock = MonoClock;
 

@@ -1,7 +1,7 @@
 //! Captive/HTML/status/SSE helpers.
 
-use crate::storage::config::SETUP_AP_IP;
-use crate::identity::APP_VERSION;
+use crate::config::SETUP_AP_IP;
+use crate::config::APP_VERSION;
 
 pub fn is_captive_probe(path: &str) -> bool {
     matches!(

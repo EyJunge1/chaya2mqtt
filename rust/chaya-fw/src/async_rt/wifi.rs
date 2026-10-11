@@ -4,7 +4,7 @@ use chaya_fw::wifi::ops::{self as wifi_ops, WifiMutex};
 use embassy_time::{Duration, Timer};
 use esp_println::println;
 
-use crate::runtime::state::*;
+use crate::async_rt::state::*;
 
 #[embassy_executor::task]
 pub async fn wifi_ops_task(wifi: &'static WifiMutex, ap_psk: &'static str) {

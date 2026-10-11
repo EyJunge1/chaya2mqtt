@@ -1,6 +1,6 @@
 //! Net runner + mDNS.
 
-use chaya_fw::net::mdns as mdns_svc;
+use chaya_fw::network::mdns as mdns_svc;
 use embassy_net::{Runner, Stack};
 use esp_radio::wifi::Interface;
 

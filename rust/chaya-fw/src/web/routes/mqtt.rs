@@ -2,14 +2,14 @@
 
 use alloc::string::String;
 use edge_http::Method;
-use crate::http::form;
-use crate::http::json;
-use crate::http::shared::HttpShared;
-use crate::http::sse;
-use crate::http::spa;
+use crate::web::form;
+use crate::web::json;
+use crate::web::shared::HttpShared;
+use crate::web::sse;
+use crate::web::spa;
 use crate::mqtt::MqttConfig;
 use crate::ota::{OtaChannel, OtaService};
-use crate::storage::platform::KvStore;
+use crate::util::platform::KvStore;
 use crate::wifi::WlanConfig;
 use chaya_pure::audio::AudioKind;
 
@@ -39,7 +39,7 @@ pub async fn handle(
     if path == "/api/mqtt" && method == Method::Post {
         let mut kv = s.kv.lock().await;
         let mut cfg = MqttConfig::load(&mut *kv);
-        if let Ok(req) = crate::http::json::from_slice::<crate::http::json::MqttSaveReq>(body) {
+        if let Ok(req) = crate::web::json::from_slice::<crate::web::json::MqttSaveReq>(body) {
             if let Some(h) = req.mqtt_server.or(req.server) {
                 cfg.host.clear();
                 let _ = cfg.host.push_str(h);

@@ -1,8 +1,8 @@
 //! Heart persist + reboot tasks.
-use chaya_fw::identity::HeartCounters;
+use chaya_fw::heart::HeartCounters;
 use embassy_time::{Duration, Timer};
 use esp_println::println;
-use crate::runtime::state::*;
+use crate::async_rt::state::*;
 
 #[embassy_executor::task]
 pub async fn heart_persist_task(kv: &'static KvMutex) {

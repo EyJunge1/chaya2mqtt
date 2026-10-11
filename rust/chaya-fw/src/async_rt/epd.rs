@@ -1,7 +1,7 @@
 //! E-Paper redraw task.
 use chaya_fw::display::epd::{EpdPanel, Scene};
 use embassy_time::{Duration, Timer};
-use crate::runtime::state::*;
+use crate::async_rt::state::*;
 
 #[embassy_executor::task]
 pub async fn epd_task(

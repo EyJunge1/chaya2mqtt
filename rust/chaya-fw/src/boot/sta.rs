@@ -1,11 +1,11 @@
 //! STA bring-up + MQTT/OTA/mDNS.
 
-use chaya_fw::input::LedPreset;
+use chaya_fw::led::LedPreset;
 use chaya_fw::mqtt::session::EspRng;
 use chaya_fw::mqtt::MqttConfig;
 use chaya_fw::ota::client::EspRng as OtaRng;
-use chaya_fw::storage::config::{DEVICE_HOSTNAME, STA_HOSTNAME_PREFIX};
-use chaya_fw::storage::flash_shared::FlashCell;
+use chaya_fw::config::{DEVICE_HOSTNAME, STA_HOSTNAME_PREFIX};
+use chaya_fw::config::flash_shared::FlashCell;
 use chaya_fw::wifi::ops::WifiMutex;
 use chaya_fw::wifi::WlanConfig;
 use chaya_fw::BootReport;
@@ -20,7 +20,7 @@ use esp_radio::wifi::{
 };
 use static_cell::StaticCell;
 
-use crate::runtime::state::KvMutex;
+use crate::async_rt::state::KvMutex;
 
 macro_rules! mk_static {
     ($t:ty, $val:expr) => {{
@@ -66,7 +66,7 @@ pub async fn run_sta(
     let wifi_ctrl: &'static WifiMutex = mk_static!(WifiMutex, Mutex::new(controller));
 
     {
-        let mut s = crate::runtime::state::STA_SSID.lock().await;
+        let mut s = crate::async_rt::state::STA_SSID.lock().await;
         s.clear();
         let _ = s.push_str(wlan.ssid.as_str());
     }
@@ -79,16 +79,16 @@ pub async fn run_sta(
         seed,
     );
 
-    spawner.spawn(crate::runtime::wifi::connection_sta(wifi_ctrl).unwrap());
-    spawner.spawn(crate::runtime::wifi::wifi_scan_only_task(wifi_ctrl).unwrap());
-    spawner.spawn(crate::runtime::net::net_task(runner).unwrap());
+    spawner.spawn(crate::async_rt::wifi::connection_sta(wifi_ctrl).unwrap());
+    spawner.spawn(crate::async_rt::wifi::wifi_scan_only_task(wifi_ctrl).unwrap());
+    spawner.spawn(crate::async_rt::net::net_task(runner).unwrap());
 
     println!("STA: waiting for DHCP…");
     stack.wait_config_up().await;
     fw.flags.wifi_ok = true;
     println!("STA: IP up");
-    crate::runtime::state::LED_PRESET.signal(LedPreset::WifiUp);
-    spawner.spawn(crate::runtime::ntp::ntp_task(stack).unwrap());
+    crate::async_rt::state::LED_PRESET.signal(LedPreset::WifiUp);
+    spawner.spawn(crate::async_rt::ntp::ntp_task(stack).unwrap());
 
     let mqtt_cfg = {
         let mut kv = kv.lock().await;
@@ -103,11 +103,11 @@ pub async fn run_sta(
         let sub_topic = crate::boot::util::leak(mqtt_cfg.sub_topic().as_str());
         let port = mqtt_cfg.port;
         // seed outbound with current absolute
-        crate::runtime::state::HEART_BUMP.signal(fw.heart.tx);
+        crate::async_rt::state::HEART_BUMP.signal(fw.heart.tx);
         let mqtt_rng = EspRng(Rng::new());
         spawner
             .spawn(
-                crate::runtime::mqtt::mqtt_session_task(
+                crate::async_rt::mqtt::mqtt_session_task(
                     stack, host, port, client_id, user, pass, pub_topic, sub_topic, mqtt_rng,
                 )
                 .unwrap(),
@@ -115,7 +115,7 @@ pub async fn run_sta(
     }
 
     let ota_rng = OtaRng(Rng::new());
-    spawner.spawn(crate::runtime::ota::ota_task(stack, ota_rng, flash).unwrap());
+    spawner.spawn(crate::async_rt::ota::ota_task(stack, ota_rng, flash).unwrap());
 
     let hostname = {
         let mut h = heapless::String::<32>::new();
@@ -124,7 +124,7 @@ pub async fn run_sta(
         crate::boot::util::leak(h.as_str())
     };
     let _ = DEVICE_HOSTNAME;
-    spawner.spawn(crate::runtime::net::mdns_task(stack, hostname).unwrap());
+    spawner.spawn(crate::async_rt::net::mdns_task(stack, hostname).unwrap());
 
     crate::boot::http_start::start_http(stack, kv, report, false, None).await
 }

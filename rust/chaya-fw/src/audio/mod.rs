@@ -1,7 +1,7 @@
 //! ES8311 + I2S playback config (quiet hours from NVS).
 
-use crate::storage::config::NS_CFG;
-use crate::storage::platform::KvStore;
+use crate::config::NS_CFG;
+use crate::util::platform::KvStore;
 use chaya_pure::audio::{audio_playback_allowed, AudioKind};
 
 const KEY_QUIET0: &str = "quiet0";

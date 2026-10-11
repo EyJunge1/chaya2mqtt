@@ -1,9 +1,9 @@
 //! OTA check/install task.
 use chaya_fw::ota::client::{self as ota_client, EspRng as OtaRng};
-use chaya_fw::storage::flash_shared::FlashCell;
+use chaya_fw::config::flash_shared::FlashCell;
 use embassy_net::Stack;
 use esp_println::println;
-use crate::runtime::state::*;
+use crate::async_rt::state::*;
 
 #[embassy_executor::task]
 pub async fn ota_task(stack: Stack<'static>, mut rng: OtaRng, flash: &'static FlashCell) {

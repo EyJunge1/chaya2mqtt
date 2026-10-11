@@ -1,7 +1,7 @@
 //! Wi-Fi STA / SoftAP orchestration (esp-radio backend).
 
-use crate::storage::config::{NS_CFG, NS_WIFI, SETUP_AP_SSID};
-use crate::storage::platform::KvStore;
+use crate::config::{NS_CFG, NS_WIFI, SETUP_AP_SSID};
+use crate::util::platform::KvStore;
 use chaya_pure::constants::{WIFI_PASS_MAX_LEN, WIFI_SSID_MAX_LEN};
 use chaya_pure::wifi::{wifi_qr_build_wpa_payload, WIFI_QR_PAYLOAD_MAX_LEN};
 

@@ -14,7 +14,7 @@ pub use wifi_status::wifi_status_json;
 use alloc::string::String;
 use edge_http::Method;
 
-use crate::http::shared::HttpShared;
+use crate::web::shared::HttpShared;
 
 pub async fn dispatch(
     s: &HttpShared,

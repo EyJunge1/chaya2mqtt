@@ -2,15 +2,15 @@
 
 use alloc::string::String;
 use edge_http::Method;
-use crate::http::form;
-use crate::storage::config::{NS_CFG, NS_CHAYA, NS_MQTT, NS_WIFI};
-use crate::http::json;
-use crate::http::shared::HttpShared;
-use crate::http::sse;
-use crate::http::spa;
+use crate::web::form;
+use crate::config::{NS_CFG, NS_CHAYA, NS_MQTT, NS_WIFI};
+use crate::web::json;
+use crate::web::shared::HttpShared;
+use crate::web::sse;
+use crate::web::spa;
 use crate::mqtt::MqttConfig;
 use crate::ota::{OtaChannel, OtaService};
-use crate::storage::platform::KvStore;
+use crate::util::platform::KvStore;
 use crate::wifi::WlanConfig;
 use chaya_pure::audio::AudioKind;
 

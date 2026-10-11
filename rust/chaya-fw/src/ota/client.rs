@@ -1,7 +1,7 @@
 //! GitHub Releases OTA: tag check + SHA-512 verified flash via esp-hal-ota.
 
-use crate::storage::flash_shared::{FlashCell, FlashProxy};
-use crate::mqtt::tls::HostPinProvider;
+use crate::config::flash_shared::{FlashCell, FlashProxy};
+use crate::tls::HostPinProvider;
 use embassy_net::{IpEndpoint, Stack, dns::DnsQueryType, tcp::TcpSocket};
 use embassy_time::{Duration, Timer};
 use embedded_io_async::Write;
