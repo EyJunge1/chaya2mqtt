@@ -50,6 +50,12 @@ pub struct SettingsSaveReq<'a> {
     pub audio_rx_enabled: Option<bool>,
     pub audioTxEnabled: Option<bool>,
     pub audioRxEnabled: Option<bool>,
+    pub reset_days: Option<u8>,
+    pub resetDays: Option<u8>,
+    pub led_enabled: Option<bool>,
+    pub ledEnabled: Option<bool>,
+    pub lang: Option<&'a str>,
+    pub theme: Option<&'a str>,
     pub otaChannel: Option<&'a str>,
     pub channel: Option<&'a str>,
 }

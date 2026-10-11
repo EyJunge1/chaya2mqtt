@@ -27,7 +27,7 @@ impl BatteryService {
     }
 }
 
-/// Cut latch and enter deep sleep (device HAL later).
+/// Cut battery latch (deep sleep is device-only — see `sleep::power_off_deep_sleep`).
 pub fn power_off_and_sleep(gpio: &mut dyn GpioOut) {
     gpio.set_output(pins::BAT_CONTROL, false);
 }

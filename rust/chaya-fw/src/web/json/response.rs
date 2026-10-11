@@ -2,7 +2,7 @@
 
 use alloc::string::String;
 use crate::audio::AudioConfig;
-use crate::config::{DEVICE_HOSTNAME, SETUP_AP_IP, SETUP_AP_SSID, STA_HOSTNAME_PREFIX};
+use crate::config::{DEVICE_HOSTNAME, SETUP_AP_IP, SETUP_AP_SSID, STA_HOSTNAME_PREFIX, UiPrefs};
 use crate::ota::client::OtaStatus;
 use crate::mqtt::MqttConfig;
 use crate::config::APP_VERSION;
@@ -171,10 +171,16 @@ pub fn mqtt_config_json(device_id: &str, cfg: &MqttConfig) -> String {
     s
 }
 
-pub fn settings_json(audio: &AudioConfig, led_enabled: bool) -> String {
+pub fn settings_json(audio: &AudioConfig, ui: &UiPrefs) -> String {
     let mut s = String::new();
-    s.push_str("{\"resetDays\":0,\"lang\":\"de\",\"theme\":\"system\",\"ledEnabled\":");
-    s.push_str(if led_enabled { "true" } else { "false" });
+    s.push_str("{\"resetDays\":");
+    push_i32(&mut s, ui.reset_days as i32);
+    s.push_str(",\"lang\":\"");
+    push_escaped(&mut s, ui.lang.as_str());
+    s.push_str("\",\"theme\":\"");
+    push_escaped(&mut s, ui.theme.as_str());
+    s.push_str("\",\"ledEnabled\":");
+    s.push_str(if ui.led_enabled { "true" } else { "false" });
     s.push_str(",\"audioTxEnabled\":");
     s.push_str(if audio.tx_enabled { "true" } else { "false" });
     s.push_str(",\"audioRxEnabled\":");
@@ -234,6 +240,7 @@ pub fn bootstrap_json(
     heart_tx: i32,
     heart_rx: i32,
     audio: &AudioConfig,
+    ui: &UiPrefs,
     ota: &OtaStatus,
 ) -> String {
     let mut s = String::new();
@@ -254,7 +261,7 @@ pub fn bootstrap_json(
     s.push_str(",\"update\":");
     s.push_str(&ota_status_json(ota));
     s.push_str(",\"settings\":");
-    s.push_str(&settings_json(audio, true));
+    s.push_str(&settings_json(audio, ui));
     s.push('}');
     s
 }

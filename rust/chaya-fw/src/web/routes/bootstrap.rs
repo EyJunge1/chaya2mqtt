@@ -30,9 +30,12 @@ pub async fn handle(
 
     if path == "/api/bootstrap" && method == Method::Get {
         let wifi = wifi_status_json(s).await;
-        let mqtt_cfg = {
+        let (mqtt_cfg, ui) = {
             let mut kv = s.kv.lock().await;
-            MqttConfig::load(&mut *kv)
+            (
+                MqttConfig::load(&mut *kv),
+                crate::config::UiPrefs::load(&mut *kv),
+            )
         };
         let audio = s.audio_cfg.lock().await.clone();
         let ota = s.ota_status.lock().await.clone();
@@ -47,6 +50,7 @@ pub async fn handle(
             heart_tx,
             heart_rx,
             &audio,
+            &ui,
             &ota,
         );
         return Some((200, body, "application/json"));

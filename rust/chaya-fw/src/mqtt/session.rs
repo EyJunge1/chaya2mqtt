@@ -5,6 +5,7 @@ use embassy_time::{Duration, Instant, Timer, with_timeout};
 use embedded_io_async::{Read, Write};
 use crate::tls::HostPinProvider;
 use chaya_pure::audio::AudioKind;
+use chaya_pure::mqtt::{mqtt_own_topic_tx_should_apply, MQTT_PUBLISH_ACK_WAIT_MS};
 use embedded_tls::{TlsConfig, TlsConnection, TlsContext};
 use esp_println::println;
 use rand_core::{CryptoRng, Error as RandError, RngCore};
@@ -33,7 +34,8 @@ impl CryptoRng for EspRng {}
 
 
 use crate::mqtt::proto::{
-    build_connect, build_publish, build_subscribe, consume_packet, itoa_into, parse_i32,
+    build_connect, build_puback, build_publish_qos1_retain, build_subscribe, consume_packet,
+    itoa_into, ParsedMqtt,
 };
 
 async fn resolve(stack: Stack<'static>, host: &str) -> Option<embassy_net::IpAddress> {
@@ -62,10 +64,20 @@ async fn read_exact<S: Read>(stream: &mut S, buf: &mut [u8]) -> bool {
     true
 }
 
+fn next_packet_id(id: &mut u16) -> u16 {
+    *id = id.wrapping_add(1);
+    if *id == 0 {
+        *id = 1;
+    }
+    *id
+}
+
 async fn mqtt_session_body<S: Read + Write>(
     stream: &mut S,
     pub_topic: &str,
     sub_topic: &str,
+    own_topic: &str,
+    lwt_topic: &str,
     client_id: &str,
     user: &str,
     pass: &str,
@@ -74,6 +86,10 @@ async fn mqtt_session_body<S: Read + Write>(
         i32,
     >,
     rx_abs: &embassy_sync::mutex::Mutex<
+        embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex,
+        i32,
+    >,
+    tx_abs: &embassy_sync::mutex::Mutex<
         embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex,
         i32,
     >,
@@ -90,7 +106,7 @@ async fn mqtt_session_body<S: Read + Write>(
         (),
     >,
 ) -> bool {
-    let pkt = build_connect(client_id, user, pass);
+    let pkt = build_connect(client_id, user, pass, lwt_topic);
     if stream.write_all(&pkt).await.is_err() {
         return false;
     }
@@ -100,28 +116,86 @@ async fn mqtt_session_body<S: Read + Write>(
         println!("MQTT: CONNACK fail {ack:?}");
         return false;
     }
-    if !sub_topic.is_empty() {
-        let sub_pkt = build_subscribe(1, sub_topic);
-        let _ = stream.write_all(&sub_pkt).await;
+
+    let mut packet_id_seq = 0u16;
+    let subscribe_partner = !sub_topic.is_empty();
+    let subscribe_own =
+        !own_topic.is_empty() && (!subscribe_partner || own_topic != sub_topic);
+    if subscribe_partner {
+        let sub_pkt = build_subscribe(next_packet_id(&mut packet_id_seq), sub_topic);
+        if stream.write_all(&sub_pkt).await.is_err() {
+            return false;
+        }
+    }
+    if subscribe_own {
+        let sub_pkt = build_subscribe(next_packet_id(&mut packet_id_seq), own_topic);
+        if stream.write_all(&sub_pkt).await.is_err() {
+            return false;
+        }
+    }
+    if subscribe_partner || subscribe_own {
         let _ = stream.flush().await;
     }
+
+    // Retained QoS1 `online` on LWT topic (parity with C++ CONNACK path).
+    if !lwt_topic.is_empty() {
+        let online_id = next_packet_id(&mut packet_id_seq);
+        let online_pkt = build_publish_qos1_retain(lwt_topic, "online", online_id);
+        if stream.write_all(&online_pkt).await.is_err() {
+            return false;
+        }
+        let _ = stream.flush().await;
+    }
+
     println!("MQTT: session up");
     mqtt_up.signal(());
 
     let mut acc = [0u8; 768];
     let mut acc_len = 0usize;
     let mut ping_at = Instant::now() + Duration::from_secs(45);
+    let mut publish_in_flight = false;
+    let mut pending_expected = 0i32;
+    let mut pending_packet_id: Option<u16> = None;
+    let mut puback_deadline: Option<Instant> = None;
+    let own_topic_bytes = own_topic.as_bytes();
+    let sub_topic_bytes = sub_topic.as_bytes();
 
     loop {
-        if let Some(abs) = bump.try_take() {
-            let mut payload = heapless::String::<16>::new();
-            itoa_into(&mut payload, abs);
-            let pub_pkt = build_publish(pub_topic, payload.as_str());
-            if stream.write_all(&pub_pkt).await.is_err() {
-                return true;
+        if publish_in_flight {
+            if let Some(deadline) = puback_deadline {
+                if Instant::now() >= deadline {
+                    println!(
+                        "MQTT: PUBACK timeout (wait_ms={})",
+                        MQTT_PUBLISH_ACK_WAIT_MS
+                    );
+                    publish_in_flight = false;
+                    pending_packet_id = None;
+                    puback_deadline = None;
+                }
             }
-            let _ = stream.flush().await;
         }
+
+        if !publish_in_flight {
+            if let Some(abs) = bump.try_take() {
+                let mut payload = heapless::String::<16>::new();
+                itoa_into(&mut payload, abs);
+                let pid = next_packet_id(&mut packet_id_seq);
+                let pub_pkt =
+                    build_publish_qos1_retain(pub_topic, payload.as_str(), pid);
+                if stream.write_all(&pub_pkt).await.is_err() {
+                    return true;
+                }
+                let _ = stream.flush().await;
+                publish_in_flight = true;
+                pending_expected = abs;
+                pending_packet_id = Some(pid);
+                puback_deadline = Some(
+                    Instant::now()
+                        + Duration::from_millis(MQTT_PUBLISH_ACK_WAIT_MS as u64),
+                );
+            }
+        }
+
         if Instant::now() >= ping_at {
             if stream.write_all(&[0xc0, 0x00]).await.is_err() {
                 return true;
@@ -133,15 +207,60 @@ async fn mqtt_session_body<S: Read + Write>(
             Ok(Ok(0)) => return true,
             Ok(Ok(n)) => {
                 acc_len += n;
-                while let Some((used, val)) = consume_packet(&acc[..acc_len]) {
-                    if let Some(v) = val {
-                        let mut g = rx_abs.lock().await;
-                        if v > *g {
-                            *g = v;
-                            println!("MQTT: rx heart={v}");
-                            rx_beep.signal(AudioKind::Rx);
-                            heart_dirty.signal(());
+                while let Some((used, parsed)) = consume_packet(&acc[..acc_len]) {
+                    match parsed {
+                        ParsedMqtt::Puback { packet_id } => {
+                            if pending_packet_id == Some(packet_id) {
+                                publish_in_flight = false;
+                                pending_packet_id = None;
+                                puback_deadline = None;
+                            }
                         }
+                        ParsedMqtt::Publish {
+                            topic,
+                            payload_i32,
+                            packet_id,
+                            qos,
+                            ..
+                        } => {
+                            if qos == 1 {
+                                if let Some(pid) = packet_id {
+                                    let ack = build_puback(pid);
+                                    if stream.write_all(&ack).await.is_err() {
+                                        return true;
+                                    }
+                                    let _ = stream.flush().await;
+                                }
+                            }
+                            if let Some(v) = payload_i32 {
+                                if !sub_topic_bytes.is_empty() && topic == sub_topic_bytes {
+                                    let mut g = rx_abs.lock().await;
+                                    if v > *g {
+                                        *g = v;
+                                        println!("MQTT: rx heart={v}");
+                                        rx_beep.signal(AudioKind::Rx);
+                                        heart_dirty.signal(());
+                                    }
+                                } else if !own_topic_bytes.is_empty()
+                                    && topic == own_topic_bytes
+                                {
+                                    let mut local = tx_abs.lock().await;
+                                    if mqtt_own_topic_tx_should_apply(
+                                        v,
+                                        *local,
+                                        publish_in_flight,
+                                        pending_expected,
+                                    ) {
+                                        *local = v;
+                                        println!("MQTT: own-topic heart={v}");
+                                        heart_dirty.signal(());
+                                    }
+                                }
+                            }
+                        }
+                        ParsedMqtt::Pingresp
+                        | ParsedMqtt::Connack { .. }
+                        | ParsedMqtt::Other { .. } => {}
                     }
                     acc.copy_within(used..acc_len, 0);
                     acc_len -= used;
@@ -163,11 +282,18 @@ pub async fn session_loop(
     pass: &'static str,
     pub_topic: &'static str,
     sub_topic: &'static str,
+    own_topic: &'static str,
+    lwt_topic: &'static str,
+    _device_id: &'static str,
     bump: &'static embassy_sync::signal::Signal<
         embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex,
         i32,
     >,
     rx_abs: &'static embassy_sync::mutex::Mutex<
+        embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex,
+        i32,
+    >,
+    tx_abs: &'static embassy_sync::mutex::Mutex<
         embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex,
         i32,
     >,
@@ -237,11 +363,14 @@ pub async fn session_loop(
                 &mut tls,
                 pub_topic,
                 sub_topic,
+                own_topic,
+                lwt_topic,
                 client_id,
                 user,
                 pass,
                 bump,
                 rx_abs,
+                tx_abs,
                 rx_beep,
                 heart_dirty,
                 mqtt_up,
@@ -256,11 +385,14 @@ pub async fn session_loop(
                 &mut socket,
                 pub_topic,
                 sub_topic,
+                own_topic,
+                lwt_topic,
                 client_id,
                 user,
                 pass,
                 bump,
                 rx_abs,
+                tx_abs,
                 rx_beep,
                 heart_dirty,
                 mqtt_up,

@@ -5,34 +5,38 @@ use edge_http::Method;
 use crate::web::form;
 use crate::web::json;
 use crate::web::shared::HttpShared;
-use crate::web::sse;
-use crate::web::spa;
-use crate::mqtt::MqttConfig;
+use crate::config::UiPrefs;
 use crate::ota::{OtaChannel, OtaService};
 use crate::util::platform::KvStore;
-use crate::wifi::WlanConfig;
-use chaya_pure::audio::AudioKind;
 
 pub async fn handle(
     s: &HttpShared,
     method: Method,
     path: &str,
     body: &[u8],
-    mqtt_ok: bool,
-    heart_tx: i32,
-    heart_rx: i32,
-    bat_pct: i32,
-    bat_mv: i32,
+    _mqtt_ok: bool,
+    _heart_tx: i32,
+    _heart_rx: i32,
+    _bat_pct: i32,
+    _bat_mv: i32,
 ) -> Option<(u16, String, &'static str)> {
     use alloc::string::String;
 
     if path == "/api/settings" && method == Method::Get {
         let audio = s.audio_cfg.lock().await.clone();
-        return Some((200, json::settings_json(&audio, true), "application/json"));
+        let ui = {
+            let mut kv = s.kv.lock().await;
+            UiPrefs::load(&mut *kv)
+        };
+        return Some((200, json::settings_json(&audio, &ui), "application/json"));
     }
 
     if path == "/api/settings" && method == Method::Post {
         let mut audio = s.audio_cfg.lock().await.clone();
+        let mut ui = {
+            let mut kv = s.kv.lock().await;
+            UiPrefs::load(&mut *kv)
+        };
         if let Ok(req) = crate::web::json::from_slice::<crate::web::json::SettingsSaveReq>(body) {
             if let Some(ch) = req.otaChannel.or(req.channel) {
                 let channel = OtaChannel::parse(ch);
@@ -69,6 +73,26 @@ pub async fn handle(
             if let Some(v) = req.audio_rx_enabled.or(req.audioRxEnabled) {
                 audio.rx_enabled = v;
             }
+            if let Some(v) = req.reset_days.or(req.resetDays) {
+                if v <= 30 {
+                    ui.reset_days = v;
+                }
+            }
+            if let Some(v) = req.led_enabled.or(req.ledEnabled) {
+                ui.led_enabled = v;
+            }
+            if let Some(lang) = req.lang {
+                if lang == "de" || lang == "en" {
+                    ui.lang.clear();
+                    let _ = ui.lang.push_str(lang);
+                }
+            }
+            if let Some(theme) = req.theme {
+                if theme == "system" || theme == "dark" || theme == "light" {
+                    ui.theme.clear();
+                    let _ = ui.theme.push_str(theme);
+                }
+            }
         } else if let Some(ch) = form::form_value(body, "otaChannel") {
             let channel = OtaChannel::parse(ch);
             let mut kv = s.kv.lock().await;
@@ -82,6 +106,7 @@ pub async fn handle(
         {
             let mut kv = s.kv.lock().await;
             let _ = audio.save(&mut *kv);
+            let _ = ui.save(&mut *kv);
         }
         *s.audio_cfg.lock().await = audio;
         return Some((200, String::from(json::json_ok()), "application/json"));

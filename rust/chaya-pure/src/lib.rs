@@ -17,3 +17,4 @@ pub mod mqtt;
 pub mod ota;
 pub mod web;
 pub mod wifi;
+pub mod wifi_recovery;

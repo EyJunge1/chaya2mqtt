@@ -83,7 +83,8 @@ async fn main(spawner: Spawner) -> ! {
     let peripherals = esp_hal::init(config);
 
     esp_alloc::heap_allocator!(#[ram(reclaimed)] size: 64 * 1024);
-    esp_alloc::heap_allocator!(size: 48 * 1024);
+    // Keep headroom for the main stack (≥8 KiB esp-hal assert) after sleep/OTA statics.
+    esp_alloc::heap_allocator!(size: 40 * 1024);
 
     let out_cfg = OutputConfig::default();
     let mut early = EarlyGpio {

@@ -63,21 +63,22 @@ jobs:
                 flasher/*)
                   flasher=true
                   ;;
-                src/*|sim/*|test/*|platformio.ini|partitions_chaya_8mb.csv|sdkconfig.defaults)
+                rust/*|Makefile|partitions_chaya_8mb.csv|scripts/build_rust_release.sh|scripts/prepare_release_artifacts.py|scripts/check_firmware_size.py)
+                  firmware_tests=true
+                  firmware_build=true
+                  ;;
+                scripts/test_check_firmware_size.py)
+                  firmware_tests=true
+                  ;;
+                src/*|sim/*|test/*|platformio.ini|sdkconfig.defaults)
+                  # Legacy C++ tree — still exercise Rust production gate when touched
                   firmware_tests=true
                   firmware_build=true
                   ;;
                 .clang-tidy|.clang-format|.clangd)
                   firmware_tests=true
                   ;;
-                scripts/embed_web_assets.py|scripts/test_embed_web_assets.py|scripts/pio_pre_frontend.py|scripts/prepare_release_artifacts.py)
-                  firmware_build=true
-                  ;;
-                scripts/test_check_firmware_size.py)
-                  firmware_tests=true
-                  ;;
-                scripts/check_firmware_size.py)
-                  firmware_tests=true
+                scripts/embed_web_assets.py|scripts/test_embed_web_assets.py|scripts/pio_pre_frontend.py)
                   firmware_build=true
                   ;;
                 scripts/fetch_flasher_releases.py|scripts/generate_flasher_site.py|scripts/test_flasher_site.py)
@@ -168,29 +169,16 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
+      - uses: dtolnay/rust-toolchain@stable
+
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: "3.12"
 
-      - name: Cache PlatformIO
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: ~/.platformio
-          key: pio-${{ runner.os }}-${{ hashFiles('platformio.ini') }}
-          restore-keys: |
-            pio-${{ runner.os }}-
-
-      - name: Install PlatformIO
-        run: pip install platformio==6.1.19
-
-      - name: Install clang-tidy and clang-format
-        run: bash scripts/ci_install_clang_tools.sh
-
-      - name: Run native and static firmware checks
-        run: make check-firmware-tests PIO=pio
-        env:
-          CLANG_FORMAT: clang-format-23
-          CLANG_TIDY: clang-tidy-22
+      - name: Rust host tests + size unit tests
+        run: |
+          make check-firmware-tests
+          python3 scripts/test_check_firmware_size.py
 
   firmware_build:
     name: Firmware release build
@@ -204,29 +192,24 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Install espup + espflash
+        run: |
+          set -euo pipefail
+          cargo install espup espflash --locked
+          espup install --targets esp32s3
+
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: "3.12"
 
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
-        with:
-          node-version: "22"
-          cache: npm
-          cache-dependency-path: frontend/package-lock.json
-
-      - name: Cache PlatformIO
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: ~/.platformio
-          key: pio-${{ runner.os }}-${{ hashFiles('platformio.ini') }}
-          restore-keys: |
-            pio-${{ runner.os }}-
-
-      - name: Install PlatformIO
-        run: pip install platformio==6.1.19
-
-      - name: Build and validate release firmware
-        run: make check-firmware-build PIO=pio
+      - name: Build and validate Rust release firmware
+        run: |
+          set -euo pipefail
+          # shellcheck source=/dev/null
+          source "$HOME/export-esp.sh"
+          make check-firmware-build
 
       - name: Upload PR firmware artifacts
         if: github.event_name == 'pull_request'
@@ -234,10 +217,10 @@ jobs:
         with:
           name: firmware-pr-${{ github.event.pull_request.number }}-${{ github.sha }}
           path: |
-            .pio/build/esp32s3-release/firmware.bin
-            .pio/build/esp32s3-release/firmware.sha512
-            .pio/build/esp32s3-release/firmware.factory.bin
-            .pio/build/esp32s3-release/firmware.factory.sha512
+            out/rust-release/firmware.bin
+            out/rust-release/firmware.sha512
+            out/rust-release/firmware.factory.bin
+            out/rust-release/firmware.factory.sha512
           retention-days: 7
           if-no-files-found: error
 

@@ -98,9 +98,14 @@ pub async fn run_sta(
         let host = crate::boot::util::leak(mqtt_cfg.host.as_str());
         let user = crate::boot::util::leak(mqtt_cfg.user.as_str());
         let pass = crate::boot::util::leak(mqtt_cfg.pass.as_str());
-        let client_id = crate::boot::util::leak(report.device_id.as_str());
-        let pub_topic = crate::boot::util::leak(mqtt_cfg.pub_topic(report.device_id.as_str()).as_str());
+        let device_id = crate::boot::util::leak(report.device_id.as_str());
+        let client_id = device_id;
+        let pub_topic =
+            crate::boot::util::leak(mqtt_cfg.pub_topic(report.device_id.as_str()).as_str());
+        let own_topic = pub_topic;
         let sub_topic = crate::boot::util::leak(mqtt_cfg.sub_topic().as_str());
+        let lwt_topic =
+            crate::boot::util::leak(mqtt_cfg.lwt_topic(report.device_id.as_str()).as_str());
         let port = mqtt_cfg.port;
         // seed outbound with current absolute
         crate::async_rt::state::HEART_BUMP.signal(fw.heart.tx);
@@ -108,7 +113,18 @@ pub async fn run_sta(
         spawner
             .spawn(
                 crate::async_rt::mqtt::mqtt_session_task(
-                    stack, host, port, client_id, user, pass, pub_topic, sub_topic, mqtt_rng,
+                    stack,
+                    host,
+                    port,
+                    client_id,
+                    user,
+                    pass,
+                    pub_topic,
+                    sub_topic,
+                    own_topic,
+                    lwt_topic,
+                    device_id,
+                    mqtt_rng,
                 )
                 .unwrap(),
             );
@@ -116,6 +132,7 @@ pub async fn run_sta(
 
     let ota_rng = OtaRng(Rng::new());
     spawner.spawn(crate::async_rt::ota::ota_task(stack, ota_rng, flash).unwrap());
+    spawner.spawn(crate::async_rt::ota_health::ota_health_task(flash).unwrap());
 
     let hostname = {
         let mut h = heapless::String::<32>::new();

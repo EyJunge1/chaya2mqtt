@@ -13,7 +13,11 @@ from pathlib import Path
 from shutil import which
 
 MARKER = "<!-- chaya2mqtt-firmware-size -->"
-TARGETS = ("esp32s3-release",)
+# Production target: Rust esp-hal release images under out/rust-release/.
+TARGETS = ("chaya-fw",)
+BUILD_DIRS = {
+    "chaya-fw": Path("out") / "rust-release",
+}
 
 
 @dataclass(frozen=True, slots=True)
@@ -36,12 +40,25 @@ def size_tool_from_packages(packages: Path) -> str | None:
     return None
 
 
+def size_tool_from_espressif(tools: Path) -> str | None:
+    """Locate xtensa-*-size under an espup/espressif tools tree."""
+    if not tools.is_dir():
+        return None
+    matches = sorted(tools.glob("xtensa-esp-elf/*/xtensa-esp-elf/bin/xtensa-esp-elf-size"))
+    if matches:
+        return str(matches[-1])
+    return None
+
+
 def find_size_tool() -> str | None:
-    """Find the Xtensa size tool on PATH or in PlatformIO packages."""
-    for name in ("xtensa-esp32s3-elf-size", "xtensa-esp-elf-size"):
+    """Find the Xtensa size tool on PATH, espup, or PlatformIO packages."""
+    for name in ("xtensa-esp-elf-size", "xtensa-esp32s3-elf-size"):
         found = which(name)
         if found:
             return found
+    from_esp = size_tool_from_espressif(Path.home() / ".espressif" / "tools")
+    if from_esp:
+        return from_esp
     return size_tool_from_packages(Path.home() / ".platformio" / "packages")
 
 
@@ -82,7 +99,7 @@ def measure(root: Path) -> dict[str, Sizes]:
     """Read firmware.bin size and ELF RAM for each shipping env."""
     reports: dict[str, Sizes] = {}
     for name in TARGETS:
-        build = root / ".pio" / "build" / name
+        build = root / BUILD_DIRS.get(name, Path(".pio") / "build" / name)
         firmware = build / "firmware.bin"
         if not firmware.is_file():
             message = f"missing {firmware}"

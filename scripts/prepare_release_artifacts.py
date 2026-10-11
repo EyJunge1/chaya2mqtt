@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Validate and checksum PlatformIO release artifacts for GitHub Releases."""
+"""Validate and checksum release artifacts (Rust out/rust-release or legacy PIO)."""
 
 from __future__ import annotations
 
@@ -87,7 +87,8 @@ def prepare(build_dir: Path, partition_table: Path = PARTITION_TABLE) -> dict[st
         raise SystemExit(message)
     if not factory.is_file():
         message = (
-            f"missing {factory} — PlatformIO should emit firmware.factory.bin for esp32s3-release"
+            f"missing {factory} — expected from scripts/build_rust_release.sh "
+            "(espflash save-image --merge)"
         )
         raise SystemExit(message)
 
@@ -123,8 +124,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--build-dir",
         type=Path,
-        default=Path(".pio/build/esp32s3-release"),
-        help="PlatformIO build directory",
+        default=Path("out/rust-release"),
+        help="Directory with firmware.bin and firmware.factory.bin",
     )
     parser.add_argument(
         "--github-output",

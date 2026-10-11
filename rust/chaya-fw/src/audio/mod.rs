@@ -7,6 +7,8 @@ use chaya_pure::audio::{audio_playback_allowed, AudioKind};
 const KEY_QUIET0: &str = "quiet0";
 const KEY_QUIET1: &str = "quiet1";
 const KEY_VOL: &str = "snd_vol";
+const KEY_TX: &str = "snd_tx_en";
+const KEY_RX: &str = "snd_rx_en";
 
 #[derive(Clone, Debug)]
 pub struct AudioConfig {
@@ -41,6 +43,12 @@ impl AudioConfig {
                 cfg.volume = v as u8;
             }
         }
+        if let Some(v) = kv.get_i32(NS_CFG, KEY_TX) {
+            cfg.tx_enabled = v != 0;
+        }
+        if let Some(v) = kv.get_i32(NS_CFG, KEY_RX) {
+            cfg.rx_enabled = v != 0;
+        }
         if let Some(v) = kv.get_i32(NS_CFG, KEY_QUIET0) {
             if (0..=23).contains(&v) {
                 cfg.quiet_start = v as u8;
@@ -56,6 +64,8 @@ impl AudioConfig {
 
     pub fn save(&self, kv: &mut dyn KvStore) -> bool {
         kv.put_i32(NS_CFG, KEY_VOL, self.volume as i32)
+            && kv.put_i32(NS_CFG, KEY_TX, if self.tx_enabled { 1 } else { 0 })
+            && kv.put_i32(NS_CFG, KEY_RX, if self.rx_enabled { 1 } else { 0 })
             && kv.put_i32(NS_CFG, KEY_QUIET0, self.quiet_start as i32)
             && kv.put_i32(NS_CFG, KEY_QUIET1, self.quiet_end as i32)
     }
@@ -99,3 +109,21 @@ pub fn audio_backend_status() -> &'static str {
 pub mod hw;
 #[cfg(feature = "device")]
 pub use hw::AudioHw;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::util::platform::SimKv;
+
+    #[test]
+    fn tx_rx_flags_roundtrip() {
+        let mut kv = SimKv::default();
+        let mut cfg = AudioConfig::default_on();
+        cfg.tx_enabled = false;
+        cfg.rx_enabled = true;
+        assert!(cfg.save(&mut kv));
+        let loaded = AudioConfig::load(&mut kv);
+        assert!(!loaded.tx_enabled);
+        assert!(loaded.rx_enabled);
+    }
+}

@@ -3,6 +3,7 @@
 use chaya_fw::hw::pins;
 use chaya_fw::led::LedPreset;
 use chaya_fw::util::platform::{GpioIn, GpioOut};
+use chaya_pure::async_shutdown::soft_off_allowed;
 use chaya_pure::audio::AudioKind;
 use embassy_time::{Duration, Timer};
 use esp_hal::gpio::{Input, Level, Output};
@@ -73,15 +74,22 @@ pub async fn button_led_task(
             led_svc.play_preset(LedPreset::MqttUp);
         }
         if button.soft_off_ready(&mut btns, &clock) {
-            println!("PWR: soft-off — cutting battery latch");
-            led_svc.play_preset(LedPreset::SoftOff);
-            for _ in 0..10 {
-                let _ = led_svc.tick_phase_done(&mut led_gpio);
-                Timer::after(Duration::from_millis(40)).await;
-            }
-            bat_latch.set_level(Level::Low);
-            loop {
-                Timer::after(Duration::from_secs(60)).await;
+            let ota_busy = {
+                let st = OTA_STATUS.lock().await;
+                st.installing || st.checking
+            };
+            if !soft_off_allowed(ota_busy, false, false, false, false, false) {
+                println!("PWR: soft-off deferred (OTA busy)");
+            } else {
+                println!("PWR: soft-off — EPD power-off + deep sleep");
+                led_svc.play_preset(LedPreset::SoftOff);
+                for _ in 0..10 {
+                    let _ = led_svc.tick_phase_done(&mut led_gpio);
+                    Timer::after(Duration::from_millis(40)).await;
+                }
+                EPD_POWER_OFF.signal(());
+                Timer::after(Duration::from_millis(800)).await;
+                chaya_fw::battery::sleep::power_off_deep_sleep(&mut btns.pwr, &mut bat_latch);
             }
         }
         Timer::after(Duration::from_millis(20)).await;

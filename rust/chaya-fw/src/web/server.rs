@@ -14,6 +14,7 @@ use esp_println::println;
 use crate::web::json;
 use crate::web::routes;
 use crate::web::shared::HttpShared;
+use crate::web::spa;
 use crate::web::sse;
 use crate::config::SETUP_AP_SSID;
 
@@ -112,6 +113,51 @@ impl Handler for AdminHandler {
                 embassy_time::Timer::after(embassy_time::Duration::from_secs(5)).await;
             }
             return Ok(());
+        }
+
+        // Gzip SPA blob assets (paths with leading slash; index.html is not in the blob).
+        if method == Method::Get && path != "/openapi.json" {
+            let lookup = if path == "/" { "/index.html" } else { path };
+            if let Some(asset) = spa::find_asset(lookup).or_else(|| {
+                if lookup != path {
+                    spa::find_asset(path)
+                } else {
+                    None
+                }
+            }) {
+                let bytes = spa::asset_bytes(asset);
+                let cache = if asset.path.starts_with("/assets/") {
+                    "public, max-age=31536000, immutable"
+                } else {
+                    "no-cache"
+                };
+                if asset.gzip {
+                    conn.initiate_response(
+                        200,
+                        Some("OK"),
+                        &[
+                            ("Content-Type", asset.content_type),
+                            ("Content-Encoding", "gzip"),
+                            ("Cache-Control", cache),
+                        ],
+                    )
+                    .await?;
+                } else {
+                    conn.initiate_response(
+                        200,
+                        Some("OK"),
+                        &[
+                            ("Content-Type", asset.content_type),
+                            ("Cache-Control", cache),
+                        ],
+                    )
+                    .await?;
+                }
+                if !bytes.is_empty() {
+                    conn.write_all(bytes).await?;
+                }
+                return Ok(());
+            }
         }
 
         let (code, resp_body, ctype): (u16, alloc::string::String, &str) =

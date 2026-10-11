@@ -46,15 +46,15 @@ class MarkdownTests(unittest.TestCase):
     def test_table_delta(self) -> None:
         """Show FLASH/RAM growth against the main baseline."""
         current = {
-            "esp32s3-release": Sizes(flash=1100, ram=80),
+            "chaya-fw": Sizes(flash=1100, ram=80),
         }
         baseline = {
-            "esp32s3-release": Sizes(flash=1000, ram=80),
+            "chaya-fw": Sizes(flash=1000, ram=80),
         }
         text = render(current, baseline, "aaa111", "bbb222")
         self.assertIn(MARKER, text)
         self.assertIn("+100", text)
-        self.assertIn("esp32s3-release", text)
+        self.assertIn("chaya-fw", text)
         self.assertIn("0", text)
 
 
@@ -81,19 +81,18 @@ class SizeToolTests(unittest.TestCase):
 
 
 class MeasureTests(unittest.TestCase):
-    """Read firmware.bin from a fake PlatformIO build tree."""
+    """Read firmware.bin from the Rust release output tree."""
 
     def test_reads_firmware_bin(self) -> None:
         """Measure FLASH from firmware.bin when the ELF size tool is absent."""
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
-            for name in ("esp32s3-release",):
-                build = root / ".pio" / "build" / name
-                build.mkdir(parents=True)
-                (build / "firmware.bin").write_bytes(b"\x00" * 50)
+            build = root / "out" / "rust-release"
+            build.mkdir(parents=True)
+            (build / "firmware.bin").write_bytes(b"\x00" * 50)
             reports = measure(root)
-            self.assertEqual(reports["esp32s3-release"].flash, 50)
-            self.assertIsNone(reports["esp32s3-release"].ram)
+            self.assertEqual(reports["chaya-fw"].flash, 50)
+            self.assertIsNone(reports["chaya-fw"].ram)
 
 
 if __name__ == "__main__":

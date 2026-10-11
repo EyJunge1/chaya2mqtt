@@ -89,6 +89,16 @@ impl MqttConfig {
         t
     }
 
+    /// Per-device LWT topic `chaya2mqtt/<deviceId>/lwt` (never the shared heart topic).
+    pub fn lwt_topic(&self, device_id: &str) -> heapless::String<48> {
+        let _ = self;
+        let mut t = heapless::String::new();
+        let _ = t.push_str("chaya2mqtt/");
+        let _ = t.push_str(device_id);
+        let _ = t.push_str("/lwt");
+        t
+    }
+
     pub fn save(&self, kv: &mut dyn KvStore) -> bool {
         kv.put_blob(NS_MQTT, KEY_HOST, self.host.as_bytes())
             && kv.put_i32(NS_MQTT, KEY_PORT, self.port as i32)
@@ -137,7 +147,7 @@ pub fn transport_backend_status() -> &'static str {
     "device: MQTT 3.1.1 TCP + TLS1.3 when port>=8883 (host DER pin)"
 }
 
-#[cfg(feature = "device")]
+/// Packet builders/parsers are host-testable (no device HAL).
 pub mod proto;
 #[cfg(feature = "device")]
 pub mod session;

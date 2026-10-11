@@ -6,26 +6,20 @@ Product page: [README.md](../README.md). Board: [Waveshare 1.54G](https://docs.w
 
 ## Build
 
-Needs [PlatformIO](https://platformio.org/). If `pio` is missing: `~/.platformio/penv/bin/pio`.
+**Production is Rust** (esp-hal). Needs [espup](https://esp-rs.github.io/book/installation/using-espup.html) + `espflash`.
 
 ```bash
-pio run                   # release (default env)
-pio run -e esp32s3        # debug
-pio run -t upload
-make upload               # debug flash, keep settings
-make upload-erase         # erase, then debug flash
-make monitor              # 115200
+make upload               # Rust release flash, keep NVS
+make upload-erase         # erase chip, then flash
+make monitor              # serial (espflash)
+bash scripts/build_rust_release.sh   # → out/rust-release/{firmware,firmware.factory}.bin
 ```
 
 Or flash in Chrome/Edge: [web flasher](https://eyjunge1.github.io/chaya2mqtt/). Erase is on by default. Local flasher: [flasher/README.md](../flasher/README.md).
 
-| Env | Use |
-|-----|-----|
-| `esp32s3-release` | Production (`-Os`, no logs) |
-| `esp32s3` | Dev (`CORE_DEBUG_LEVEL=4`) |
+Legacy C++/PlatformIO: `make upload-cpp` (needs [PlatformIO](https://platformio.org/); `~/.platformio/penv/bin/pio` if `pio` is missing).
 
 8 MB flash, dual OTA (`partitions_chaya_8mb.csv`).
-
 ## First setup
 
 1. Power on (on battery: press **PWR**; firmware holds GPIO17 HIGH).
@@ -73,8 +67,8 @@ Daily check in STA (`stable` / `beta`). Install is manual. After OTA, image stay
 ## Layout
 
 ```
-src/          firmware (tasks in network/, async/, display/, ota/, button/, audio/)
-rust/         esp-hal experiment (chaya-pure + scaffold) — [RUST_ESP_HAL.md](RUST_ESP_HAL.md)
+rust/         production firmware (esp-hal) — [RUST_ESP_HAL.md](RUST_ESP_HAL.md)
+src/          legacy C++ firmware (PlatformIO)
 frontend/     Svelte admin SPA — [frontend/README.md](../frontend/README.md)
 flasher/      browser installer — [flasher/README.md](../flasher/README.md)
 docs/         this folder; REST [api/openapi.yaml](api/openapi.yaml), SSE [api/asyncapi.yaml](api/asyncapi.yaml)

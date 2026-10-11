@@ -1,4 +1,4 @@
-# Rust / esp-hal rewrite
+# Rust / esp-hal (production)
 
 Branch: `feat/rust-esp-hal`.
 
@@ -17,12 +17,15 @@ Branch: `feat/rust-esp-hal`.
 | WiFi scan + connect-test (AP) / save (STA) | Live |
 | Embedded SPA + gzip Vite assets + OpenAPI | Live (HTML/JSON; binary assets via SPA finder) |
 | MQTT TCP + TLS 1.3 (host DER pin; optional `mbedtls` feature) | Live |
-| Button / LED presets / soft-off latch / battery ADC | Live |
-| ES8311 + I2S DMA TX/RX + quiet hours | Live |
-| GitHub OTA (stable/beta) + SHA-512 flash + reboot | Live |
-| Settings / MQTT JSON contracts (SPA field names) | Live |
+| Button / LED presets / soft-off + deep sleep EXT1 / battery ADC | Live |
+| ES8311 + I2S DMA TX beeps + quiet hours | Live |
+| GitHub OTA (stable/beta) + SHA-512 flash + reboot + health mark-valid | Live |
+| Settings / MQTT JSON (led/lang/theme/resetDays + audio en/vol/quiet) | Live |
+| MQTT QoS1 + RETAIN + PUBACK + LWT + own-topic echo filter | Live |
+| WiFi STA recovery (reassoc / controlled restart) | Live |
+| Gzip SPA blob assets (`Content-Encoding: gzip`) | Live |
 | Full CA TLS via **mbedtls-rs** | Optional `--features device,mbedtls` (needs espup/cmake) |
-| Production flash | Still C++ until on-device parity soak |
+| **Production flash** | **Rust** (`make upload` / `scripts/build_rust_release.sh`) — C++ via `make upload-cpp` |
 
 ## Dependencies (device)
 
@@ -68,14 +71,24 @@ wifi/         WlanConfig + ops + scan
 main.rs       thin entry
 ```
 
-## Build
+## Build / flash (production)
 
 ```bash
-# Toolchain: espup (provides cargo +esp and xtensa-esp-elf-gcc)
-cd rust/chaya-fw && cargo +esp build --features device --release
+# Toolchain: espup + espflash (cargo +esp, xtensa-esp-elf-gcc)
+make upload            # build release + flash (keep NVS)
+make upload-erase      # erase chip, then flash
+make monitor           # serial
+
+# Images only (OTA + factory) → out/rust-release/
+bash scripts/build_rust_release.sh
 
 # Optional hardware CA verify:
 cd rust/chaya-fw && cargo +esp build --features device,mbedtls --release
 
 cd rust && cargo test -p chaya-pure -p chaya-fw
+
+# Legacy C++ PlatformIO flash:
+make upload-cpp
 ```
+
+Partition table: root `partitions_chaya_8mb.csv` (synced into `rust/chaya-fw/partitions.csv` on release build).

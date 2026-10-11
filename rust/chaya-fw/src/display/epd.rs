@@ -164,6 +164,8 @@ pub enum Scene {
         bat_pct: i32,
         cracked: bool,
     },
+    /// Soft-off splash (heart with power-off glyph).
+    PowerOff,
 }
 
 fn paint_scene(frame: &mut [u8], scene: &Scene) {
@@ -231,6 +233,12 @@ fn paint_scene(frame: &mut [u8], scene: &Scene) {
             itoa_buf(*rx, &mut num);
             draw_text(frame, 56, 172, num.as_str(), 2, BLACK);
         }
+        Scene::PowerOff => {
+            draw_heart(frame, 100, 88, 28, BLACK);
+            fill_rect(frame, 96, 60, 8, 24, WHITE);
+            fill_rect(frame, 92, 56, 16, 8, BLACK);
+            draw_text(frame, 52, 160, "OFF", 3, BLACK);
+        }
     }
 }
 
@@ -296,5 +304,10 @@ impl EpdPanel {
             println!("EPD: display_frame failed");
         }
         ok
+    }
+
+    /// Paint power-off splash and put the panel to sleep before deep sleep.
+    pub fn power_off(&mut self) -> bool {
+        self.show(&Scene::PowerOff)
     }
 }
