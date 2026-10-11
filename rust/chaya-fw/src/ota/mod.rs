@@ -1,4 +1,4 @@
-//! OTA from GitHub Releases + SHA-512 (flash backend + GitHub client pending).
+//! OTA from GitHub Releases + SHA-512 (GitHub client + esp-hal-ota flash).
 
 use crate::config::NS_CFG;
 use crate::util::platform::KvStore;

@@ -236,7 +236,7 @@ mod tests {
 
     #[test]
     fn host_validate() {
-        // Mirror `test/test_web/test_web.cpp` `test_host_validate`.
+        // Host-allowlist cases for `web_host_allowed` (hostname / .local / IP / AP).
         const HOSTNAME: &str = "chaya2mqtt-a1b2c3";
         const DEVICE_HOSTNAME: &str = "chaya2mqtt";
 

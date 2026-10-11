@@ -7,7 +7,10 @@ import { KNOWN_ROUTES } from "../nav/router.svelte.ts";
 function findRoot(): string {
   let dir = process.cwd();
   for (let i = 0; i < 6; i++) {
-    if (existsSync(resolve(dir, "docs/api/openapi.yaml")) && existsSync(resolve(dir, "src/web"))) {
+    if (
+      existsSync(resolve(dir, "docs/api/openapi.yaml")) &&
+      existsSync(resolve(dir, "rust/chaya-fw/src/web"))
+    ) {
       return dir;
     }
     dir = resolve(dir, "..");
@@ -21,14 +24,31 @@ function read(rel: string): string {
   return readFileSync(resolve(root, rel), "utf8");
 }
 
-/** Concatenate split firmware API route sources (admin_routes_api*.cpp). */
+/** Concatenate Rust firmware web API sources (routes + server/shared/sse + json DTOs). */
 function readFirmwareApiRoutes(): string {
-  const dir = resolve(root, "src/web/routes");
-  return readdirSync(dir)
-    .filter((name) => name.startsWith("admin_routes_api") && name.endsWith(".cpp"))
-    .sort()
-    .map((name) => readFileSync(resolve(dir, name), "utf8"))
-    .join("\n");
+  const web = resolve(root, "rust/chaya-fw/src/web");
+  const chunks: string[] = [];
+
+  const routesDir = resolve(web, "routes");
+  for (const name of readdirSync(routesDir).filter((n) => n.endsWith(".rs")).sort()) {
+    chunks.push(readFileSync(resolve(routesDir, name), "utf8"));
+  }
+
+  for (const name of ["server.rs", "shared.rs", "sse.rs"]) {
+    const path = resolve(web, name);
+    if (existsSync(path)) {
+      chunks.push(readFileSync(path, "utf8"));
+    }
+  }
+
+  const jsonDir = resolve(web, "json");
+  if (existsSync(jsonDir)) {
+    for (const name of readdirSync(jsonDir).filter((n) => n.endsWith(".rs")).sort()) {
+      chunks.push(readFileSync(resolve(jsonDir, name), "utf8"));
+    }
+  }
+
+  return chunks.join("\n");
 }
 
 type HttpMethod = "get" | "post" | "put" | "patch" | "delete" | "query";
@@ -164,22 +184,29 @@ describe("api contract", () => {
     const mock = read("frontend/mock/mockPlugin.ts");
     const firmware = readFirmwareApiRoutes();
     const client = read("frontend/src/api/client.ts");
+    const firmwarePaths = quotedApiPaths(firmware);
     expect(quotedApiPaths(mock)).toEqual(apiPaths);
-    expect(quotedApiPaths(firmware)).toEqual(apiPaths);
+    // Firmware may keep legacy aliases (/api/send, /api/ota/*, …); OpenAPI paths must all exist.
+    for (const path of apiPaths) {
+      expect(firmwarePaths, path).toContain(path);
+    }
     expect(quotedApiPaths(client)).toEqual(apiPaths);
     expect(mock).toContain('"/events"');
   });
 
   it("keeps the device-specific STA hostname aligned", () => {
+    const appConfig = read("rust/chaya-fw/src/config/app_config.rs");
     const firmware = readFirmwareApiRoutes();
     const mock = read("frontend/mock/deviceState.ts");
-    expect(firmware).toContain("formatDeviceStaHostname");
+    expect(appConfig).toContain('STA_HOSTNAME_PREFIX: &str = "chaya2mqtt-"');
+    expect(firmware).toContain("STA_HOSTNAME_PREFIX");
     expect(mock).toContain("`chaya2mqtt-${deviceId}`");
     expect(openapi).toContain("http://chaya2mqtt-{deviceId}.local");
   });
 
   it("keeps SSE events aligned with AsyncAPI", () => {
-    const firmwareEvents = read("src/web/events.cpp");
+    // Typed SSE event names live in the hub (`sse_typed("chaya", …)`), not helpers alone.
+    const firmwareEvents = read("rust/chaya-fw/src/web/server.rs");
     const mock = read("frontend/mock/mockPlugin.ts");
     const mockState = read("frontend/mock/deviceState.ts");
     for (const event of sseEvents) {
@@ -238,13 +265,20 @@ describe("api contract", () => {
     expect(openapi).toContain('error: "host"');
   });
 
-  it("applies Host once on the server and mode gates via ApiGuard", () => {
+  it("applies Host once on the server and mode gates via ap_mode", () => {
     const firmware = readFirmwareApiRoutes();
-    const admin = read("src/web/admin.cpp");
-    expect(admin).toContain("ws.addMiddleware(mwRequireAllowedHost())");
-    expect(firmware).not.toContain("mwRequireAllowedHost");
-    expect(firmware).not.toContain("mwApiApPost");
-    expect(firmware).toContain("ApiGuard::Sta");
-    expect(firmware).toContain("ApiGuard::Ap");
+    const server = read("rust/chaya-fw/src/web/server.rs");
+    // SEC-04: Host allowlist is centralized in the edge-http handler.
+    expect(server).toContain("web_host_allowed");
+    expect(firmware).toContain("web_host_allowed");
+    // Routes must not re-check Host; they gate STA/SoftAP via HttpShared.ap_mode.
+    const routesOnly = readdirSync(resolve(root, "rust/chaya-fw/src/web/routes"))
+      .filter((n) => n.endsWith(".rs"))
+      .sort()
+      .map((n) => read(`rust/chaya-fw/src/web/routes/${n}`))
+      .join("\n");
+    expect(routesOnly).not.toContain("web_host_allowed");
+    expect(routesOnly).toContain("!s.ap_mode");
+    expect(routesOnly).toContain("s.ap_mode");
   });
 });

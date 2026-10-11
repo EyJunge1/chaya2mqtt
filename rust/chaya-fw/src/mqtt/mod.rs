@@ -1,4 +1,4 @@
-//! MQTT heart transport (TLS client backend pending).
+//! MQTT heart transport (TCP + optional TLS when port ≥ 8883).
 
 use crate::config::NS_MQTT;
 use crate::util::platform::KvStore;

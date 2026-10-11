@@ -28,18 +28,6 @@ class Sizes:
     ram: int | None = None
 
 
-def size_tool_from_packages(packages: Path) -> str | None:
-    """Prefer pioarduino's unified toolchain, then the classic ESP32-S3 package."""
-    for relative in (
-        "toolchain-xtensa-esp-elf/bin/xtensa-esp32s3-elf-size",
-        "toolchain-xtensa-esp32s3/bin/xtensa-esp32s3-elf-size",
-    ):
-        path = packages / relative
-        if path.is_file():
-            return str(path)
-    return None
-
-
 def size_tool_from_espressif(tools: Path) -> str | None:
     """Locate xtensa-*-size under an espup/espressif tools tree."""
     if not tools.is_dir():
@@ -51,15 +39,12 @@ def size_tool_from_espressif(tools: Path) -> str | None:
 
 
 def find_size_tool() -> str | None:
-    """Find the Xtensa size tool on PATH, espup, or leftover toolchain packages."""
+    """Find the Xtensa size tool on PATH or via espup (~/.espressif/tools)."""
     for name in ("xtensa-esp-elf-size", "xtensa-esp32s3-elf-size"):
         found = which(name)
         if found:
             return found
-    from_esp = size_tool_from_espressif(Path.home() / ".espressif" / "tools")
-    if from_esp:
-        return from_esp
-    return size_tool_from_packages(Path.home() / ".platformio" / "packages")
+    return size_tool_from_espressif(Path.home() / ".espressif" / "tools")
 
 
 def parse_elf_size(text: str) -> tuple[int, int] | None:

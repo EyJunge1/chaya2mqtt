@@ -1,4 +1,4 @@
-//! SoftAP/STA admin HTTP helpers (status, captive probes, SSE stub).
+//! SoftAP/STA admin HTTP helpers (form/JSON body field parsers).
 
 
 /// First request line path (no query), best-effort.

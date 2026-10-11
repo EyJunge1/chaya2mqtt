@@ -1,4 +1,4 @@
-//! E-Paper UI orchestration (panel driver integration pending — see RUST_ESP_HAL.md).
+//! E-Paper UI orchestration (host state; device panel driver in `epd`).
 
 use chaya_pure::display::{
     display_battery_icon, display_heart_icon_decide, display_view_for_heart_icon, DisplayHeartIcon,

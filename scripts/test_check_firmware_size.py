@@ -15,7 +15,7 @@ from check_firmware_size import (
     measure,
     parse_elf_size,
     render,
-    size_tool_from_packages,
+    size_tool_from_espressif,
 )
 
 
@@ -59,25 +59,52 @@ class MarkdownTests(unittest.TestCase):
 
 
 class SizeToolTests(unittest.TestCase):
-    """Locate the GNU size binary in toolchain package layouts."""
+    """Locate the GNU size binary in the espup/espressif tools layout."""
 
-    def test_prefers_pioarduino_toolchain(self) -> None:
-        """Use toolchain-xtensa-esp-elf when that is what the build installed."""
+    def test_finds_espressif_toolchain(self) -> None:
+        """Resolve xtensa-esp-elf-size under ~/.espressif/tools-style trees."""
         with tempfile.TemporaryDirectory() as tmp:
-            packages = Path(tmp)
-            tool = packages / "toolchain-xtensa-esp-elf" / "bin" / "xtensa-esp32s3-elf-size"
+            tools = Path(tmp)
+            tool = (
+                tools
+                / "xtensa-esp-elf"
+                / "14.2.0_20241119"
+                / "xtensa-esp-elf"
+                / "bin"
+                / "xtensa-esp-elf-size"
+            )
             tool.parent.mkdir(parents=True)
             tool.write_text("", encoding="utf-8")
-            self.assertEqual(size_tool_from_packages(packages), str(tool))
+            self.assertEqual(size_tool_from_espressif(tools), str(tool))
 
-    def test_falls_back_to_classic_s3_toolchain(self) -> None:
-        """Accept toolchain-xtensa-esp32s3 when the unified package is absent."""
+    def test_prefers_newest_version(self) -> None:
+        """When multiple versions exist, pick the last sorted path."""
         with tempfile.TemporaryDirectory() as tmp:
-            packages = Path(tmp)
-            tool = packages / "toolchain-xtensa-esp32s3" / "bin" / "xtensa-esp32s3-elf-size"
-            tool.parent.mkdir(parents=True)
-            tool.write_text("", encoding="utf-8")
-            self.assertEqual(size_tool_from_packages(packages), str(tool))
+            tools = Path(tmp)
+            older = (
+                tools
+                / "xtensa-esp-elf"
+                / "13.2.0_20230928"
+                / "xtensa-esp-elf"
+                / "bin"
+                / "xtensa-esp-elf-size"
+            )
+            newer = (
+                tools
+                / "xtensa-esp-elf"
+                / "14.2.0_20241119"
+                / "xtensa-esp-elf"
+                / "bin"
+                / "xtensa-esp-elf-size"
+            )
+            for tool in (older, newer):
+                tool.parent.mkdir(parents=True)
+                tool.write_text("", encoding="utf-8")
+            self.assertEqual(size_tool_from_espressif(tools), str(newer))
+
+    def test_missing_tools_dir(self) -> None:
+        """Return None when the tools root does not exist."""
+        self.assertIsNone(size_tool_from_espressif(Path("/nonexistent/espressif/tools")))
 
 
 class MeasureTests(unittest.TestCase):

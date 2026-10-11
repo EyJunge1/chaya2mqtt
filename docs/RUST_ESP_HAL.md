@@ -1,6 +1,6 @@
 # Rust / esp-hal (production)
 
-Branch: `feat/rust-esp-hal`.
+Production firmware is Rust (`chaya-fw` / `chaya-pure`). The former `feat/rust-esp-hal` WIP branch is historical.
 
 ## Status
 

@@ -1,8 +1,8 @@
 # Testing
 
-Host tests run firmware logic with fakes. The Svelte UI uses Vitest + Playwright against the device mock. No CI HIL.
+Host tests use `cargo test` (`chaya-pure` / `chaya-fw`). The Svelte UI uses Vitest + Playwright against the device mock. No CI HIL.
 
-Primary firmware gate is Rust (`make check-firmware` → `cargo test` + release images). The legacy C++/PlatformIO tree has been removed.
+Primary firmware gate is Rust (`make check-firmware` → `cargo test` + release images).
 
 ```bash
 make check                 # full hardware-free gate
@@ -26,4 +26,4 @@ Hardware (SKU 34586 + TLS broker, not in CI):
 python3 scripts/simulator.py --hardware-smoke
 ```
 
-Do not commit broker credentials. Before a commit: `make check`. New logic → native or Vitest case. API change → update the YAML + mock.
+Do not commit broker credentials. Before a commit: `make check`. New logic → cargo test or Vitest case. API change → update the YAML + mock.

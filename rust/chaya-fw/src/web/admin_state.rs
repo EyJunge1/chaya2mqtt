@@ -1,4 +1,4 @@
-//! Admin HTTP + SSE (AsyncWebServer replacement pending upstream example).
+//! Admin HTTP + SSE tick helpers (edge-http server owns the live transport).
 
 use chaya_pure::web::{
     mqtt_page_conn, sse_tick_mask_for_ap_mode, sse_tick_select_bits, web_admin_restart_blocked,
@@ -49,5 +49,5 @@ impl WebAdminState {
 }
 
 pub fn http_backend_status() -> &'static str {
-    "device: embedded SPA + OpenAPI stub + SSE + captive probes"
+    "device: embedded SPA + OpenAPI + SSE + captive probes"
 }
