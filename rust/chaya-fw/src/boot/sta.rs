@@ -7,10 +7,10 @@ use chaya_fw::ota::client::EspRng as OtaRng;
 use chaya_fw::config::{DEVICE_HOSTNAME, STA_HOSTNAME_PREFIX};
 use chaya_fw::config::flash_shared::FlashCell;
 use chaya_fw::wifi::ops::WifiMutex;
-use chaya_fw::wifi::WlanConfig;
+use chaya_fw::wifi::{IpMode, WlanConfig};
 use chaya_fw::BootReport;
 use embassy_executor::Spawner;
-use embassy_net::StackResources;
+use embassy_net::{Ipv4Cidr, StackResources, StaticConfigV4};
 use embassy_sync::mutex::Mutex;
 use esp_hal::rng::Rng;
 use esp_println::println;
@@ -18,6 +18,7 @@ use esp_radio::wifi::{
     AuthenticationMethodConfig, Config, ControllerConfig, Interface, WifiController,
     sta::StationConfig,
 };
+use heapless::Vec as HVec;
 use static_cell::StaticCell;
 
 use crate::async_rt::state::KvMutex;
@@ -71,7 +72,32 @@ pub async fn run_sta(
         let _ = s.push_str(wlan.ssid.as_str());
     }
 
-    let net_config = embassy_net::Config::dhcpv4(Default::default());
+    let net_config = match wlan.static_v4() {
+        Some(p) => {
+            let mut dns_servers: HVec<_, 3> = HVec::new();
+            if let Some(d) = p.dns1 {
+                let _ = dns_servers.push(d);
+            }
+            if let Some(d) = p.dns2 {
+                let _ = dns_servers.push(d);
+            }
+            println!(
+                "STA: static {}/{} gw {}",
+                p.address, p.prefix, p.gateway
+            );
+            embassy_net::Config::ipv4_static(StaticConfigV4 {
+                address: Ipv4Cidr::new(p.address, p.prefix),
+                gateway: Some(p.gateway),
+                dns_servers,
+            })
+        }
+        None => {
+            if wlan.mode == IpMode::Static {
+                println!("STA: static IP invalid — falling back to DHCP");
+            }
+            embassy_net::Config::dhcpv4(Default::default())
+        }
+    };
     let (stack, runner) = embassy_net::new(
         device,
         net_config,
@@ -83,14 +109,25 @@ pub async fn run_sta(
     spawner.spawn(crate::async_rt::wifi::wifi_scan_only_task(wifi_ctrl).unwrap());
     spawner.spawn(crate::async_rt::net::net_task(runner).unwrap());
 
-    println!("STA: waiting for DHCP…");
+    println!("STA: waiting for IP…");
     stack.wait_config_up().await;
     fw.flags.wifi_ok = true;
     *crate::async_rt::state::WIFI_OK.lock().await = true;
     crate::async_rt::state::sse_mark(chaya_pure::constants::SSE_WIFI);
     println!("STA: IP up");
     crate::async_rt::state::LED_PRESET.signal(LedPreset::WifiUp);
-    spawner.spawn(crate::async_rt::ntp::ntp_task(stack).unwrap());
+
+    let ntp1 = if wlan.ntp1.is_empty() {
+        ""
+    } else {
+        crate::boot::util::leak(wlan.ntp1.as_str())
+    };
+    let ntp2 = if wlan.ntp2.is_empty() {
+        ""
+    } else {
+        crate::boot::util::leak(wlan.ntp2.as_str())
+    };
+    spawner.spawn(crate::async_rt::ntp::ntp_task(stack, ntp1, ntp2).unwrap());
 
     let mqtt_cfg = {
         let mut kv = kv.lock().await;

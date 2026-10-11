@@ -154,9 +154,13 @@ impl AudioHw {
         ok
     }
 
-    pub async fn beep(&mut self, kind: AudioKind) {
+    pub async fn beep(&mut self, kind: AudioKind, volume: u8) {
         if !self.ready && !self.init_codec() {
             return;
+        }
+        let vol = volume.min(100);
+        if self.codec.volume_set(&mut self.i2c, vol, None).is_err() {
+            println!("AUDIO: volume_set fail ({vol})");
         }
         let (hz, ms) = tone_for(kind);
         let Some(tx) = self.tx.take() else {

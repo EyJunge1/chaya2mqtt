@@ -105,16 +105,16 @@ impl NtpUdpSocket for EmbassyUdp<'_> {
     }
 }
 
-pub async fn sync_once(stack: Stack<'static>, clock: &mut WallClock) -> bool {
-    let Ok(addrs) = stack.dns_query(NTP_HOST, DnsQueryType::A).await else {
-        println!("NTP: dns fail");
+async fn sync_host(stack: Stack<'static>, clock: &mut WallClock, host: &str) -> bool {
+    let Ok(addrs) = stack.dns_query(host, DnsQueryType::A).await else {
+        println!("NTP: dns fail ({host})");
         return false;
     };
     let Some(ip) = addrs.first().copied() else {
         return false;
     };
     let IpAddr::V4(v4) = IpAddr::from(ip) else {
-        println!("NTP: no v4");
+        println!("NTP: no v4 ({host})");
         return false;
     };
 
@@ -136,12 +136,30 @@ pub async fn sync_once(stack: Stack<'static>, clock: &mut WallClock) -> bool {
         Ok(res) => {
             let unix = res.sec();
             clock.mark(unix);
-            println!("NTP: ok unix={unix}");
+            println!("NTP: ok ({host}) unix={unix}");
             true
         }
         Err(e) => {
-            println!("NTP: err {e:?}");
+            println!("NTP: err ({host}) {e:?}");
             false
         }
     }
+}
+
+/// Sync once, trying `hosts` in order (empty entries skipped). Falls back to Cloudflare NTP.
+pub async fn sync_once(stack: Stack<'static>, clock: &mut WallClock, hosts: &[&str]) -> bool {
+    let mut any = false;
+    for host in hosts {
+        if host.is_empty() {
+            continue;
+        }
+        any = true;
+        if sync_host(stack, clock, host).await {
+            return true;
+        }
+    }
+    if !any {
+        return sync_host(stack, clock, NTP_HOST).await;
+    }
+    false
 }

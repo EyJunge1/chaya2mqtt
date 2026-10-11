@@ -1,5 +1,8 @@
 //! Wi-Fi STA / SoftAP orchestration (esp-radio backend).
 
+use core::net::Ipv4Addr;
+use core::str::FromStr;
+
 use crate::config::{NS_CFG, NS_WIFI, SETUP_AP_SSID};
 use crate::util::platform::KvStore;
 use chaya_pure::constants::{WIFI_PASS_MAX_LEN, WIFI_SSID_MAX_LEN};
@@ -115,6 +118,27 @@ impl WlanConfig {
         !self.ssid.is_empty()
     }
 
+    /// Parsed static IPv4 fields for embassy-net. `None` when mode is DHCP or values are invalid.
+    pub fn static_v4(&self) -> Option<StaticV4Params> {
+        if self.mode != IpMode::Static {
+            return None;
+        }
+        let ip = parse_ipv4(self.ip.as_str())?;
+        let gateway = parse_ipv4(self.gateway.as_str())?;
+        let prefix = if self.netmask.is_empty() {
+            24
+        } else {
+            netmask_prefix_len(parse_ipv4(self.netmask.as_str())?)?
+        };
+        Some(StaticV4Params {
+            address: ip,
+            prefix,
+            gateway,
+            dns1: parse_ipv4(self.dns1.as_str()),
+            dns2: parse_ipv4(self.dns2.as_str()),
+        })
+    }
+
     /// OpenAPI `WifiConfig` (no password).
     pub fn to_config_json(&self) -> heapless::String<384> {
         let mut s = heapless::String::new();
@@ -138,6 +162,35 @@ impl WlanConfig {
         push_json_escaped(&mut s, self.ntp2.as_str());
         let _ = s.push_str("\"}");
         s
+    }
+}
+
+/// Static IPv4 parameters ready for `embassy_net::StaticConfigV4`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct StaticV4Params {
+    pub address: Ipv4Addr,
+    pub prefix: u8,
+    pub gateway: Ipv4Addr,
+    pub dns1: Option<Ipv4Addr>,
+    pub dns2: Option<Ipv4Addr>,
+}
+
+pub fn parse_ipv4(s: &str) -> Option<Ipv4Addr> {
+    let s = s.trim();
+    if s.is_empty() {
+        return None;
+    }
+    Ipv4Addr::from_str(s).ok()
+}
+
+/// Contiguous netmask → CIDR prefix length (`255.255.255.0` → 24).
+pub fn netmask_prefix_len(mask: Ipv4Addr) -> Option<u8> {
+    let bits = u32::from(mask);
+    let n = bits.leading_ones();
+    if bits == 0 || (bits << n) == 0 {
+        Some(n as u8)
+    } else {
+        None
     }
 }
 
@@ -238,3 +291,32 @@ pub fn radio_backend_status() -> &'static str {
 pub mod ops;
 #[cfg(feature = "device")]
 pub mod scan;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn netmask_prefix_common() {
+        assert_eq!(netmask_prefix_len(Ipv4Addr::new(255, 255, 255, 0)), Some(24));
+        assert_eq!(netmask_prefix_len(Ipv4Addr::new(255, 255, 0, 0)), Some(16));
+        assert_eq!(netmask_prefix_len(Ipv4Addr::new(255, 0, 0, 0)), Some(8));
+        assert_eq!(netmask_prefix_len(Ipv4Addr::new(255, 0, 255, 0)), None);
+    }
+
+    #[test]
+    fn static_v4_requires_valid_fields() {
+        let mut cfg = WlanConfig::default();
+        cfg.mode = IpMode::Static;
+        assert!(cfg.static_v4().is_none());
+        cfg.ip = heapless::String::try_from("192.168.1.50").unwrap();
+        cfg.gateway = heapless::String::try_from("192.168.1.1").unwrap();
+        cfg.netmask = heapless::String::try_from("255.255.255.0").unwrap();
+        cfg.dns1 = heapless::String::try_from("1.1.1.1").unwrap();
+        let p = cfg.static_v4().unwrap();
+        assert_eq!(p.address, Ipv4Addr::new(192, 168, 1, 50));
+        assert_eq!(p.prefix, 24);
+        assert_eq!(p.gateway, Ipv4Addr::new(192, 168, 1, 1));
+        assert_eq!(p.dns1, Some(Ipv4Addr::new(1, 1, 1, 1)));
+    }
+}

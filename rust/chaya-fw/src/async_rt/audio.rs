@@ -16,6 +16,6 @@ pub async fn audio_task(mut audio: AudioHw) {
             println!("AUDIO: skip {:?} (quiet/disabled)", kind);
             continue;
         }
-        audio.beep(kind).await;
+        audio.beep(kind, cfg.volume).await;
     }
 }
