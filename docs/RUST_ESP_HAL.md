@@ -43,25 +43,29 @@ Branch: `feat/rust-esp-hal`.
 
 ## Source layout (`chaya-fw/src`)
 
-Thematic modules — host logic and device backends share a folder; device code is `#[cfg(feature = "device")]`.
+Aligned with C++ `src/` folder names. Host logic and device backends share a theme folder; device code is `#[cfg(feature = "device")]`.
 
 ```
-app/        host boot orchestration (testable)
-audio/      AudioConfig + ES8311 hw
-board/      pin map / early GPIO helpers
-boot/       SoftAP / STA bring-up (binary)
-display/    DisplayState + EPD + QR (nah zusammen)
-http/       edge-http server, routes/*, json DTOs+responses, SPA
-identity/   device id, hearts, version
-input/      button, LED, battery (+ ADC)
-mqtt/       MqttConfig + session + proto + TLS pin
-net/        NetworkService + NTP + mDNS
-ota/        channel + GitHub client + flash stream
-runtime/    Embassy tasks + shared signals (binary)
-storage/    config ns, platform traits, FlashKv
-wifi/       WlanConfig + ops + scan
-web.rs      host WebAdminState stub
-main.rs     thin entry (~200 lines)
+app/          host setup orchestration (testable)
+async_rt/     Embassy tasks + signals  (C++: async/ — `async` is a Rust keyword)
+audio/        AudioConfig + ES8311
+battery/      BatteryService + ADC
+boot/         SoftAP / STA bring-up (binary-only)
+button/       debounce / soft-off
+config/       NVS namespaces, version, FlashKv
+display/      DisplayState + EPD + QR
+heart/        RX/TX counters
+hw/           pins / latch / SD hold
+identity/     device id
+led/          LED presets
+mqtt/         MqttConfig + session + proto
+network/      NetworkService + NTP + mDNS
+ota/          channel + GitHub client + flash
+tls/          host-pin TLS verifier
+util/         platform traits (Kv/GPIO/clock)
+web/          edge-http, routes/*, SPA, admin state
+wifi/         WlanConfig + ops + scan
+main.rs       thin entry
 ```
 
 ## Build
