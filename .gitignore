@@ -30,3 +30,4 @@ src/web/assets/web_ui_blob.S
 src/web/assets/web_ui_manifest.h
 out/
 baseline/
+rust/target/

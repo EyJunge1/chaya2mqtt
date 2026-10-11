@@ -32,6 +32,10 @@ Each display keeps track of the hearts you have sent and received, while MQTT qu
 
 Open the [web flasher](https://eyjunge1.github.io/chaya2mqtt/) in Chrome or Edge, connect USB-C, and install. Erase is on by default.
 
+## Rust (esp-hal) rewrite
+
+Under [`rust/`](rust/): host-tested app + a **buildable** ESP32-S3 SoftAP/HTTP binary (`cargo +esp build -p chaya-fw --features device --release`). STA/MQTT/EPD/OTA parity still incomplete — [`docs/RUST_ESP_HAL.md`](docs/RUST_ESP_HAL.md). Production flash remains C++/PlatformIO until then.
+
 ## License
 
 [GNU GPL v3.0 only](LICENSE)

@@ -74,6 +74,7 @@ Daily check in STA (`stable` / `beta`). Install is manual. After OTA, image stay
 
 ```
 src/          firmware (tasks in network/, async/, display/, ota/, button/, audio/)
+rust/         esp-hal experiment (chaya-pure + scaffold) — [RUST_ESP_HAL.md](RUST_ESP_HAL.md)
 frontend/     Svelte admin SPA — [frontend/README.md](../frontend/README.md)
 flasher/      browser installer — [flasher/README.md](../flasher/README.md)
 docs/         this folder; REST [api/openapi.yaml](api/openapi.yaml), SSE [api/asyncapi.yaml](api/asyncapi.yaml)

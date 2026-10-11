@@ -1,0 +1,15 @@
+[build]
+target = "xtensa-esp32s3-none-elf"
+
+[unstable]
+build-std = ["core", "alloc"]
+
+[target.xtensa-esp32s3-none-elf]
+linker = "rust-lld"
+runner = "espflash flash --monitor --partition-table ./partitions.csv"
+rustflags = [
+  "-C", "link-arg=-Tlinkall.x",
+]
+
+[env]
+ESP_LOG = "INFO"

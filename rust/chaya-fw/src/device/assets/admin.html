@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Chaya2MQTT</title>
+<style>
+:root{--bg:#0f1419;--fg:#e7ecf1;--muted:#8b98a5;--accent:#e85d4c;--card:#1a222c}
+*{box-sizing:border-box}body{margin:0;font:16px/1.45 system-ui,sans-serif;background:var(--bg);color:var(--fg)}
+header{padding:1.25rem 1.25rem .5rem}h1{margin:0;font-size:1.6rem;letter-spacing:.02em}
+.sub{color:var(--muted);font-size:.9rem;margin-top:.25rem}
+main{padding:1rem 1.25rem 2rem;display:grid;gap:1rem;max-width:40rem}
+section{background:var(--card);padding:1rem;border-radius:8px}
+label{display:block;margin:.4rem 0 .15rem;color:var(--muted);font-size:.8rem}
+input,button{width:100%;padding:.55rem .65rem;border-radius:6px;border:1px solid #2c3845;background:#0f1419;color:var(--fg)}
+button{background:var(--accent);border:none;font-weight:600;margin-top:.75rem;cursor:pointer}
+.row{display:flex;gap:.75rem;flex-wrap:wrap}.pill{padding:.2rem .55rem;border-radius:999px;background:#243040;font-size:.8rem}
+.ok{background:#1f3d2d}.bad{background:#3d1f1f}
+#heart{font-size:2rem;color:var(--accent)}
+</style>
+</head>
+<body>
+<header>
+  <h1>Chaya2MQTT</h1>
+  <div class="sub" id="meta">loading…</div>
+</header>
+<main>
+  <section>
+    <div id="heart">♥</div>
+    <div class="row" id="flags"></div>
+  </section>
+  <section id="actions">
+    <button id="send" type="button">Send heart</button>
+  </section>
+  <section id="setup" hidden>
+    <h2>Wi‑Fi</h2>
+    <form id="wifi">
+      <label>SSID</label><input name="ssid" required/>
+      <label>Password</label><input name="pass" type="password"/>
+      <button type="submit">Save Wi‑Fi</button>
+    </form>
+    <h2>MQTT</h2>
+    <form id="mqtt">
+      <label>Host</label><input name="host"/>
+      <label>Port</label><input name="port" value="1883"/>
+      <label>User</label><input name="user"/>
+      <label>Password</label><input name="pass" type="password"/>
+      <label>Partner ID</label><input name="partner" maxlength="6"/>
+      <button type="submit">Save MQTT</button>
+    </form>
+  </section>
+  <section>
+    <h2>OTA</h2>
+    <div class="sub" id="ota">—</div>
+    <button id="otaCheck" type="button">Check GitHub</button>
+  </section>
+</main>
+<script>
+const $=s=>document.querySelector(s);
+function pills(s){
+  const f=$('#flags');f.innerHTML='';
+  [['wifi',s.wifi],['mqtt',s.mqtt],['ap',s.ap]].forEach(([k,v])=>{
+    const e=document.createElement('span');e.className='pill '+(v?'ok':'bad');e.textContent=k+': '+(v?'ok':'off');f.appendChild(e);
+  });
+  f.insertAdjacentHTML('beforeend','<span class="pill">tx '+s.heartTx+'</span><span class="pill">rx '+s.heartRx+'</span><span class="pill">bat '+(s.batteryPct??'?')+'%</span>');
+}
+async function refresh(){
+  const s=await (await fetch('/api/status')).json();
+  $('#meta').textContent='v'+s.version+' · id '+s.id;
+  pills(s);$('#setup').hidden=!s.ap;$('#actions').hidden=!!s.ap;
+  try{const o=await (await fetch('/api/ota/status')).json();$('#ota').textContent=JSON.stringify(o);}catch(e){$('#ota').textContent='n/a';}
+}
+$('#send').onclick=async()=>{await fetch('/api/send',{method:'POST'});refresh();};
+$('#otaCheck').onclick=async()=>{await fetch('/api/ota/check',{method:'POST'});refresh();};
+$('#wifi').onsubmit=async e=>{e.preventDefault();await fetch('/api/wifi',{method:'POST',body:new URLSearchParams(new FormData(e.target))});alert('Saved — power-cycle');};
+$('#mqtt').onsubmit=async e=>{e.preventDefault();await fetch('/api/mqtt',{method:'POST',body:new URLSearchParams(new FormData(e.target))});alert('MQTT saved');};
+refresh();
+try{const es=new EventSource('/api/events');es.onmessage=()=>refresh();}catch(e){setInterval(refresh,5000);}
+</script>
+</body>
+</html>

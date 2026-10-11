@@ -1,0 +1,14 @@
+[package]
+name = "chaya-pure"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+description = "Host-testable pure logic ported from C++ *_pure.h (no hardware)"
+repository.workspace = true
+
+[lib]
+path = "src/lib.rs"
+
+[dependencies]
+
+[dev-dependencies]
