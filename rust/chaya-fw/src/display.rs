@@ -124,5 +124,5 @@ impl DisplayService {
 
 /// SPI / epdsi bring-up lives here later. Returns why hardware paint is blocked.
 pub fn panel_backend_status() -> &'static str {
-    "device: epdsi Jd79660/GDEM0154F51H splash+heart in device::epd"
+    "device: epdsi GDEM0154F51H SoftAP/heart+TX/RX/battery live redraw"
 }

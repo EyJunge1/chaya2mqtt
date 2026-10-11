@@ -3,9 +3,9 @@
 use embassy_net::{IpEndpoint, Stack, dns::DnsQueryType, tcp::TcpSocket};
 use embassy_time::{Duration, Instant, Timer, with_timeout};
 use embedded_io_async::{Read, Write};
-use embedded_tls::{
-    Aes128GcmSha256, TlsConfig, TlsConnection, TlsContext, UnsecureProvider,
-};
+use crate::device::tls_verify::HostPinProvider;
+use chaya_pure::audio::AudioKind;
+use embedded_tls::{TlsConfig, TlsConnection, TlsContext};
 use esp_println::println;
 use rand_core::{CryptoRng, Error as RandError, RngCore};
 
@@ -226,6 +226,14 @@ async fn mqtt_session_body<S: Read + Write>(
         embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex,
         i32,
     >,
+    rx_beep: &embassy_sync::signal::Signal<
+        embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex,
+        AudioKind,
+    >,
+    heart_dirty: &embassy_sync::signal::Signal<
+        embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex,
+        (),
+    >,
 ) -> bool {
     let pkt = build_connect(client_id, user, pass);
     if stream.write_all(&pkt).await.is_err() {
@@ -275,6 +283,8 @@ async fn mqtt_session_body<S: Read + Write>(
                         if v > *g {
                             *g = v;
                             println!("MQTT: rx heart={v}");
+                            rx_beep.signal(AudioKind::Rx);
+                            heart_dirty.signal(());
                         }
                     }
                     acc.copy_within(used..acc_len, 0);
@@ -309,6 +319,14 @@ pub async fn session_loop(
         embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex,
         bool,
     >,
+    rx_beep: &'static embassy_sync::signal::Signal<
+        embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex,
+        AudioKind,
+    >,
+    heart_dirty: &'static embassy_sync::signal::Signal<
+        embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex,
+        (),
+    >,
     mut rng: EspRng,
 ) -> ! {
     let use_tls = port >= 8883;
@@ -341,11 +359,9 @@ pub async fn session_loop(
                 .with_server_name(host)
                 .enable_rsa_signatures();
             let mut tls = TlsConnection::new(socket, &mut tls_rx, &mut tls_tx);
+            let mut provider = HostPinProvider::new(&mut rng);
             if tls
-                .open(TlsContext::new(
-                    &config,
-                    UnsecureProvider::new::<Aes128GcmSha256>(&mut rng),
-                ))
+                .open(TlsContext::new(&config, &mut provider))
                 .await
                 .is_err()
             {
@@ -358,7 +374,16 @@ pub async fn session_loop(
                 *ok = true;
             }
             mqtt_session_body(
-                &mut tls, pub_topic, sub_topic, client_id, user, pass, bump, rx_abs,
+                &mut tls,
+                pub_topic,
+                sub_topic,
+                client_id,
+                user,
+                pass,
+                bump,
+                rx_abs,
+                rx_beep,
+                heart_dirty,
             )
             .await
         } else {
@@ -367,7 +392,16 @@ pub async fn session_loop(
                 *ok = true;
             }
             mqtt_session_body(
-                &mut socket, pub_topic, sub_topic, client_id, user, pass, bump, rx_abs,
+                &mut socket,
+                pub_topic,
+                sub_topic,
+                client_id,
+                user,
+                pass,
+                bump,
+                rx_abs,
+                rx_beep,
+                heart_dirty,
             )
             .await
         };

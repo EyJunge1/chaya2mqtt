@@ -54,5 +54,5 @@ impl AudioService {
 }
 
 pub fn audio_backend_status() -> &'static str {
-    "device: ES8311 I2C + PA beep; I2S DMA sample push still TODO"
+    "device: ES8311 I2C + PA + I2S DMA TX/RX tones"
 }

@@ -3,10 +3,9 @@
 
 use core::marker::PhantomData;
 use embedded_tls::{
-    Aes128GcmSha256, Certificate, CertificateRef, CertificateVerifyRef, CryptoProvider,
-    NoSign, SignatureScheme, TlsCipherSuite, TlsError, TlsVerifier,
+    Aes128GcmSha256, CertificateEntryRef, CertificateRef, CertificateVerifyRef, CryptoProvider,
+    TlsCipherSuite, TlsError, TlsVerifier,
 };
-use p256::ecdsa::DerSignature;
 use rand_core::CryptoRngCore;
 
 /// Verifier that rejects empty chains and requires the SNI hostname bytes in the leaf DER.
@@ -49,13 +48,12 @@ impl<CipherSuite: TlsCipherSuite> TlsVerifier<CipherSuite> for HostPresenceVerif
             return Err(TlsError::InvalidCertificate);
         }
         let Some(host) = self.host.as_deref() else {
-            // SNI required for this verifier
             return Err(TlsError::InvalidCertificate);
         };
         let host_bytes = host.as_bytes();
         let mut found = false;
         for entry in cert.entries.iter() {
-            if let embedded_tls::CertificateEntryRef::X509(der) = entry {
+            if let CertificateEntryRef::X509(der) = entry {
                 if der.windows(host_bytes.len()).any(|w| w == host_bytes) {
                     found = true;
                     break;
@@ -96,7 +94,7 @@ impl<RNG: CryptoRngCore> HostPinProvider<RNG> {
 
 impl<RNG: CryptoRngCore> CryptoProvider for HostPinProvider<RNG> {
     type CipherSuite = Aes128GcmSha256;
-    type Signature = DerSignature;
+    type Signature = &'static [u8];
 
     fn rng(&mut self) -> impl CryptoRngCore {
         &mut self.rng
@@ -104,15 +102,5 @@ impl<RNG: CryptoRngCore> CryptoProvider for HostPinProvider<RNG> {
 
     fn verifier(&mut self) -> Result<&mut impl TlsVerifier<Self::CipherSuite>, TlsError> {
         Ok(&mut self.verifier)
-    }
-
-    fn signer(
-        &mut self,
-    ) -> Result<(impl signature::SignerMut<Self::Signature>, SignatureScheme), TlsError> {
-        Err::<(NoSign, _), _>(TlsError::Unimplemented)
-    }
-
-    fn client_cert(&mut self) -> Option<Certificate<impl AsRef<[u8]>>> {
-        None::<Certificate<&[u8]>>
     }
 }

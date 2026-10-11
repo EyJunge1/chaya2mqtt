@@ -45,6 +45,24 @@ pub fn form_value<'a>(body: &'a [u8], key: &str) -> Option<&'a str> {
     None
 }
 
+/// Best-effort `"key":"value"` extract from a small JSON body.
+pub fn json_str_field<'a>(body: &'a [u8], key: &str) -> Option<&'a str> {
+    let Ok(s) = core::str::from_utf8(body) else {
+        return None;
+    };
+    let mut needle = heapless::String::<48>::new();
+    let _ = needle.push('"');
+    let _ = needle.push_str(key);
+    let _ = needle.push_str("\"");
+    let i = s.find(needle.as_str())?;
+    let rest = &s[i + needle.len()..];
+    let colon = rest.find(':')?;
+    let after = rest[colon + 1..].trim_start();
+    let after = after.strip_prefix('"')?;
+    let end = after.find('"')?;
+    Some(&after[..end])
+}
+
 fn percent_decode_simple(s: &str) -> &str {
     // keep raw for ASCII ssids/pass; '+' → space is rare for wifi
     s
@@ -194,8 +212,12 @@ fn append_i32_small(s: &mut heapless::String<320>, mut n: i32) {
     }
 }
 
-pub fn sse_event(heart_tx: i32, heart_rx: i32, mqtt_ok: bool, bat_pct: i32) -> heapless::String<896> {
-    let mut body = heapless::String::<160>::new();
+pub fn sse_headers() -> &'static [u8] {
+    b"HTTP/1.0 200 OK\r\nContent-Type: text/event-stream\r\nCache-Control: no-cache\r\nConnection: keep-alive\r\n\r\n"
+}
+
+pub fn sse_data_event(heart_tx: i32, heart_rx: i32, mqtt_ok: bool, bat_pct: i32) -> heapless::String<192> {
+    let mut body = heapless::String::<192>::new();
     let _ = body.push_str("data: {\"heartTx\":");
     let mut tmp = heapless::String::<320>::new();
     append_i32_small(&mut tmp, heart_tx);
@@ -211,11 +233,11 @@ pub fn sse_event(heart_tx: i32, heart_rx: i32, mqtt_ok: bool, bat_pct: i32) -> h
     append_i32_small(&mut tmp, bat_pct);
     let _ = body.push_str(tmp.as_str());
     let _ = body.push_str("}\n\n");
+    body
+}
 
-    let mut s = heapless::String::new();
-    let _ = s.push_str("HTTP/1.0 200 OK\r\nContent-Type: text/event-stream\r\nCache-Control: no-cache\r\nConnection: close\r\n\r\n");
-    let _ = s.push_str(body.as_str());
-    s
+pub fn sse_keepalive() -> &'static [u8] {
+    b": keepalive\n\n"
 }
 
 pub fn response_ok(content_type: &str, body: &str) -> heapless::String<896> {

@@ -43,8 +43,7 @@ fn main() {
     };
 
     let mut entries: Vec<(String, Vec<u8>, &'static str)> = Vec::new();
-    let mut index_html = fs::read_to_string(dist.join("index.html")).unwrap_or_default();
-    // rewrite absolute asset paths stay as-is
+    let index_html = fs::read_to_string(dist.join("index.html")).unwrap_or_default();
 
     walk(&dist, &dist, &mut entries);
     entries.sort_by(|a, b| a.0.cmp(&b.0));

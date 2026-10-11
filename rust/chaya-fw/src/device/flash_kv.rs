@@ -64,7 +64,7 @@ pub struct FlashKv {
 
 impl FlashKv {
     pub fn open(flash: &'static FlashCell) -> Self {
-        let (cap, read_ok, mut buf) = flash.lock(|f| {
+        let (cap, read_ok, buf) = flash.lock(|f| {
             let mut flash = f.borrow_mut();
             let cap = flash.capacity() as u32;
             let mut buf = [0u8; STORE_BYTES];

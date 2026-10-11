@@ -4,7 +4,7 @@ use crate::config::NS_CFG;
 use crate::platform::KvStore;
 use chaya_pure::ota::ota_github_check_may_clear_pending_release;
 
-const KEY_CHANNEL: &str = "ota_ch";
+const KEY_CHANNEL: &str = "upd_chan";
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
 pub enum OtaChannel {
@@ -51,11 +51,15 @@ impl OtaService {
         }
     }
 
+    pub fn save_channel(&self, kv: &mut dyn KvStore) -> bool {
+        kv.put_blob(NS_CFG, KEY_CHANNEL, self.channel.as_str().as_bytes())
+    }
+
     pub fn may_clear_pending_release(&self) -> bool {
         ota_github_check_may_clear_pending_release(self.install_queued)
     }
 }
 
 pub fn ota_backend_status() -> &'static str {
-    "device: GitHub latest tag check over TLS; SHA-512 flash install still TODO"
+    "device: GitHub OTA check + SHA-512 verified esp-hal-ota flash"
 }

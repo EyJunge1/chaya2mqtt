@@ -8,28 +8,33 @@ extern crate alloc;
 
 use alloc::boxed::Box;
 use alloc::string::String;
+use core::cell::RefCell;
 use core::{net::Ipv4Addr, str::FromStr};
 
 use chaya_fw::board::{battery_latch_on, display_power_enable, pins, sd_hold_off};
-use chaya_fw::config::SETUP_AP_IP;
+use chaya_fw::config::{NS_CFG, NS_CHAYA, NS_MQTT, NS_WIFI, SETUP_AP_IP, SETUP_AP_SSID};
 use chaya_fw::device::audio_hw::AudioHw;
 use chaya_fw::device::battery_adc::BatteryAdc;
-use chaya_fw::device::epd::{self, PaintMode};
+use chaya_fw::device::epd::{EpdPanel, Scene};
 use chaya_fw::device::flash_kv::FlashKv;
+use chaya_fw::device::flash_shared::FlashCell;
 use chaya_fw::device::http;
 use chaya_fw::device::mqtt_tcp::{self, EspRng};
 use chaya_fw::device::ota_client::{self, EspRng as OtaRng, OtaStatus};
-use chaya_fw::device::spa::{ADMIN_HTML, OPENAPI_JSON};
+use chaya_fw::device::spa::{self, ADMIN_HTML, OPENAPI_JSON};
+use chaya_fw::heart::HeartCounters;
 use chaya_fw::mqtt::MqttConfig;
-use chaya_fw::platform::{ClockMs, GpioIn, GpioOut};
+use chaya_fw::ota::{OtaChannel, OtaService};
+use chaya_fw::platform::{ClockMs, GpioIn, GpioOut, KvStore};
 use chaya_fw::wifi::{WlanConfig, WlanService};
 use chaya_fw::{boot, BootReport};
+use chaya_pure::audio::AudioKind;
 use embassy_executor::Spawner;
 use embassy_net::{
     IpListenEndpoint, Ipv4Cidr, Runner, Stack, StackResources, StaticConfigV4, tcp::TcpSocket,
 };
 use embassy_sync::{
-    blocking_mutex::raw::CriticalSectionRawMutex,
+    blocking_mutex::{Mutex as BlockingMutex, raw::CriticalSectionRawMutex},
     mutex::Mutex,
     signal::Signal,
 };
@@ -66,17 +71,24 @@ macro_rules! mk_static {
 type Cs = CriticalSectionRawMutex;
 
 static HEART_BUMP: Signal<Cs, i32> = Signal::new();
-static AUDIO_BEEP: Signal<Cs, ()> = Signal::new();
+static AUDIO_BEEP: Signal<Cs, AudioKind> = Signal::new();
+static HEART_DIRTY: Signal<Cs, ()> = Signal::new();
+static EPD_REDRAW: Signal<Cs, ()> = Signal::new();
+static REBOOT: Signal<Cs, ()> = Signal::new();
 static OTA_CHECK: Signal<Cs, ()> = Signal::new();
+static OTA_INSTALL: Signal<Cs, ()> = Signal::new();
 static HEART_RX: Mutex<Cs, i32> = Mutex::new(0);
 static MQTT_OK: Mutex<Cs, bool> = Mutex::new(false);
 static BAT_PCT: Mutex<Cs, i32> = Mutex::new(-1);
 static BAT_MV: Mutex<Cs, i32> = Mutex::new(0);
 static HEART_TX: Mutex<Cs, i32> = Mutex::new(0);
+type KvMutex = Mutex<Cs, FlashKv>;
 static OTA_STATUS: Mutex<Cs, OtaStatus> = Mutex::new(OtaStatus {
     last_tag: heapless::String::new(),
     last_error: heapless::String::new(),
+    channel: heapless::String::new(),
     checking: false,
+    installing: false,
     flash_ready: false,
 });
 
@@ -136,7 +148,10 @@ async fn main(spawner: Spawner) -> ! {
     let timg0 = TimerGroup::new(peripherals.TIMG0);
     esp_rtos::start(timg0.timer0, peripherals.FROM_CPU_INTR0);
 
-    let flash = FlashStorage::new(peripherals.FLASH);
+    let flash: &'static FlashCell = mk_static!(
+        FlashCell,
+        BlockingMutex::new(RefCell::new(FlashStorage::new(peripherals.FLASH)))
+    );
     let mut kv = FlashKv::open(flash);
     let clock = MonoClock;
     let rng = Rng::new();
@@ -153,6 +168,22 @@ async fn main(spawner: Spawner) -> ! {
         let mut r = HEART_RX.lock().await;
         *r = fw.heart.rx;
     }
+
+    let mut ap_entropy = [0u8; 20];
+    for b in &mut ap_entropy {
+        *b = (rng.random() & 0xff) as u8;
+    }
+    let ap_psk = WlanService::load_or_create_ap_psk(&mut kv, ap_entropy);
+    let ap_psk = leak(ap_psk.as_str());
+
+    {
+        let ota = OtaService::load(&mut kv);
+        let mut st = OTA_STATUS.lock().await;
+        st.channel.clear();
+        let _ = st.channel.push_str(ota.channel.as_str());
+    }
+
+    let kv: &'static KvMutex = mk_static!(KvMutex, Mutex::new(kv));
 
     // LED + buttons (after early pins taken)
     let led = Output::new(peripherals.GPIO3, Level::High, out_cfg);
@@ -182,16 +213,13 @@ async fn main(spawner: Spawner) -> ! {
         peripherals.GPIO38,
         peripherals.GPIO45,
         peripherals.I2S0,
+        peripherals.DMA_CH0,
     );
     spawner.spawn(audio_task(audio).unwrap());
+    spawner.spawn(heart_persist_task(kv).unwrap());
+    spawner.spawn(reboot_task().unwrap());
 
-    let paint_mode = if report.ap_mode {
-        PaintMode::Splash
-    } else {
-        PaintMode::Heart
-    };
-    let wifi = peripherals.WIFI;
-    let _ = epd::paint(
+    if let Some(panel) = EpdPanel::new(
         peripherals.SPI2,
         peripherals.GPIO12,
         peripherals.GPIO13,
@@ -199,15 +227,18 @@ async fn main(spawner: Spawner) -> ! {
         peripherals.GPIO10,
         peripherals.GPIO9,
         peripherals.GPIO8,
-        paint_mode,
-    );
+    ) {
+        spawner
+            .spawn(epd_task(panel, report.ap_mode, SETUP_AP_SSID).unwrap());
+    }
 
+    let wifi = peripherals.WIFI;
     let seed = (rng.random() as u64) << 32 | rng.random() as u64;
 
     if report.ap_mode {
-        run_softap(spawner, wifi, seed, &mut kv, &report).await;
+        run_softap(spawner, wifi, seed, kv, &report, ap_psk).await;
     } else {
-        run_sta(spawner, wifi, seed, &mut kv, &mut fw, &report).await;
+        run_sta(spawner, wifi, seed, kv, &mut fw, &report, flash).await;
     }
 }
 
@@ -215,15 +246,25 @@ async fn run_softap(
     spawner: Spawner,
     wifi: esp_hal::peripherals::WIFI<'static>,
     seed: u64,
-    kv: &mut FlashKv,
+    kv: &'static KvMutex,
     report: &BootReport,
+    ap_psk: &'static str,
 ) -> ! {
+    let pass = ap_psk
+        .try_into()
+        .unwrap_or_else(|_| "Chaya2MQTTSetupKey!".try_into().expect("fallback psk"));
     let access_point_config = Config::AccessPoint(
-        AccessPointConfig::default().with_ssid(
-            esp_radio::wifi::Ssid::try_from(WlanService::setup_ap_ssid()).expect("ssid"),
-        ),
+        AccessPointConfig::default()
+            .with_ssid(
+                esp_radio::wifi::Ssid::try_from(WlanService::setup_ap_ssid()).expect("ssid"),
+            )
+            .with_authentication(AuthenticationMethodConfig::Wpa2Personal(pass)),
     );
-    println!("SoftAP {} @ {}", WlanService::setup_ap_ssid(), SETUP_AP_IP);
+    println!(
+        "SoftAP {} @ {} (WPA2)",
+        WlanService::setup_ap_ssid(),
+        SETUP_AP_IP
+    );
 
     let device = Interface::access_point();
     let controller = WifiController::new(
@@ -259,11 +300,15 @@ async fn run_sta(
     spawner: Spawner,
     wifi: esp_hal::peripherals::WIFI<'static>,
     seed: u64,
-    kv: &mut FlashKv,
+    kv: &'static KvMutex,
     fw: &mut chaya_fw::Firmware,
     report: &BootReport,
+    flash: &'static FlashCell,
 ) -> ! {
-    let wlan = WlanConfig::load(kv);
+    let wlan = {
+        let mut kv = kv.lock().await;
+        WlanConfig::load(&mut *kv)
+    };
     println!("STA → {}", wlan.ssid.as_str());
 
     let ssid = esp_radio::wifi::Ssid::try_from(wlan.ssid.as_str()).expect("ssid");
@@ -301,7 +346,10 @@ async fn run_sta(
     fw.flags.wifi_ok = true;
     println!("STA: IP up");
 
-    let mqtt_cfg = MqttConfig::load(kv);
+    let mqtt_cfg = {
+        let mut kv = kv.lock().await;
+        MqttConfig::load(&mut *kv)
+    };
     if mqtt_cfg.broker_configured() {
         let host = leak(mqtt_cfg.host.as_str());
         let user = leak(mqtt_cfg.user.as_str());
@@ -320,16 +368,17 @@ async fn run_sta(
                 )
                 .unwrap(),
             );
-        let ota_rng = OtaRng(Rng::new());
-        spawner.spawn(ota_task(stack, ota_rng).unwrap());
     }
+
+    let ota_rng = OtaRng(Rng::new());
+    spawner.spawn(ota_task(stack, ota_rng, flash).unwrap());
 
     http_loop(stack, kv, report, false).await
 }
 
 async fn http_loop(
     stack: Stack<'static>,
-    kv: &mut FlashKv,
+    kv: &'static KvMutex,
     report: &BootReport,
     ap_mode: bool,
 ) -> ! {
@@ -396,7 +445,59 @@ async fn http_loop(
             );
             http::response_ok("application/json", body.as_str())
         } else if path == "/api/events" && http::is_get(req) {
-            http::sse_event(heart_tx, heart_rx, mqtt_ok, bat_pct)
+            let _ = socket.write_all(http::sse_headers()).await;
+            let _ = socket.flush().await;
+            for _ in 0..120 {
+                let heart_tx = *HEART_TX.lock().await;
+                let heart_rx = *HEART_RX.lock().await;
+                let mqtt_ok = *MQTT_OK.lock().await;
+                let bat_pct = *BAT_PCT.lock().await;
+                let ev = http::sse_data_event(heart_tx, heart_rx, mqtt_ok, bat_pct);
+                if socket.write_all(ev.as_bytes()).await.is_err() {
+                    break;
+                }
+                let _ = socket.flush().await;
+                Timer::after(Duration::from_secs(2)).await;
+                if socket.write_all(http::sse_keepalive()).await.is_err() {
+                    break;
+                }
+                let _ = socket.flush().await;
+                Timer::after(Duration::from_secs(3)).await;
+            }
+            socket.close();
+            Timer::after(Duration::from_millis(40)).await;
+            socket.abort();
+            continue;
+        } else if path == "/api/settings" && http::is_get(req) && !ap_mode {
+            let st = OTA_STATUS.lock().await;
+            let mut body = heapless::String::<96>::new();
+            let _ = body.push_str("{\"otaChannel\":\"");
+            let _ = body.push_str(if st.channel.is_empty() {
+                "stable"
+            } else {
+                st.channel.as_str()
+            });
+            let _ = body.push_str("\"}");
+            http::response_ok("application/json", body.as_str())
+        } else if path == "/api/settings" && http::is_post(req) && !ap_mode {
+            let b = http::body(req);
+            if let Some(ch) = http::form_value(b, "otaChannel")
+                .or_else(|| http::form_value(b, "channel"))
+                .or_else(|| http::json_str_field(b, "otaChannel"))
+                .or_else(|| http::json_str_field(b, "channel"))
+            {
+                let channel = OtaChannel::parse(ch);
+                {
+                    let mut kv = kv.lock().await;
+                    let mut ota = OtaService::load(&mut *kv);
+                    ota.channel = channel;
+                    let _ = ota.save_channel(&mut *kv);
+                }
+                let mut st = OTA_STATUS.lock().await;
+                st.channel.clear();
+                let _ = st.channel.push_str(channel.as_str());
+            }
+            http::response_ok("application/json", "{\"ok\":true}")
         } else if path == "/api/wifi" && http::is_post(req) && ap_mode {
             let b = http::body(req);
             let mut cfg = WlanConfig::default();
@@ -406,13 +507,17 @@ async fn http_loop(
             if let Some(pass) = http::form_value(b, "pass") {
                 let _ = cfg.pass.push_str(pass);
             }
-            if cfg.has_sta() && cfg.save(kv) {
-                println!("WiFi saved — power-cycle for STA");
+            let mut kv = kv.lock().await;
+            if cfg.has_sta() && cfg.save(&mut *kv) {
+                println!("WiFi saved — reboot for STA");
             }
+            drop(kv);
+            REBOOT.signal(());
             http::response_redirect("/")
         } else if path == "/api/mqtt" && http::is_post(req) && ap_mode {
             let b = http::body(req);
-            let mut cfg = MqttConfig::load(kv);
+            let mut kv = kv.lock().await;
+            let mut cfg = MqttConfig::load(&mut *kv);
             if let Some(h) = http::form_value(b, "host") {
                 cfg.host.clear();
                 let _ = cfg.host.push_str(h);
@@ -434,7 +539,7 @@ async fn http_loop(
                 cfg.partner_id.clear();
                 let _ = cfg.partner_id.push_str(p);
             }
-            let _ = cfg.save(kv);
+            let _ = cfg.save(&mut *kv);
             println!("MQTT cfg saved");
             http::response_redirect("/")
         } else if path == "/api/send" && http::is_post(req) && !ap_mode {
@@ -444,31 +549,56 @@ async fn http_loop(
                 *t
             };
             HEART_BUMP.signal(next);
-            AUDIO_BEEP.signal(());
-            let mut heart = chaya_fw::heart::HeartCounters::load(kv);
-            heart.tx = next;
-            let _ = heart.save(kv);
+            AUDIO_BEEP.signal(AudioKind::Tx);
+            HEART_DIRTY.signal(());
+            EPD_REDRAW.signal(());
             http::response_redirect("/")
+        } else if path == "/api/reboot" && http::is_post(req) {
+            REBOOT.signal(());
+            http::response_ok("application/json", "{\"ok\":true}")
+        } else if path == "/api/factory-reset" && http::is_post(req) {
+            {
+                let mut kv = kv.lock().await;
+                let _ = kv.erase_ns(NS_WIFI);
+                let _ = kv.erase_ns(NS_MQTT);
+                let _ = kv.erase_ns(NS_CHAYA);
+                let _ = kv.erase_ns(NS_CFG);
+                println!("factory-reset: NVS wiped");
+            }
+            REBOOT.signal(());
+            http::response_ok("application/json", "{\"ok\":true}")
         } else if path == "/api/ota/check" && http::is_post(req) && !ap_mode {
             OTA_CHECK.signal(());
             http::response_redirect("/")
+        } else if path == "/api/ota/install" && http::is_post(req) && !ap_mode {
+            OTA_INSTALL.signal(());
+            http::response_redirect("/")
         } else if path == "/api/ota/status" && http::is_get(req) {
             let st = OTA_STATUS.lock().await;
-            let mut body = heapless::String::<192>::new();
+            let mut body = heapless::String::<256>::new();
             let _ = body.push_str("{\"tag\":\"");
             let _ = body.push_str(st.last_tag.as_str());
             let _ = body.push_str("\",\"checking\":");
             let _ = body.push_str(if st.checking { "true" } else { "false" });
-            let _ = body.push_str(",\"err\":\"");
+            let _ = body.push_str(",\"installing\":");
+            let _ = body.push_str(if st.installing { "true" } else { "false" });
+            let _ = body.push_str(",\"flashReady\":");
+            let _ = body.push_str(if st.flash_ready { "true" } else { "false" });
+            let _ = body.push_str(",\"channel\":\"");
+            let _ = body.push_str(if st.channel.is_empty() {
+                "stable"
+            } else {
+                st.channel.as_str()
+            });
+            let _ = body.push_str("\",\"err\":\"");
             let _ = body.push_str(st.last_error.as_str());
             let _ = body.push_str("\"}");
             http::response_ok("application/json", body.as_str())
         } else if path == "/openapi.json" && http::is_get(req) {
             http::response_ok("application/json", OPENAPI_JSON)
         } else if (path == "/" || path == "/index.html") && http::is_get(req) {
-            // stream SPA (too large for heapless response helper)
             let _ = socket
-                .write_all(b"HTTP/1.0 200 OK\r\nContent-Type: text/html\r\nConnection: close\r\n\r\n")
+                .write_all(b"HTTP/1.0 200 OK\r\nContent-Type: text/html; charset=utf-8\r\nConnection: close\r\n\r\n")
                 .await;
             let _ = socket.write_all(ADMIN_HTML.as_bytes()).await;
             let _ = socket.flush().await;
@@ -477,6 +607,28 @@ async fn http_loop(
             Timer::after(Duration::from_millis(80)).await;
             socket.abort();
             continue;
+        } else if http::is_get(req) {
+            if let Some(asset) = spa::find_asset(path) {
+                let bytes = spa::asset_bytes(asset);
+                let mut hdr = heapless::String::<192>::new();
+                let _ = hdr.push_str("HTTP/1.0 200 OK\r\nContent-Type: ");
+                let _ = hdr.push_str(asset.content_type);
+                let _ = hdr.push_str("\r\n");
+                if asset.gzip {
+                    let _ = hdr.push_str("Content-Encoding: gzip\r\n");
+                }
+                let _ = hdr.push_str("Connection: close\r\n\r\n");
+                let _ = socket.write_all(hdr.as_bytes()).await;
+                let _ = socket.write_all(bytes).await;
+                let _ = socket.flush().await;
+                Timer::after(Duration::from_millis(80)).await;
+                socket.close();
+                Timer::after(Duration::from_millis(80)).await;
+                socket.abort();
+                continue;
+            }
+            let body = http::html_index(id, ap_mode, wifi_ok, mqtt_ok, heart_tx, heart_rx, bat_pct);
+            http::response_ok("text/html", body.as_str())
         } else {
             let body = http::html_index(id, ap_mode, wifi_ok, mqtt_ok, heart_tx, heart_rx, bat_pct);
             http::response_ok("text/html", body.as_str())
@@ -504,8 +656,20 @@ async fn mqtt_session_task(
     rng: EspRng,
 ) {
     mqtt_tcp::session_loop(
-        stack, host, port, client_id, user, pass, pub_topic, sub_topic, &HEART_BUMP, &HEART_RX,
-        &MQTT_OK, rng,
+        stack,
+        host,
+        port,
+        client_id,
+        user,
+        pass,
+        pub_topic,
+        sub_topic,
+        &HEART_BUMP,
+        &HEART_RX,
+        &MQTT_OK,
+        &AUDIO_BEEP,
+        &HEART_DIRTY,
+        rng,
     )
     .await
 }
@@ -514,22 +678,118 @@ async fn mqtt_session_task(
 async fn audio_task(mut audio: AudioHw) {
     let _ = audio.init_codec();
     loop {
-        AUDIO_BEEP.wait().await;
-        audio.beep().await;
+        let kind = AUDIO_BEEP.wait().await;
+        audio.beep(kind).await;
     }
 }
 
 #[embassy_executor::task]
-async fn ota_task(stack: Stack<'static>, mut rng: OtaRng) {
+async fn ota_task(stack: Stack<'static>, mut rng: OtaRng, flash: &'static FlashCell) {
     loop {
-        OTA_CHECK.wait().await;
-        let mut st = OTA_STATUS.lock().await;
-        st.checking = true;
-        drop(st);
-        let mut local = OtaStatus::default();
-        let _ = ota_client::check_latest(stack, &mut rng, &mut local).await;
-        let mut st = OTA_STATUS.lock().await;
-        *st = local;
+        match embassy_futures::select::select(OTA_CHECK.wait(), OTA_INSTALL.wait()).await {
+            embassy_futures::select::Either::First(()) => {
+                let mut local = {
+                    let st = OTA_STATUS.lock().await;
+                    let mut local = st.clone();
+                    local.checking = true;
+                    local
+                };
+                {
+                    let mut st = OTA_STATUS.lock().await;
+                    st.checking = true;
+                }
+                let _ = ota_client::check_latest(stack, &mut rng, &mut local).await;
+                let mut st = OTA_STATUS.lock().await;
+                *st = local;
+            }
+            embassy_futures::select::Either::Second(()) => {
+                let mut local = {
+                    let st = OTA_STATUS.lock().await;
+                    st.clone()
+                };
+                {
+                    let mut st = OTA_STATUS.lock().await;
+                    st.installing = true;
+                }
+                let ok = ota_client::install_latest(stack, &mut rng, flash, &mut local).await;
+                {
+                    let mut st = OTA_STATUS.lock().await;
+                    *st = local;
+                }
+                if ok {
+                    println!("OTA: rebooting into new image");
+                    REBOOT.signal(());
+                }
+            }
+        }
+    }
+}
+
+#[embassy_executor::task]
+async fn heart_persist_task(kv: &'static KvMutex) {
+    loop {
+        HEART_DIRTY.wait().await;
+        // coalesce bursts
+        Timer::after(Duration::from_millis(80)).await;
+        while HEART_DIRTY.try_take().is_some() {}
+        let tx = *HEART_TX.lock().await;
+        let rx = *HEART_RX.lock().await;
+        let mut kv = kv.lock().await;
+        let mut heart = HeartCounters::load(&mut *kv);
+        heart.tx = tx;
+        heart.rx = rx;
+        if heart.save(&mut *kv) {
+            println!("HEART: persisted tx={tx} rx={rx}");
+        }
+        EPD_REDRAW.signal(());
+    }
+}
+
+#[embassy_executor::task]
+async fn reboot_task() {
+    REBOOT.wait().await;
+    Timer::after(Duration::from_millis(400)).await;
+    println!("REBOOT");
+    esp_hal::system::software_reset();
+}
+
+#[embassy_executor::task]
+async fn epd_task(mut panel: EpdPanel, ap_mode: bool, ssid: &'static str) {
+    if ap_mode {
+        let mut s = heapless::String::<32>::new();
+        let _ = s.push_str(ssid);
+        let _ = panel.show(&Scene::SoftAp { ssid: s });
+        loop {
+            Timer::after(Duration::from_secs(3600)).await;
+        }
+    }
+    // initial heart frame
+    {
+        let tx = *HEART_TX.lock().await;
+        let rx = *HEART_RX.lock().await;
+        let bat = (*BAT_PCT.lock().await).max(0);
+        let mqtt = *MQTT_OK.lock().await;
+        let _ = panel.show(&Scene::Heart {
+            tx,
+            rx,
+            bat_pct: bat,
+            cracked: !mqtt,
+        });
+    }
+    loop {
+        EPD_REDRAW.wait().await;
+        Timer::after(Duration::from_secs(3)).await;
+        while EPD_REDRAW.try_take().is_some() {}
+        let tx = *HEART_TX.lock().await;
+        let rx = *HEART_RX.lock().await;
+        let bat = (*BAT_PCT.lock().await).max(0);
+        let mqtt = *MQTT_OK.lock().await;
+        let _ = panel.show(&Scene::Heart {
+            tx,
+            rx,
+            bat_pct: bat,
+            cracked: !mqtt,
+        });
     }
 }
 
@@ -543,6 +803,7 @@ async fn battery_task(mut bat: BatteryAdc) {
             let mut m = BAT_MV.lock().await;
             *m = bat.last_mv;
         }
+        EPD_REDRAW.signal(());
         Timer::after(Duration::from_secs(30)).await;
     }
 }
@@ -597,13 +858,22 @@ async fn button_led_task(
                 *t
             };
             HEART_BUMP.signal(next);
-            AUDIO_BEEP.signal(());
+            AUDIO_BEEP.signal(AudioKind::Tx);
+            HEART_DIRTY.signal(());
             led_svc.start_blink(1, 40, 40);
             println!("BTN: heart bump → {next}");
         }
         if button.soft_off_ready(&mut btns, &clock) {
-            println!("PWR: soft-off");
+            println!("PWR: soft-off — cutting battery latch");
+            led_svc.start_blink(3, 60, 60);
+            for _ in 0..10 {
+                let _ = led_svc.tick_phase_done(&mut led_gpio);
+                Timer::after(Duration::from_millis(40)).await;
+            }
             bat_latch.set_level(Level::Low);
+            loop {
+                Timer::after(Duration::from_secs(60)).await;
+            }
         }
         Timer::after(Duration::from_millis(20)).await;
     }

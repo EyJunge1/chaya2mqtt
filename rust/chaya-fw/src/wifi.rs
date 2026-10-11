@@ -1,12 +1,14 @@
 //! Wi-Fi STA / SoftAP orchestration (esp-radio backend pending).
 
-use crate::config::{NS_WIFI, SETUP_AP_SSID};
+use crate::config::{NS_CFG, NS_WIFI, SETUP_AP_SSID};
 use crate::platform::KvStore;
 use chaya_pure::constants::{WIFI_PASS_MAX_LEN, WIFI_SSID_MAX_LEN};
 use chaya_pure::wifi::{wifi_qr_build_wpa_payload, WIFI_QR_PAYLOAD_MAX_LEN};
 
 const KEY_SSID: &str = "ssid";
 const KEY_PASS: &str = "pass";
+const KEY_AP_PSK: &str = "ap_psk";
+const AP_PSK_LEN: usize = 20;
 
 #[derive(Clone, Debug)]
 pub struct WlanConfig {
@@ -94,6 +96,28 @@ impl WlanService {
 
     pub fn qr_buf_len() -> usize {
         WIFI_QR_PAYLOAD_MAX_LEN
+    }
+
+    /// Load SoftAP WPA PSK from NVS or create a 20-char alphanumeric one.
+    pub fn load_or_create_ap_psk(kv: &mut dyn KvStore, entropy: [u8; 20]) -> heapless::String<32> {
+        let mut buf = [0u8; 32];
+        if let Some(n) = kv.get_blob(NS_CFG, KEY_AP_PSK, &mut buf) {
+            if n >= 8 {
+                let mut s = heapless::String::new();
+                let _ = s.push_str(core::str::from_utf8(&buf[..n]).unwrap_or(""));
+                if !s.is_empty() {
+                    return s;
+                }
+            }
+        }
+        const ALPH: &[u8] = b"0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
+        let mut s = heapless::String::<32>::new();
+        for i in 0..AP_PSK_LEN {
+            let idx = (entropy[i] as usize) % ALPH.len();
+            let _ = s.push(ALPH[idx] as char);
+        }
+        let _ = kv.put_blob(NS_CFG, KEY_AP_PSK, s.as_bytes());
+        s
     }
 }
 

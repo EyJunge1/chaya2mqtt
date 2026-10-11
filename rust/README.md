@@ -11,7 +11,7 @@ cargo test -p chaya-pure -p chaya-fw
 
 # Device (espup toolchain)
 cd chaya-fw && cargo +esp build --features device --release
-# ELF ~1.5MB: ../target/xtensa-esp32s3-none-elf/release/chaya-fw
+# ELF ~1.9MB: ../target/xtensa-esp32s3-none-elf/release/chaya-fw
 ```
 
 Details: [`docs/RUST_ESP_HAL.md`](../docs/RUST_ESP_HAL.md).

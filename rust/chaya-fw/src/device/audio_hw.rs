@@ -1,17 +1,27 @@
-//! ES8311 (I2C) + PA rails + short I2S beep.
+//! ES8311 (I2C) + PA rails + I2S DMA beep samples (TX/RX tones).
 
 use crate::board::{audio_amp_enable, audio_rail_enable, pins};
 use crate::platform::GpioOut;
+use chaya_pure::audio::AudioKind;
 use embassy_time::{Duration, Timer};
 use esp_hal::{
+    dma_tx_buffer,
     gpio::{Level, Output, OutputConfig},
     i2c::master::{Config as I2cConfig, I2c},
-    peripherals::{GPIO14, GPIO15, GPIO38, GPIO42, GPIO45, GPIO46, GPIO47, GPIO48, I2C0, I2S0},
+    i2s::master::{Channels, DataFormat, I2s, I2sTx, TdmConfig},
+    peripherals::{DMA_CH0, GPIO14, GPIO15, GPIO38, GPIO42, GPIO45, GPIO46, GPIO47, GPIO48, I2C0, I2S0},
     time::Rate,
+    Blocking,
 };
+use esp_hal::dma::DmaTxBuf;
 use esp_println::println;
 
 const ES8311_ADDR: u8 = 0x18;
+const SAMPLE_RATE: u32 = 24_000;
+const TX_HZ: u32 = 880;
+const TX_MS: u32 = 80;
+const RX_HZ: u32 = 660;
+const RX_MS: u32 = 140;
 
 struct PaGpio {
     pa_en: Output<'static>,
@@ -29,11 +39,11 @@ impl GpioOut for PaGpio {
     }
 }
 
-fn es_write(i2c: &mut I2c<'static, esp_hal::Blocking>, reg: u8, val: u8) -> bool {
+fn es_write(i2c: &mut I2c<'static, Blocking>, reg: u8, val: u8) -> bool {
     i2c.write(ES8311_ADDR, &[reg, val]).is_ok()
 }
 
-fn es8311_prepare(i2c: &mut I2c<'static, esp_hal::Blocking>, volume: u8) -> bool {
+fn es8311_prepare(i2c: &mut I2c<'static, Blocking>, volume: u8) -> bool {
     if !es_write(i2c, 0x00, 0x1F) {
         return false;
     }
@@ -56,19 +66,42 @@ fn es8311_prepare(i2c: &mut I2c<'static, esp_hal::Blocking>, volume: u8) -> bool
     let _ = es_write(i2c, 0x17, 0x00);
     let _ = es_write(i2c, 0x12, 0x00);
     let _ = es_write(i2c, 0x13, 0x10);
-    // volume 0..100 → register scale (rough)
     let v = ((volume as u16) * 255 / 100) as u8;
     let _ = es_write(i2c, 0x32, v);
     true
 }
 
-/// Owns I2C + PA; I2S pins reserved for later DMA beep.
+fn fill_beep(buf: &mut [u8], hz: u32) {
+    let frames = buf.len() / 2;
+    let mut phase: u32 = 0;
+    let step = (hz.saturating_mul(65536)) / SAMPLE_RATE;
+    for i in 0..frames {
+        let env = ((frames - i) as u32 * 22_000) / frames as u32;
+        let s: i16 = if (phase & 0x8000) != 0 {
+            env as i16
+        } else {
+            -(env as i16)
+        };
+        let b = s.to_le_bytes();
+        buf[i * 2] = b[0];
+        buf[i * 2 + 1] = b[1];
+        phase = phase.wrapping_add(step);
+    }
+}
+
+fn tone_for(kind: AudioKind) -> (u32, u32) {
+    match kind {
+        AudioKind::Tx => (TX_HZ, TX_MS),
+        AudioKind::Rx => (RX_HZ, RX_MS),
+    }
+}
+
 pub struct AudioHw {
-    i2c: I2c<'static, esp_hal::Blocking>,
+    i2c: I2c<'static, Blocking>,
     pa: PaGpio,
     ready: bool,
-    /// Keep I2S pins owned so nothing else claims them.
-    _i2s_pins: (GPIO14<'static>, GPIO15<'static>, GPIO38<'static>, GPIO45<'static>, I2S0<'static>),
+    tx: Option<I2sTx<'static, Blocking>>,
+    dma: Option<DmaTxBuf>,
 }
 
 impl AudioHw {
@@ -83,6 +116,7 @@ impl AudioHw {
         lrck: GPIO38<'static>,
         dout: GPIO45<'static>,
         i2s0: I2S0<'static>,
+        dma_ch: DMA_CH0<'static>,
     ) -> Self {
         let out_cfg = OutputConfig::default();
         let i2c = I2c::new(i2c0, I2cConfig::default().with_frequency(Rate::from_khz(100)))
@@ -90,36 +124,85 @@ impl AudioHw {
             .with_sda(sda)
             .with_scl(scl);
         let mut pa = PaGpio {
-            pa_en: Output::new(pa_en, Level::High, out_cfg), // off (active-low)
+            pa_en: Output::new(pa_en, Level::High, out_cfg),
             pa_ctrl: Output::new(pa_ctrl, Level::Low, out_cfg),
         };
         audio_rail_enable(&mut pa, false);
         audio_amp_enable(&mut pa, false);
+
+        let cfg = TdmConfig::new_tdm_philips()
+            .with_sample_rate(Rate::from_hz(SAMPLE_RATE))
+            .with_data_format(DataFormat::Data16Channel16)
+            .with_channels(Channels::LEFT);
+        let i2s = I2s::new(i2s0, dma_ch, cfg)
+            .expect("i2s")
+            .with_mclk(mclk);
+        let tx = i2s
+            .i2s_tx
+            .with_bclk(sclk)
+            .with_ws(lrck)
+            .with_dout(dout)
+            .build();
+
+        let dma = dma_tx_buffer!(8192).expect("dma tx");
+
         Self {
             i2c,
             pa,
             ready: false,
-            _i2s_pins: (mclk, sclk, lrck, dout, i2s0),
+            tx: Some(tx),
+            dma: Some(dma),
         }
     }
 
     pub fn init_codec(&mut self) -> bool {
-        self.ready = es8311_prepare(&mut self.i2c, 50);
+        self.ready = es8311_prepare(&mut self.i2c, 70);
         println!("AUDIO: ES8311 {}", if self.ready { "ok" } else { "fail" });
         self.ready
     }
 
-    /// Beep: power rails briefly (I2S DMA sample push still TODO).
-    pub async fn beep(&mut self) {
+    pub async fn beep(&mut self, kind: AudioKind) {
         if !self.ready && !self.init_codec() {
             return;
         }
+        let (hz, ms) = tone_for(kind);
+        let Some(tx) = self.tx.take() else {
+            return;
+        };
+        let Some(mut dma) = self.dma.take() else {
+            self.tx = Some(tx);
+            return;
+        };
+
         audio_rail_enable(&mut self.pa, true);
         Timer::after(Duration::from_millis(5)).await;
         audio_amp_enable(&mut self.pa, true);
-        Timer::after(Duration::from_millis(180)).await;
+
+        {
+            let buf = dma.as_mut_slice();
+            let use_len = ((SAMPLE_RATE * ms / 1000) as usize * 2).min(buf.len());
+            fill_beep(&mut buf[..use_len], hz);
+            if use_len < buf.len() {
+                buf[use_len..].fill(0);
+            }
+            let _ = dma.set_length(use_len);
+        }
+
+        match tx.write(dma) {
+            Ok(transfer) => {
+                let (_res, tx_back, dma_back) = transfer.wait();
+                self.tx = Some(tx_back);
+                self.dma = Some(dma_back);
+                println!("AUDIO: {:?} {hz}Hz/{ms}ms", kind);
+            }
+            Err((_e, tx_back, dma_back)) => {
+                self.tx = Some(tx_back);
+                self.dma = Some(dma_back);
+                println!("AUDIO: I2S write fail");
+            }
+        }
+
         audio_amp_enable(&mut self.pa, false);
         audio_rail_enable(&mut self.pa, false);
-        println!("AUDIO: beep (PA pulse)");
     }
 }

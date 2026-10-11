@@ -134,5 +134,5 @@ impl MqttService {
 }
 
 pub fn transport_backend_status() -> &'static str {
-    "device: MQTT 3.1.1 TCP + TLS1.3 when port>=8883 (NoVerify)"
+    "device: MQTT 3.1.1 TCP + TLS1.3 when port>=8883 (host DER pin)"
 }
