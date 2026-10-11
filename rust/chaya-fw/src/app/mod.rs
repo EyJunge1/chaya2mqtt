@@ -1,19 +1,19 @@
 //! Boot orchestration — mirrors `src/main.cpp` `setup()` order.
 
 use crate::audio::AudioService;
-use crate::battery::BatteryService;
+use crate::input::BatteryService;
 use crate::board::{battery_latch_on, sd_hold_off};
-use crate::button::ButtonService;
-use crate::config::RuntimeFlags;
+use crate::input::ButtonService;
+use crate::storage::config::RuntimeFlags;
 use crate::display::DisplayService;
-use crate::heart::HeartCounters;
+use crate::identity::HeartCounters;
 use crate::identity::DeviceId;
-use crate::led::LedService;
+use crate::input::LedService;
 use crate::mqtt::MqttService;
-use crate::network::NetworkService;
+use crate::net::NetworkService;
 use crate::ota::OtaService;
-use crate::platform::{ClockMs, GpioOut, KvStore};
-use crate::version::APP_VERSION;
+use crate::storage::platform::{ClockMs, GpioOut, KvStore};
+use crate::identity::APP_VERSION;
 use crate::web::WebAdminState;
 use crate::wifi::{WlanMode, WlanService};
 
@@ -140,13 +140,13 @@ pub fn request_send(fw: &mut Firmware) -> bool {
         return false;
     }
     fw.network
-        .enqueue(crate::network::NetCmd::ChayaPublish)
+        .enqueue(crate::net::NetCmd::ChayaPublish)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::platform::{SimClock, SimGpio, SimKv};
+    use crate::storage::platform::{SimClock, SimGpio, SimKv};
 
     #[test]
     fn boot_softap_without_wifi_nvs() {

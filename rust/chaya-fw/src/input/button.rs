@@ -1,7 +1,7 @@
 //! BOOT button debounce + soft-off (GPIO backend via platform).
 
 use crate::board::pins;
-use crate::platform::{ClockMs, GpioIn};
+use crate::storage::platform::{ClockMs, GpioIn};
 use chaya_pure::button::{
     debounce_update, soft_off_may_arm_ext1_wake, soft_off_release_settled, DebouncedGpioState,
     SoftOffReleaseSettle,

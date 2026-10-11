@@ -1,10 +1,12 @@
-//! ES8311 (I2C) + PA rails + I2S DMA beep samples (TX/RX tones).
+//! ES8311 (I2C via `es8311` crate) + PA rails + I2S DMA beep samples (TX/RX tones).
 
 use crate::board::{audio_amp_enable, audio_rail_enable, pins};
-use crate::platform::GpioOut;
+use crate::storage::platform::GpioOut;
 use chaya_pure::audio::AudioKind;
 use embassy_time::{Duration, Timer};
+use es8311::{ClockConfig, Es8311, Resolution};
 use esp_hal::{
+    delay::Delay,
     dma_tx_buffer,
     gpio::{Level, Output, OutputConfig},
     i2c::master::{Config as I2cConfig, I2c},
@@ -18,6 +20,8 @@ use esp_println::println;
 
 const ES8311_ADDR: u8 = 0x18;
 const SAMPLE_RATE: u32 = 24_000;
+/// ESP I2S MCLK is typically 256 × fs for this board.
+const MCLK_HZ: u32 = SAMPLE_RATE * 256;
 const TX_HZ: u32 = 880;
 const TX_MS: u32 = 80;
 const RX_HZ: u32 = 660;
@@ -37,38 +41,6 @@ impl GpioOut for PaGpio {
             self.pa_ctrl.set_level(level);
         }
     }
-}
-
-fn es_write(i2c: &mut I2c<'static, Blocking>, reg: u8, val: u8) -> bool {
-    i2c.write(ES8311_ADDR, &[reg, val]).is_ok()
-}
-
-fn es8311_prepare(i2c: &mut I2c<'static, Blocking>, volume: u8) -> bool {
-    if !es_write(i2c, 0x00, 0x1F) {
-        return false;
-    }
-    let _ = es_write(i2c, 0x00, 0x00);
-    let _ = es_write(i2c, 0x00, 0x80);
-    let _ = es_write(i2c, 0x01, 0x3F);
-    let _ = es_write(i2c, 0x02, 0x00);
-    let _ = es_write(i2c, 0x03, 0x10);
-    let _ = es_write(i2c, 0x04, 0x10);
-    let _ = es_write(i2c, 0x05, 0x00);
-    let _ = es_write(i2c, 0x06, 0x03);
-    let _ = es_write(i2c, 0x07, 0x00);
-    let _ = es_write(i2c, 0x08, 0xFF);
-    let _ = es_write(i2c, 0x09, 0x0C);
-    let _ = es_write(i2c, 0x0A, 0x0C);
-    let _ = es_write(i2c, 0x0D, 0x01);
-    let _ = es_write(i2c, 0x0E, 0x02);
-    let _ = es_write(i2c, 0x14, 0x00);
-    let _ = es_write(i2c, 0x16, 0x00);
-    let _ = es_write(i2c, 0x17, 0x00);
-    let _ = es_write(i2c, 0x12, 0x00);
-    let _ = es_write(i2c, 0x13, 0x10);
-    let v = ((volume as u16) * 255 / 100) as u8;
-    let _ = es_write(i2c, 0x32, v);
-    true
 }
 
 fn fill_beep(buf: &mut [u8], hz: u32) {
@@ -98,6 +70,7 @@ fn tone_for(kind: AudioKind) -> (u32, u32) {
 
 pub struct AudioHw {
     i2c: I2c<'static, Blocking>,
+    codec: Es8311,
     pa: PaGpio,
     ready: bool,
     tx: Option<I2sTx<'static, Blocking>>,
@@ -148,6 +121,7 @@ impl AudioHw {
 
         Self {
             i2c,
+            codec: Es8311::new(ES8311_ADDR),
             pa,
             ready: false,
             tx: Some(tx),
@@ -156,9 +130,28 @@ impl AudioHw {
     }
 
     pub fn init_codec(&mut self) -> bool {
-        self.ready = es8311_prepare(&mut self.i2c, 70);
-        println!("AUDIO: ES8311 {}", if self.ready { "ok" } else { "fail" });
-        self.ready
+        let clock = ClockConfig {
+            mclk_inverted: false,
+            sclk_inverted: false,
+            mclk_from_mclk_pin: true,
+            mclk_frequency: MCLK_HZ,
+            sample_frequency: SAMPLE_RATE,
+        };
+        let mut delay = Delay::new();
+        let ok = self
+            .codec
+            .init(
+                &mut self.i2c,
+                &clock,
+                Resolution::Bits16,
+                Resolution::Bits16,
+                &mut delay,
+            )
+            .is_ok()
+            && self.codec.volume_set(&mut self.i2c, 70, None).is_ok();
+        self.ready = ok;
+        println!("AUDIO: ES8311 {}", if ok { "ok" } else { "fail" });
+        ok
     }
 
     pub async fn beep(&mut self, kind: AudioKind) {

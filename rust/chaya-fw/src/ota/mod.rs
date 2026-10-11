@@ -1,7 +1,7 @@
 //! OTA from GitHub Releases + SHA-512 (flash backend + GitHub client pending).
 
-use crate::config::NS_CFG;
-use crate::platform::KvStore;
+use crate::storage::config::NS_CFG;
+use crate::storage::platform::KvStore;
 use chaya_pure::ota::ota_github_check_may_clear_pending_release;
 
 const KEY_CHANNEL: &str = "upd_chan";
@@ -63,3 +63,10 @@ impl OtaService {
 pub fn ota_backend_status() -> &'static str {
     "device: GitHub OTA check + SHA-512 verified esp-hal-ota flash"
 }
+
+#[cfg(feature = "device")]
+pub mod client;
+#[cfg(feature = "device")]
+pub use client::{EspRng, OtaStatus};
+#[cfg(feature = "device")]
+pub mod flash;

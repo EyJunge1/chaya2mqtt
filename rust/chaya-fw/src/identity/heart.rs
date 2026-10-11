@@ -1,7 +1,7 @@
 //! Heart RX/TX counters + NVS (uses `chaya-pure`).
 
-use crate::config::NS_CHAYA;
-use crate::platform::KvStore;
+use crate::storage::config::NS_CHAYA;
+use crate::storage::platform::KvStore;
 use chaya_pure::heart::{
     heart_apply_allowed, heart_counter_shown_delta_pure, heart_sent_counter_next_pure,
     heart_sent_remote_should_apply,
@@ -79,7 +79,7 @@ impl HeartCounters {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::platform::SimKv;
+    use crate::storage::platform::SimKv;
 
     #[test]
     fn persist_roundtrip() {

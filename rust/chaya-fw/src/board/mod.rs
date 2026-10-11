@@ -34,7 +34,7 @@ pub mod pins {
     pub const SD_MOSI: u8 = 41;
 }
 
-use crate::platform::GpioOut;
+use crate::storage::platform::GpioOut;
 
 /// Battery latch HIGH before PWR release, else LiPo cuts.
 pub fn battery_latch_on(gpio: &mut dyn GpioOut) {
@@ -65,7 +65,7 @@ pub fn audio_amp_enable(gpio: &mut dyn GpioOut, on: bool) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::platform::SimGpio;
+    use crate::storage::platform::SimGpio;
 
     #[test]
     fn latch_and_sd_hold() {

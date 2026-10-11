@@ -1,7 +1,7 @@
 //! Flash-backed KV using the last two sectors (shared FlashCell).
 
-use crate::device::flash_shared::FlashCell;
-use crate::platform::KvStore;
+use crate::storage::flash_shared::FlashCell;
+use crate::storage::platform::KvStore;
 use esp_storage::FlashStorage;
 
 const MAGIC: u32 = 0xC4A7_A201;

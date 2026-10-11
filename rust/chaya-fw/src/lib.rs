@@ -1,30 +1,29 @@
 //! Full Chaya2MQTT firmware application (esp-hal target).
 //!
-//! Module layout mirrors C++ `src/`. Host builds exercise orchestration + pure logic.
-//! Radio / EPD / TLS / HTTP backends are trait-shaped stubs until upstream crates are wired
-//! (see `docs/RUST_ESP_HAL.md`).
+//! Thematic modules: host logic and device backends live in the same folders;
+//! device code is gated by `--features device`.
 
 #![cfg_attr(not(test), no_std)]
 
+#[cfg(feature = "device")]
+extern crate alloc;
+
 pub mod app;
 pub mod audio;
-pub mod battery;
 pub mod board;
-pub mod button;
-pub mod config;
 pub mod display;
-pub mod heart;
+#[cfg(feature = "device")]
+pub mod http;
 pub mod identity;
-pub mod led;
+pub mod input;
 pub mod mqtt;
-pub mod network;
+pub mod net;
 pub mod ota;
-pub mod platform;
-pub mod version;
+pub mod storage;
 pub mod web;
 pub mod wifi;
 
-#[cfg(feature = "device")]
-pub mod device;
 
 pub use app::{boot, BootReport, Firmware};
+pub use identity::{DeviceId, HeartCounters, APP_VERSION};
+pub use input::{BatteryService, ButtonService, LedPreset, LedService};

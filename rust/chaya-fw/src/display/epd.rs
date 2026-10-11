@@ -156,6 +156,7 @@ fn draw_battery(buf: &mut [u8], x: i32, y: i32, pct: i32) {
 pub enum Scene {
     SoftAp {
         ssid: heapless::String<32>,
+        psk: heapless::String<32>,
     },
     Heart {
         tx: i32,
@@ -168,7 +169,40 @@ pub enum Scene {
 fn paint_scene(frame: &mut [u8], scene: &Scene) {
     fill(frame, WHITE);
     match scene {
-        Scene::SoftAp { ssid } => {
+        Scene::SoftAp { ssid, psk } => {
+            // WIFI QR (MeCard) + labels
+            let mut payload = [0u8; 128];
+            let ok = crate::wifi::WlanService::build_setup_qr(ssid.as_str(), psk.as_str(), &mut payload);
+            if ok {
+                if let Ok(text) = core::str::from_utf8(
+                    &payload[..payload.iter().position(|&c| c == 0).unwrap_or(payload.len())],
+                ) {
+                    let mut temp = [0u8; 320];
+                    let mut out = [0u8; 320];
+                    if let Some(qr) = crate::display::qr::encode_text(text, &mut temp, &mut out) {
+                        let size = qr.size();
+                        // fit in ~160px with quiet zone
+                        let module = (160 / size).max(2);
+                        let qr_px = size * module;
+                        let ox = (W as i32 - qr_px) / 2;
+                        let oy = 8;
+                        fill_rect(frame, ox - 2, oy - 2, qr_px + 4, qr_px + 4, WHITE);
+                        crate::display::qr::paint_qr(&qr, ox, oy, module, |x, y| {
+                            set_px(frame, x, y, BLACK);
+                        });
+                        draw_text(frame, 8, 176, ssid.as_str(), 2, BLACK);
+                        // show abbreviated PSK hint (first 4…)
+                        if psk.len() >= 4 {
+                            let mut hint = heapless::String::<16>::new();
+                            let _ = hint.push_str(&psk.as_str()[..4]);
+                            let _ = hint.push_str("..");
+                            draw_text(frame, 8, 188, hint.as_str(), 2, BLACK);
+                        }
+                        return;
+                    }
+                }
+            }
+            // fallback without QR
             fill_rect(frame, 16, 12, 168, 6, BLACK);
             draw_text(frame, 28, 28, "AP", 3, BLACK);
             draw_heart(frame, 100, 88, 22, RED);

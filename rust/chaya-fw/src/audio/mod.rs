@@ -1,8 +1,14 @@
-//! ES8311 + I2S playback (codec crate + I2S stabilize pending).
+//! ES8311 + I2S playback config (quiet hours from NVS).
 
+use crate::storage::config::NS_CFG;
+use crate::storage::platform::KvStore;
 use chaya_pure::audio::{audio_playback_allowed, AudioKind};
 
-#[derive(Clone, Debug, Default)]
+const KEY_QUIET0: &str = "quiet0";
+const KEY_QUIET1: &str = "quiet1";
+const KEY_VOL: &str = "snd_vol";
+
+#[derive(Clone, Debug)]
 pub struct AudioConfig {
     pub volume: u8,
     pub tx_enabled: bool,
@@ -11,15 +17,47 @@ pub struct AudioConfig {
     pub quiet_end: u8,
 }
 
+impl Default for AudioConfig {
+    fn default() -> Self {
+        Self::default_on()
+    }
+}
+
 impl AudioConfig {
     pub fn default_on() -> Self {
         Self {
-            volume: 50,
+            volume: 70,
             tx_enabled: true,
             rx_enabled: true,
             quiet_start: 0,
             quiet_end: 0,
         }
+    }
+
+    pub fn load(kv: &mut dyn KvStore) -> Self {
+        let mut cfg = Self::default_on();
+        if let Some(v) = kv.get_i32(NS_CFG, KEY_VOL) {
+            if (0..=100).contains(&v) {
+                cfg.volume = v as u8;
+            }
+        }
+        if let Some(v) = kv.get_i32(NS_CFG, KEY_QUIET0) {
+            if (0..=23).contains(&v) {
+                cfg.quiet_start = v as u8;
+            }
+        }
+        if let Some(v) = kv.get_i32(NS_CFG, KEY_QUIET1) {
+            if (0..=23).contains(&v) {
+                cfg.quiet_end = v as u8;
+            }
+        }
+        cfg
+    }
+
+    pub fn save(&self, kv: &mut dyn KvStore) -> bool {
+        kv.put_i32(NS_CFG, KEY_VOL, self.volume as i32)
+            && kv.put_i32(NS_CFG, KEY_QUIET0, self.quiet_start as i32)
+            && kv.put_i32(NS_CFG, KEY_QUIET1, self.quiet_end as i32)
     }
 }
 
@@ -54,5 +92,10 @@ impl AudioService {
 }
 
 pub fn audio_backend_status() -> &'static str {
-    "device: ES8311 I2C + PA + I2S DMA TX/RX tones"
+    "device: ES8311 I2C + PA + I2S DMA TX/RX + quiet hours"
 }
+
+#[cfg(feature = "device")]
+pub mod hw;
+#[cfg(feature = "device")]
+pub use hw::AudioHw;

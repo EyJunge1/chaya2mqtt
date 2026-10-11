@@ -36,3 +36,8 @@ impl NetworkService {
         (wifi_ok, mqtt_ok)
     }
 }
+
+#[cfg(feature = "device")]
+pub mod ntp;
+#[cfg(feature = "device")]
+pub mod mdns;

@@ -1,7 +1,13 @@
-//! Device ID (6 hex) — format via `chaya-pure`.
+//! Device identity (6 hex via `chaya-pure`), heart counters, version.
 
-use crate::config::NS_CFG;
-use crate::platform::KvStore;
+mod heart;
+mod version;
+
+pub use heart::HeartCounters;
+pub use version::APP_VERSION;
+
+use crate::storage::config::NS_CFG;
+use crate::storage::platform::KvStore;
 use chaya_pure::constants::{device_id_syntax_ok, DEVICE_ID_BUF_LEN, DEVICE_ID_HEX_LEN};
 use chaya_pure::identity::device_id_format_from_bytes;
 
@@ -59,7 +65,7 @@ impl DeviceId {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::platform::SimKv;
+    use crate::storage::platform::SimKv;
 
     #[test]
     fn create_and_reload() {

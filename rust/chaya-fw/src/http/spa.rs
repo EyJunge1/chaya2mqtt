@@ -16,6 +16,7 @@ pub const OPENAPI_JSON: &str = r#"{
     "/api/ota/status":{"get":{"summary":"OTA status"}},
     "/api/ota/check":{"post":{"summary":"Check GitHub latest"}},
     "/api/ota/install":{"post":{"summary":"Install latest (SHA-512)"}},
+    "/api/mqtt":{"get":{"summary":"MQTT config snapshot"}},
     "/api/settings":{"get":{"summary":"Settings"},"post":{"summary":"Update settings"}},
     "/api/reboot":{"post":{"summary":"Software reboot"}},
     "/api/factory-reset":{"post":{"summary":"Wipe NVS + reboot"}}

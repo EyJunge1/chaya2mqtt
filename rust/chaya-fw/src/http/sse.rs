@@ -1,72 +1,7 @@
-//! SoftAP/STA admin HTTP helpers (status, captive probes, SSE stub).
+//! Captive/HTML/status/SSE helpers.
 
-use crate::config::SETUP_AP_IP;
-use crate::version::APP_VERSION;
-
-/// First request line path (no query), best-effort.
-pub fn request_path(req: &[u8]) -> &str {
-    let Ok(s) = core::str::from_utf8(req) else {
-        return "/";
-    };
-    let line = s.lines().next().unwrap_or("");
-    let mut parts = line.split_whitespace();
-    let _method = parts.next();
-    let path = parts.next().unwrap_or("/");
-    path.split('?').next().unwrap_or("/")
-}
-
-pub fn is_get(req: &[u8]) -> bool {
-    req.starts_with(b"GET ")
-}
-
-pub fn is_post(req: &[u8]) -> bool {
-    req.starts_with(b"POST ")
-}
-
-pub fn body(req: &[u8]) -> &[u8] {
-    req.windows(4)
-        .position(|w| w == b"\r\n\r\n")
-        .map(|i| &req[i + 4..])
-        .unwrap_or(&[])
-}
-
-pub fn form_value<'a>(body: &'a [u8], key: &str) -> Option<&'a str> {
-    let Ok(s) = core::str::from_utf8(body) else {
-        return None;
-    };
-    for pair in s.split('&') {
-        let mut it = pair.splitn(2, '=');
-        let k = it.next()?;
-        let v = it.next().unwrap_or("");
-        if k == key {
-            return Some(percent_decode_simple(v));
-        }
-    }
-    None
-}
-
-/// Best-effort `"key":"value"` extract from a small JSON body.
-pub fn json_str_field<'a>(body: &'a [u8], key: &str) -> Option<&'a str> {
-    let Ok(s) = core::str::from_utf8(body) else {
-        return None;
-    };
-    let mut needle = heapless::String::<48>::new();
-    let _ = needle.push('"');
-    let _ = needle.push_str(key);
-    let _ = needle.push_str("\"");
-    let i = s.find(needle.as_str())?;
-    let rest = &s[i + needle.len()..];
-    let colon = rest.find(':')?;
-    let after = rest[colon + 1..].trim_start();
-    let after = after.strip_prefix('"')?;
-    let end = after.find('"')?;
-    Some(&after[..end])
-}
-
-fn percent_decode_simple(s: &str) -> &str {
-    // keep raw for ASCII ssids/pass; '+' → space is rare for wifi
-    s
-}
+use crate::storage::config::SETUP_AP_IP;
+use crate::identity::APP_VERSION;
 
 pub fn is_captive_probe(path: &str) -> bool {
     matches!(
@@ -90,7 +25,8 @@ pub fn html_index(
     heart_tx: i32,
     heart_rx: i32,
     bat_pct: i32,
-) -> heapless::String<768> {
+    ap_psk: Option<&str>,
+) -> heapless::String<896> {
     let mut s = heapless::String::new();
     let _ = s.push_str("<!DOCTYPE html><html><body>");
     let _ = s.push_str("<h1>Chaya2MQTT</h1>");
@@ -100,6 +36,12 @@ pub fn html_index(
     let _ = s.push_str(device_id);
     let _ = s.push_str("</p>");
     if ap_mode {
+        let _ = s.push_str("<p>SoftAP SSID: Chaya2MQTT</p>");
+        if let Some(psk) = ap_psk {
+            let _ = s.push_str("<p>SoftAP PSK: <code>");
+            let _ = s.push_str(psk);
+            let _ = s.push_str("</code> (also on EPD QR)</p>");
+        }
         let _ = s.push_str("<p>Setup SoftAP — Wi‑Fi:</p>");
         let _ = s.push_str(
             "<form method=POST action=/api/wifi>\
@@ -137,11 +79,11 @@ pub fn html_index(
     s
 }
 
-fn push_bool01(s: &mut heapless::String<768>, v: bool) {
+fn push_bool01(s: &mut heapless::String<896>, v: bool) {
     let _ = s.push(if v { '1' } else { '0' });
 }
 
-fn push_i32(s: &mut heapless::String<768>, mut n: i32) {
+fn push_i32(s: &mut heapless::String<896>, mut n: i32) {
     if n < 0 {
         let _ = s.push('-');
         n = -n;

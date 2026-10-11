@@ -1,7 +1,7 @@
 //! MQTT heart transport (TLS client backend pending).
 
-use crate::config::NS_MQTT;
-use crate::platform::KvStore;
+use crate::storage::config::NS_MQTT;
+use crate::storage::platform::KvStore;
 use chaya_pure::constants::DEVICE_ID_HEX_LEN;
 use chaya_pure::mqtt::{
     mqtt_own_topic_tx_should_apply, MQTT_BACKOFF_INITIAL_MS, MQTT_PUBLISH_ACK_WAIT_MS,
@@ -136,3 +136,10 @@ impl MqttService {
 pub fn transport_backend_status() -> &'static str {
     "device: MQTT 3.1.1 TCP + TLS1.3 when port>=8883 (host DER pin)"
 }
+
+#[cfg(feature = "device")]
+pub mod proto;
+#[cfg(feature = "device")]
+pub mod session;
+#[cfg(feature = "device")]
+pub mod tls;
