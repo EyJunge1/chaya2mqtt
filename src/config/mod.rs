@@ -1,6 +1,7 @@
 //! App config, NVS namespaces, flash KV (device) — mirrors C++ `src/config/`.
 
 pub mod app_config;
+pub mod kv_codec;
 pub mod ui_prefs;
 pub mod version;
 

@@ -5,4 +5,5 @@ otadata,  data, ota,     0xe000,  0x2000,
 ota_0,    app,  ota_0,   0x10000, 0x3C0000,
 ota_1,    app,  ota_1,   0x3D0000,0x3C0000,
 coredump, data, coredump,0x790000,0x10000,
+# Unused by firmware. Last 32 KiB (0x7F8000) is the FlashKv map — do not mount.
 spiffs,   data, spiffs,  0x7A0000,0x60000,

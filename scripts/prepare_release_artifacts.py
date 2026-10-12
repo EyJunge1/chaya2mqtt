@@ -10,7 +10,7 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-PARTITION_TABLE = ROOT / "partitions_chaya_8mb.csv"
+PARTITION_TABLE = ROOT / "partitions.csv"
 # Fixed ESP32-S3 ESP-IDF image offsets (bootloader/partitions/otadata); app offset from CSV.
 FACTORY_FIXED_OFFSETS = (0x0, 0x8000, 0xE000)
 # Factory image = bootloader + partitions + boot_app0 + app; keep under flash size.

@@ -2,6 +2,7 @@
 
 use core::net::{Ipv4Addr, Ipv6Addr, SocketAddr, SocketAddrV4};
 
+use crate::util::EspRng10;
 use edge_mdns::buf::VecBufAccess;
 use edge_mdns::domain::base::Ttl;
 use edge_mdns::host::Host;
@@ -12,7 +13,6 @@ use edge_nal_embassy::{Udp, UdpBuffers};
 use embassy_net::Stack;
 use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
 use embassy_sync::signal::Signal;
-use crate::util::EspRng10;
 use esp_hal::rng::Rng;
 use esp_println::println;
 use static_cell::StaticCell;

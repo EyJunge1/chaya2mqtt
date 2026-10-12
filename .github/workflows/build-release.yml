@@ -90,7 +90,7 @@ jobs:
         run: |
           python3 scripts/prepare_release_artifacts.py \
             --build-dir out/rust-release \
-            --partition-table partitions_chaya_8mb.csv \
+            --partition-table partitions.csv \
             --github-output "$GITHUB_OUTPUT"
 
       - name: Upload release artifact

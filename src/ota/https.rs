@@ -96,7 +96,14 @@ pub async fn get_buffered(
     let mut tls_rx = [0u8; 16384];
     let mut tls_tx = [0u8; 4096];
     let mut tls = connect_https(
-        stack, host, rng, &mut tcp_rx, &mut tcp_tx, &mut tls_rx, &mut tls_tx, 30,
+        stack,
+        host,
+        rng,
+        &mut tcp_rx,
+        &mut tcp_tx,
+        &mut tls_rx,
+        &mut tls_tx,
+        30,
     )
     .await?;
 

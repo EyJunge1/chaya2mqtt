@@ -34,7 +34,8 @@ pub async fn handle(
             let mut kv = s.kv.lock().await;
             UiPrefs::load(&mut *kv)
         };
-        let Ok(req) = crate::web::json::from_slice::<crate::web::json::SettingsSaveReq>(body) else {
+        let Ok(req) = crate::web::json::from_slice::<crate::web::json::SettingsSaveReq>(body)
+        else {
             return Some((400, json::json_err("json"), "application/json"));
         };
         if let Some(ch) = req.otaChannel.or(req.channel) {

@@ -5,7 +5,7 @@ FLASHER_NPM_CI ?= npm ci
 # Optional: make upload UPLOAD_PORT=/dev/cu.usbmodem101
 UPLOAD_PORT ?=
 UPLOAD_PORT_FLAG := $(if $(UPLOAD_PORT),--port $(UPLOAD_PORT),)
-PARTITIONS := partitions_chaya_8mb.csv
+PARTITIONS := partitions.csv
 RUST_ELF := target/xtensa-esp32s3-none-elf/release/chaya-fw
 RUST_OUT := out/rust-release
 

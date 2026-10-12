@@ -291,6 +291,20 @@ pub fn ota_release_download_redirect_url_allowed(url: &str) -> bool {
     false
 }
 
+#[derive(serde::Deserialize)]
+struct GhReleaseTag<'a> {
+    tag_name: &'a str,
+}
+
+fn tag_name_ok(tag: &str) -> Option<&str> {
+    if tag.is_empty() || tag.len() > 31 {
+        None
+    } else {
+        Some(tag)
+    }
+}
+
+/// Fallback when the GitHub JSON body is truncated (OTA uses an 8 KiB buffer).
 fn extract_tag_at<'a>(body: &'a str, from: usize) -> Option<(usize, &'a str)> {
     let rest = &body[from..];
     let key_rel = rest.find("\"tag_name\"")?;
@@ -302,24 +316,18 @@ fn extract_tag_at<'a>(body: &'a str, from: usize) -> Option<(usize, &'a str)> {
     let trimmed_off = raw_value.len() - trimmed.len();
     let value = trimmed.strip_prefix('"')?;
     let end = value.find('"')?;
-    if end == 0 || end > 31 {
-        return None;
-    }
     let tag_abs = from + after_key_rel + colon_rel + 1 + trimmed_off + 1;
-    let tag = &body[tag_abs..tag_abs + end];
+    let tag = tag_name_ok(&body[tag_abs..tag_abs + end])?;
     Some((tag_abs + end + 1, tag))
 }
 
-/// Scan a GitHub `/releases` JSON list and pick the best allowed tag.
-///
-/// `prefer_prerelease`: newest allowed `-rc.N` tag, else newest allowed stable.
-/// Otherwise: newest allowed stable (non-rc) tag.
-pub fn ota_select_best_release_tag(body: &str, prefer_prerelease: bool) -> Option<&str> {
+fn select_best_tag<'a>(
+    tags: impl Iterator<Item = &'a str>,
+    prefer_prerelease: bool,
+) -> Option<&'a str> {
     let mut best_stable: Option<&str> = None;
     let mut best_rc: Option<&str> = None;
-    let mut from = 0usize;
-    while let Some((next, tag)) = extract_tag_at(body, from) {
-        from = next;
+    for tag in tags {
         if !ota_release_tag_is_allowed(tag) {
             continue;
         }
@@ -342,6 +350,54 @@ pub fn ota_select_best_release_tag(body: &str, prefer_prerelease: bool) -> Optio
     } else {
         best_stable
     }
+}
+
+/// Parse `/releases/latest` JSON for `tag_name` (`serde-json-core`, scan fallback).
+pub fn ota_parse_latest_release_tag(body: &str) -> Option<&str> {
+    if let Ok((rel, _)) = serde_json_core::from_str::<GhReleaseTag<'_>>(body) {
+        return tag_name_ok(rel.tag_name);
+    }
+    extract_tag_at(body, 0).map(|(_, tag)| tag)
+}
+
+/// Decode the first 128 hex digits of a `firmware.sha512` sidecar into 64 bytes.
+pub fn ota_parse_sha512_hex(text: &str, out: &mut [u8; 64]) -> bool {
+    let mut clean = [0u8; 128];
+    let mut n = 0usize;
+    for b in text.bytes() {
+        if b.is_ascii_hexdigit() {
+            if n == 128 {
+                break;
+            }
+            clean[n] = b;
+            n += 1;
+        }
+    }
+    n == 128 && hex::decode_to_slice(&clean, out.as_mut_slice()).is_ok()
+}
+
+/// Scan a GitHub `/releases` JSON list and pick the best allowed tag.
+///
+/// Prefers `serde-json-core` when the body is complete; otherwise scans `tag_name`
+/// fields so a truncated 8 KiB buffer can still yield a result.
+///
+/// `prefer_prerelease`: newest allowed `-rc.N` tag, else newest allowed stable.
+/// Otherwise: newest allowed stable (non-rc) tag.
+pub fn ota_select_best_release_tag(body: &str, prefer_prerelease: bool) -> Option<&str> {
+    if let Ok((items, _)) =
+        serde_json_core::from_str::<heapless::Vec<GhReleaseTag<'_>, 20>>(body)
+    {
+        return select_best_tag(items.iter().map(|r| r.tag_name), prefer_prerelease);
+    }
+    let mut from = 0usize;
+    select_best_tag(
+        core::iter::from_fn(|| {
+            let (next, tag) = extract_tag_at(body, from)?;
+            from = next;
+            Some(tag)
+        }),
+        prefer_prerelease,
+    )
 }
 
 #[cfg(test)]
@@ -549,5 +605,29 @@ mod tests {
             ota_select_best_release_tag(only_stable, true),
             Some("v2026.8.1")
         );
+    }
+
+    #[test]
+    fn parse_latest_release_tag_serde_and_truncated() {
+        let full = r#"{"url":"https://api.github.com/repos/x","tag_name":"v2026.10.1","draft":false}"#;
+        assert_eq!(ota_parse_latest_release_tag(full), Some("v2026.10.1"));
+
+        // Truncated after tag_name value — serde fails, scan still works.
+        let cut = r#"{"tag_name":"v2026.10.2","body":"this is cut"#;
+        assert_eq!(ota_parse_latest_release_tag(cut), Some("v2026.10.2"));
+
+        assert_eq!(ota_parse_latest_release_tag("{}"), None);
+        assert_eq!(ota_parse_latest_release_tag(r#"{"tag_name":""}"#), None);
+    }
+
+    #[test]
+    fn parse_sha512_hex_ignores_suffix() {
+        let mut out = [0u8; 64];
+        let hex128 = "a".repeat(128);
+        assert!(ota_parse_sha512_hex(&format!("{hex128}  firmware.bin\n"), &mut out));
+        assert_eq!(out, [0xaa; 64]);
+
+        assert!(!ota_parse_sha512_hex("deadbeef", &mut out));
+        assert!(!ota_parse_sha512_hex(&"g".repeat(128), &mut out));
     }
 }

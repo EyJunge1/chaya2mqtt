@@ -138,7 +138,6 @@ impl WlanConfig {
             dns2: parse_ipv4(self.dns2.as_str()),
         })
     }
-
 }
 
 /// Static IPv4 parameters ready for `embassy_net::StaticConfigV4`.

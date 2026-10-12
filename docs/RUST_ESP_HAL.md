@@ -11,7 +11,7 @@ Production firmware is Rust-only (`src/` in the repo root). The legacy C++/Platf
 | **Device ELF** | **Builds** (needs espup toolchain) |
 | SoftAP (WPA2 PSK, **APSTA**) + DHCP + captive + WIFI QR on EPD | Live |
 | STA + DHCPv4 + SNTP + **edge-mdns** (`chaya2mqtt-<id>.local`) | Live |
-| FlashKv (shared flash) | Live |
+| FlashKv (`sequential-storage` map, shared flash) | Live |
 | EPD SoftAP QR / heart + TX/RX/battery + live redraw | Live |
 | **edge-http** admin server (SPA OpenAPI paths + SSE `/events`) | Live |
 | WiFi scan + connect-test (AP) / save (STA) | Live |
@@ -42,6 +42,7 @@ Production firmware is Rust-only (`src/` in the repo root). The legacy C++/Platf
 | JSON request/response | `serde` + `serde-json-core` |
 | MQTT 3.1.1 | `mqttrust` (`mqttv3`); heart / own-topic policy stays in `mqtt/session.rs` |
 | Integer formatting | `itoa` |
+| Flash KV | `sequential-storage` (map; one-time migration of the old flat image) |
 | Audio codec | `es8311` |
 | TLS default | `embedded-tls` + host-pin verifier (`tls/host_pin.rs`) |
 | TLS CA (optional) | `mbedtls-rs` + `mozilla-root-ca` (Mozilla/`cacert.pem`, via `build.rs`) |
@@ -112,4 +113,4 @@ MQTT / OTA call a thin `crate::tls::connect(...)` wrapper; buffers are used only
 - Build uses mbedtls `use-gcc` (`xtensa-esp-elf-gcc` on `PATH`); Apple clang cannot target `esp32s3`.
 - CA PEM is re-parsed per `connect` (`Certificate` is `!Send`, so no shared cache).
 
-Partition table: root `partitions_chaya_8mb.csv` (synced into `partitions.csv` on release build).
+Partition table: root `partitions.csv` (8 MB, dual OTA).

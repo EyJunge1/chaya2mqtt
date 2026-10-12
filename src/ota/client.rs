@@ -3,9 +3,9 @@
 use crate::config::flash_shared::FlashCell;
 use crate::config::APP_VERSION;
 use crate::core::ota::{
-    ota_release_download_redirect_url_allowed, ota_release_download_url_allowed,
-    ota_release_tag_is_allowed, ota_select_best_release_tag, ota_version_is_newer,
-    ota_version_is_rc, OtaDownloadAsset,
+    ota_parse_latest_release_tag, ota_parse_sha512_hex, ota_release_download_redirect_url_allowed,
+    ota_release_download_url_allowed, ota_release_tag_is_allowed, ota_select_best_release_tag,
+    ota_version_is_newer, ota_version_is_rc, OtaDownloadAsset,
 };
 use crate::ota::http_headers::{parse_content_length, parse_location};
 use crate::ota::https;
@@ -26,49 +26,6 @@ pub struct OtaStatus {
     pub checking: bool,
     pub installing: bool,
     pub flash_ready: bool,
-}
-
-fn extract_tag(body: &str, out: &mut heapless::String<32>) -> bool {
-    let Some(i) = body.find("\"tag_name\"") else {
-        return false;
-    };
-    let rest = &body[i..];
-    let Some(colon) = rest.find(':') else {
-        return false;
-    };
-    let after = rest[colon + 1..].trim_start();
-    let after = after.strip_prefix('"').unwrap_or(after);
-    let end = after.find('"').unwrap_or(0);
-    if end == 0 || end > 31 {
-        return false;
-    }
-    out.clear();
-    let _ = out.push_str(&after[..end]);
-    true
-}
-
-fn parse_sha512_hex(text: &str, out: &mut [u8; 64]) -> bool {
-    let mut hex = heapless::String::<128>::new();
-    for b in text.bytes() {
-        if b.is_ascii_hexdigit() {
-            if hex.push(b as char).is_err() {
-                break;
-            }
-            if hex.len() == 128 {
-                break;
-            }
-        }
-    }
-    if hex.len() != 128 {
-        return false;
-    }
-    for i in 0..64 {
-        let Ok(v) = u8::from_str_radix(&hex[i * 2..i * 2 + 2], 16) else {
-            return false;
-        };
-        out[i] = v;
-    }
-    true
 }
 
 fn split_url(url: &str) -> Option<(&str, &str)> {
@@ -93,9 +50,16 @@ pub async fn check_latest(stack: Stack<'static>, rng: &mut EspRng, status: &mut 
     } else {
         "/repos/EyJunge1/chaya2mqtt/releases/latest"
     };
-    let Ok((status_code, header_end, total)) =
-        https::get_buffered(stack, rng, API_HOST, path, UA, "application/vnd.github+json", &mut buf)
-            .await
+    let Ok((status_code, header_end, total)) = https::get_buffered(
+        stack,
+        rng,
+        API_HOST,
+        path,
+        UA,
+        "application/vnd.github+json",
+        &mut buf,
+    )
+    .await
     else {
         let _ = status.last_error.push_str("http");
         status.checking = false;
@@ -116,8 +80,11 @@ pub async fn check_latest(stack: Stack<'static>, rng: &mut EspRng, status: &mut 
         } else {
             false
         }
+    } else if let Some(tag) = ota_parse_latest_release_tag(body) {
+        let _ = status.last_tag.push_str(tag);
+        true
     } else {
-        extract_tag(body, &mut status.last_tag)
+        false
     };
 
     if !tag_ok {
@@ -195,9 +162,16 @@ async fn download_asset(
 
     for _ in 0..3 {
         let mut buf = [0u8; 8192];
-        let Ok((status_code, header_end, total)) =
-            https::get_buffered(stack, rng, host.as_str(), cur_path.as_str(), UA, "*/*", &mut buf)
-                .await
+        let Ok((status_code, header_end, total)) = https::get_buffered(
+            stack,
+            rng,
+            host.as_str(),
+            cur_path.as_str(),
+            UA,
+            "*/*",
+            &mut buf,
+        )
+        .await
         else {
             return Err(());
         };
@@ -264,7 +238,7 @@ pub async fn install_latest(
     };
     let sha_text = core::str::from_utf8(&sha_buf[..sha_len]).unwrap_or("");
     let mut expect = [0u8; 64];
-    if !parse_sha512_hex(sha_text, &mut expect) {
+    if !ota_parse_sha512_hex(sha_text, &mut expect) {
         let _ = status.last_error.push_str("sha-parse");
         status.installing = false;
         return false;
@@ -299,9 +273,16 @@ pub async fn install_latest(
     let mut final_path = cur_path.clone();
     for _ in 0..3 {
         let mut probe = [0u8; 2048];
-        let Ok((status_code, header_end, _)) =
-            https::get_buffered(stack, rng, host.as_str(), cur_path.as_str(), UA, "*/*", &mut probe)
-                .await
+        let Ok((status_code, header_end, _)) = https::get_buffered(
+            stack,
+            rng,
+            host.as_str(),
+            cur_path.as_str(),
+            UA,
+            "*/*",
+            &mut probe,
+        )
+        .await
         else {
             let _ = status.last_error.push_str("bin-probe");
             status.installing = false;

@@ -24,7 +24,14 @@ pub async fn stream_flash_bin(
     let mut tls_rx = [0u8; 16384];
     let mut tls_tx = [0u8; 2048];
     let Ok(mut tls) = https::connect_https(
-        stack, host, rng, &mut tcp_rx, &mut tcp_tx, &mut tls_rx, &mut tls_tx, 60,
+        stack,
+        host,
+        rng,
+        &mut tcp_rx,
+        &mut tcp_tx,
+        &mut tls_rx,
+        &mut tls_tx,
+        60,
     )
     .await
     else {

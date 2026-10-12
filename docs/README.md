@@ -19,7 +19,7 @@ Or flash in Chrome/Edge: [web flasher](https://eyjunge1.github.io/chaya2mqtt/). 
 
 The legacy C++/PlatformIO tree has been removed; firmware is Rust-only.
 
-8 MB flash, dual OTA (`partitions_chaya_8mb.csv`).
+8 MB flash, dual OTA (`partitions.csv`).
 ## First setup
 
 1. Power on (on battery: press **PWR**; firmware holds GPIO17 HIGH).
@@ -50,6 +50,10 @@ Payload is a decimal absolute counter, QoS 1, retained. Display shows deltas (`r
 C++ ESP-IDF NVS blobs (`cfg_v1` / `cfg_v2`) are **not** imported — flash from the old firmware needs erase/reconfigure.
 
 ## FlashKv (namespaces)
+
+`sequential-storage` map in the last 32 KiB of flash (on the 8 MB table that is the tail of the unused `spiffs` partition, `0x7F8000..0x800000`). Do not mount SPIFFS there.
+
+The previous flat image (magic `0xC4A7A201`, last two sectors) is copied in once at boot. A power cut during that copy can drop settings; enter them again or factory-reset.
 
 | NS | What |
 |----|------|

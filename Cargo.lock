@@ -396,6 +396,7 @@ dependencies = [
  "edge-mdns",
  "edge-nal",
  "edge-nal-embassy",
+ "embassy-embedded-hal",
  "embassy-executor",
  "embassy-futures",
  "embassy-net",
@@ -421,6 +422,7 @@ dependencies = [
  "flate2",
  "heapless 0.8.0",
  "heapless 0.9.3",
+ "hex",
  "httparse",
  "itoa",
  "log",
@@ -431,6 +433,7 @@ dependencies = [
  "qrcodegen-no-heap",
  "rand_core 0.10.1",
  "rand_core 0.6.4",
+ "sequential-storage",
  "serde",
  "serde-json-core",
  "sha2 0.10.9",
@@ -2252,6 +2255,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2304e00983f87ffb38b55b444b5e3b60a884b5d30c0fca7d82fe33449bbe55ea"
 
 [[package]]
+name = "hex"
+version = "0.4.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7f24254aa9a54b5c858eaee2f5bccdb46aaf0e486a595ed5fd8f86ba55232a70"
+
+[[package]]
 name = "hkdf"
 version = "0.12.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3209,6 +3218,16 @@ checksum = "8a7852d02fc848982e0c167ef163aaff9cd91dc640ba85e263cb1ce46fae51cd"
 dependencies = [
  "serde",
  "serde_core",
+]
+
+[[package]]
+name = "sequential-storage"
+version = "8.0.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1550e4d0c7a6a54e2d7884309dc6bfe206d2d8884cb5498177fd936cb233616d"
+dependencies = [
+ "embedded-storage-async",
+ "heapless 0.8.0",
 ]
 
 [[package]]

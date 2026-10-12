@@ -19,9 +19,20 @@ pub trait ClockMs {
 pub trait KvStore {
     fn get_blob(&mut self, ns: &str, key: &str, buf: &mut [u8]) -> Option<usize>;
     fn put_blob(&mut self, ns: &str, key: &str, data: &[u8]) -> bool;
-    fn get_i32(&mut self, ns: &str, key: &str) -> Option<i32>;
-    fn put_i32(&mut self, ns: &str, key: &str, v: i32) -> bool;
     fn erase_ns(&mut self, ns: &str) -> bool;
+
+    fn get_i32(&mut self, ns: &str, key: &str) -> Option<i32> {
+        let mut buf = [0u8; 4];
+        let n = self.get_blob(ns, key, &mut buf)?;
+        if n != 4 {
+            return None;
+        }
+        Some(i32::from_le_bytes(buf))
+    }
+
+    fn put_i32(&mut self, ns: &str, key: &str, v: i32) -> bool {
+        self.put_blob(ns, key, &v.to_le_bytes())
+    }
 }
 
 /// Host/sim GPIO: records last driven level per pin.
@@ -117,19 +128,6 @@ impl KvStore for SimKv {
             return true;
         }
         self.entries.push((ns_s, key_s, v)).is_ok()
-    }
-
-    fn get_i32(&mut self, ns: &str, key: &str) -> Option<i32> {
-        let mut buf = [0u8; 4];
-        let n = self.get_blob(ns, key, &mut buf)?;
-        if n != 4 {
-            return None;
-        }
-        Some(i32::from_le_bytes(buf))
-    }
-
-    fn put_i32(&mut self, ns: &str, key: &str, v: i32) -> bool {
-        self.put_blob(ns, key, &v.to_le_bytes())
     }
 
     fn erase_ns(&mut self, ns: &str) -> bool {
