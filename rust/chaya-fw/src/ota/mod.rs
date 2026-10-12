@@ -5,6 +5,7 @@ use crate::util::platform::KvStore;
 use chaya_pure::ota::ota_github_check_may_clear_pending_release;
 
 const KEY_CHANNEL: &str = "upd_chan";
+const KEY_UPD_DAY: &str = "upd_day";
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
 pub enum OtaChannel {
@@ -37,6 +38,8 @@ impl OtaChannel {
 #[derive(Clone, Debug, Default)]
 pub struct OtaService {
     pub channel: OtaChannel,
+    /// UTC calendar day of last successful GitHub check (`cfg/upd_day`).
+    pub last_check_day: u32,
     pub install_queued: bool,
     pub busy: bool,
 }
@@ -49,14 +52,21 @@ impl OtaService {
         } else {
             OtaChannel::Stable
         };
+        let last_check_day = kv.get_i32(NS_CFG, KEY_UPD_DAY).unwrap_or(0).max(0) as u32;
         Self {
             channel,
+            last_check_day,
             ..Default::default()
         }
     }
 
     pub fn save_channel(&self, kv: &mut dyn KvStore) -> bool {
         kv.put_blob(NS_CFG, KEY_CHANNEL, self.channel.as_str().as_bytes())
+    }
+
+    pub fn save_last_check_day(&mut self, kv: &mut dyn KvStore, day_utc: u32) -> bool {
+        self.last_check_day = day_utc;
+        kv.put_i32(NS_CFG, KEY_UPD_DAY, day_utc as i32)
     }
 
     pub fn may_clear_pending_release(&self) -> bool {

@@ -1,6 +1,6 @@
 # Rust / esp-hal (production)
 
-Production firmware is Rust (`chaya-fw` / `chaya-pure`). The former `feat/rust-esp-hal` WIP branch is historical.
+Production firmware is Rust (`chaya-fw` / `chaya-pure`) on branch `feat/rust-esp-hal` (not yet merged to `main`).
 
 ## Status
 
@@ -19,7 +19,7 @@ Production firmware is Rust (`chaya-fw` / `chaya-pure`). The former `feat/rust-e
 | MQTT TCP + TLS (default host-pin; optional `mbedtls` CA) | Live |
 | Button / LED presets / soft-off + deep sleep EXT1 / battery ADC | Live |
 | ES8311 + I2S DMA TX beeps + quiet hours | Live |
-| GitHub OTA (stable/beta) + SHA-512 flash + reboot + health mark-valid | Live |
+| GitHub OTA (stable/beta) + daily STA check + SHA-512 flash + reboot + health mark-valid | Live |
 | Settings / MQTT JSON (led/lang/theme/resetDays + audio en/vol/quiet) | Live |
 | MQTT QoS1 + RETAIN + PUBACK + LWT + own-topic echo filter | Live |
 | WiFi STA recovery (reassoc / controlled restart) | Live |

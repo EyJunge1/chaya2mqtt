@@ -170,7 +170,7 @@ pub async fn run_sta(
     }
 
     let ota_rng = OtaRng(Rng::new());
-    spawner.spawn(crate::async_rt::ota::ota_task(stack, ota_rng, flash).unwrap());
+    spawner.spawn(crate::async_rt::ota::ota_task(stack, ota_rng, flash, kv).unwrap());
     spawner.spawn(crate::async_rt::ota_health::ota_health_task(flash).unwrap());
 
     let hostname = {

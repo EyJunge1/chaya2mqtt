@@ -32,6 +32,30 @@ pub fn ota_github_check_may_clear_pending_release(install_queued: bool) -> bool 
     !install_queued
 }
 
+/// Decide whether an automatic once-per-UTC-day GitHub check may run (C++ `maybeDailyCheck`).
+///
+/// Never auto-installs — callers only probe for available updates.
+pub fn ota_daily_check_due(
+    app_version: &str,
+    sta_connected: bool,
+    ap_mode: bool,
+    ntp_synced: bool,
+    busy: bool,
+    last_check_day: u32,
+    today_utc_day: u32,
+) -> bool {
+    if ap_mode || !sta_connected {
+        return false;
+    }
+    if app_version == "dev" {
+        return false;
+    }
+    if !ntp_synced || busy {
+        return false;
+    }
+    last_check_day != today_utc_day
+}
+
 /// True once setup is complete, boot WiFi settled, STA linked, and `window_ms` elapsed
 /// since `settled_at_ms` (wrap-safe via wrapping subtract).
 pub fn ota_health_window_elapsed(
@@ -325,6 +349,31 @@ mod tests {
     fn clear_only_when_idle() {
         assert!(ota_github_check_may_clear_pending_release(false));
         assert!(!ota_github_check_may_clear_pending_release(true));
+    }
+
+    #[test]
+    fn daily_check_gates() {
+        assert!(ota_daily_check_due(
+            "v2026.10.1", true, false, true, false, 0, 20_000
+        ));
+        assert!(!ota_daily_check_due(
+            "v2026.10.1", true, false, true, false, 20_000, 20_000
+        ));
+        assert!(!ota_daily_check_due(
+            "dev", true, false, true, false, 0, 20_000
+        ));
+        assert!(!ota_daily_check_due(
+            "v2026.10.1", false, false, true, false, 0, 20_000
+        ));
+        assert!(!ota_daily_check_due(
+            "v2026.10.1", true, true, true, false, 0, 20_000
+        ));
+        assert!(!ota_daily_check_due(
+            "v2026.10.1", true, false, false, false, 0, 20_000
+        ));
+        assert!(!ota_daily_check_due(
+            "v2026.10.1", true, false, true, true, 0, 20_000
+        ));
     }
 
     #[test]

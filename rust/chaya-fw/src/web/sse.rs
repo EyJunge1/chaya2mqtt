@@ -53,7 +53,7 @@ pub fn html_index(
         let _ = s.push_str(
             "<form method=POST action=/api/mqtt>\
              Host <input name=host><br>\
-             Port <input name=port value=1883><br>\
+             Port <input name=port value=8883><br>\
              User <input name=user><br>\
              Pass <input name=pass type=password><br>\
              Partner <input name=partner maxlength=6><br>\

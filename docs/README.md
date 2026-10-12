@@ -28,7 +28,7 @@ The legacy C++/PlatformIO tree has been removed; firmware is Rust-only.
 4. On **MQTT**: broker host, port **8883** (TLS default), optional user/password, pairing ID (defaults to this device), partner ID (6 hex).
 5. After STA: admin is `http://chaya2mqtt-<deviceId>.local`.
 
-Broker must use a public CA (Let's Encrypt, …). Two devices can set up in parallel; same SSID, isolated APs — scan the QR on the intended display.
+Default TLS is host-pin (leaf + SNI hostname check), not a full CA chain. Optional CA verify: build with `--features device,mbedtls` (see [RUST_ESP_HAL.md](RUST_ESP_HAL.md)). Two devices can set up in parallel; same SSID, isolated APs — scan the QR on the intended display.
 
 ## Pairing
 
@@ -45,14 +45,16 @@ Payload is a decimal absolute counter, QoS 1, retained. Display shows deltas (`r
 
 ## Factory reset
 
-**Settings → Device → Factory reset** wipes NVS `wifi`, `mqtt`, `cfg`, `chaya` and reboots into SoftAP. No hardware reset gesture — if the UI is unreachable, erase and reflash USB.
+**Settings → Device → Factory reset** wipes FlashKv namespaces `wifi`, `mqtt`, `cfg`, `chaya` and reboots into SoftAP. No hardware reset gesture — if the UI is unreachable, erase and reflash USB.
 
-## NVS
+C++ ESP-IDF NVS blobs (`cfg_v1` / `cfg_v2`) are **not** imported — flash from the old firmware needs erase/reconfigure.
+
+## FlashKv (namespaces)
 
 | NS | What |
 |----|------|
 | `wifi` | STA + SoftAP PSK |
-| `mqtt` | Broker + partner + pairing (`cfg_v2`; legacy `cfg_v1` still loads) |
+| `mqtt` | Broker + partner + pairing (individual keys, not C++ blobs) |
 | `cfg` | Device ID, UI, LED, audio, display view, OTA day/channel |
 | `chaya` | Absolute counters + baselines |
 
@@ -62,7 +64,7 @@ Device ID is 6 hex in `cfg/device_id`. Wipe/erase → new ID and new topics.
 
 GitHub Releases, HTTPS + SHA-512 sidecar (`firmware.sha512`), verified flash via `esp-hal-ota` into the next OTA slot. USB/first install uses `firmware.factory.bin` (bootloader + partitions + app). OTA uses **`firmware.bin` only**.
 
-Daily check in STA (`stable` / `beta`). Install is manual. After OTA, image stays pending until ~30 s stable STA. Brick: web flasher or `make upload-erase`.
+Daily automatic GitHub check in STA once NTP is synced (`stable` / `beta`, skipped for `dev` builds; day stored in `cfg/upd_day`). Install stays manual via admin UI. After OTA, image stays pending until ~30 s stable STA. Brick: web flasher or `make upload-erase`.
 
 ## Layout
 
