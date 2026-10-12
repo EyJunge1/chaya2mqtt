@@ -66,7 +66,7 @@ embassy-sync = { version = "0.8", optional = true }
 nb = { version = "1.1", optional = true }
 static_cell = { version = "2.1", optional = true }
 log = { version = "0.4", optional = true }
-epdsi = { version = "0.7", optional = true, features = ["blocking"] }
+epdsi = { version = "0.7", optional = true, default-features = false, features = ["blocking"] }
 embedded-hal = { version = "1.0", optional = true }
 embedded-hal-bus = { version = "0.3", optional = true }
 embedded-storage = { version = "0.3", optional = true }

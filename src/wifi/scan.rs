@@ -3,6 +3,8 @@
 use crate::core::constants::WIFI_SSID_MAX_LEN;
 use crate::core::wifi::{wifi_scan_service_may_start_kick, wifi_scan_service_should_defer_kick};
 use alloc::string::String;
+use alloc::vec::Vec;
+use serde::Serialize;
 
 pub const WIFI_SCAN_CACHE_MAX: usize = 24;
 
@@ -64,43 +66,47 @@ impl ScanCache {
     }
 
     pub fn to_json(&self) -> String {
-        let mut s = String::new();
-        s.push_str("{\"status\":\"");
-        s.push_str(self.status.as_str());
-        s.push('"');
-        if self.status == ScanStatus::Ready {
-            s.push_str(",\"aps\":[");
-            for (i, ap) in self.aps.iter().enumerate() {
-                if i > 0 {
-                    s.push(',');
-                }
-                s.push_str("{\"ssid\":\"");
-                push_json_escaped(&mut s, ap.ssid.as_str());
-                s.push_str("\",\"rssi\":");
-                push_i32(&mut s, ap.rssi as i32);
-                s.push_str(",\"open\":");
-                s.push_str(if ap.open { "true" } else { "false" });
-                s.push('}');
+        #[derive(Serialize)]
+        struct Ap<'a> {
+            ssid: &'a str,
+            rssi: i8,
+            open: bool,
+        }
+        #[derive(Serialize)]
+        struct Snapshot<'a> {
+            status: &'static str,
+            #[serde(skip_serializing_if = "Option::is_none")]
+            aps: Option<Vec<Ap<'a>>>,
+        }
+
+        let aps = if self.status == ScanStatus::Ready {
+            Some(
+                self.aps
+                    .iter()
+                    .map(|ap| Ap {
+                        ssid: ap.ssid.as_str(),
+                        rssi: ap.rssi,
+                        open: ap.open,
+                    })
+                    .collect(),
+            )
+        } else {
+            None
+        };
+
+        let snap = Snapshot {
+            status: self.status.as_str(),
+            aps,
+        };
+        for size in [256usize, 512, 1024, 2048, 4096] {
+            let mut buf = alloc::vec![0u8; size];
+            if let Ok(n) = serde_json_core::to_slice(&snap, &mut buf) {
+                return match core::str::from_utf8(&buf[..n]) {
+                    Ok(s) => String::from(s),
+                    Err(_) => String::from("{\"status\":\"failed\"}"),
+                };
             }
-            s.push(']');
         }
-        s.push('}');
-        s
+        String::from("{\"status\":\"failed\"}")
     }
-}
-
-fn push_json_escaped(out: &mut String, input: &str) {
-    for c in input.chars() {
-        match c {
-            '"' => out.push_str("\\\""),
-            '\\' => out.push_str("\\\\"),
-            c if c < ' ' => {}
-            c => out.push(c),
-        }
-    }
-}
-
-fn push_i32(out: &mut String, n: i32) {
-    let mut buf = itoa::Buffer::new();
-    out.push_str(buf.format(n));
 }

@@ -12,31 +12,12 @@ use edge_nal_embassy::{Udp, UdpBuffers};
 use embassy_net::Stack;
 use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
 use embassy_sync::signal::Signal;
+use crate::util::EspRng10;
 use esp_hal::rng::Rng;
 use esp_println::println;
 use static_cell::StaticCell;
 
 type Cs = CriticalSectionRawMutex;
-
-struct EspRng(Rng);
-
-impl rand_core10::TryRng for EspRng {
-    type Error = core::convert::Infallible;
-
-    fn try_next_u32(&mut self) -> Result<u32, Self::Error> {
-        Ok(self.0.random())
-    }
-    fn try_next_u64(&mut self) -> Result<u64, Self::Error> {
-        Ok(((self.0.random() as u64) << 32) | self.0.random() as u64)
-    }
-    fn try_fill_bytes(&mut self, dest: &mut [u8]) -> Result<(), Self::Error> {
-        for chunk in dest.chunks_mut(4) {
-            let r = self.0.random().to_le_bytes();
-            chunk.copy_from_slice(&r[..chunk.len()]);
-        }
-        Ok(())
-    }
-}
 
 /// Run mDNS for `hostname.local` answering A records for the current STA IPv4.
 pub async fn run_mdns(stack: Stack<'static>, hostname: &'static str) -> ! {
@@ -77,7 +58,7 @@ pub async fn run_mdns(stack: Stack<'static>, hostname: &'static str) -> ! {
         send,
         recv_buf,
         send_buf,
-        EspRng(Rng::new()),
+        EspRng10(Rng::new()),
         broadcast_signal,
     );
 

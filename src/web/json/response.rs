@@ -1,7 +1,6 @@
 //! OpenAPI-aligned JSON builders for the admin SPA (`serde-json-core` Serialize).
 //!
-//! `serde-json-core` does not escape strings on serialize; callers feed pre-escaped
-//! owned strings via [`esc`].
+//! String escaping is handled by `serde-json-core` 0.6 (`serialize_str`).
 
 use alloc::string::String;
 use alloc::vec;
@@ -14,19 +13,6 @@ use crate::config::{
 use crate::mqtt::MqttConfig;
 use crate::ota::client::OtaStatus;
 use crate::wifi::WlanConfig;
-
-fn esc(input: &str) -> String {
-    let mut out = String::with_capacity(input.len());
-    for c in input.chars() {
-        match c {
-            '"' => out.push_str("\\\""),
-            '\\' => out.push_str("\\\\"),
-            c if c < ' ' => {}
-            c => out.push(c),
-        }
-    }
-    out
-}
 
 fn to_json<T: Serialize>(value: &T) -> String {
     for size in [256usize, 512, 1024, 2048, 4096, 8192] {
@@ -184,6 +170,36 @@ struct ConnectStatusResp {
     ssid: String,
 }
 
+#[derive(Serialize)]
+struct WifiConfigResp {
+    ssid: String,
+    mode: String,
+    ip: String,
+    gateway: String,
+    netmask: String,
+    dns1: String,
+    dns2: String,
+    ntp1: String,
+    ntp2: String,
+}
+
+#[derive(Serialize)]
+struct StatusResp {
+    version: String,
+    id: String,
+    ap: bool,
+    wifi: bool,
+    mqtt: bool,
+    #[serde(rename = "heartTx")]
+    heart_tx: i32,
+    #[serde(rename = "heartRx")]
+    heart_rx: i32,
+    #[serde(rename = "batteryPct")]
+    battery_pct: i32,
+    #[serde(rename = "batteryMv")]
+    battery_mv: i32,
+}
+
 pub fn json_ok() -> &'static str {
     "{\"ok\":true}"
 }
@@ -191,14 +207,14 @@ pub fn json_ok() -> &'static str {
 pub fn json_err(error: &str) -> String {
     to_json(&ErrResp {
         ok: false,
-        error: esc(error),
+        error: String::from(error),
     })
 }
 
 pub fn json_ok_next(next: &str) -> String {
     to_json(&OkNextResp {
         ok: true,
-        next: esc(next),
+        next: String::from(next),
     })
 }
 
@@ -212,21 +228,60 @@ pub fn device_battery_json(bat_mv: i32, bat_pct: i32) -> String {
 
 pub fn device_json(device_id: &str, ap_mode: bool, bat_mv: i32, bat_pct: i32) -> String {
     let hostname = if ap_mode {
-        esc(DEVICE_HOSTNAME)
+        String::from(DEVICE_HOSTNAME)
     } else {
         let mut h = String::from(STA_HOSTNAME_PREFIX);
-        h.push_str(&esc(device_id));
+        h.push_str(device_id);
         h
     };
     to_json(&DeviceResp {
         hostname,
-        version: esc(APP_VERSION),
+        version: String::from(APP_VERSION),
         mode: if ap_mode { "ap" } else { "sta" },
-        device_id: esc(device_id),
+        device_id: String::from(device_id),
         battery_mv: bat_mv,
         battery_pct: bat_pct.max(0).min(100),
-        ap_ssid: ap_mode.then(|| esc(SETUP_AP_SSID)),
-        ap_ip: ap_mode.then(|| esc(SETUP_AP_IP)),
+        ap_ssid: ap_mode.then(|| String::from(SETUP_AP_SSID)),
+        ap_ip: ap_mode.then(|| String::from(SETUP_AP_IP)),
+    })
+}
+
+/// OpenAPI `WifiConfig` (no password).
+pub fn wifi_config_json(cfg: &WlanConfig) -> String {
+    to_json(&WifiConfigResp {
+        ssid: String::from(cfg.ssid.as_str()),
+        mode: String::from(cfg.mode.as_str()),
+        ip: String::from(cfg.ip.as_str()),
+        gateway: String::from(cfg.gateway.as_str()),
+        netmask: String::from(cfg.netmask.as_str()),
+        dns1: String::from(cfg.dns1.as_str()),
+        dns2: String::from(cfg.dns2.as_str()),
+        ntp1: String::from(cfg.ntp1.as_str()),
+        ntp2: String::from(cfg.ntp2.as_str()),
+    })
+}
+
+/// Legacy `/api/status` snapshot (also used for compact SSE).
+pub fn status_json(
+    device_id: &str,
+    ap_mode: bool,
+    wifi_ok: bool,
+    mqtt_ok: bool,
+    heart_tx: i32,
+    heart_rx: i32,
+    bat_pct: i32,
+    bat_mv: i32,
+) -> String {
+    to_json(&StatusResp {
+        version: String::from(APP_VERSION),
+        id: String::from(device_id),
+        ap: ap_mode,
+        wifi: wifi_ok,
+        mqtt: mqtt_ok,
+        heart_tx,
+        heart_rx,
+        battery_pct: bat_pct,
+        battery_mv: bat_mv,
     })
 }
 
@@ -245,12 +300,12 @@ pub fn wifi_status_connected(
 ) -> String {
     to_json(&WifiConnectedResp {
         connected: true,
-        ssid: esc(ssid),
-        ip: esc(ip),
-        gateway: esc(gateway),
-        netmask: esc(netmask),
-        dns1: esc(dns1),
-        dns2: esc(dns2),
+        ssid: String::from(ssid),
+        ip: String::from(ip),
+        gateway: String::from(gateway),
+        netmask: String::from(netmask),
+        dns1: String::from(dns1),
+        dns2: String::from(dns2),
         rssi,
     })
 }
@@ -273,16 +328,16 @@ pub fn mqtt_config_json(device_id: &str, cfg: &MqttConfig) -> String {
     let pub_topic = cfg.pub_topic(device_id);
     let sub_topic = cfg.sub_topic();
     to_json(&MqttConfigResp {
-        device_id: esc(device_id),
-        server: esc(cfg.host.as_str()),
+        device_id: String::from(device_id),
+        server: String::from(cfg.host.as_str()),
         port: cfg.port,
         tls: cfg.port >= 8883,
-        username: esc(cfg.user.as_str()),
+        username: String::from(cfg.user.as_str()),
         has_password: !cfg.pass.is_empty(),
-        topic_pub: esc(pub_topic.as_str()),
-        topic_sub: esc(sub_topic.as_str()),
-        partner_id: esc(cfg.partner_id.as_str()),
-        pairing_id: esc(cfg.pairing_id.as_str()),
+        topic_pub: String::from(pub_topic.as_str()),
+        topic_sub: String::from(sub_topic.as_str()),
+        partner_id: String::from(cfg.partner_id.as_str()),
+        pairing_id: String::from(cfg.pairing_id.as_str()),
         nvs_ok: true,
         apply_pending: false,
     })
@@ -291,8 +346,8 @@ pub fn mqtt_config_json(device_id: &str, cfg: &MqttConfig) -> String {
 pub fn settings_json(audio: &AudioConfig, ui: &UiPrefs) -> String {
     to_json(&SettingsResp {
         reset_days: ui.reset_days,
-        lang: esc(ui.lang.as_str()),
-        theme: esc(ui.theme.as_str()),
+        lang: String::from(ui.lang.as_str()),
+        theme: String::from(ui.theme.as_str()),
         led_enabled: ui.led_enabled,
         audio_tx_enabled: audio.tx_enabled,
         audio_rx_enabled: audio.rx_enabled,
@@ -328,12 +383,12 @@ pub fn ota_status_json(st: &OtaStatus) -> String {
     };
     to_json(&OtaStatusResp {
         phase,
-        channel: esc(channel),
-        local_version: esc(APP_VERSION),
-        available_version: esc(st.last_tag.as_str()),
+        channel: String::from(channel),
+        local_version: String::from(APP_VERSION),
+        available_version: String::from(st.last_tag.as_str()),
         bytes_done: 0,
         bytes_total: 0,
-        error: esc(st.last_error.as_str()),
+        error: String::from(st.last_error.as_str()),
         generation: 0,
     })
 }
@@ -377,8 +432,8 @@ pub fn bootstrap_json(
 
 pub fn connect_status_json(state: &str, ssid: &str) -> String {
     to_json(&ConnectStatusResp {
-        state: esc(state),
-        ssid: esc(ssid),
+        state: String::from(state),
+        ssid: String::from(ssid),
     })
 }
 
@@ -398,72 +453,30 @@ pub fn parse_wlan_connect(
     password_present: &mut bool,
 ) -> Result<(), &'static str> {
     use super::dto::{from_slice, WifiConnectReq};
-    use crate::web::form::form_value;
 
-    if let Ok(req) = from_slice::<WifiConnectReq>(body) {
-        let ssid = req.ssid.filter(|s| !s.is_empty()).ok_or("ssid")?;
-        if ssid.len() > 32 {
-            return Err("ssid");
-        }
-        cfg.ssid.clear();
-        let _ = cfg.ssid.push_str(ssid);
-
-        *password_present = req.password.is_some();
-        if let Some(p) = req.password {
-            cfg.pass.clear();
-            let _ = cfg.pass.push_str(p);
-        }
-        if let Some(m) = req.mode {
-            cfg.mode = crate::wifi::IpMode::parse(m);
-        }
-        push_opt(&mut cfg.ip, req.ip);
-        push_opt(&mut cfg.gateway, req.gateway);
-        push_opt(&mut cfg.netmask, req.netmask);
-        push_opt(&mut cfg.dns1, req.dns1);
-        push_opt(&mut cfg.dns2, req.dns2);
-        push_opt(&mut cfg.ntp1, req.ntp1);
-        push_opt(&mut cfg.ntp2, req.ntp2);
-        return Ok(());
-    }
-
-    // Legacy form body fallback.
-    let ssid = form_value(body, "ssid").ok_or("ssid")?;
-    if ssid.is_empty() || ssid.len() > 32 {
+    let req = from_slice::<WifiConnectReq>(body).map_err(|_| "json")?;
+    let ssid = req.ssid.filter(|s| !s.is_empty()).ok_or("ssid")?;
+    if ssid.len() > 32 {
         return Err("ssid");
     }
     cfg.ssid.clear();
-    let _ = cfg.ssid.push_str(ssid.as_str());
+    let _ = cfg.ssid.push_str(ssid);
 
-    *password_present =
-        form_value(body, "password").is_some() || form_value(body, "pass").is_some();
-    if let Some(p) = form_value(body, "password").or_else(|| form_value(body, "pass")) {
+    *password_present = req.password.is_some();
+    if let Some(p) = req.password {
         cfg.pass.clear();
-        let _ = cfg.pass.push_str(p.as_str());
+        let _ = cfg.pass.push_str(p);
     }
-    if let Some(m) = form_value(body, "mode") {
-        cfg.mode = crate::wifi::IpMode::parse(m.as_str());
+    if let Some(m) = req.mode {
+        cfg.mode = crate::wifi::IpMode::parse(m);
     }
-    if let Some(v) = form_value(body, "ip") {
-        push_opt(&mut cfg.ip, Some(v.as_str()));
-    }
-    if let Some(v) = form_value(body, "gateway") {
-        push_opt(&mut cfg.gateway, Some(v.as_str()));
-    }
-    if let Some(v) = form_value(body, "netmask") {
-        push_opt(&mut cfg.netmask, Some(v.as_str()));
-    }
-    if let Some(v) = form_value(body, "dns1") {
-        push_opt(&mut cfg.dns1, Some(v.as_str()));
-    }
-    if let Some(v) = form_value(body, "dns2") {
-        push_opt(&mut cfg.dns2, Some(v.as_str()));
-    }
-    if let Some(v) = form_value(body, "ntp1") {
-        push_opt(&mut cfg.ntp1, Some(v.as_str()));
-    }
-    if let Some(v) = form_value(body, "ntp2") {
-        push_opt(&mut cfg.ntp2, Some(v.as_str()));
-    }
+    push_opt(&mut cfg.ip, req.ip);
+    push_opt(&mut cfg.gateway, req.gateway);
+    push_opt(&mut cfg.netmask, req.netmask);
+    push_opt(&mut cfg.dns1, req.dns1);
+    push_opt(&mut cfg.dns2, req.dns2);
+    push_opt(&mut cfg.ntp1, req.ntp1);
+    push_opt(&mut cfg.ntp2, req.ntp2);
     Ok(())
 }
 

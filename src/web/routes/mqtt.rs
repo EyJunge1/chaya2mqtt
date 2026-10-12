@@ -8,8 +8,6 @@ use crate::core::mqtt::{
     partner_id_input_valid, MQTT_SERVER_BUF_LEN, MQTT_TOPIC_BUF_LEN,
 };
 use crate::mqtt::MqttConfig;
-use crate::util::platform::KvStore;
-use crate::web::form;
 use crate::web::json;
 use crate::web::shared::HttpShared;
 
@@ -55,66 +53,43 @@ pub async fn handle(
         let mut pairing_touched = false;
         let mut partner_touched = false;
 
-        if let Ok(req) = crate::web::json::from_slice::<crate::web::json::MqttSaveReq>(body) {
-            if let Some(h) = req.mqtt_server.or(req.server) {
-                cfg.host.clear();
-                let _ = cfg.host.push_str(h);
+        let Ok(req) = crate::web::json::from_slice::<crate::web::json::MqttSaveReq>(body) else {
+            return Some(mqtt_post_err("json"));
+        };
+        if let Some(h) = req.mqtt_server.or(req.server) {
+            cfg.host.clear();
+            let _ = cfg.host.push_str(h);
+        }
+        if let Some(p) = req.mqtt_port.or(req.port) {
+            if p > 0 {
+                cfg.port = p;
             }
-            if let Some(p) = req.mqtt_port.or(req.port) {
-                if p > 0 {
-                    cfg.port = p;
-                }
+        }
+        if let Some(tls) = req.mqtt_tls.or(req.tls) {
+            if tls && cfg.port < 8883 {
+                cfg.port = 8883;
             }
-            if let Some(tls) = req.mqtt_tls.or(req.tls) {
-                if tls && cfg.port < 8883 {
-                    cfg.port = 8883;
-                }
-                if !tls && cfg.port == 8883 {
-                    cfg.port = 1883;
-                }
+            if !tls && cfg.port == 8883 {
+                cfg.port = 1883;
             }
-            if let Some(u) = req.mqtt_user.or(req.username) {
-                cfg.user.clear();
-                let _ = cfg.user.push_str(u);
-            }
-            if let Some(p) = req.mqtt_pass.or(req.password) {
-                cfg.pass.clear();
-                let _ = cfg.pass.push_str(p);
-            }
-            if let Some(p) = req.partner_id {
-                cfg.partner_id.clear();
-                let _ = cfg.partner_id.push_str(p);
-                partner_touched = true;
-            }
-            if let Some(p) = req.pairing_id {
-                cfg.pairing_id.clear();
-                let _ = cfg.pairing_id.push_str(p);
-                pairing_touched = true;
-            }
-        } else {
-            // Legacy form body.
-            if let Some(h) = form::form_value(body, "host") {
-                cfg.host.clear();
-                let _ = cfg.host.push_str(h.as_str());
-            }
-            if let Some(p) = form::form_value(body, "port").and_then(|s| s.parse().ok()) {
-                if p > 0u16 {
-                    cfg.port = p;
-                }
-            }
-            if let Some(u) = form::form_value(body, "user") {
-                cfg.user.clear();
-                let _ = cfg.user.push_str(u.as_str());
-            }
-            if let Some(p) = form::form_value(body, "pass") {
-                cfg.pass.clear();
-                let _ = cfg.pass.push_str(p.as_str());
-            }
-            if let Some(p) = form::form_value(body, "partner") {
-                cfg.partner_id.clear();
-                let _ = cfg.partner_id.push_str(p.as_str());
-                partner_touched = true;
-            }
+        }
+        if let Some(u) = req.mqtt_user.or(req.username) {
+            cfg.user.clear();
+            let _ = cfg.user.push_str(u);
+        }
+        if let Some(p) = req.mqtt_pass.or(req.password) {
+            cfg.pass.clear();
+            let _ = cfg.pass.push_str(p);
+        }
+        if let Some(p) = req.partner_id {
+            cfg.partner_id.clear();
+            let _ = cfg.partner_id.push_str(p);
+            partner_touched = true;
+        }
+        if let Some(p) = req.pairing_id {
+            cfg.pairing_id.clear();
+            let _ = cfg.pairing_id.push_str(p);
+            pairing_touched = true;
         }
 
         let own_id = s.device_id;

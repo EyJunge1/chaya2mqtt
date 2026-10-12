@@ -82,6 +82,8 @@ pub fn ota_backend_status() -> &'static str {
 pub mod client;
 mod http_headers;
 #[cfg(feature = "device")]
+mod https;
+#[cfg(feature = "device")]
 pub use crate::util::EspRng;
 #[cfg(feature = "device")]
 pub use client::OtaStatus;

@@ -3,8 +3,6 @@
 use alloc::string::String;
 use edge_http::Method;
 
-use crate::util::platform::KvStore;
-use crate::web::form;
 use crate::web::json;
 use crate::web::shared::HttpShared;
 use crate::wifi::WlanConfig;
@@ -23,11 +21,7 @@ pub async fn handle(
     if path == "/api/wifi/config" && method == Method::Get {
         let mut kv = s.kv.lock().await;
         let cfg = WlanConfig::load(&mut *kv);
-        return Some((
-            200,
-            String::from(cfg.to_config_json().as_str()),
-            "application/json",
-        ));
+        return Some((200, json::wifi_config_json(&cfg), "application/json"));
     }
 
     if path == "/api/wifi/scan" && method == Method::Get {
@@ -133,23 +127,6 @@ pub async fn handle(
         *s.wifi_test_owns.lock().await = true;
         s.wifi_test_kick.signal(());
         return Some((200, String::from(json::json_ok()), "application/json"));
-    }
-
-    // Legacy form POST /api/wifi
-    if path == "/api/wifi" && method == Method::Post && s.ap_mode {
-        let mut cfg = WlanConfig::default();
-        if let Some(ssid) = form::form_value(body, "ssid") {
-            let _ = cfg.ssid.push_str(ssid.as_str());
-        }
-        if let Some(pass) = form::form_value(body, "pass") {
-            let _ = cfg.pass.push_str(pass.as_str());
-        }
-        let mut kv = s.kv.lock().await;
-        if cfg.has_sta() {
-            let _ = cfg.save(&mut *kv);
-        }
-        s.reboot.signal(());
-        return Some((302, String::new(), ""));
     }
 
     None

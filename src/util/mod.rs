@@ -6,4 +6,4 @@ pub mod rng;
 
 pub use platform::*;
 #[cfg(feature = "device")]
-pub use rng::EspRng;
+pub use rng::{EspRng, EspRng10};

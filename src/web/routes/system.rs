@@ -9,7 +9,6 @@ use crate::led::LedPreset;
 use crate::util::platform::KvStore;
 use crate::web::json;
 use crate::web::shared::HttpShared;
-use crate::web::sse;
 
 pub async fn handle(
     s: &HttpShared,
@@ -47,17 +46,20 @@ pub async fn handle(
     }
 
     if path == "/api/status" && method == Method::Get {
-        let body = sse::json_status(
-            s.device_id,
-            s.ap_mode,
-            !s.ap_mode,
-            mqtt_ok,
-            heart_tx,
-            heart_rx,
-            bat_pct,
-            bat_mv,
-        );
-        return Some((200, String::from(body.as_str()), "application/json"));
+        return Some((
+            200,
+            json::status_json(
+                s.device_id,
+                s.ap_mode,
+                !s.ap_mode,
+                mqtt_ok,
+                heart_tx,
+                heart_rx,
+                bat_pct,
+                bat_mv,
+            ),
+            "application/json",
+        ));
     }
 
     None

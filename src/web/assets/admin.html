@@ -70,10 +70,11 @@ async function refresh(){
   pills(s);$('#setup').hidden=!s.ap;$('#actions').hidden=!!s.ap;
   try{const o=await (await fetch('/api/ota/status')).json();$('#ota').textContent=JSON.stringify(o);}catch(e){$('#ota').textContent='n/a';}
 }
+const jsonHeaders={'Content-Type':'application/json'};
 $('#send').onclick=async()=>{await fetch('/api/send',{method:'POST'});refresh();};
 $('#otaCheck').onclick=async()=>{await fetch('/api/ota/check',{method:'POST'});refresh();};
-$('#wifi').onsubmit=async e=>{e.preventDefault();await fetch('/api/wifi',{method:'POST',body:new URLSearchParams(new FormData(e.target))});alert('Saved — power-cycle');};
-$('#mqtt').onsubmit=async e=>{e.preventDefault();await fetch('/api/mqtt',{method:'POST',body:new URLSearchParams(new FormData(e.target))});alert('MQTT saved');};
+$('#wifi').onsubmit=async e=>{e.preventDefault();const fd=new FormData(e.target);await fetch('/api/wifi/connect',{method:'POST',headers:jsonHeaders,body:JSON.stringify({ssid:fd.get('ssid'),password:fd.get('pass')||''})});alert('Saved — power-cycle');};
+$('#mqtt').onsubmit=async e=>{e.preventDefault();const fd=new FormData(e.target);await fetch('/api/mqtt',{method:'POST',headers:jsonHeaders,body:JSON.stringify({server:fd.get('host'),port:Number(fd.get('port')||8883),username:fd.get('user')||'',password:fd.get('pass')||'',partnerId:fd.get('partner')||''})});alert('MQTT saved');};
 refresh();
 try{const es=new EventSource('/api/events');es.onmessage=()=>refresh();}catch(e){setInterval(refresh,5000);}
 </script>

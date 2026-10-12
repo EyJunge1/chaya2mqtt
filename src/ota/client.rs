@@ -1,24 +1,22 @@
 //! GitHub Releases OTA: tag check + SHA-512 verified flash via esp-hal-ota.
 
-use crate::config::flash_shared::{FlashCell, FlashProxy};
+use crate::config::flash_shared::FlashCell;
 use crate::config::APP_VERSION;
 use crate::core::ota::{
     ota_release_download_redirect_url_allowed, ota_release_download_url_allowed,
     ota_release_tag_is_allowed, ota_select_best_release_tag, ota_version_is_newer,
     ota_version_is_rc, OtaDownloadAsset,
 };
-use crate::ota::http_headers::{parse_content_length, parse_location, parse_status};
+use crate::ota::http_headers::{parse_content_length, parse_location};
+use crate::ota::https;
 use crate::util::EspRng;
-use embassy_net::{dns::DnsQueryType, tcp::TcpSocket, IpEndpoint, Stack};
-use embassy_time::{Duration, Timer};
-use embedded_io_async::Write;
-use esp_hal_ota::Ota;
+use embassy_net::Stack;
 use esp_println::println;
-use sha2::{Digest, Sha512};
 
 const API_HOST: &str = "api.github.com";
 const DL_HOST: &str = "github.com";
 const REPO: &str = "EyJunge1/chaya2mqtt";
+const UA: &str = "chaya2mqtt-rust";
 
 #[derive(Clone, Debug, Default)]
 pub struct OtaStatus {
@@ -81,78 +79,6 @@ fn split_url(url: &str) -> Option<(&str, &str)> {
     Some((&url[..slash], &url[slash..]))
 }
 
-async fn tls_get(
-    stack: Stack<'static>,
-    rng: &mut EspRng,
-    host: &str,
-    path: &str,
-    user_agent: &str,
-    accept: &str,
-    body_buf: &mut [u8],
-) -> Result<(u16, usize, usize), ()> {
-    // returns (status, header_end, total) where body is body_buf[header_end..total]
-    let Ok(addrs) = stack.dns_query(host, DnsQueryType::A).await else {
-        return Err(());
-    };
-    if addrs.is_empty() {
-        return Err(());
-    }
-
-    let mut tcp_rx = [0u8; 4096];
-    let mut tcp_tx = [0u8; 2048];
-    let mut socket = TcpSocket::new(stack, &mut tcp_rx, &mut tcp_tx);
-    socket.set_timeout(Some(Duration::from_secs(30)));
-    if socket
-        .connect(IpEndpoint::new(addrs[0], 443))
-        .await
-        .is_err()
-    {
-        return Err(());
-    }
-
-    let mut tls_rx = [0u8; 16384];
-    let mut tls_tx = [0u8; 4096];
-    let Ok(mut tls) = crate::tls::connect(socket, host, rng, &mut tls_rx, &mut tls_tx).await else {
-        return Err(());
-    };
-
-    let mut req = heapless::String::<384>::new();
-    let _ = req.push_str("GET ");
-    let _ = req.push_str(path);
-    let _ = req.push_str(" HTTP/1.0\r\nHost: ");
-    let _ = req.push_str(host);
-    let _ = req.push_str("\r\nUser-Agent: ");
-    let _ = req.push_str(user_agent);
-    let _ = req.push_str("\r\nAccept: ");
-    let _ = req.push_str(accept);
-    let _ = req.push_str("\r\nConnection: close\r\n\r\n");
-    if tls.write_all(req.as_bytes()).await.is_err() {
-        return Err(());
-    }
-    let _ = tls.flush().await;
-
-    let mut total = 0usize;
-    loop {
-        if total >= body_buf.len() {
-            break;
-        }
-        match tls.read(&mut body_buf[total..]).await {
-            Ok(0) => break,
-            Ok(n) => total += n,
-            Err(_) => break,
-        }
-    }
-
-    let header_end = body_buf[..total]
-        .windows(4)
-        .position(|w| w == b"\r\n\r\n")
-        .map(|i| i + 4)
-        .unwrap_or(total);
-    let headers = core::str::from_utf8(&body_buf[..header_end.min(total)]).unwrap_or("");
-    let status = parse_status(headers);
-    Ok((status, header_end, total))
-}
-
 /// HTTPS GET latest release tag (`stable` → `/releases/latest`, `beta` → list).
 ///
 /// Sets `flash_ready` only when the remote tag is allowed and newer than `APP_VERSION`.
@@ -167,16 +93,9 @@ pub async fn check_latest(stack: Stack<'static>, rng: &mut EspRng, status: &mut 
     } else {
         "/repos/EyJunge1/chaya2mqtt/releases/latest"
     };
-    let Ok((status_code, header_end, total)) = tls_get(
-        stack,
-        rng,
-        API_HOST,
-        path,
-        "chaya2mqtt-rust",
-        "application/vnd.github+json",
-        &mut buf,
-    )
-    .await
+    let Ok((status_code, header_end, total)) =
+        https::get_buffered(stack, rng, API_HOST, path, UA, "application/vnd.github+json", &mut buf)
+            .await
     else {
         let _ = status.last_error.push_str("http");
         status.checking = false;
@@ -276,16 +195,9 @@ async fn download_asset(
 
     for _ in 0..3 {
         let mut buf = [0u8; 8192];
-        let Ok((status_code, header_end, total)) = tls_get(
-            stack,
-            rng,
-            host.as_str(),
-            cur_path.as_str(),
-            "chaya2mqtt-rust",
-            "*/*",
-            &mut buf,
-        )
-        .await
+        let Ok((status_code, header_end, total)) =
+            https::get_buffered(stack, rng, host.as_str(), cur_path.as_str(), UA, "*/*", &mut buf)
+                .await
         else {
             return Err(());
         };
@@ -387,16 +299,9 @@ pub async fn install_latest(
     let mut final_path = cur_path.clone();
     for _ in 0..3 {
         let mut probe = [0u8; 2048];
-        let Ok((status_code, header_end, _)) = tls_get(
-            stack,
-            rng,
-            host.as_str(),
-            cur_path.as_str(),
-            "chaya2mqtt-rust",
-            "*/*",
-            &mut probe,
-        )
-        .await
+        let Ok((status_code, header_end, _)) =
+            https::get_buffered(stack, rng, host.as_str(), cur_path.as_str(), UA, "*/*", &mut probe)
+                .await
         else {
             let _ = status.last_error.push_str("bin-probe");
             status.installing = false;

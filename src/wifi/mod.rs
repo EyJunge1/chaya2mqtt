@@ -139,30 +139,6 @@ impl WlanConfig {
         })
     }
 
-    /// OpenAPI `WifiConfig` (no password).
-    pub fn to_config_json(&self) -> heapless::String<384> {
-        let mut s = heapless::String::new();
-        let _ = s.push_str("{\"ssid\":\"");
-        push_json_escaped(&mut s, self.ssid.as_str());
-        let _ = s.push_str("\",\"mode\":\"");
-        let _ = s.push_str(self.mode.as_str());
-        let _ = s.push_str("\",\"ip\":\"");
-        push_json_escaped(&mut s, self.ip.as_str());
-        let _ = s.push_str("\",\"gateway\":\"");
-        push_json_escaped(&mut s, self.gateway.as_str());
-        let _ = s.push_str("\",\"netmask\":\"");
-        push_json_escaped(&mut s, self.netmask.as_str());
-        let _ = s.push_str("\",\"dns1\":\"");
-        push_json_escaped(&mut s, self.dns1.as_str());
-        let _ = s.push_str("\",\"dns2\":\"");
-        push_json_escaped(&mut s, self.dns2.as_str());
-        let _ = s.push_str("\",\"ntp1\":\"");
-        push_json_escaped(&mut s, self.ntp1.as_str());
-        let _ = s.push_str("\",\"ntp2\":\"");
-        push_json_escaped(&mut s, self.ntp2.as_str());
-        let _ = s.push_str("\"}");
-        s
-    }
 }
 
 /// Static IPv4 parameters ready for `embassy_net::StaticConfigV4`.
@@ -191,23 +167,6 @@ pub fn netmask_prefix_len(mask: Ipv4Addr) -> Option<u8> {
         Some(n as u8)
     } else {
         None
-    }
-}
-
-fn push_json_escaped(out: &mut heapless::String<384>, input: &str) {
-    for c in input.chars() {
-        match c {
-            '"' => {
-                let _ = out.push_str("\\\"");
-            }
-            '\\' => {
-                let _ = out.push_str("\\\\");
-            }
-            c if c < ' ' => {}
-            c => {
-                let _ = out.push(c);
-            }
-        }
     }
 }
 

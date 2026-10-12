@@ -10,16 +10,15 @@
 //! - Global `Tls` singleton: MQTT + OTA share one instance (mbedtls-rs limit).
 
 use core::cell::RefCell;
-use core::convert::Infallible;
 use core::ffi::CStr;
 use core::sync::atomic::{AtomicBool, Ordering};
 
+use crate::util::EspRng10;
 use critical_section::Mutex;
 use embedded_io_async::{Read, Write};
 use mbedtls_rs::{
     Certificate, ClientSessionConfig, Session, SessionConfig, Tls, TlsReference, X509,
 };
-use rand_core10::{TryCryptoRng, TryRng};
 use static_cell::StaticCell;
 use tinyrlibc as _;
 
@@ -36,30 +35,6 @@ const CA_PEM: &CStr =
         Err(_) => panic!("mozilla_ca.bin must be NUL-terminated without interior NULs"),
     };
 
-struct HwRng(esp_hal::rng::Rng);
-
-impl TryRng for HwRng {
-    type Error = Infallible;
-
-    fn try_next_u32(&mut self) -> Result<u32, Self::Error> {
-        Ok(self.0.random())
-    }
-
-    fn try_next_u64(&mut self) -> Result<u64, Self::Error> {
-        Ok(((self.0.random() as u64) << 32) | self.0.random() as u64)
-    }
-
-    fn try_fill_bytes(&mut self, dest: &mut [u8]) -> Result<(), Self::Error> {
-        for chunk in dest.chunks_mut(4) {
-            let r = self.0.random().to_le_bytes();
-            chunk.copy_from_slice(&r[..chunk.len()]);
-        }
-        Ok(())
-    }
-}
-
-impl TryCryptoRng for HwRng {}
-
 static TIMER_HOOKED: AtomicBool = AtomicBool::new(false);
 static TLS_SLOT: Mutex<RefCell<Option<&'static Tls<'static>>>> = Mutex::new(RefCell::new(None));
 
@@ -72,7 +47,7 @@ fn ensure_timer_hook() {
 
     static TIMER: StaticCell<EmbassyTimer> = StaticCell::new();
     let timer = TIMER.init(EmbassyTimer);
-    // SAFETY: timer is `'static`; hooked once for process lifetime.
+    // SAFETY: timer is `'static'; hooked once for process lifetime.
     unsafe {
         hook_timer(Some(timer));
     }
@@ -83,9 +58,9 @@ fn tls_reference() -> Result<TlsReference<'static>, ()> {
     critical_section::with(|cs| {
         let mut slot = TLS_SLOT.borrow_ref_mut(cs);
         if slot.is_none() {
-            static RNG: StaticCell<HwRng> = StaticCell::new();
+            static RNG: StaticCell<EspRng10> = StaticCell::new();
             static TLS: StaticCell<Tls<'static>> = StaticCell::new();
-            let rng = RNG.init(HwRng(esp_hal::rng::Rng::new()));
+            let rng = RNG.init(EspRng10(esp_hal::rng::Rng::new()));
             let tls = Tls::new(rng).map_err(|_| ())?;
             *slot = Some(TLS.init(tls));
         }

@@ -3,8 +3,6 @@
 pub mod admin_state;
 pub use admin_state::*;
 
-#[cfg(any(feature = "device", test))]
-pub mod form;
 #[cfg(feature = "device")]
 pub mod json;
 #[cfg(feature = "device")]

@@ -31,8 +31,7 @@ pub const OPENAPI_JSON: &str = r#"{
     "/api/send":{"post":{"summary":"Bump heart TX (alias)"}},
     "/api/ota/status":{"get":{"summary":"OTA status (alias)"}},
     "/api/ota/check":{"post":{"summary":"Check GitHub latest (alias)"}},
-    "/api/ota/install":{"post":{"summary":"Install latest (alias)"}},
-    "/api/wifi":{"post":{"summary":"Save Wi-Fi form (AP legacy)"}}
+    "/api/ota/install":{"post":{"summary":"Install latest (alias)"}}
   }
 }"#;
 

@@ -1,14 +1,13 @@
 //! OTA binary stream + SHA-512 verified flash.
 
+use super::https;
 use super::OtaStatus;
 use crate::config::flash_shared::{FlashCell, FlashProxy};
 use crate::ota::http_headers::{parse_content_length, parse_status};
 use crate::util::EspRng;
-use embassy_net::{dns::DnsQueryType, tcp::TcpSocket, IpEndpoint, Stack};
+use embassy_net::Stack;
 use embassy_time::{Duration, Timer};
-use embedded_io_async::Write;
 use esp_hal_ota::Ota;
-use esp_println::println;
 use sha2::{Digest, Sha512};
 
 pub async fn stream_flash_bin(
@@ -20,73 +19,32 @@ pub async fn stream_flash_bin(
     expect_sha: &[u8; 64],
     status: &mut OtaStatus,
 ) -> bool {
-    let Ok(addrs) = stack.dns_query(host, DnsQueryType::A).await else {
-        let _ = status.last_error.push_str("dns");
-        return false;
-    };
-    if addrs.is_empty() {
-        let _ = status.last_error.push_str("dns-empty");
-        return false;
-    }
-
     let mut tcp_rx = [0u8; 4096];
     let mut tcp_tx = [0u8; 1024];
-    let mut socket = TcpSocket::new(stack, &mut tcp_rx, &mut tcp_tx);
-    socket.set_timeout(Some(Duration::from_secs(60)));
-    if socket
-        .connect(IpEndpoint::new(addrs[0], 443))
-        .await
-        .is_err()
-    {
-        let _ = status.last_error.push_str("tcp");
-        return false;
-    }
-
     let mut tls_rx = [0u8; 16384];
     let mut tls_tx = [0u8; 2048];
-    let Ok(mut tls) = crate::tls::connect(socket, host, rng, &mut tls_rx, &mut tls_tx).await else {
+    let Ok(mut tls) = https::connect_https(
+        stack, host, rng, &mut tcp_rx, &mut tcp_tx, &mut tls_rx, &mut tls_tx, 60,
+    )
+    .await
+    else {
         let _ = status.last_error.push_str("tls");
         return false;
     };
 
-    let mut req = heapless::String::<320>::new();
-    let _ = req.push_str("GET ");
-    let _ = req.push_str(path);
-    let _ = req.push_str(" HTTP/1.0\r\nHost: ");
-    let _ = req.push_str(host);
-    let _ =
-        req.push_str("\r\nUser-Agent: chaya2mqtt-rust\r\nAccept: */*\r\nConnection: close\r\n\r\n");
-    if tls.write_all(req.as_bytes()).await.is_err() {
+    if https::write_get(&mut tls, host, path, "chaya2mqtt-rust", "*/*")
+        .await
+        .is_err()
+    {
         let _ = status.last_error.push_str("write");
         return false;
     }
-    let _ = tls.flush().await;
 
-    // Read headers
     let mut hdr = [0u8; 1024];
-    let mut hdr_len = 0usize;
-    loop {
-        if hdr_len >= hdr.len() {
-            let _ = status.last_error.push_str("hdr");
-            return false;
-        }
-        match tls.read(&mut hdr[hdr_len..hdr_len + 1]).await {
-            Ok(0) => {
-                let _ = status.last_error.push_str("hdr-eof");
-                return false;
-            }
-            Ok(n) => {
-                hdr_len += n;
-                if hdr_len >= 4 && &hdr[hdr_len - 4..hdr_len] == b"\r\n\r\n" {
-                    break;
-                }
-            }
-            Err(_) => {
-                let _ = status.last_error.push_str("hdr-err");
-                return false;
-            }
-        }
-    }
+    let Ok(hdr_len) = https::read_headers(&mut tls, &mut hdr).await else {
+        let _ = status.last_error.push_str("hdr");
+        return false;
+    };
     let headers = core::str::from_utf8(&hdr[..hdr_len]).unwrap_or("");
     let status_code = parse_status(headers);
     if status_code != 200 {
