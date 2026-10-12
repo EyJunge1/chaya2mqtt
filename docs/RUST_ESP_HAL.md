@@ -41,7 +41,7 @@ Production firmware is Rust-only (`src/` in the repo root). The legacy C++/Platf
 | JSON request DTOs | `serde` + `serde-json-core` |
 | Audio codec | `es8311` |
 | TLS default | `embedded-tls` + host-pin verifier (`tls/host_pin.rs`) |
-| TLS CA (optional) | `mbedtls-rs` + curated `certs/ca-subset.pem` (`tls/mbedtls_ca.rs`) |
+| TLS CA (optional) | `mbedtls-rs` + `mozilla-root-ca` (Mozilla/`cacert.pem`, via `build.rs`) |
 
 **Skipped:** `reqwless` (TLS/io-async version clash with current `embedded-tls`). **Not used (yet):** `rust-mqtt` — MQTT 3.1.1 (`v3`) feature is still an empty stub; hearts stay on the thin custom 3.1.1 client. `webpki`/`ring` is unsuitable for Xtensa without a full C toolchain.
 
@@ -101,7 +101,7 @@ MQTT / OTA call a thin `crate::tls::connect(...)` wrapper; buffers are used only
 
 **mbedtls gaps / notes:**
 
-- No esp32s3 “system” CRT bundle in mbedtls-rs — trust store is `certs/ca-subset.pem` (~15 Mozilla roots for GitHub / Let’s Encrypt / common MQTT). Extend that PEM for uncommon broker CAs; full Mozilla is ~225 KiB.
+- No esp32s3 “system” CRT bundle in mbedtls-rs — trust store is the `mozilla-root-ca` crate (~190 KiB Mozilla/`cacert.pem`, refreshed by Cargo).
 - Certificate date window (`notBefore`/`notAfter`) is **not** checked unless `hook-wall-clock` + a wall clock are enabled (mbedtls-rs default).
 - One global `Tls` singleton (mbedtls-rs); MQTT and OTA share it.
 - Needs extra heap for the parsed CA chain vs the default path (esp-mbedtls examples use ~140 KiB heap).

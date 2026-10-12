@@ -18,6 +18,8 @@ required-features = ["device"]
 
 [build-dependencies]
 flate2 = "1.0"
+# Mozilla root store (curl cacert.pem) — baked into OUT_DIR when `mbedtls` is enabled.
+mozilla-root-ca = { version = "2026.10.7", default-features = false, features = ["pem"] }
 
 [dependencies]
 heapless = "0.8"
@@ -113,3 +115,4 @@ device = [
 # Optional hardware CA verify via mbedtls-rs (cmake + espup required).
 # Use with `--features device,mbedtls` (mbedtls alone is not meaningful on host).
 mbedtls = ["dep:mbedtls-rs", "dep:tinyrlibc"]
+# CA roots come from build-dep `mozilla-root-ca` (see build.rs → OUT_DIR/mozilla_ca.bin).

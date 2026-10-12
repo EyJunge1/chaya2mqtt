@@ -1,15 +1,13 @@
-//! Optional TLS: `mbedtls-rs` with curated CA chain verification.
+//! Optional TLS: `mbedtls-rs` with Mozilla CA chain verification.
 //!
-//! mbedtls-rs does **not** ship an esp32s3 system/CRT bundle; we embed
-//! `certs/ca-subset.pem` (Mozilla subset: DigiCert / ISRG / common MQTT CAs).
+//! Roots come from the `mozilla-root-ca` crate (curl/`cacert.pem`), embedded at
+//! build time into `OUT_DIR/mozilla_ca.bin` — no hand-maintained PEM in git.
 //!
 //! Remaining gaps (see `docs/RUST_ESP_HAL.md`):
 //! - Cert `notBefore`/`notAfter` are skipped unless `hook-wall-clock` + RTC/NTP
 //!   are installed (mbedtls-rs default).
-//! - Full Mozilla CA bundle (~225 KiB) is not embedded; extend `ca-subset.pem`
-//!   if a broker uses an uncommon root.
+//! - Full Mozilla bundle is ~190 KiB flash; parsing needs extra heap vs host-pin.
 //! - Global `Tls` singleton: MQTT + OTA share one instance (mbedtls-rs limit).
-//! - Extra heap (~parsed CA chain) vs default embedded-tls path.
 
 use core::cell::RefCell;
 use core::convert::Infallible;
@@ -29,14 +27,15 @@ use tinyrlibc as _;
 pub type TlsStream<'a, S> = Session<'a, S>;
 
 pub fn backend_name() -> &'static str {
-    "mbedtls-rs CA"
+    "mbedtls-rs CA (mozilla-root-ca)"
 }
 
-const CA_PEM: &CStr = match CStr::from_bytes_with_nul(
-    concat!(include_str!("../../certs/ca-subset.pem"), "\0").as_bytes(),
-) {
+const CA_PEM: &CStr = match CStr::from_bytes_with_nul(include_bytes!(concat!(
+    env!("OUT_DIR"),
+    "/mozilla_ca.bin"
+))) {
     Ok(bundle) => bundle,
-    Err(_) => panic!("ca-subset.pem must be UTF-8 without interior NULs"),
+    Err(_) => panic!("mozilla_ca.bin must be NUL-terminated without interior NULs"),
 };
 
 struct HwRng(esp_hal::rng::Rng);

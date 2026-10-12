@@ -34,6 +34,13 @@ fn main() {
         .ok();
     let out = PathBuf::from(env::var("OUT_DIR").unwrap());
 
+    // Optional CA TLS: embed full Mozilla PEM from `mozilla-root-ca` (NUL-terminated for mbedtls).
+    if env::var_os("CARGO_FEATURE_MBEDTLS").is_some() {
+        let mut pem = mozilla_root_ca::PEM_BUNDLE.as_bytes().to_vec();
+        pem.push(0);
+        fs::write(out.join("mozilla_ca.bin"), &pem).expect("write mozilla_ca.bin");
+    }
+
     println!("cargo:rerun-if-changed=frontend/dist");
     println!("cargo:rerun-if-changed=src/web/assets/admin.html");
 

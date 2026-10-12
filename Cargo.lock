@@ -405,6 +405,7 @@ dependencies = [
  "heapless 0.8.0",
  "log",
  "mbedtls-rs",
+ "mozilla-root-ca",
  "nb 1.1.0",
  "qrcodegen-no-heap",
  "rand_core 0.10.1",
@@ -2653,6 +2654,12 @@ dependencies = [
  "adler2",
  "simd-adler32",
 ]
+
+[[package]]
+name = "mozilla-root-ca"
+version = "2026.10.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "df3eaf3e726f4f0bfb6eca1383f5a198ec91d94c7db3436bcaedee205d49d620"
 
 [[package]]
 name = "nb"
