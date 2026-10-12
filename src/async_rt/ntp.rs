@@ -1,8 +1,8 @@
 //! NTP sync task.
+use crate::async_rt::state::*;
 use chaya_fw::network::ntp::{self, WallClock};
 use embassy_net::Stack;
 use embassy_time::{Duration, Timer};
-use crate::async_rt::state::*;
 
 #[embassy_executor::task]
 pub async fn ntp_task(stack: Stack<'static>, ntp1: &'static str, ntp2: &'static str) {

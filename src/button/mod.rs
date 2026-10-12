@@ -1,11 +1,11 @@
 //! BOOT button debounce + soft-off (GPIO backend via platform).
 
-use crate::hw::pins;
-use crate::util::platform::{ClockMs, GpioIn};
 use crate::core::button::{
     debounce_update, soft_off_may_arm_ext1_wake, soft_off_release_settled, DebouncedGpioState,
     SoftOffReleaseSettle,
 };
+use crate::hw::pins;
+use crate::util::platform::{ClockMs, GpioIn};
 
 pub const DEBOUNCE_MS: u32 = 30;
 pub const SOFT_OFF_SETTLE_MS: u32 = 50;
@@ -30,11 +30,7 @@ impl Default for ButtonService {
 
 impl ButtonService {
     /// Active-low BOOT: returns true on press edge (high→low of debounced level).
-    pub fn poll_boot_press(
-        &mut self,
-        gpio: &mut dyn GpioIn,
-        clock: &dyn ClockMs,
-    ) -> bool {
+    pub fn poll_boot_press(&mut self, gpio: &mut dyn GpioIn, clock: &dyn ClockMs) -> bool {
         let prev = self.boot.debounced_level;
         let raw = if gpio.get_input(pins::BUTTON) { 1 } else { 0 };
         debounce_update(&mut self.boot, raw, clock.now_ms(), DEBOUNCE_MS);

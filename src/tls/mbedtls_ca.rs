@@ -30,13 +30,11 @@ pub fn backend_name() -> &'static str {
     "mbedtls-rs CA (mozilla-root-ca)"
 }
 
-const CA_PEM: &CStr = match CStr::from_bytes_with_nul(include_bytes!(concat!(
-    env!("OUT_DIR"),
-    "/mozilla_ca.bin"
-))) {
-    Ok(bundle) => bundle,
-    Err(_) => panic!("mozilla_ca.bin must be NUL-terminated without interior NULs"),
-};
+const CA_PEM: &CStr =
+    match CStr::from_bytes_with_nul(include_bytes!(concat!(env!("OUT_DIR"), "/mozilla_ca.bin"))) {
+        Ok(bundle) => bundle,
+        Err(_) => panic!("mozilla_ca.bin must be NUL-terminated without interior NULs"),
+    };
 
 struct HwRng(esp_hal::rng::Rng);
 

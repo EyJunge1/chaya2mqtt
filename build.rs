@@ -28,10 +28,7 @@ fn content_type(path: &str) -> &'static str {
 
 fn main() {
     let manifest_dir = PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap());
-    let dist = manifest_dir
-        .join("frontend/dist")
-        .canonicalize()
-        .ok();
+    let dist = manifest_dir.join("frontend/dist").canonicalize().ok();
     let out = PathBuf::from(env::var("OUT_DIR").unwrap());
 
     // Optional CA TLS: embed full Mozilla PEM from `mozilla-root-ca` (NUL-terminated for mbedtls).
@@ -67,7 +64,11 @@ fn main() {
 
     fs::write(out.join("spa_blob.bin"), &blob).unwrap();
     let mut man = fs::File::create(out.join("spa_manifest.rs")).unwrap();
-    writeln!(man, "pub const SPA_BLOB: &[u8] = include_bytes!(\"spa_blob.bin\");").unwrap();
+    writeln!(
+        man,
+        "pub const SPA_BLOB: &[u8] = include_bytes!(\"spa_blob.bin\");"
+    )
+    .unwrap();
     writeln!(man, "pub struct SpaAsset {{ pub path: &'static str, pub offset: usize, pub length: usize, pub content_type: &'static str, pub gzip: bool }}").unwrap();
     writeln!(man, "pub const SPA_ASSETS: &[SpaAsset] = &[").unwrap();
     for (path, offset, len, ctype) in &meta {
@@ -82,11 +83,7 @@ fn main() {
     let idx = index_html.replace('\\', "\\\\").replace('"', "\\\"");
     // use raw string if possible
     if !index_html.contains("\"##") {
-        writeln!(
-            man,
-            "pub const SPA_INDEX_HTML: &str = r#\"{index_html}\"#;"
-        )
-        .unwrap();
+        writeln!(man, "pub const SPA_INDEX_HTML: &str = r#\"{index_html}\"#;").unwrap();
     } else {
         writeln!(man, "pub const SPA_INDEX_HTML: &str = \"{idx}\";").unwrap();
     }
@@ -127,8 +124,8 @@ fn walk(root: &Path, dir: &Path, out: &mut Vec<(String, Vec<u8>, &'static str)>)
 }
 
 fn gzip_bytes(raw: &[u8]) -> Vec<u8> {
-    use flate2::Compression;
     use flate2::write::GzEncoder;
+    use flate2::Compression;
     let mut enc = GzEncoder::new(Vec::new(), Compression::best());
     enc.write_all(raw).unwrap();
     enc.finish().unwrap()

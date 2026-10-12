@@ -25,7 +25,8 @@ pub fn device_id_format_from_bytes(
         out[i * 2 + 1] = HEX[(b & 0x0f) as usize];
     }
     out[DEVICE_ID_HEX_LEN] = 0;
-    let s = core::str::from_utf8(&out[..DEVICE_ID_HEX_LEN]).map_err(|_| DeviceIdFormatError::FormatFailed)?;
+    let s = core::str::from_utf8(&out[..DEVICE_ID_HEX_LEN])
+        .map_err(|_| DeviceIdFormatError::FormatFailed)?;
     if !device_id_syntax_ok(s) {
         out[0] = 0;
         return Err(DeviceIdFormatError::FormatFailed);

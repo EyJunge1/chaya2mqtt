@@ -2,20 +2,16 @@
 
 use alloc::string::String;
 use edge_http::Method;
-use crate::web::form;
-use crate::web::json;
-use crate::web::shared::HttpShared;
-use crate::web::sse;
-use crate::web::spa;
-use crate::mqtt::MqttConfig;
-use crate::ota::{OtaChannel, OtaService};
-use crate::util::platform::KvStore;
-use crate::wifi::WlanConfig;
-use crate::core::audio::AudioKind;
+
 use crate::core::mqtt::{
     mqtt_derived_topics_valid, mqtt_server_syntax_ok, normalize_hex_id, pairing_id_input_valid,
     partner_id_input_valid, MQTT_SERVER_BUF_LEN, MQTT_TOPIC_BUF_LEN,
 };
+use crate::mqtt::MqttConfig;
+use crate::util::platform::KvStore;
+use crate::web::form;
+use crate::web::json;
+use crate::web::shared::HttpShared;
 
 fn normalize_hex_id_field(s: &mut heapless::String<8>) {
     let mut tmp = [0u8; 8];
@@ -37,14 +33,12 @@ pub async fn handle(
     method: Method,
     path: &str,
     body: &[u8],
-    mqtt_ok: bool,
-    heart_tx: i32,
-    heart_rx: i32,
-    bat_pct: i32,
-    bat_mv: i32,
+    _mqtt_ok: bool,
+    _heart_tx: i32,
+    _heart_rx: i32,
+    _bat_pct: i32,
+    _bat_mv: i32,
 ) -> Option<(u16, String, &'static str)> {
-    use alloc::string::String;
-
     if path == "/api/mqtt" && method == Method::Get {
         let mut kv = s.kv.lock().await;
         let cfg = MqttConfig::load(&mut *kv);
@@ -101,7 +95,7 @@ pub async fn handle(
             // Legacy form body.
             if let Some(h) = form::form_value(body, "host") {
                 cfg.host.clear();
-                let _ = cfg.host.push_str(h);
+                let _ = cfg.host.push_str(h.as_str());
             }
             if let Some(p) = form::form_value(body, "port").and_then(|s| s.parse().ok()) {
                 if p > 0u16 {
@@ -110,15 +104,15 @@ pub async fn handle(
             }
             if let Some(u) = form::form_value(body, "user") {
                 cfg.user.clear();
-                let _ = cfg.user.push_str(u);
+                let _ = cfg.user.push_str(u.as_str());
             }
             if let Some(p) = form::form_value(body, "pass") {
                 cfg.pass.clear();
-                let _ = cfg.pass.push_str(p);
+                let _ = cfg.pass.push_str(p.as_str());
             }
             if let Some(p) = form::form_value(body, "partner") {
                 cfg.partner_id.clear();
-                let _ = cfg.partner_id.push_str(p);
+                let _ = cfg.partner_id.push_str(p.as_str());
                 partner_touched = true;
             }
         }
@@ -137,11 +131,7 @@ pub async fn handle(
         if partner_touched {
             normalize_hex_id_field(&mut cfg.partner_id);
             if !cfg.partner_id.is_empty()
-                && !partner_id_input_valid(
-                    cfg.partner_id.as_str(),
-                    cfg.pairing_id.as_str(),
-                    own_id,
-                )
+                && !partner_id_input_valid(cfg.partner_id.as_str(), cfg.pairing_id.as_str(), own_id)
             {
                 return Some(mqtt_post_err("partner"));
             }

@@ -31,9 +31,7 @@ pub struct SimGpio {
 
 impl Default for SimGpio {
     fn default() -> Self {
-        Self {
-            levels: [None; 64],
-        }
+        Self { levels: [None; 64] }
     }
 }
 
@@ -77,7 +75,14 @@ impl ClockMs for SimClock {
 /// In-memory KV for host tests (single flat map of ns/key).
 #[derive(Default)]
 pub struct SimKv {
-    entries: heapless::Vec<(heapless::String<16>, heapless::String<16>, heapless::Vec<u8, 64>), 32>,
+    entries: heapless::Vec<
+        (
+            heapless::String<16>,
+            heapless::String<16>,
+            heapless::Vec<u8, 64>,
+        ),
+        32,
+    >,
 }
 
 impl KvStore for SimKv {

@@ -1,8 +1,6 @@
 //! From `src/heart/counter_pure.h` + periodic baseline reset (C++ `counter_sync.cpp`).
 
-use super::constants::{
-    DISPLAY_COUNTER_MAX, HEART_LAST_RESET_DAY_UNSET, NTP_MIN_VALID_UTC_EPOCH,
-};
+use super::constants::{DISPLAY_COUNTER_MAX, HEART_LAST_RESET_DAY_UNSET, NTP_MIN_VALID_UTC_EPOCH};
 
 /// Non-negative display delta: max(0, raw - baseline).
 pub fn heart_counter_delta_pure(raw: i32, baseline: i32) -> i32 {

@@ -2,30 +2,21 @@
 
 use alloc::string::String;
 use edge_http::Method;
-use crate::web::form;
-use crate::web::json;
+
 use crate::web::shared::HttpShared;
-use crate::web::sse;
 use crate::web::spa;
-use crate::mqtt::MqttConfig;
-use crate::ota::{OtaChannel, OtaService};
-use crate::util::platform::KvStore;
-use crate::wifi::WlanConfig;
-use crate::core::audio::AudioKind;
 
 pub async fn handle(
-    s: &HttpShared,
+    _s: &HttpShared,
     method: Method,
     path: &str,
-    body: &[u8],
-    mqtt_ok: bool,
-    heart_tx: i32,
-    heart_rx: i32,
-    bat_pct: i32,
-    bat_mv: i32,
+    _body: &[u8],
+    _mqtt_ok: bool,
+    _heart_tx: i32,
+    _heart_rx: i32,
+    _bat_pct: i32,
+    _bat_mv: i32,
 ) -> Option<(u16, String, &'static str)> {
-    use alloc::string::String;
-
     if path == "/openapi.json" && method == Method::Get {
         return Some((200, String::from(spa::OPENAPI_JSON), "application/json"));
     }

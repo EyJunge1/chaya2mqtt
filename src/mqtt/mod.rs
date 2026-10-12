@@ -1,11 +1,11 @@
 //! MQTT heart transport (TCP + optional TLS when port ≥ 8883).
 
 use crate::config::NS_MQTT;
-use crate::util::platform::KvStore;
 use crate::core::constants::DEVICE_ID_HEX_LEN;
 use crate::core::mqtt::{
     mqtt_own_topic_tx_should_apply, MQTT_BACKOFF_INITIAL_MS, MQTT_PUBLISH_ACK_WAIT_MS,
 };
+use crate::util::platform::KvStore;
 
 const KEY_HOST: &str = "host";
 const KEY_PORT: &str = "port";
@@ -32,7 +32,9 @@ impl MqttConfig {
         };
         let mut buf = [0u8; 64];
         if let Some(n) = kv.get_blob(NS_MQTT, KEY_HOST, &mut buf) {
-            let _ = cfg.host.push_str(core::str::from_utf8(&buf[..n]).unwrap_or(""));
+            let _ = cfg
+                .host
+                .push_str(core::str::from_utf8(&buf[..n]).unwrap_or(""));
         }
         if let Some(p) = kv.get_i32(NS_MQTT, KEY_PORT) {
             if p > 0 && p <= 65535 {
@@ -40,10 +42,14 @@ impl MqttConfig {
             }
         }
         if let Some(n) = kv.get_blob(NS_MQTT, KEY_USER, &mut buf) {
-            let _ = cfg.user.push_str(core::str::from_utf8(&buf[..n.min(32)]).unwrap_or(""));
+            let _ = cfg
+                .user
+                .push_str(core::str::from_utf8(&buf[..n.min(32)]).unwrap_or(""));
         }
         if let Some(n) = kv.get_blob(NS_MQTT, KEY_PASS, &mut buf) {
-            let _ = cfg.pass.push_str(core::str::from_utf8(&buf[..n]).unwrap_or(""));
+            let _ = cfg
+                .pass
+                .push_str(core::str::from_utf8(&buf[..n]).unwrap_or(""));
         }
         let mut id = [0u8; 8];
         if let Some(n) = kv.get_blob(NS_MQTT, KEY_PARTNER, &mut id) {
@@ -146,11 +152,11 @@ impl MqttService {
 pub fn transport_backend_status() -> &'static str {
     #[cfg(all(feature = "device", feature = "mbedtls"))]
     {
-        "device: MQTT 3.1.1 TCP + TLS (mbedtls-rs CA) when port>=8883"
+        "device: mqttrust MQTT 3.1.1 + TLS (mbedtls-rs CA) when port>=8883"
     }
     #[cfg(all(feature = "device", not(feature = "mbedtls")))]
     {
-        "device: MQTT 3.1.1 TCP + TLS1.3 when port>=8883 (host DER pin)"
+        "device: mqttrust MQTT 3.1.1 + TLS1.3 when port>=8883 (host DER pin)"
     }
     #[cfg(not(feature = "device"))]
     {
@@ -158,7 +164,5 @@ pub fn transport_backend_status() -> &'static str {
     }
 }
 
-/// Packet builders/parsers are host-testable (no device HAL).
-pub mod proto;
 #[cfg(feature = "device")]
 pub mod session;

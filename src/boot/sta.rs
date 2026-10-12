@@ -1,11 +1,10 @@
 //! STA bring-up + MQTT/OTA/mDNS.
 
-use chaya_fw::led::LedPreset;
-use chaya_fw::mqtt::session::EspRng;
-use chaya_fw::mqtt::MqttConfig;
-use chaya_fw::ota::client::EspRng as OtaRng;
-use chaya_fw::config::{DEVICE_HOSTNAME, STA_HOSTNAME_PREFIX};
 use chaya_fw::config::flash_shared::FlashCell;
+use chaya_fw::config::{DEVICE_HOSTNAME, STA_HOSTNAME_PREFIX};
+use chaya_fw::led::LedPreset;
+use chaya_fw::mqtt::MqttConfig;
+use chaya_fw::util::EspRng;
 use chaya_fw::wifi::ops::WifiMutex;
 use chaya_fw::wifi::{IpMode, WlanConfig};
 use chaya_fw::BootReport;
@@ -15,10 +14,10 @@ use embassy_sync::mutex::Mutex;
 use esp_hal::rng::Rng;
 use esp_println::println;
 use esp_radio::wifi::{
-    AuthenticationMethodConfig, Config, ControllerConfig, Interface, WifiController,
-    sta::StationConfig,
+    sta::StationConfig, AuthenticationMethodConfig, Config, ControllerConfig, Interface,
+    WifiController,
 };
-use heapless::Vec as HVec;
+use heapless09::Vec as HVec;
 use static_cell::StaticCell;
 
 use crate::async_rt::state::KvMutex;
@@ -81,10 +80,7 @@ pub async fn run_sta(
             if let Some(d) = p.dns2 {
                 let _ = dns_servers.push(d);
             }
-            println!(
-                "STA: static {}/{} gw {}",
-                p.address, p.prefix, p.gateway
-            );
+            println!("STA: static {}/{} gw {}", p.address, p.prefix, p.gateway);
             embassy_net::Config::ipv4_static(StaticConfigV4 {
                 address: Ipv4Cidr::new(p.address, p.prefix),
                 gateway: Some(p.gateway),
@@ -113,7 +109,7 @@ pub async fn run_sta(
     stack.wait_config_up().await;
     fw.flags.wifi_ok = true;
     *crate::async_rt::state::WIFI_OK.lock().await = true;
-    crate::async_rt::state::sse_mark(crate::core::constants::SSE_WIFI);
+    crate::async_rt::state::sse_mark(chaya_fw::core::constants::SSE_WIFI);
     println!("STA: IP up");
     crate::async_rt::state::LED_PRESET.signal(LedPreset::WifiUp);
 
@@ -149,27 +145,16 @@ pub async fn run_sta(
         // Republish current abs (req<=0): no TX increment; session publishes *HEART_TX.
         crate::async_rt::state::HEART_BUMP.signal(0);
         let mqtt_rng = EspRng(Rng::new());
-        spawner
-            .spawn(
-                crate::async_rt::mqtt::mqtt_session_task(
-                    stack,
-                    host,
-                    port,
-                    client_id,
-                    user,
-                    pass,
-                    pub_topic,
-                    sub_topic,
-                    own_topic,
-                    lwt_topic,
-                    device_id,
-                    mqtt_rng,
-                )
-                .unwrap(),
-            );
+        spawner.spawn(
+            crate::async_rt::mqtt::mqtt_session_task(
+                stack, host, port, client_id, user, pass, pub_topic, sub_topic, own_topic,
+                lwt_topic, device_id, mqtt_rng,
+            )
+            .unwrap(),
+        );
     }
 
-    let ota_rng = OtaRng(Rng::new());
+    let ota_rng = EspRng(Rng::new());
     spawner.spawn(crate::async_rt::ota::ota_task(stack, ota_rng, flash, kv).unwrap());
     spawner.spawn(crate::async_rt::ota_health::ota_health_task(flash).unwrap());
 
@@ -184,4 +169,3 @@ pub async fn run_sta(
 
     crate::boot::http_start::start_http(stack, kv, report, false, None, hostname).await
 }
-

@@ -1,9 +1,9 @@
 //! WiFi Embassy tasks.
 
-use chaya_fw::wifi::ops::{self as wifi_ops, WifiMutex};
-use crate::core::wifi_recovery::{
+use chaya_fw::core::wifi_recovery::{
     wlan_recovery_decide, WlanRecoveryAction, WlanRecoveryState, WLAN_RECOVERY_MAX_RESTARTS_PER_DAY,
 };
+use chaya_fw::wifi::ops::{self as wifi_ops, WifiMutex};
 use embassy_time::{Duration, Instant, Timer};
 use esp_println::println;
 
@@ -45,7 +45,7 @@ pub async fn connection_sta(wifi: &'static WifiMutex) {
             Ok(info) => {
                 println!("STA: connected ssid={}", info.ssid.as_str());
                 *WIFI_OK.lock().await = true;
-                sse_mark(crate::core::constants::SSE_WIFI);
+                sse_mark(chaya_fw::core::constants::SSE_WIFI);
                 recovery.link_down_since_ms = 0;
                 if let Ok(rssi) = {
                     let ctrl = wifi.lock().await;
@@ -58,7 +58,7 @@ pub async fn connection_sta(wifi: &'static WifiMutex) {
                     let _ = controller.wait_for_disconnect_async().await;
                 }
                 *WIFI_OK.lock().await = false;
-                sse_mark(crate::core::constants::SSE_WIFI);
+                sse_mark(chaya_fw::core::constants::SSE_WIFI);
                 println!("STA: disconnected");
             }
             Err(e) => {

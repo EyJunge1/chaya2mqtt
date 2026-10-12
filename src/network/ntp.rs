@@ -3,14 +3,16 @@
 use core::net::{IpAddr, SocketAddr};
 
 use embassy_net::{
-    Stack,
     dns::DnsQueryType,
     udp::{PacketMetadata, UdpSocket},
-    IpAddress, IpEndpoint,
+    IpAddress, IpEndpoint, Stack,
 };
 use embassy_time::Instant;
 use esp_println::println;
-use sntpc::{Error as NtpError, NtpContext, NtpTimestampGenerator, NtpUdpSocket, Result as NtpResult, get_time};
+use sntpc::{
+    get_time, Error as NtpError, NtpContext, NtpTimestampGenerator, NtpUdpSocket,
+    Result as NtpResult,
+};
 
 const NTP_HOST: &str = "time.cloudflare.com";
 const NTP_PORT: u16 = 123;

@@ -1,8 +1,8 @@
 //! OTA from GitHub Releases + SHA-512 (GitHub client + esp-hal-ota flash).
 
 use crate::config::NS_CFG;
-use crate::util::platform::KvStore;
 use crate::core::ota::ota_github_check_may_clear_pending_release;
+use crate::util::platform::KvStore;
 
 const KEY_CHANNEL: &str = "upd_chan";
 const KEY_UPD_DAY: &str = "upd_day";
@@ -80,7 +80,10 @@ pub fn ota_backend_status() -> &'static str {
 
 #[cfg(feature = "device")]
 pub mod client;
+mod http_headers;
 #[cfg(feature = "device")]
-pub use client::{EspRng, OtaStatus};
+pub use crate::util::EspRng;
+#[cfg(feature = "device")]
+pub use client::OtaStatus;
 #[cfg(feature = "device")]
 pub mod flash;

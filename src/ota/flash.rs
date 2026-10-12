@@ -1,50 +1,15 @@
 //! OTA binary stream + SHA-512 verified flash.
 
-use super::{EspRng, OtaStatus};
+use super::OtaStatus;
 use crate::config::flash_shared::{FlashCell, FlashProxy};
-use embassy_net::{IpEndpoint, Stack, dns::DnsQueryType, tcp::TcpSocket};
+use crate::ota::http_headers::{parse_content_length, parse_status};
+use crate::util::EspRng;
+use embassy_net::{dns::DnsQueryType, tcp::TcpSocket, IpEndpoint, Stack};
 use embassy_time::{Duration, Timer};
 use embedded_io_async::Write;
 use esp_hal_ota::Ota;
 use esp_println::println;
 use sha2::{Digest, Sha512};
-
-fn header_eq_ignore_case<'a>(line: &'a str, name: &str) -> Option<&'a str> {
-    let bytes = line.as_bytes();
-    let n = name.as_bytes();
-    if bytes.len() < n.len() + 1 {
-        return None;
-    }
-    for i in 0..n.len() {
-        let a = bytes[i].to_ascii_lowercase();
-        let b = n[i].to_ascii_lowercase();
-        if a != b {
-            return None;
-        }
-    }
-    if bytes[n.len()] != b':' {
-        return None;
-    }
-    Some(line[n.len() + 1..].trim())
-}
-
-fn parse_content_length(headers: &str) -> Option<u32> {
-    for line in headers.lines() {
-        if let Some(rest) = header_eq_ignore_case(line, "content-length") {
-            return rest.parse().ok();
-        }
-    }
-    None
-}
-fn parse_status(headers: &str) -> u16 {
-    let line = headers.lines().next().unwrap_or("");
-    let mut parts = line.split_whitespace();
-    let _ = parts.next();
-    parts
-        .next()
-        .and_then(|s| s.parse().ok())
-        .unwrap_or(0)
-}
 
 pub async fn stream_flash_bin(
     stack: Stack<'static>,
@@ -89,7 +54,8 @@ pub async fn stream_flash_bin(
     let _ = req.push_str(path);
     let _ = req.push_str(" HTTP/1.0\r\nHost: ");
     let _ = req.push_str(host);
-    let _ = req.push_str("\r\nUser-Agent: chaya2mqtt-rust\r\nAccept: */*\r\nConnection: close\r\n\r\n");
+    let _ =
+        req.push_str("\r\nUser-Agent: chaya2mqtt-rust\r\nAccept: */*\r\nConnection: close\r\n\r\n");
     if tls.write_all(req.as_bytes()).await.is_err() {
         let _ = status.last_error.push_str("write");
         return false;
@@ -183,14 +149,8 @@ pub async fn stream_flash_bin(
         return false;
     }
 
-    let last_crc = ota
-        .get_progress_details()
-        .map(|d| d.last_crc)
-        .unwrap_or(0);
-    if ota
-        .ota_resume(size, 0, last_crc, last_crc, false)
-        .is_err()
-    {
+    let last_crc = ota.get_progress_details().map(|d| d.last_crc).unwrap_or(0);
+    if ota.ota_resume(size, 0, last_crc, last_crc, false).is_err() {
         let _ = status.last_error.push_str("ota-resume");
         return false;
     }

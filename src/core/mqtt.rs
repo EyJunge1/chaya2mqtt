@@ -56,9 +56,9 @@ pub fn mqtt_topic_syntax_ok(topic: &str, max_len: usize) -> bool {
     if topic.len() >= max_len {
         return false;
     }
-    topic.bytes().all(|c| {
-        (0x20..=0x7e).contains(&c) && c != b' ' && c != b'#' && c != b'+'
-    })
+    topic
+        .bytes()
+        .all(|c| (0x20..=0x7e).contains(&c) && c != b' ' && c != b'#' && c != b'+')
 }
 
 /// Broker host field: non-empty, printable ASCII, no spaces/wildcards.
@@ -67,9 +67,8 @@ pub fn mqtt_server_syntax_ok(host: &str, max_len: usize) -> bool {
     if host.is_empty() || max_len == 0 || host.len() >= max_len {
         return false;
     }
-    host.bytes().all(|c| {
-        (0x20..=0x7e).contains(&c) && c != b' ' && c != b'#' && c != b'+'
-    })
+    host.bytes()
+        .all(|c| (0x20..=0x7e).contains(&c) && c != b' ' && c != b'#' && c != b'+')
 }
 
 /// Post-derive topic checks from C++ `handleApiMqttPost`.
@@ -99,7 +98,11 @@ pub fn mqtt_settings_apply_should_finish(kill_ok: bool) -> bool {
     kill_ok
 }
 
-pub fn mqtt_settings_apply_should_defer(epd_active: bool, factory_queued: bool, shutdown: bool) -> bool {
+pub fn mqtt_settings_apply_should_defer(
+    epd_active: bool,
+    factory_queued: bool,
+    shutdown: bool,
+) -> bool {
     epd_active || factory_queued || shutdown
 }
 
@@ -119,6 +122,34 @@ pub fn mqtt_event_is_live(
     }
 }
 
+/// Decimal heart payload (`"42"`, `"-1"`). Non-digits fail the whole value.
+pub fn parse_mqtt_payload_i32(s: &[u8]) -> Option<i32> {
+    let Ok(t) = core::str::from_utf8(s) else {
+        return None;
+    };
+    let t = t.trim();
+    if t.is_empty() {
+        return None;
+    }
+    let mut neg = false;
+    let mut rest = t;
+    if let Some(r) = t.strip_prefix('-') {
+        neg = true;
+        rest = r;
+    }
+    if rest.is_empty() {
+        return None;
+    }
+    let mut n: i32 = 0;
+    for c in rest.bytes() {
+        if !c.is_ascii_digit() {
+            return None;
+        }
+        n = n.saturating_mul(10).saturating_add((c - b'0') as i32);
+    }
+    Some(if neg { -n } else { n })
+}
+
 pub fn mqtt_own_topic_tx_should_apply(
     incoming: i32,
     local_tx: i32,
@@ -134,6 +165,16 @@ pub fn mqtt_own_topic_tx_should_apply(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn payload_i32_parses_heart_numbers() {
+        assert_eq!(parse_mqtt_payload_i32(b"42"), Some(42));
+        assert_eq!(parse_mqtt_payload_i32(b"  -7 "), Some(-7));
+        assert_eq!(parse_mqtt_payload_i32(b""), None);
+        assert_eq!(parse_mqtt_payload_i32(b"-"), None);
+        assert_eq!(parse_mqtt_payload_i32(b"4a"), None);
+        assert_eq!(parse_mqtt_payload_i32(b"\xff"), None);
+    }
 
     #[test]
     fn echo_ignored_while_publish_in_flight() {
@@ -178,7 +219,10 @@ mod tests {
 
     #[test]
     fn mqtt_topic_syntax_matches_cpp() {
-        assert!(mqtt_topic_syntax_ok("chaya2mqtt/a1b2c3", MQTT_TOPIC_BUF_LEN));
+        assert!(mqtt_topic_syntax_ok(
+            "chaya2mqtt/a1b2c3",
+            MQTT_TOPIC_BUF_LEN
+        ));
         assert!(!mqtt_topic_syntax_ok("", MQTT_TOPIC_BUF_LEN));
         assert!(!mqtt_topic_syntax_ok("bad topic", MQTT_TOPIC_BUF_LEN));
         assert!(!mqtt_topic_syntax_ok("bad#topic", MQTT_TOPIC_BUF_LEN));
@@ -187,7 +231,10 @@ mod tests {
 
     #[test]
     fn mqtt_server_syntax_matches_cpp() {
-        assert!(mqtt_server_syntax_ok("broker.example.com", MQTT_SERVER_BUF_LEN));
+        assert!(mqtt_server_syntax_ok(
+            "broker.example.com",
+            MQTT_SERVER_BUF_LEN
+        ));
         assert!(!mqtt_server_syntax_ok("", MQTT_SERVER_BUF_LEN));
         assert!(!mqtt_server_syntax_ok("bad host", MQTT_SERVER_BUF_LEN));
         assert!(!mqtt_server_syntax_ok("bad\x7fhost", MQTT_SERVER_BUF_LEN));

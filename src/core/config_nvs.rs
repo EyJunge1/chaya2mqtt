@@ -17,7 +17,11 @@ pub fn nvs_blob_load_decide(blob_len: usize, expected_len: usize) -> NvsBlobLoad
 }
 
 /// Recheck after taking NVS mutex (BUG-LIFE-02 / BUG-LIFE-03).
-pub fn nvs_write_allowed_after_lock(shutdown: bool, chaya_suspended: bool, ns: Option<&str>) -> bool {
+pub fn nvs_write_allowed_after_lock(
+    shutdown: bool,
+    chaya_suspended: bool,
+    ns: Option<&str>,
+) -> bool {
     if shutdown && ns != Some(NVS_NS_CHAYA) {
         return false;
     }
@@ -39,8 +43,16 @@ mod tests {
 
     #[test]
     fn shutdown_allows_chaya_only() {
-        assert!(nvs_write_allowed_after_lock(true, false, Some(NVS_NS_CHAYA)));
+        assert!(nvs_write_allowed_after_lock(
+            true,
+            false,
+            Some(NVS_NS_CHAYA)
+        ));
         assert!(!nvs_write_allowed_after_lock(true, false, Some("wifi")));
-        assert!(!nvs_write_allowed_after_lock(false, true, Some(NVS_NS_CHAYA)));
+        assert!(!nvs_write_allowed_after_lock(
+            false,
+            true,
+            Some(NVS_NS_CHAYA)
+        ));
     }
 }

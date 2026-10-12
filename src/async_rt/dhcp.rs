@@ -66,4 +66,3 @@ pub async fn run_captive_dns(stack: Stack<'static>, gw_ip_addr: &'static str) {
         Timer::after(Duration::from_millis(200)).await;
     }
 }
-

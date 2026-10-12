@@ -1,8 +1,8 @@
 //! Cached Wi-Fi AP scan snapshot (OpenAPI `WifiScanSnapshot`).
 
-use alloc::string::String;
 use crate::core::constants::WIFI_SSID_MAX_LEN;
 use crate::core::wifi::{wifi_scan_service_may_start_kick, wifi_scan_service_should_defer_kick};
+use alloc::string::String;
 
 pub const WIFI_SCAN_CACHE_MAX: usize = 24;
 
@@ -48,7 +48,11 @@ impl Default for ScanCache {
 }
 
 impl ScanCache {
-    pub fn request_kick(&mut self, connection_test_owns_radio: bool, ota_busy: bool) -> Result<(), &'static str> {
+    pub fn request_kick(
+        &mut self,
+        connection_test_owns_radio: bool,
+        ota_busy: bool,
+    ) -> Result<(), &'static str> {
         if wifi_scan_service_should_defer_kick(connection_test_owns_radio, ota_busy) {
             return Err("busy");
         }
@@ -96,21 +100,7 @@ fn push_json_escaped(out: &mut String, input: &str) {
     }
 }
 
-fn push_i32(out: &mut String, mut n: i32) {
-    if n < 0 {
-        out.push('-');
-        n = -n;
-    }
-    if n == 0 {
-        out.push('0');
-        return;
-    }
-    let mut digs = heapless::Vec::<u8, 16>::new();
-    while n > 0 {
-        let _ = digs.push(b'0' + (n % 10) as u8);
-        n /= 10;
-    }
-    for d in digs.iter().rev() {
-        out.push(*d as char);
-    }
+fn push_i32(out: &mut String, n: i32) {
+    let mut buf = itoa::Buffer::new();
+    out.push_str(buf.format(n));
 }

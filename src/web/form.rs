@@ -1,34 +1,10 @@
-//! SoftAP/STA admin HTTP helpers (form/JSON body field parsers).
+//! SoftAP/STA admin form body helpers (`application/x-www-form-urlencoded`).
 
+use alloc::string::String;
+use alloc::vec::Vec;
 
-/// First request line path (no query), best-effort.
-pub fn request_path(req: &[u8]) -> &str {
-    let Ok(s) = core::str::from_utf8(req) else {
-        return "/";
-    };
-    let line = s.lines().next().unwrap_or("");
-    let mut parts = line.split_whitespace();
-    let _method = parts.next();
-    let path = parts.next().unwrap_or("/");
-    path.split('?').next().unwrap_or("/")
-}
-
-pub fn is_get(req: &[u8]) -> bool {
-    req.starts_with(b"GET ")
-}
-
-pub fn is_post(req: &[u8]) -> bool {
-    req.starts_with(b"POST ")
-}
-
-pub fn body(req: &[u8]) -> &[u8] {
-    req.windows(4)
-        .position(|w| w == b"\r\n\r\n")
-        .map(|i| &req[i + 4..])
-        .unwrap_or(&[])
-}
-
-pub fn form_value<'a>(body: &'a [u8], key: &str) -> Option<&'a str> {
+/// Value for `key` in a urlencoded body, with `%XX` / `+` decoding.
+pub fn form_value(body: &[u8], key: &str) -> Option<String> {
     let Ok(s) = core::str::from_utf8(body) else {
         return None;
     };
@@ -37,72 +13,67 @@ pub fn form_value<'a>(body: &'a [u8], key: &str) -> Option<&'a str> {
         let k = it.next()?;
         let v = it.next().unwrap_or("");
         if k == key {
-            return Some(percent_decode_simple(v));
+            return Some(percent_decode(v));
         }
     }
     None
 }
 
-/// Best-effort `"key":"value"` extract from a small JSON body.
-pub fn json_str_field<'a>(body: &'a [u8], key: &str) -> Option<&'a str> {
-    let Ok(s) = core::str::from_utf8(body) else {
-        return None;
-    };
-    let mut needle = heapless::String::<48>::new();
-    let _ = needle.push('"');
-    let _ = needle.push_str(key);
-    let _ = needle.push_str("\"");
-    let i = s.find(needle.as_str())?;
-    let rest = &s[i + needle.len()..];
-    let colon = rest.find(':')?;
-    let after = rest[colon + 1..].trim_start();
-    let after = after.strip_prefix('"')?;
-    let end = after.find('"')?;
-    Some(&after[..end])
+fn percent_decode(s: &str) -> String {
+    let bytes = s.as_bytes();
+    let mut out = Vec::with_capacity(bytes.len());
+    let mut i = 0;
+    while i < bytes.len() {
+        match bytes[i] {
+            b'+' => {
+                out.push(b' ');
+                i += 1;
+            }
+            b'%' if i + 2 < bytes.len() => {
+                match (hex_nibble(bytes[i + 1]), hex_nibble(bytes[i + 2])) {
+                    (Some(h), Some(l)) => {
+                        out.push((h << 4) | l);
+                        i += 3;
+                    }
+                    _ => {
+                        out.push(b'%');
+                        i += 1;
+                    }
+                }
+            }
+            b => {
+                out.push(b);
+                i += 1;
+            }
+        }
+    }
+    String::from_utf8(out).unwrap_or_default()
 }
 
-/// Best-effort `"key":123` / `"key":true` extract.
-pub fn json_num_field(body: &[u8], key: &str) -> Option<i32> {
-    let Ok(s) = core::str::from_utf8(body) else {
-        return None;
-    };
-    let mut needle = heapless::String::<48>::new();
-    let _ = needle.push('"');
-    let _ = needle.push_str(key);
-    let _ = needle.push('"');
-    let i = s.find(needle.as_str())?;
-    let rest = &s[i + needle.len()..];
-    let colon = rest.find(':')?;
-    let after = rest[colon + 1..].trim_start();
-    let end = after
-        .find(|c: char| !(c.is_ascii_digit() || c == '-' || c == '+'))
-        .unwrap_or(after.len());
-    after[..end].parse().ok()
-}
-
-pub fn json_bool_field(body: &[u8], key: &str) -> Option<bool> {
-    let Ok(s) = core::str::from_utf8(body) else {
-        return None;
-    };
-    let mut needle = heapless::String::<48>::new();
-    let _ = needle.push('"');
-    let _ = needle.push_str(key);
-    let _ = needle.push('"');
-    let i = s.find(needle.as_str())?;
-    let rest = &s[i + needle.len()..];
-    let colon = rest.find(':')?;
-    let after = rest[colon + 1..].trim_start();
-    if after.starts_with("true") {
-        Some(true)
-    } else if after.starts_with("false") {
-        Some(false)
-    } else {
-        None
+fn hex_nibble(b: u8) -> Option<u8> {
+    match b {
+        b'0'..=b'9' => Some(b - b'0'),
+        b'a'..=b'f' => Some(b - b'a' + 10),
+        b'A'..=b'F' => Some(b - b'A' + 10),
+        _ => None,
     }
 }
 
-fn percent_decode_simple(s: &str) -> &str {
-    // keep raw for ASCII ssids/pass; '+' → space is rare for wifi
-    s
-}
+#[cfg(test)]
+mod tests {
+    use super::*;
 
+    #[test]
+    fn form_value_decodes_percent_and_plus() {
+        let body = b"ssid=My%20Net&pass=a%2Bb+c";
+        assert_eq!(form_value(body, "ssid").as_deref(), Some("My Net"));
+        assert_eq!(form_value(body, "pass").as_deref(), Some("a+b c"));
+        assert_eq!(form_value(body, "missing"), None);
+    }
+
+    #[test]
+    fn percent_decode_keeps_utf8() {
+        // "ü" = %C3%BC
+        assert_eq!(percent_decode("caf%C3%A9"), "café");
+    }
+}

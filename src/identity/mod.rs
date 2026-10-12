@@ -1,9 +1,9 @@
 //! Device identity (6 hex via `crate::core`), heart counters, version.
 
 use crate::config::NS_CFG;
-use crate::util::platform::KvStore;
 use crate::core::constants::{device_id_syntax_ok, DEVICE_ID_BUF_LEN, DEVICE_ID_HEX_LEN};
 use crate::core::identity::device_id_format_from_bytes;
+use crate::util::platform::KvStore;
 
 const KEY_DEVICE_ID: &str = "device_id";
 

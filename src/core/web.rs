@@ -103,7 +103,11 @@ pub fn web_admin_restart_blocked(
     mqtt_apply_unqueued: bool,
     apply_in_flight: bool,
 ) -> bool {
-    ota_busy || mqtt_apply_pending || settings_apply_pending || mqtt_apply_unqueued || apply_in_flight
+    ota_busy
+        || mqtt_apply_pending
+        || settings_apply_pending
+        || mqtt_apply_unqueued
+        || apply_in_flight
 }
 
 pub fn web_admin_apply_commit_allowed(shutdown: bool, armed: bool, factory_queued: bool) -> bool {
@@ -129,7 +133,11 @@ pub fn web_admin_ota_start_blocked(
     )
 }
 
-pub fn web_admin_deferred_apply_allowed(shutdown: bool, ota_busy: bool, factory_queued: bool) -> bool {
+pub fn web_admin_deferred_apply_allowed(
+    shutdown: bool,
+    ota_busy: bool,
+    factory_queued: bool,
+) -> bool {
     !shutdown && !ota_busy && !factory_queued
 }
 
@@ -243,15 +251,50 @@ mod tests {
         assert!(!web_host_allowed("", false, HOSTNAME, None));
         assert!(web_host_allowed("", true, DEVICE_HOSTNAME, None));
         assert!(web_host_allowed("chaya2mqtt-a1b2c3", false, HOSTNAME, None));
-        assert!(web_host_allowed("chaya2mqtt-a1b2c3:80", false, HOSTNAME, None));
-        assert!(web_host_allowed("Chaya2MQTT-a1b2c3.local", false, HOSTNAME, None));
-        assert!(web_host_allowed("chaya2mqtt-a1b2c3.local:80", false, HOSTNAME, None));
+        assert!(web_host_allowed(
+            "chaya2mqtt-a1b2c3:80",
+            false,
+            HOSTNAME,
+            None
+        ));
+        assert!(web_host_allowed(
+            "Chaya2MQTT-a1b2c3.local",
+            false,
+            HOSTNAME,
+            None
+        ));
+        assert!(web_host_allowed(
+            "chaya2mqtt-a1b2c3.local:80",
+            false,
+            HOSTNAME,
+            None
+        ));
         assert!(web_host_allowed("4.3.2.1", true, DEVICE_HOSTNAME, None));
         assert!(web_host_allowed("chaya2mqtt", true, DEVICE_HOSTNAME, None));
-        assert!(web_host_allowed("chaya2mqtt:80", true, DEVICE_HOSTNAME, None));
-        assert!(web_host_allowed("chaya2mqtt.local", true, DEVICE_HOSTNAME, None));
-        assert!(!web_host_allowed("captive.apple.com", true, DEVICE_HOSTNAME, None));
-        assert!(!web_host_allowed("evil.example", true, DEVICE_HOSTNAME, None));
+        assert!(web_host_allowed(
+            "chaya2mqtt:80",
+            true,
+            DEVICE_HOSTNAME,
+            None
+        ));
+        assert!(web_host_allowed(
+            "chaya2mqtt.local",
+            true,
+            DEVICE_HOSTNAME,
+            None
+        ));
+        assert!(!web_host_allowed(
+            "captive.apple.com",
+            true,
+            DEVICE_HOSTNAME,
+            None
+        ));
+        assert!(!web_host_allowed(
+            "evil.example",
+            true,
+            DEVICE_HOSTNAME,
+            None
+        ));
         assert!(!web_host_allowed("chaya2mqtt.local", false, HOSTNAME, None));
         assert!(!web_host_allowed("evil.example", false, HOSTNAME, None));
         assert!(web_host_allowed(
@@ -288,10 +331,7 @@ mod tests {
     #[test]
     fn ap_masks_sse() {
         let all = SSE_ALL;
-        assert_eq!(
-            sse_tick_mask_for_ap_mode(all, true),
-            SSE_WIFI | SSE_DEVICE
-        );
+        assert_eq!(sse_tick_mask_for_ap_mode(all, true), SSE_WIFI | SSE_DEVICE);
     }
 
     #[test]

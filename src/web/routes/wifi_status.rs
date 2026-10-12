@@ -15,8 +15,16 @@ pub async fn wifi_status_json(s: &HttpShared) -> alloc::string::String {
     if let Some(cfg) = s.stack.config_v4() {
         let ip = cfg.address.address();
         let gw = cfg.gateway.unwrap_or(Ipv4Addr::UNSPECIFIED);
-        let dns1 = cfg.dns_servers.get(0).copied().unwrap_or(Ipv4Addr::UNSPECIFIED);
-        let dns2 = cfg.dns_servers.get(1).copied().unwrap_or(Ipv4Addr::UNSPECIFIED);
+        let dns1 = cfg
+            .dns_servers
+            .get(0)
+            .copied()
+            .unwrap_or(Ipv4Addr::UNSPECIFIED);
+        let dns2 = cfg
+            .dns_servers
+            .get(1)
+            .copied()
+            .unwrap_or(Ipv4Addr::UNSPECIFIED);
         // embassy-net uses prefix len; approximate dotted netmask for /24 default.
         let mask = match cfg.address.prefix_len() {
             24 => Ipv4Addr::new(255, 255, 255, 0),
@@ -42,4 +50,3 @@ fn ipv4_str(ip: Ipv4Addr) -> heapless::String<16> {
     let _ = write!(&mut s, "{ip}");
     s
 }
-

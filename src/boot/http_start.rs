@@ -61,4 +61,3 @@ pub async fn start_http(
     );
     http_server::run_admin_http(shared).await
 }
-

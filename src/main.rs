@@ -6,20 +6,20 @@
 
 extern crate alloc;
 
-mod boot;
 mod async_rt;
+mod boot;
 
 use core::cell::RefCell;
 
 use chaya_fw::audio::{AudioConfig, AudioHw};
-use chaya_fw::config::UiPrefs;
-use chaya_fw::hw::{battery_latch_on, display_power_enable, pins, sd_hold_off};
-use chaya_fw::display::epd::EpdPanel;
 use chaya_fw::battery::adc::BatteryAdc;
-use chaya_fw::ota::OtaService;
-use chaya_fw::config::SETUP_AP_SSID;
 use chaya_fw::config::flash_kv::FlashKv;
 use chaya_fw::config::flash_shared::FlashCell;
+use chaya_fw::config::UiPrefs;
+use chaya_fw::config::SETUP_AP_SSID;
+use chaya_fw::display::epd::EpdPanel;
+use chaya_fw::hw::{battery_latch_on, display_power_enable, pins, sd_hold_off};
+use chaya_fw::ota::OtaService;
 use chaya_fw::util::platform::GpioOut;
 use chaya_fw::wifi::WlanService;
 use chaya_fw::BootReport;
@@ -39,12 +39,12 @@ use esp_println::println;
 use esp_storage::FlashStorage;
 use static_cell::StaticCell;
 
-use crate::boot::util::leak;
 use crate::async_rt::state::{
-    AUDIO_CFG, HEART_LAST_RESET_DAY, HEART_RX, HEART_RX_BASE, HEART_TX, HEART_TX_BASE, KvMutex,
+    KvMutex, AUDIO_CFG, HEART_LAST_RESET_DAY, HEART_RX, HEART_RX_BASE, HEART_TX, HEART_TX_BASE,
     LED_ENABLED, OTA_STATUS,
 };
 use crate::async_rt::MonoClock;
+use crate::boot::util::leak;
 
 esp_bootloader_esp_idf::esp_app_desc!();
 
@@ -115,8 +115,14 @@ async fn main(spawner: Spawner) -> ! {
     let r2 = (rng.random() & 0xff) as u8;
     let (mut fw, report): (_, BootReport) =
         chaya_fw::boot(&mut early, &mut kv, &clock, [r0, r1, r2]);
-    println!("=== Chaya2MQTT {} === id={}", report.version, report.device_id);
-    println!("ap_mode={} heart_ready={}", report.ap_mode, report.heart_ready);
+    println!(
+        "=== Chaya2MQTT {} === id={}",
+        report.version, report.device_id
+    );
+    println!(
+        "ap_mode={} heart_ready={}",
+        report.ap_mode, report.heart_ready
+    );
 
     {
         *HEART_TX.lock().await = fw.heart.tx;
@@ -155,8 +161,7 @@ async fn main(spawner: Spawner) -> ! {
         peripherals.GPIO18,
         InputConfig::default().with_pull(Pull::Up),
     );
-    spawner
-        .spawn(async_rt::button::button_led_task(boot_btn, pwr_btn, led, early.bat).unwrap());
+    spawner.spawn(async_rt::button::button_led_task(boot_btn, pwr_btn, led, early.bat).unwrap());
 
     let bat = BatteryAdc::new(peripherals.ADC1, peripherals.GPIO4);
     spawner.spawn(async_rt::battery::battery_task(bat).unwrap());

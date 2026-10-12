@@ -1,11 +1,11 @@
 //! Mark OTA image valid after a stable STA window (cancel rollback).
 
+use crate::async_rt::state::*;
 use chaya_fw::config::flash_shared::{FlashCell, FlashProxy};
-use crate::core::ota::{ota_health_window_elapsed, OTA_HEALTH_STABLE_MS};
+use chaya_fw::core::ota::{ota_health_window_elapsed, OTA_HEALTH_STABLE_MS};
 use embassy_time::{Duration, Instant, Timer};
 use esp_hal_ota::Ota;
 use esp_println::println;
-use crate::async_rt::state::*;
 
 #[embassy_executor::task]
 pub async fn ota_health_task(flash: &'static FlashCell) {
@@ -30,7 +30,14 @@ pub async fn ota_health_task(flash: &'static FlashCell) {
             settled_at_ms = 0;
             continue;
         }
-        if !ota_health_window_elapsed(true, true, true, settled_at_ms, now_ms, OTA_HEALTH_STABLE_MS) {
+        if !ota_health_window_elapsed(
+            true,
+            true,
+            true,
+            settled_at_ms,
+            now_ms,
+            OTA_HEALTH_STABLE_MS,
+        ) {
             continue;
         }
         let mut ota = match Ota::new(FlashProxy(flash)) {

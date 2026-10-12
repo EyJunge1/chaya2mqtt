@@ -3,11 +3,11 @@
 use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
 use embassy_sync::mutex::Mutex;
 use embassy_sync::signal::Signal;
-use embassy_time::{Duration, Timer, with_timeout};
+use embassy_time::{with_timeout, Duration, Timer};
 use esp_println::println;
 use esp_radio::wifi::{
-    AuthenticationMethod, AuthenticationMethodConfig, Config, WifiController,
-    ap::AccessPointConfig, scan::ScanConfig, sta::StationConfig,
+    ap::AccessPointConfig, scan::ScanConfig, sta::StationConfig, AuthenticationMethod,
+    AuthenticationMethodConfig, Config, WifiController,
 };
 
 use crate::config::SETUP_AP_SSID;
@@ -119,9 +119,7 @@ async fn do_connect_test(
         .try_into()
         .unwrap_or_else(|_| "Chaya2MQTTSetupKey!".try_into().expect("psk"));
     let ap_config = AccessPointConfig::default()
-        .with_ssid(
-            esp_radio::wifi::Ssid::try_from(SETUP_AP_SSID).expect("ap ssid"),
-        )
+        .with_ssid(esp_radio::wifi::Ssid::try_from(SETUP_AP_SSID).expect("ap ssid"))
         .with_authentication(AuthenticationMethodConfig::Wpa2Personal(ap_pass));
 
     let ssid = match esp_radio::wifi::Ssid::try_from(cfg.ssid.as_str()) {
@@ -175,9 +173,7 @@ async fn do_connect_test(
         .try_into()
         .unwrap_or_else(|_| "Chaya2MQTTSetupKey!".try_into().expect("psk"));
     let ap_config = AccessPointConfig::default()
-        .with_ssid(
-            esp_radio::wifi::Ssid::try_from(SETUP_AP_SSID).expect("ap ssid"),
-        )
+        .with_ssid(esp_radio::wifi::Ssid::try_from(SETUP_AP_SSID).expect("ap ssid"))
         .with_authentication(AuthenticationMethodConfig::Wpa2Personal(ap_pass));
     let restore = Config::AccessPointStation(StationConfig::default(), ap_config);
     {

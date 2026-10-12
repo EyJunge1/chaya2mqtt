@@ -33,9 +33,8 @@ impl<CipherSuite: TlsCipherSuite> Default for HostPresenceVerifier<CipherSuite> 
 
 impl<CipherSuite: TlsCipherSuite> TlsVerifier<CipherSuite> for HostPresenceVerifier<CipherSuite> {
     fn set_hostname_verification(&mut self, hostname: &str) -> Result<(), TlsError> {
-        self.host = Some(
-            heapless::String::try_from(hostname).map_err(|_| TlsError::InsufficientSpace)?,
-        );
+        self.host =
+            Some(heapless::String::try_from(hostname).map_err(|_| TlsError::InsufficientSpace)?);
         Ok(())
     }
 

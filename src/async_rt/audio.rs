@@ -1,7 +1,7 @@
 //! Audio beep task.
+use crate::async_rt::state::*;
 use chaya_fw::audio::AudioHw;
 use esp_println::println;
-use crate::async_rt::state::*;
 
 #[embassy_executor::task]
 pub async fn audio_task(mut audio: AudioHw) {
@@ -11,7 +11,7 @@ pub async fn audio_task(mut audio: AudioHw) {
         let cfg = AUDIO_CFG.lock().await.clone();
         let synced = *TIME_SYNCED.lock().await;
         let hour = WALL_CLOCK.lock().await.utc_hour().unwrap_or(12);
-        let svc = chaya_fw::audio::AudioService { cfg };
+        let svc = chaya_fw::audio::AudioService { cfg: cfg.clone() };
         if !svc.may_play(kind, synced, hour) {
             println!("AUDIO: skip {:?} (quiet/disabled)", kind);
             continue;

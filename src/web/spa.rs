@@ -41,6 +41,9 @@ pub fn find_asset(path: &str) -> Option<&'static SpaAsset> {
 }
 
 pub fn asset_bytes(asset: &SpaAsset) -> &'static [u8] {
-    let end = asset.offset.saturating_add(asset.length).min(SPA_BLOB.len());
+    let end = asset
+        .offset
+        .saturating_add(asset.length)
+        .min(SPA_BLOB.len());
     &SPA_BLOB[asset.offset.min(SPA_BLOB.len())..end]
 }

@@ -1,21 +1,23 @@
 //! ES8311 (I2C via `es8311` crate) + PA rails + I2S DMA beep samples (TX/RX tones).
 
+use crate::core::audio::AudioKind;
 use crate::hw::{audio_amp_enable, audio_rail_enable, pins};
 use crate::util::platform::GpioOut;
-use crate::core::audio::AudioKind;
 use embassy_time::{Duration, Timer};
 use es8311::{ClockConfig, Es8311, Resolution};
+use esp_hal::dma::DmaTxBuf;
 use esp_hal::{
     delay::Delay,
     dma_tx_buffer,
     gpio::{Level, Output, OutputConfig},
     i2c::master::{Config as I2cConfig, I2c},
     i2s::master::{Channels, DataFormat, I2s, I2sTx, TdmConfig},
-    peripherals::{DMA_CH0, GPIO14, GPIO15, GPIO38, GPIO42, GPIO45, GPIO46, GPIO47, GPIO48, I2C0, I2S0},
+    peripherals::{
+        DMA_CH0, GPIO14, GPIO15, GPIO38, GPIO42, GPIO45, GPIO46, GPIO47, GPIO48, I2C0, I2S0,
+    },
     time::Rate,
     Blocking,
 };
-use esp_hal::dma::DmaTxBuf;
 use esp_println::println;
 
 const ES8311_ADDR: u8 = 0x18;
@@ -92,10 +94,13 @@ impl AudioHw {
         dma_ch: DMA_CH0<'static>,
     ) -> Self {
         let out_cfg = OutputConfig::default();
-        let i2c = I2c::new(i2c0, I2cConfig::default().with_frequency(Rate::from_khz(100)))
-            .expect("i2c")
-            .with_sda(sda)
-            .with_scl(scl);
+        let i2c = I2c::new(
+            i2c0,
+            I2cConfig::default().with_frequency(Rate::from_khz(100)),
+        )
+        .expect("i2c")
+        .with_sda(sda)
+        .with_scl(scl);
         let mut pa = PaGpio {
             pa_en: Output::new(pa_en, Level::High, out_cfg),
             pa_ctrl: Output::new(pa_ctrl, Level::Low, out_cfg),
@@ -107,9 +112,7 @@ impl AudioHw {
             .with_sample_rate(Rate::from_hz(SAMPLE_RATE))
             .with_data_format(DataFormat::Data16Channel16)
             .with_channels(Channels::LEFT);
-        let i2s = I2s::new(i2s0, dma_ch, cfg)
-            .expect("i2s")
-            .with_mclk(mclk);
+        let i2s = I2s::new(i2s0, dma_ch, cfg).expect("i2s").with_mclk(mclk);
         let tx = i2s
             .i2s_tx
             .with_bclk(sclk)

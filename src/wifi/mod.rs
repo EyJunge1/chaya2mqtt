@@ -4,9 +4,9 @@ use core::net::Ipv4Addr;
 use core::str::FromStr;
 
 use crate::config::{NS_CFG, NS_WIFI, SETUP_AP_SSID};
-use crate::util::platform::KvStore;
 use crate::core::constants::{WIFI_PASS_MAX_LEN, WIFI_SSID_MAX_LEN};
 use crate::core::wifi::{wifi_qr_build_wpa_payload, WIFI_QR_PAYLOAD_MAX_LEN};
+use crate::util::platform::KvStore;
 
 const KEY_SSID: &str = "ssid";
 const KEY_PASS: &str = "pass";
@@ -298,7 +298,10 @@ mod tests {
 
     #[test]
     fn netmask_prefix_common() {
-        assert_eq!(netmask_prefix_len(Ipv4Addr::new(255, 255, 255, 0)), Some(24));
+        assert_eq!(
+            netmask_prefix_len(Ipv4Addr::new(255, 255, 255, 0)),
+            Some(24)
+        );
         assert_eq!(netmask_prefix_len(Ipv4Addr::new(255, 255, 0, 0)), Some(16));
         assert_eq!(netmask_prefix_len(Ipv4Addr::new(255, 0, 0, 0)), Some(8));
         assert_eq!(netmask_prefix_len(Ipv4Addr::new(255, 0, 255, 0)), None);

@@ -1,8 +1,8 @@
 //! Header LED patterns (active-low on board).
 
+use crate::core::led::{led_pattern_advance, led_pattern_begin, LedPatternRuntime};
 use crate::hw::pins;
 use crate::util::platform::GpioOut;
-use crate::core::led::{led_pattern_advance, led_pattern_begin, LedPatternRuntime};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum LedPreset {

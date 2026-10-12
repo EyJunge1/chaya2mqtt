@@ -3,11 +3,7 @@
 use qrcodegen_no_heap::{QrCode, QrCodeEcc, Version};
 
 /// Encode text into out/temp buffers; returns QR size (modules) or None.
-pub fn encode_text<'a>(
-    text: &str,
-    temp: &'a mut [u8],
-    out: &'a mut [u8],
-) -> Option<QrCode<'a>> {
+pub fn encode_text<'a>(text: &str, temp: &'a mut [u8], out: &'a mut [u8]) -> Option<QrCode<'a>> {
     let max = Version::new(8);
     let need = max.buffer_len();
     if temp.len() < need || out.len() < need {

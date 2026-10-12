@@ -66,5 +66,7 @@ pub struct UpdateCheckReq<'a> {
 }
 
 pub fn from_slice<'a, T: Deserialize<'a>>(body: &'a [u8]) -> Result<T, ()> {
-    serde_json_core::from_slice(body).map(|(v, _)| v).map_err(|_| ())
+    serde_json_core::from_slice(body)
+        .map(|(v, _)| v)
+        .map_err(|_| ())
 }

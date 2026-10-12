@@ -24,7 +24,12 @@ pub fn led_pattern_normalize(count: &mut u8, on_ms: &mut u16, _off_ms: &mut u16)
     }
 }
 
-pub fn led_pattern_begin(rt: &mut LedPatternRuntime, mut count: u8, mut on_ms: u16, mut off_ms: u16) -> bool {
+pub fn led_pattern_begin(
+    rt: &mut LedPatternRuntime,
+    mut count: u8,
+    mut on_ms: u16,
+    mut off_ms: u16,
+) -> bool {
     led_pattern_normalize(&mut count, &mut on_ms, &mut off_ms);
     rt.on_pulses_left = count;
     rt.on_phase = true;

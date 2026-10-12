@@ -2,18 +2,18 @@
 
 use crate::audio::AudioService;
 use crate::battery::BatteryService;
-use crate::hw::{battery_latch_on, sd_hold_off};
 use crate::button::ButtonService;
 use crate::config::RuntimeFlags;
+use crate::config::APP_VERSION;
 use crate::display::DisplayService;
 use crate::heart::HeartCounters;
+use crate::hw::{battery_latch_on, sd_hold_off};
 use crate::identity::DeviceId;
 use crate::led::LedService;
 use crate::mqtt::MqttService;
 use crate::network::NetworkService;
 use crate::ota::OtaService;
 use crate::util::platform::{ClockMs, GpioOut, KvStore};
-use crate::config::APP_VERSION;
 use crate::web::WebAdminState;
 use crate::wifi::{WlanMode, WlanService};
 
@@ -139,8 +139,7 @@ pub fn request_send(fw: &mut Firmware) -> bool {
     if !fw.mqtt.cfg.heart_ready() {
         return false;
     }
-    fw.network
-        .enqueue(crate::network::NetCmd::ChayaPublish)
+    fw.network.enqueue(crate::network::NetCmd::ChayaPublish)
 }
 
 #[cfg(test)]

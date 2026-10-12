@@ -9,7 +9,7 @@ mod host_pin;
 mod mbedtls_ca;
 
 #[cfg(not(feature = "mbedtls"))]
-pub use host_pin::{connect, backend_name, HostPinProvider, HostPresenceVerifier, TlsStream};
+pub use host_pin::{backend_name, connect, HostPinProvider, HostPresenceVerifier, TlsStream};
 
 #[cfg(feature = "mbedtls")]
-pub use mbedtls_ca::{connect, backend_name, TlsStream};
+pub use mbedtls_ca::{backend_name, connect, TlsStream};

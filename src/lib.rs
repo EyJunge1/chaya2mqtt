@@ -4,7 +4,7 @@
 
 #![cfg_attr(not(test), no_std)]
 
-#[cfg(feature = "device")]
+#[cfg(any(feature = "device", test))]
 extern crate alloc;
 
 pub mod app;

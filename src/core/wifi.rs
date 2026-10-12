@@ -22,7 +22,10 @@ pub fn wlan_ms_before_deadline(now_ms: u32, next_allowed_ms: u32) -> bool {
     next_allowed_ms != 0 && (now_ms.wrapping_sub(next_allowed_ms) as i32) < 0
 }
 
-pub fn wifi_scan_service_should_defer_kick(connection_test_owns_radio: bool, ota_busy: bool) -> bool {
+pub fn wifi_scan_service_should_defer_kick(
+    connection_test_owns_radio: bool,
+    ota_busy: bool,
+) -> bool {
     connection_test_owns_radio || ota_busy
 }
 

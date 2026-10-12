@@ -324,7 +324,10 @@ pub fn ota_select_best_release_tag(body: &str, prefer_prerelease: bool) -> Optio
             continue;
         }
         if ota_version_is_rc(tag) {
-            if best_rc.map(|b| ota_version_is_newer(tag, b)).unwrap_or(true) {
+            if best_rc
+                .map(|b| ota_version_is_newer(tag, b))
+                .unwrap_or(true)
+            {
                 best_rc = Some(tag);
             }
         } else if best_stable
@@ -354,25 +357,61 @@ mod tests {
     #[test]
     fn daily_check_gates() {
         assert!(ota_daily_check_due(
-            "v2026.10.1", true, false, true, false, 0, 20_000
+            "v2026.10.1",
+            true,
+            false,
+            true,
+            false,
+            0,
+            20_000
         ));
         assert!(!ota_daily_check_due(
-            "v2026.10.1", true, false, true, false, 20_000, 20_000
+            "v2026.10.1",
+            true,
+            false,
+            true,
+            false,
+            20_000,
+            20_000
         ));
         assert!(!ota_daily_check_due(
             "dev", true, false, true, false, 0, 20_000
         ));
         assert!(!ota_daily_check_due(
-            "v2026.10.1", false, false, true, false, 0, 20_000
+            "v2026.10.1",
+            false,
+            false,
+            true,
+            false,
+            0,
+            20_000
         ));
         assert!(!ota_daily_check_due(
-            "v2026.10.1", true, true, true, false, 0, 20_000
+            "v2026.10.1",
+            true,
+            true,
+            true,
+            false,
+            0,
+            20_000
         ));
         assert!(!ota_daily_check_due(
-            "v2026.10.1", true, false, false, false, 0, 20_000
+            "v2026.10.1",
+            true,
+            false,
+            false,
+            false,
+            0,
+            20_000
         ));
         assert!(!ota_daily_check_due(
-            "v2026.10.1", true, false, true, true, 0, 20_000
+            "v2026.10.1",
+            true,
+            false,
+            true,
+            true,
+            0,
+            20_000
         ));
     }
 
@@ -503,10 +542,7 @@ mod tests {
             ota_select_best_release_tag(json, true),
             Some("v2026.9.1-rc.3")
         );
-        assert_eq!(
-            ota_select_best_release_tag(json, false),
-            Some("v2026.8.1")
-        );
+        assert_eq!(ota_select_best_release_tag(json, false), Some("v2026.8.1"));
 
         let only_stable = r#"[{"tag_name":"v2026.8.1","draft":false,"prerelease":false}]"#;
         assert_eq!(

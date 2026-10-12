@@ -2,31 +2,24 @@
 
 use alloc::string::String;
 use edge_http::Method;
-use crate::web::form;
+
+use crate::mqtt::MqttConfig;
+use crate::util::platform::KvStore;
 use crate::web::json;
 use crate::web::shared::HttpShared;
-use crate::web::sse;
-use crate::web::spa;
-use crate::mqtt::MqttConfig;
-use crate::ota::{OtaChannel, OtaService};
-use crate::util::platform::KvStore;
-use crate::wifi::WlanConfig;
-use crate::core::audio::AudioKind;
 
 pub async fn handle(
     s: &HttpShared,
     method: Method,
     path: &str,
-    body: &[u8],
+    _body: &[u8],
     mqtt_ok: bool,
     heart_tx: i32,
     heart_rx: i32,
     bat_pct: i32,
     bat_mv: i32,
 ) -> Option<(u16, String, &'static str)> {
-    use alloc::string::String;
     use super::wifi_status_json;
-    use crate::mqtt::MqttConfig;
 
     if path == "/api/bootstrap" && method == Method::Get {
         let wifi = wifi_status_json(s).await;

@@ -12,8 +12,8 @@ use embassy_net::{Ipv4Cidr, StackResources, StaticConfigV4};
 use embassy_sync::mutex::Mutex;
 use esp_println::println;
 use esp_radio::wifi::{
-    AuthenticationMethodConfig, Config, ControllerConfig, Interface, WifiController,
-    ap::AccessPointConfig, sta::StationConfig,
+    ap::AccessPointConfig, sta::StationConfig, AuthenticationMethodConfig, Config,
+    ControllerConfig, Interface, WifiController,
 };
 use static_cell::StaticCell;
 
@@ -39,9 +39,7 @@ pub async fn run_softap(
         .try_into()
         .unwrap_or_else(|_| "Chaya2MQTTSetupKey!".try_into().expect("fallback psk"));
     let ap_config = AccessPointConfig::default()
-        .with_ssid(
-            esp_radio::wifi::Ssid::try_from(WlanService::setup_ap_ssid()).expect("ssid"),
-        )
+        .with_ssid(esp_radio::wifi::Ssid::try_from(WlanService::setup_ap_ssid()).expect("ssid"))
         .with_authentication(AuthenticationMethodConfig::Wpa2Personal(pass));
     // APSTA so SoftAP setup can scan / connection-test without dropping the captive portal.
     let radio_config = Config::AccessPointStation(StationConfig::default(), ap_config);
@@ -89,4 +87,3 @@ pub async fn run_softap(
     crate::boot::http_start::start_http(stack, kv, report, true, Some(ap_psk), DEVICE_HOSTNAME)
         .await
 }
-

@@ -27,26 +27,58 @@ pub async fn dispatch(
     bat_pct: i32,
     bat_mv: i32,
 ) -> (u16, String, &'static str) {
-    if let Some(r) = bootstrap::handle(s, method, path, body, mqtt_ok, heart_tx, heart_rx, bat_pct, bat_mv).await {
+    if let Some(r) = bootstrap::handle(
+        s, method, path, body, mqtt_ok, heart_tx, heart_rx, bat_pct, bat_mv,
+    )
+    .await
+    {
         return r;
     }
-    if let Some(r) = wifi::handle(s, method, path, body, mqtt_ok, heart_tx, heart_rx, bat_pct, bat_mv).await {
+    if let Some(r) = wifi::handle(
+        s, method, path, body, mqtt_ok, heart_tx, heart_rx, bat_pct, bat_mv,
+    )
+    .await
+    {
         return r;
     }
-    if let Some(r) = mqtt::handle(s, method, path, body, mqtt_ok, heart_tx, heart_rx, bat_pct, bat_mv).await {
+    if let Some(r) = mqtt::handle(
+        s, method, path, body, mqtt_ok, heart_tx, heart_rx, bat_pct, bat_mv,
+    )
+    .await
+    {
         return r;
     }
-    if let Some(r) = settings::handle(s, method, path, body, mqtt_ok, heart_tx, heart_rx, bat_pct, bat_mv).await {
+    if let Some(r) = settings::handle(
+        s, method, path, body, mqtt_ok, heart_tx, heart_rx, bat_pct, bat_mv,
+    )
+    .await
+    {
         return r;
     }
-    if let Some(r) = system::handle(s, method, path, body, mqtt_ok, heart_tx, heart_rx, bat_pct, bat_mv).await {
+    if let Some(r) = system::handle(
+        s, method, path, body, mqtt_ok, heart_tx, heart_rx, bat_pct, bat_mv,
+    )
+    .await
+    {
         return r;
     }
-    if let Some(r) = ota::handle(s, method, path, body, mqtt_ok, heart_tx, heart_rx, bat_pct, bat_mv).await {
+    if let Some(r) = ota::handle(
+        s, method, path, body, mqtt_ok, heart_tx, heart_rx, bat_pct, bat_mv,
+    )
+    .await
+    {
         return r;
     }
-    if let Some(r) = spa::handle(s, method, path, body, mqtt_ok, heart_tx, heart_rx, bat_pct, bat_mv).await {
+    if let Some(r) = spa::handle(
+        s, method, path, body, mqtt_ok, heart_tx, heart_rx, bat_pct, bat_mv,
+    )
+    .await
+    {
         return r;
     }
-    (404, String::from("{\"ok\":false,\"error\":\"not_found\"}"), "application/json")
+    (
+        404,
+        String::from("{\"ok\":false,\"error\":\"not_found\"}"),
+        "application/json",
+    )
 }

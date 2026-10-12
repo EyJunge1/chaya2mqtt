@@ -1,101 +1,233 @@
-//! OpenAPI-aligned JSON builders for the admin SPA.
+//! OpenAPI-aligned JSON builders for the admin SPA (`serde-json-core` Serialize).
+//!
+//! `serde-json-core` does not escape strings on serialize; callers feed pre-escaped
+//! owned strings via [`esc`].
 
 use alloc::string::String;
+use alloc::vec;
+use serde::Serialize;
+
 use crate::audio::AudioConfig;
-use crate::config::{DEVICE_HOSTNAME, SETUP_AP_IP, SETUP_AP_SSID, STA_HOSTNAME_PREFIX, UiPrefs};
-use crate::ota::client::OtaStatus;
+use crate::config::{
+    UiPrefs, APP_VERSION, DEVICE_HOSTNAME, SETUP_AP_IP, SETUP_AP_SSID, STA_HOSTNAME_PREFIX,
+};
 use crate::mqtt::MqttConfig;
-use crate::config::APP_VERSION;
+use crate::ota::client::OtaStatus;
 use crate::wifi::WlanConfig;
+
+fn esc(input: &str) -> String {
+    let mut out = String::with_capacity(input.len());
+    for c in input.chars() {
+        match c {
+            '"' => out.push_str("\\\""),
+            '\\' => out.push_str("\\\\"),
+            c if c < ' ' => {}
+            c => out.push(c),
+        }
+    }
+    out
+}
+
+fn to_json<T: Serialize>(value: &T) -> String {
+    for size in [256usize, 512, 1024, 2048, 4096, 8192] {
+        let mut buf = vec![0u8; size];
+        if let Ok(n) = serde_json_core::to_slice(value, &mut buf) {
+            return match core::str::from_utf8(&buf[..n]) {
+                Ok(s) => String::from(s),
+                Err(_) => String::from("{}"),
+            };
+        }
+    }
+    String::from("{}")
+}
+
+#[derive(Serialize)]
+struct ErrResp {
+    ok: bool,
+    error: String,
+}
+
+#[derive(Serialize)]
+struct OkNextResp {
+    ok: bool,
+    next: String,
+}
+
+#[derive(Serialize)]
+struct BatteryResp {
+    #[serde(rename = "batteryMv")]
+    battery_mv: i32,
+    #[serde(rename = "batteryPct")]
+    battery_pct: i32,
+}
+
+#[derive(Serialize)]
+struct DeviceResp {
+    hostname: String,
+    version: String,
+    mode: &'static str,
+    #[serde(rename = "deviceId")]
+    device_id: String,
+    #[serde(rename = "batteryMv")]
+    battery_mv: i32,
+    #[serde(rename = "batteryPct")]
+    battery_pct: i32,
+    #[serde(rename = "apSsid", skip_serializing_if = "Option::is_none")]
+    ap_ssid: Option<String>,
+    #[serde(rename = "apIp", skip_serializing_if = "Option::is_none")]
+    ap_ip: Option<String>,
+}
+
+#[derive(Serialize)]
+struct WifiConnectedResp {
+    connected: bool,
+    ssid: String,
+    ip: String,
+    gateway: String,
+    netmask: String,
+    dns1: String,
+    dns2: String,
+    rssi: i32,
+}
+
+#[derive(Serialize)]
+struct ChayaResp {
+    rx: i32,
+    tx: i32,
+    connected: bool,
+    configured: bool,
+    paired: bool,
+}
+
+#[derive(Serialize)]
+struct MqttStatusResp {
+    connected: bool,
+}
+
+#[derive(Serialize)]
+struct MqttConfigResp {
+    #[serde(rename = "deviceId")]
+    device_id: String,
+    server: String,
+    port: u16,
+    tls: bool,
+    username: String,
+    #[serde(rename = "hasPassword")]
+    has_password: bool,
+    #[serde(rename = "topicPub")]
+    topic_pub: String,
+    #[serde(rename = "topicSub")]
+    topic_sub: String,
+    #[serde(rename = "partnerId")]
+    partner_id: String,
+    #[serde(rename = "pairingId")]
+    pairing_id: String,
+    #[serde(rename = "nvsOk")]
+    nvs_ok: bool,
+    #[serde(rename = "applyPending")]
+    apply_pending: bool,
+}
+
+#[derive(Serialize)]
+struct SettingsResp {
+    #[serde(rename = "resetDays")]
+    reset_days: u8,
+    lang: String,
+    theme: String,
+    #[serde(rename = "ledEnabled")]
+    led_enabled: bool,
+    #[serde(rename = "audioTxEnabled")]
+    audio_tx_enabled: bool,
+    #[serde(rename = "audioRxEnabled")]
+    audio_rx_enabled: bool,
+    #[serde(rename = "audioTxVolume")]
+    audio_tx_volume: u8,
+    #[serde(rename = "audioRxVolume")]
+    audio_rx_volume: u8,
+    #[serde(rename = "quietHourStart")]
+    quiet_hour_start: u8,
+    #[serde(rename = "quietHourEnd")]
+    quiet_hour_end: u8,
+    #[serde(rename = "txHz")]
+    tx_hz: u16,
+    #[serde(rename = "txMs")]
+    tx_ms: u16,
+    #[serde(rename = "rxHz")]
+    rx_hz: u16,
+    #[serde(rename = "rxMs")]
+    rx_ms: u16,
+    #[serde(rename = "nvsOk")]
+    nvs_ok: bool,
+    #[serde(rename = "applyPending")]
+    apply_pending: bool,
+}
+
+#[derive(Serialize)]
+struct OtaStatusResp {
+    phase: &'static str,
+    channel: String,
+    #[serde(rename = "localVersion")]
+    local_version: String,
+    #[serde(rename = "availableVersion")]
+    available_version: String,
+    #[serde(rename = "bytesDone")]
+    bytes_done: u32,
+    #[serde(rename = "bytesTotal")]
+    bytes_total: u32,
+    error: String,
+    generation: u32,
+}
+
+#[derive(Serialize)]
+struct ConnectStatusResp {
+    state: String,
+    ssid: String,
+}
 
 pub fn json_ok() -> &'static str {
     "{\"ok\":true}"
 }
 
 pub fn json_err(error: &str) -> String {
-    let mut s = String::new();
-    s.push_str("{\"ok\":false,\"error\":\"");
-    push_escaped(&mut s, error);
-    s.push_str("\"}");
-    s
+    to_json(&ErrResp {
+        ok: false,
+        error: esc(error),
+    })
 }
 
 pub fn json_ok_next(next: &str) -> String {
-    let mut s = String::new();
-    s.push_str("{\"ok\":true,\"next\":\"");
-    push_escaped(&mut s, next);
-    s.push_str("\"}");
-    s
-}
-
-pub fn response(status_line: &str, content_type: &str, body: &str) -> String {
-    let mut s = String::new();
-    s.push_str("HTTP/1.0 ");
-    s.push_str(status_line);
-    s.push_str("\r\nContent-Type: ");
-    s.push_str(content_type);
-    s.push_str("\r\nConnection: close\r\n\r\n");
-    s.push_str(body);
-    s
-}
-
-pub fn response_json(code: u16, body: &str) -> String {
-    let line = match code {
-        200 => "200 OK",
-        202 => "202 Accepted",
-        400 => "400 Bad Request",
-        409 => "409 Conflict",
-        503 => "503 Service Unavailable",
-        _ => "500 Internal Server Error",
-    };
-    response(line, "application/json", body)
+    to_json(&OkNextResp {
+        ok: true,
+        next: esc(next),
+    })
 }
 
 /// SSE `device` payload (C++ `fillDeviceBatteryJson`) — battery only.
 pub fn device_battery_json(bat_mv: i32, bat_pct: i32) -> String {
-    let mut s = String::new();
-    s.push_str("{\"batteryMv\":");
-    push_i32(&mut s, bat_mv);
-    s.push_str(",\"batteryPct\":");
-    push_i32(&mut s, bat_pct.max(0).min(100));
-    s.push('}');
-    s
+    to_json(&BatteryResp {
+        battery_mv: bat_mv,
+        battery_pct: bat_pct.max(0).min(100),
+    })
 }
 
-pub fn device_json(
-    device_id: &str,
-    ap_mode: bool,
-    bat_mv: i32,
-    bat_pct: i32,
-) -> String {
-    let mut s = String::new();
-    s.push('{');
-    s.push_str("\"hostname\":\"");
-    if ap_mode {
-        push_escaped(&mut s, DEVICE_HOSTNAME);
+pub fn device_json(device_id: &str, ap_mode: bool, bat_mv: i32, bat_pct: i32) -> String {
+    let hostname = if ap_mode {
+        esc(DEVICE_HOSTNAME)
     } else {
-        push_escaped(&mut s, STA_HOSTNAME_PREFIX);
-        push_escaped(&mut s, device_id);
-    }
-    s.push_str("\",\"version\":\"");
-    push_escaped(&mut s, APP_VERSION);
-    s.push_str("\",\"mode\":\"");
-    s.push_str(if ap_mode { "ap" } else { "sta" });
-    s.push_str("\",\"deviceId\":\"");
-    push_escaped(&mut s, device_id);
-    s.push_str("\",\"batteryMv\":");
-    push_i32(&mut s, bat_mv);
-    s.push_str(",\"batteryPct\":");
-    push_i32(&mut s, bat_pct.max(0).min(100));
-    if ap_mode {
-        s.push_str(",\"apSsid\":\"");
-        push_escaped(&mut s, SETUP_AP_SSID);
-        s.push_str("\",\"apIp\":\"");
-        push_escaped(&mut s, SETUP_AP_IP);
-        s.push('"');
-    }
-    s.push('}');
-    s
+        let mut h = String::from(STA_HOSTNAME_PREFIX);
+        h.push_str(&esc(device_id));
+        h
+    };
+    to_json(&DeviceResp {
+        hostname,
+        version: esc(APP_VERSION),
+        mode: if ap_mode { "ap" } else { "sta" },
+        device_id: esc(device_id),
+        battery_mv: bat_mv,
+        battery_pct: bat_pct.max(0).min(100),
+        ap_ssid: ap_mode.then(|| esc(SETUP_AP_SSID)),
+        ap_ip: ap_mode.then(|| esc(SETUP_AP_IP)),
+    })
 }
 
 pub fn wifi_status_disconnected() -> &'static str {
@@ -111,101 +243,70 @@ pub fn wifi_status_connected(
     dns2: &str,
     rssi: i32,
 ) -> String {
-    let mut s = String::new();
-    s.push_str("{\"connected\":true,\"ssid\":\"");
-    push_escaped(&mut s, ssid);
-    s.push_str("\",\"ip\":\"");
-    push_escaped(&mut s, ip);
-    s.push_str("\",\"gateway\":\"");
-    push_escaped(&mut s, gateway);
-    s.push_str("\",\"netmask\":\"");
-    push_escaped(&mut s, netmask);
-    s.push_str("\",\"dns1\":\"");
-    push_escaped(&mut s, dns1);
-    s.push_str("\",\"dns2\":\"");
-    push_escaped(&mut s, dns2);
-    s.push_str("\",\"rssi\":");
-    push_i32(&mut s, rssi);
-    s.push('}');
-    s
+    to_json(&WifiConnectedResp {
+        connected: true,
+        ssid: esc(ssid),
+        ip: esc(ip),
+        gateway: esc(gateway),
+        netmask: esc(netmask),
+        dns1: esc(dns1),
+        dns2: esc(dns2),
+        rssi,
+    })
 }
 
 pub fn chaya_json(rx: i32, tx: i32, connected: bool, configured: bool, paired: bool) -> String {
-    let mut s = String::new();
-    s.push_str("{\"rx\":");
-    push_i32(&mut s, rx);
-    s.push_str(",\"tx\":");
-    push_i32(&mut s, tx);
-    s.push_str(",\"connected\":");
-    s.push_str(if connected { "true" } else { "false" });
-    s.push_str(",\"configured\":");
-    s.push_str(if configured { "true" } else { "false" });
-    s.push_str(",\"paired\":");
-    s.push_str(if paired { "true" } else { "false" });
-    s.push('}');
-    s
+    to_json(&ChayaResp {
+        rx,
+        tx,
+        connected,
+        configured,
+        paired,
+    })
 }
 
 pub fn mqtt_status_json(connected: bool) -> String {
-    let mut s = String::new();
-    s.push_str("{\"connected\":");
-    s.push_str(if connected { "true" } else { "false" });
-    s.push('}');
-    s
+    to_json(&MqttStatusResp { connected })
 }
 
 pub fn mqtt_config_json(device_id: &str, cfg: &MqttConfig) -> String {
     let pub_topic = cfg.pub_topic(device_id);
     let sub_topic = cfg.sub_topic();
-    let mut s = String::new();
-    s.push_str("{\"deviceId\":\"");
-    push_escaped(&mut s, device_id);
-    s.push_str("\",\"server\":\"");
-    push_escaped(&mut s, cfg.host.as_str());
-    s.push_str("\",\"port\":");
-    push_i32(&mut s, cfg.port as i32);
-    s.push_str(",\"tls\":");
-    s.push_str(if cfg.port >= 8883 { "true" } else { "false" });
-    s.push_str(",\"username\":\"");
-    push_escaped(&mut s, cfg.user.as_str());
-    s.push_str("\",\"hasPassword\":");
-    s.push_str(if cfg.pass.is_empty() { "false" } else { "true" });
-    s.push_str(",\"topicPub\":\"");
-    push_escaped(&mut s, pub_topic.as_str());
-    s.push_str("\",\"topicSub\":\"");
-    push_escaped(&mut s, sub_topic.as_str());
-    s.push_str("\",\"partnerId\":\"");
-    push_escaped(&mut s, cfg.partner_id.as_str());
-    s.push_str("\",\"pairingId\":\"");
-    push_escaped(&mut s, cfg.pairing_id.as_str());
-    s.push_str("\",\"nvsOk\":true,\"applyPending\":false}");
-    s
+    to_json(&MqttConfigResp {
+        device_id: esc(device_id),
+        server: esc(cfg.host.as_str()),
+        port: cfg.port,
+        tls: cfg.port >= 8883,
+        username: esc(cfg.user.as_str()),
+        has_password: !cfg.pass.is_empty(),
+        topic_pub: esc(pub_topic.as_str()),
+        topic_sub: esc(sub_topic.as_str()),
+        partner_id: esc(cfg.partner_id.as_str()),
+        pairing_id: esc(cfg.pairing_id.as_str()),
+        nvs_ok: true,
+        apply_pending: false,
+    })
 }
 
 pub fn settings_json(audio: &AudioConfig, ui: &UiPrefs) -> String {
-    let mut s = String::new();
-    s.push_str("{\"resetDays\":");
-    push_i32(&mut s, ui.reset_days as i32);
-    s.push_str(",\"lang\":\"");
-    push_escaped(&mut s, ui.lang.as_str());
-    s.push_str("\",\"theme\":\"");
-    push_escaped(&mut s, ui.theme.as_str());
-    s.push_str("\",\"ledEnabled\":");
-    s.push_str(if ui.led_enabled { "true" } else { "false" });
-    s.push_str(",\"audioTxEnabled\":");
-    s.push_str(if audio.tx_enabled { "true" } else { "false" });
-    s.push_str(",\"audioRxEnabled\":");
-    s.push_str(if audio.rx_enabled { "true" } else { "false" });
-    s.push_str(",\"audioTxVolume\":");
-    push_i32(&mut s, audio.volume as i32);
-    s.push_str(",\"audioRxVolume\":");
-    push_i32(&mut s, audio.volume as i32);
-    s.push_str(",\"quietHourStart\":");
-    push_i32(&mut s, audio.quiet_start as i32);
-    s.push_str(",\"quietHourEnd\":");
-    push_i32(&mut s, audio.quiet_end as i32);
-    s.push_str(",\"txHz\":880,\"txMs\":80,\"rxHz\":660,\"rxMs\":80,\"nvsOk\":true,\"applyPending\":false}");
-    s
+    to_json(&SettingsResp {
+        reset_days: ui.reset_days,
+        lang: esc(ui.lang.as_str()),
+        theme: esc(ui.theme.as_str()),
+        led_enabled: ui.led_enabled,
+        audio_tx_enabled: audio.tx_enabled,
+        audio_rx_enabled: audio.rx_enabled,
+        audio_tx_volume: audio.volume,
+        audio_rx_volume: audio.volume,
+        quiet_hour_start: audio.quiet_start,
+        quiet_hour_end: audio.quiet_end,
+        tx_hz: 880,
+        tx_ms: 80,
+        rx_hz: 660,
+        rx_ms: 80,
+        nvs_ok: true,
+        apply_pending: false,
+    })
 }
 
 pub fn ota_status_json(st: &OtaStatus) -> String {
@@ -225,19 +326,16 @@ pub fn ota_status_json(st: &OtaStatus) -> String {
     } else {
         st.channel.as_str()
     };
-    let mut s = String::new();
-    s.push_str("{\"phase\":\"");
-    s.push_str(phase);
-    s.push_str("\",\"channel\":\"");
-    push_escaped(&mut s, channel);
-    s.push_str("\",\"localVersion\":\"");
-    push_escaped(&mut s, APP_VERSION);
-    s.push_str("\",\"availableVersion\":\"");
-    push_escaped(&mut s, st.last_tag.as_str());
-    s.push_str("\",\"bytesDone\":0,\"bytesTotal\":0,\"error\":\"");
-    push_escaped(&mut s, st.last_error.as_str());
-    s.push_str("\",\"generation\":0}");
-    s
+    to_json(&OtaStatusResp {
+        phase,
+        channel: esc(channel),
+        local_version: esc(APP_VERSION),
+        available_version: esc(st.last_tag.as_str()),
+        bytes_done: 0,
+        bytes_total: 0,
+        error: esc(st.last_error.as_str()),
+        generation: 0,
+    })
 }
 
 pub fn bootstrap_json(
@@ -278,13 +376,10 @@ pub fn bootstrap_json(
 }
 
 pub fn connect_status_json(state: &str, ssid: &str) -> String {
-    let mut s = String::new();
-    s.push_str("{\"state\":\"");
-    push_escaped(&mut s, state);
-    s.push_str("\",\"ssid\":\"");
-    push_escaped(&mut s, ssid);
-    s.push_str("\"}");
-    s
+    to_json(&ConnectStatusResp {
+        state: esc(state),
+        ssid: esc(ssid),
+    })
 }
 
 pub fn sse_typed(event: &str, data_json: &str) -> String {
@@ -297,9 +392,13 @@ pub fn sse_typed(event: &str, data_json: &str) -> String {
     s
 }
 
-pub fn parse_wlan_connect(body: &[u8], cfg: &mut WlanConfig, password_present: &mut bool) -> Result<(), &'static str> {
-    use crate::web::form::form_value;
+pub fn parse_wlan_connect(
+    body: &[u8],
+    cfg: &mut WlanConfig,
+    password_present: &mut bool,
+) -> Result<(), &'static str> {
     use super::dto::{from_slice, WifiConnectReq};
+    use crate::web::form::form_value;
 
     if let Ok(req) = from_slice::<WifiConnectReq>(body) {
         let ssid = req.ssid.filter(|s| !s.is_empty()).ok_or("ssid")?;
@@ -333,36 +432,37 @@ pub fn parse_wlan_connect(body: &[u8], cfg: &mut WlanConfig, password_present: &
         return Err("ssid");
     }
     cfg.ssid.clear();
-    let _ = cfg.ssid.push_str(ssid);
+    let _ = cfg.ssid.push_str(ssid.as_str());
 
-    *password_present = form_value(body, "password").is_some() || form_value(body, "pass").is_some();
+    *password_present =
+        form_value(body, "password").is_some() || form_value(body, "pass").is_some();
     if let Some(p) = form_value(body, "password").or_else(|| form_value(body, "pass")) {
         cfg.pass.clear();
-        let _ = cfg.pass.push_str(p);
+        let _ = cfg.pass.push_str(p.as_str());
     }
     if let Some(m) = form_value(body, "mode") {
-        cfg.mode = crate::wifi::IpMode::parse(m);
+        cfg.mode = crate::wifi::IpMode::parse(m.as_str());
     }
     if let Some(v) = form_value(body, "ip") {
-        push_opt(&mut cfg.ip, Some(v));
+        push_opt(&mut cfg.ip, Some(v.as_str()));
     }
     if let Some(v) = form_value(body, "gateway") {
-        push_opt(&mut cfg.gateway, Some(v));
+        push_opt(&mut cfg.gateway, Some(v.as_str()));
     }
     if let Some(v) = form_value(body, "netmask") {
-        push_opt(&mut cfg.netmask, Some(v));
+        push_opt(&mut cfg.netmask, Some(v.as_str()));
     }
     if let Some(v) = form_value(body, "dns1") {
-        push_opt(&mut cfg.dns1, Some(v));
+        push_opt(&mut cfg.dns1, Some(v.as_str()));
     }
     if let Some(v) = form_value(body, "dns2") {
-        push_opt(&mut cfg.dns2, Some(v));
+        push_opt(&mut cfg.dns2, Some(v.as_str()));
     }
     if let Some(v) = form_value(body, "ntp1") {
-        push_opt(&mut cfg.ntp1, Some(v));
+        push_opt(&mut cfg.ntp1, Some(v.as_str()));
     }
     if let Some(v) = form_value(body, "ntp2") {
-        push_opt(&mut cfg.ntp2, Some(v));
+        push_opt(&mut cfg.ntp2, Some(v.as_str()));
     }
     Ok(())
 }
@@ -371,35 +471,5 @@ fn push_opt<const N: usize>(dst: &mut heapless::String<N>, v: Option<&str>) {
     if let Some(s) = v {
         dst.clear();
         let _ = dst.push_str(s);
-    }
-}
-
-fn push_escaped(out: &mut String, input: &str) {
-    for c in input.chars() {
-        match c {
-            '"' => out.push_str("\\\""),
-            '\\' => out.push_str("\\\\"),
-            c if c < ' ' => {}
-            c => out.push(c),
-        }
-    }
-}
-
-fn push_i32(out: &mut String, mut n: i32) {
-    if n < 0 {
-        out.push('-');
-        n = -n;
-    }
-    if n == 0 {
-        out.push('0');
-        return;
-    }
-    let mut digs = heapless::Vec::<u8, 16>::new();
-    while n > 0 {
-        let _ = digs.push(b'0' + (n % 10) as u8);
-        n /= 10;
-    }
-    for d in digs.iter().rev() {
-        out.push(*d as char);
     }
 }

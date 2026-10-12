@@ -37,13 +37,16 @@ Production firmware is Rust-only (`src/` in the repo root). The legacy C++/Platf
 | mDNS | `edge-mdns` |
 | WiFi | `esp-radio` (APSTA for SoftAP scan) |
 | OTA flash | `esp-hal-ota` |
+| OTA HTTP headers | `httparse` (shared helpers in `ota/http_headers.rs`) |
 | SNTP | `sntpc` (+ thin Embassy UDP adapter; `sntpc-net-embassy` IPv6 mismatch) |
-| JSON request DTOs | `serde` + `serde-json-core` |
+| JSON request/response | `serde` + `serde-json-core` |
+| MQTT 3.1.1 | `mqttrust` (`mqttv3`); heart / own-topic policy stays in `mqtt/session.rs` |
+| Integer formatting | `itoa` |
 | Audio codec | `es8311` |
 | TLS default | `embedded-tls` + host-pin verifier (`tls/host_pin.rs`) |
 | TLS CA (optional) | `mbedtls-rs` + `mozilla-root-ca` (Mozilla/`cacert.pem`, via `build.rs`) |
 
-**Skipped:** `reqwless` (TLS/io-async version clash with current `embedded-tls`). **Not used (yet):** `rust-mqtt` — MQTT 3.1.1 (`v3`) feature is still an empty stub; hearts stay on the thin custom 3.1.1 client. `webpki`/`ring` is unsuitable for Xtensa without a full C toolchain.
+**Skipped:** `reqwless` (TLS/io-async version clash with current `embedded-tls`). **Not used:** `rust-mqtt` — MQTT 3.1.1 (`v3`) feature is still an empty stub. `webpki`/`ring` is unsuitable for Xtensa without a full C toolchain.
 
 ## Source layout (`src/`)
 

@@ -1,10 +1,10 @@
 //! Button + LED task.
 
+use chaya_fw::core::async_shutdown::soft_off_allowed;
+use chaya_fw::core::audio::AudioKind;
 use chaya_fw::hw::pins;
 use chaya_fw::led::LedPreset;
 use chaya_fw::util::platform::{GpioIn, GpioOut};
-use crate::core::async_shutdown::soft_off_allowed;
-use crate::core::audio::AudioKind;
 use embassy_time::{Duration, Timer};
 use esp_hal::gpio::{Input, Level, Output};
 use esp_println::println;
@@ -34,7 +34,8 @@ struct LedGpio {
 impl GpioOut for LedGpio {
     fn set_output(&mut self, pin: u8, high: bool) {
         if pin == pins::BUTTON_LED {
-            self.led.set_level(if high { Level::High } else { Level::Low });
+            self.led
+                .set_level(if high { Level::High } else { Level::Low });
         }
     }
 }

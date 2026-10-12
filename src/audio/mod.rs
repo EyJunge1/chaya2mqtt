@@ -1,8 +1,8 @@
 //! ES8311 + I2S playback config (quiet hours from NVS).
 
 use crate::config::NS_CFG;
-use crate::util::platform::KvStore;
 use crate::core::audio::{audio_playback_allowed, AudioKind};
+use crate::util::platform::KvStore;
 
 const KEY_QUIET0: &str = "quiet0";
 const KEY_QUIET1: &str = "quiet1";

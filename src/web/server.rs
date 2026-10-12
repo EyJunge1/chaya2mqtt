@@ -12,12 +12,12 @@ use edge_nal_embassy::{Tcp, TcpBuffers};
 use embedded_io_async::{Read, Write};
 use esp_println::println;
 
+use crate::config::SETUP_AP_SSID;
 use crate::web::json;
 use crate::web::routes;
 use crate::web::shared::HttpShared;
 use crate::web::spa;
 use crate::web::sse;
-use crate::config::SETUP_AP_SSID;
 
 pub struct AdminHandler {
     pub shared: &'static HttpShared,
@@ -53,12 +53,8 @@ impl Handler for AdminHandler {
 
         // Captive OS probes use foreign Host headers — skip SEC-04 allowlist (C++ skipServerMiddlewares).
         if s.ap_mode && sse::is_captive_probe(path) && method == Method::Get {
-            conn.initiate_response(
-                302,
-                Some("Found"),
-                &[("Location", sse::captive_landing())],
-            )
-            .await?;
+            conn.initiate_response(302, Some("Found"), &[("Location", sse::captive_landing())])
+                .await?;
             return Ok(());
         }
         if s.ap_mode && path == "/success.txt" && method == Method::Get {
@@ -179,9 +175,10 @@ impl Handler for AdminHandler {
             }
         }
 
-        let (code, resp_body, ctype): (u16, alloc::string::String, &str) =
-            routes::dispatch(s, method, path, body, mqtt_ok, heart_tx, heart_rx, bat_pct, bat_mv)
-                .await;
+        let (code, resp_body, ctype): (u16, alloc::string::String, &str) = routes::dispatch(
+            s, method, path, body, mqtt_ok, heart_tx, heart_rx, bat_pct, bat_mv,
+        )
+        .await;
 
         let ctype_header = if ctype == "text/html" {
             "text/html; charset=utf-8"
@@ -219,9 +216,7 @@ async fn run_sse_hub<T, const N: usize>(
 where
     T: Read + Write + TcpSplit,
 {
-    use crate::core::constants::{
-        SSE_ALL, SSE_CHAYA, SSE_DEVICE, SSE_MQTT, SSE_OTA, SSE_WIFI,
-    };
+    use crate::core::constants::{SSE_ALL, SSE_CHAYA, SSE_DEVICE, SSE_MQTT, SSE_OTA, SSE_WIFI};
     use crate::core::web::{sse_tick_mask_for_ap_mode, sse_tick_select_bits};
     use crate::mqtt::MqttConfig;
     use crate::sse_dirty::{sse_consume, sse_mark};

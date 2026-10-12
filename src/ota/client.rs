@@ -3,42 +3,22 @@
 use crate::config::flash_shared::{FlashCell, FlashProxy};
 use crate::config::APP_VERSION;
 use crate::core::ota::{
-    ota_release_download_redirect_url_allowed, ota_release_download_url_allowed, ota_release_tag_is_allowed,
-    ota_select_best_release_tag, ota_version_is_newer, ota_version_is_rc, OtaDownloadAsset,
+    ota_release_download_redirect_url_allowed, ota_release_download_url_allowed,
+    ota_release_tag_is_allowed, ota_select_best_release_tag, ota_version_is_newer,
+    ota_version_is_rc, OtaDownloadAsset,
 };
-use embassy_net::{IpEndpoint, Stack, dns::DnsQueryType, tcp::TcpSocket};
+use crate::ota::http_headers::{parse_content_length, parse_location, parse_status};
+use crate::util::EspRng;
+use embassy_net::{dns::DnsQueryType, tcp::TcpSocket, IpEndpoint, Stack};
 use embassy_time::{Duration, Timer};
 use embedded_io_async::Write;
 use esp_hal_ota::Ota;
 use esp_println::println;
-use rand_core::{CryptoRng, Error as RandError, RngCore};
 use sha2::{Digest, Sha512};
 
 const API_HOST: &str = "api.github.com";
 const DL_HOST: &str = "github.com";
 const REPO: &str = "EyJunge1/chaya2mqtt";
-
-pub struct EspRng(pub esp_hal::rng::Rng);
-
-impl RngCore for EspRng {
-    fn next_u32(&mut self) -> u32 {
-        self.0.random()
-    }
-    fn next_u64(&mut self) -> u64 {
-        ((self.next_u32() as u64) << 32) | self.next_u32() as u64
-    }
-    fn fill_bytes(&mut self, dest: &mut [u8]) {
-        for chunk in dest.chunks_mut(4) {
-            let r = self.next_u32().to_le_bytes();
-            chunk.copy_from_slice(&r[..chunk.len()]);
-        }
-    }
-    fn try_fill_bytes(&mut self, dest: &mut [u8]) -> Result<(), RandError> {
-        self.fill_bytes(dest);
-        Ok(())
-    }
-}
-impl CryptoRng for EspRng {}
 
 #[derive(Clone, Debug, Default)]
 pub struct OtaStatus {
@@ -69,56 +49,6 @@ fn extract_tag(body: &str, out: &mut heapless::String<32>) -> bool {
     true
 }
 
-fn header_eq_ignore_case<'a>(line: &'a str, name: &str) -> Option<&'a str> {
-    let bytes = line.as_bytes();
-    let n = name.as_bytes();
-    if bytes.len() < n.len() + 1 {
-        return None;
-    }
-    for i in 0..n.len() {
-        let a = bytes[i].to_ascii_lowercase();
-        let b = n[i].to_ascii_lowercase();
-        if a != b {
-            return None;
-        }
-    }
-    if bytes[n.len()] != b':' {
-        return None;
-    }
-    Some(line[n.len() + 1..].trim())
-}
-
-fn parse_content_length(headers: &str) -> Option<u32> {
-    for line in headers.lines() {
-        if let Some(rest) = header_eq_ignore_case(line, "content-length") {
-            return rest.parse().ok();
-        }
-    }
-    None
-}
-
-fn parse_location<'a>(headers: &'a str) -> Option<&'a str> {
-    for line in headers.lines() {
-        if let Some(rest) = line.strip_prefix("Location:") {
-            return Some(rest.trim());
-        }
-        if let Some(rest) = line.strip_prefix("location:") {
-            return Some(rest.trim());
-        }
-    }
-    None
-}
-
-fn parse_status(headers: &str) -> u16 {
-    let line = headers.lines().next().unwrap_or("");
-    let mut parts = line.split_whitespace();
-    let _ = parts.next();
-    parts
-        .next()
-        .and_then(|s| s.parse().ok())
-        .unwrap_or(0)
-}
-
 fn parse_sha512_hex(text: &str, out: &mut [u8; 64]) -> bool {
     let mut hex = heapless::String::<128>::new();
     for b in text.bytes() {
@@ -144,7 +74,9 @@ fn parse_sha512_hex(text: &str, out: &mut [u8; 64]) -> bool {
 }
 
 fn split_url(url: &str) -> Option<(&str, &str)> {
-    let url = url.strip_prefix("https://").or_else(|| url.strip_prefix("http://"))?;
+    let url = url
+        .strip_prefix("https://")
+        .or_else(|| url.strip_prefix("http://"))?;
     let slash = url.find('/')?;
     Some((&url[..slash], &url[slash..]))
 }
@@ -224,11 +156,7 @@ async fn tls_get(
 /// HTTPS GET latest release tag (`stable` → `/releases/latest`, `beta` → list).
 ///
 /// Sets `flash_ready` only when the remote tag is allowed and newer than `APP_VERSION`.
-pub async fn check_latest(
-    stack: Stack<'static>,
-    rng: &mut EspRng,
-    status: &mut OtaStatus,
-) -> bool {
+pub async fn check_latest(stack: Stack<'static>, rng: &mut EspRng, status: &mut OtaStatus) -> bool {
     status.checking = true;
     status.flash_ready = false;
     status.last_error.clear();
@@ -415,7 +343,8 @@ pub async fn install_latest(
 
     // 1) SHA-512 file
     let mut sha_buf = [0u8; 256];
-    let Ok((sha_len, _)) = download_asset(stack, rng, tag.as_str(), "firmware.sha512", &mut sha_buf).await
+    let Ok((sha_len, _)) =
+        download_asset(stack, rng, tag.as_str(), "firmware.sha512", &mut sha_buf).await
     else {
         let _ = status.last_error.push_str("sha-dl");
         status.installing = false;
@@ -504,8 +433,16 @@ pub async fn install_latest(
     }
 
     // Real stream download + flash
-    if !crate::ota::flash::stream_flash_bin(stack, rng, flash, final_host.as_str(), final_path.as_str(), &expect, status)
-        .await
+    if !crate::ota::flash::stream_flash_bin(
+        stack,
+        rng,
+        flash,
+        final_host.as_str(),
+        final_path.as_str(),
+        &expect,
+        status,
+    )
+    .await
     {
         status.installing = false;
         return false;
@@ -515,5 +452,3 @@ pub async fn install_latest(
     println!("OTA: install ok, reboot required");
     true
 }
-
-

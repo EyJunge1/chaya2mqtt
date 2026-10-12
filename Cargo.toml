@@ -23,10 +23,14 @@ mozilla-root-ca = { version = "2026.10.7", default-features = false, features = 
 
 [dependencies]
 heapless = "0.8"
+# embassy-net 0.9's StaticConfigV4 uses heapless 0.9. App strings stay on 0.8.
+heapless09 = { package = "heapless", version = "0.9", optional = true, default-features = false }
 sha2 = { version = "0.10", default-features = false }
 qrcodegen-no-heap = { version = "1.8", optional = true }
-serde = { version = "1", default-features = false, features = ["derive"] }
+serde = { version = "1", default-features = false, features = ["derive", "alloc"] }
 serde-json-core = { version = "0.6", default-features = false, features = ["heapless"] }
+httparse = { version = "1", default-features = false }
+itoa = { version = "1", default-features = false }
 
 # --- device feature ---
 esp-hal = { version = "1.2", optional = true, features = ["esp32s3", "unstable"] }
@@ -46,12 +50,23 @@ edge-dhcp = { version = "0.8", optional = true }
 edge-captive = { version = "0.8", optional = true, default-features = false, features = ["io"] }
 edge-nal = { version = "0.7", optional = true }
 edge-nal-embassy = { version = "0.9", optional = true }
+embedded-nal-async = { version = "0.9", optional = true }
+# MQTT 3.1.1 session. Heart / own-topic policy stays in src/mqtt/session.rs.
+# Transport is NalTransport: ConnectionError is crate-private, so a custom Transport impl does not compile.
+mqttrust = { version = "1.0", optional = true, default-features = false, features = [
+  "mqttv3",
+  "max-inflight-4",
+  "max-subscribers-2",
+  "max-topic-len-32",
+  "max-client-id-len-16",
+  "max-pubsub-messages-8",
+  "max-sub-topics-per-msg-2",
+] }
 embassy-sync = { version = "0.8", optional = true }
 nb = { version = "1.1", optional = true }
 static_cell = { version = "2.1", optional = true }
 log = { version = "0.4", optional = true }
-epdsi = { version = "0.7", optional = true, features = ["blocking", "graphics"] }
-embedded-graphics = { version = "0.8", optional = true }
+epdsi = { version = "0.7", optional = true, features = ["blocking"] }
 embedded-hal = { version = "1.0", optional = true }
 embedded-hal-bus = { version = "0.3", optional = true }
 embedded-storage = { version = "0.3", optional = true }
@@ -71,6 +86,7 @@ critical-section = { version = "1", optional = true, default-features = false }
 # mbedtls-rs C layer needs libc bits (calloc/free/mem*); same as esp-mbedtls examples.
 tinyrlibc = { version = "0.5", optional = true, default-features = false, features = ["memchr"] }
 # reqwless skipped: 0.13 pins embedded-tls 0.17 / io-async 0.6; 0.14 needs rustc ≥1.91.
+# rust-mqtt skipped: MQTT 3.1.1 v3 still a stub. Session codec is mqttrust (mqttv3).
 
 [features]
 default = []
@@ -92,6 +108,9 @@ device = [
   "dep:edge-captive",
   "dep:edge-nal",
   "dep:edge-nal-embassy",
+  "dep:embedded-nal-async",
+  "dep:heapless09",
+  "dep:mqttrust",
   "dep:edge-http",
   "dep:edge-mdns",
   "dep:embassy-sync",
@@ -99,7 +118,6 @@ device = [
   "dep:static_cell",
   "dep:log",
   "dep:epdsi",
-  "dep:embedded-graphics",
   "dep:embedded-hal",
   "dep:embedded-hal-bus",
   "dep:embedded-storage",

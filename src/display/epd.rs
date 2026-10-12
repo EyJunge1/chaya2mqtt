@@ -5,7 +5,7 @@ use epdsi::prelude::*;
 use esp_hal::{
     delay::Delay,
     gpio::{Input, InputConfig, Level, Output, OutputConfig, Pull},
-    peripherals::{GPIO8, GPIO9, GPIO10, GPIO11, GPIO12, GPIO13, SPI2},
+    peripherals::{GPIO10, GPIO11, GPIO12, GPIO13, GPIO8, GPIO9, SPI2},
     spi::master::{Config as SpiConfig, Spi},
     time::Rate,
     Blocking,
@@ -14,7 +14,9 @@ use esp_println::println;
 use static_cell::StaticCell;
 
 use super::icons;
-use crate::core::display::{display_battery_color, display_battery_icon, DisplayBatteryColor, DisplayBatteryIcon};
+use crate::core::display::{
+    display_battery_color, display_battery_icon, DisplayBatteryColor, DisplayBatteryIcon,
+};
 
 // GDEM0154F51H visible geometry (epdsi panel trait WIDTH/HEIGHT).
 const W: u32 = 200;
@@ -74,7 +76,10 @@ fn blit_msb(buf: &mut [u8], x0: i32, y0: i32, data: &[u8], w: i16, h: i16, color
     for row in 0..h {
         let row_off = row as usize * row_bytes;
         for col in 0..w {
-            let byte = data.get(row_off + (col as usize >> 3)).copied().unwrap_or(0);
+            let byte = data
+                .get(row_off + (col as usize >> 3))
+                .copied()
+                .unwrap_or(0);
             if byte & (0x80 >> (col & 7)) != 0 {
                 set_px(buf, x0 + col, y0 + row, color);
             }
@@ -143,23 +148,8 @@ fn text_width(s: &str, scale: i32) -> i32 {
 
 fn itoa_buf(n: i32, out: &mut heapless::String<12>) {
     out.clear();
-    let mut n = n;
-    if n < 0 {
-        let _ = out.push('-');
-        n = -n;
-    }
-    if n == 0 {
-        let _ = out.push('0');
-        return;
-    }
-    let mut digs = heapless::Vec::<u8, 12>::new();
-    while n > 0 {
-        let _ = digs.push(b'0' + (n % 10) as u8);
-        n /= 10;
-    }
-    for d in digs.iter().rev() {
-        let _ = out.push(*d as char);
-    }
+    let mut buf = itoa::Buffer::new();
+    let _ = out.push_str(buf.format(n));
 }
 
 fn battery_color(pct: i32) -> u8 {
@@ -172,14 +162,26 @@ fn battery_color(pct: i32) -> u8 {
 
 fn draw_battery_lucide(buf: &mut [u8], x: i32, y: i32, pct: i32) {
     let (data, w, h) = match display_battery_icon(pct) {
-        DisplayBatteryIcon::Full => (icons::BATTERY_FULL, icons::BATTERY_FULL_W, icons::BATTERY_FULL_H),
-        DisplayBatteryIcon::Medium => {
-            (icons::BATTERY_MEDIUM, icons::BATTERY_MEDIUM_W, icons::BATTERY_MEDIUM_H)
-        }
-        DisplayBatteryIcon::Low => (icons::BATTERY_LOW, icons::BATTERY_LOW_W, icons::BATTERY_LOW_H),
-        DisplayBatteryIcon::Empty => {
-            (icons::BATTERY_EMPTY, icons::BATTERY_EMPTY_W, icons::BATTERY_EMPTY_H)
-        }
+        DisplayBatteryIcon::Full => (
+            icons::BATTERY_FULL,
+            icons::BATTERY_FULL_W,
+            icons::BATTERY_FULL_H,
+        ),
+        DisplayBatteryIcon::Medium => (
+            icons::BATTERY_MEDIUM,
+            icons::BATTERY_MEDIUM_W,
+            icons::BATTERY_MEDIUM_H,
+        ),
+        DisplayBatteryIcon::Low => (
+            icons::BATTERY_LOW,
+            icons::BATTERY_LOW_W,
+            icons::BATTERY_LOW_H,
+        ),
+        DisplayBatteryIcon::Empty => (
+            icons::BATTERY_EMPTY,
+            icons::BATTERY_EMPTY_W,
+            icons::BATTERY_EMPTY_H,
+        ),
     };
     blit_msb(buf, x, y, data, w, h, battery_color(pct));
 }
@@ -211,10 +213,14 @@ fn paint_scene(frame: &mut [u8], scene: &Scene) {
         Scene::SoftAp { ssid, psk } => {
             // WIFI QR (MeCard) + labels
             let mut payload = [0u8; 128];
-            let ok = crate::wifi::WlanService::build_setup_qr(ssid.as_str(), psk.as_str(), &mut payload);
+            let ok =
+                crate::wifi::WlanService::build_setup_qr(ssid.as_str(), psk.as_str(), &mut payload);
             if ok {
                 if let Ok(text) = core::str::from_utf8(
-                    &payload[..payload.iter().position(|&c| c == 0).unwrap_or(payload.len())],
+                    &payload[..payload
+                        .iter()
+                        .position(|&c| c == 0)
+                        .unwrap_or(payload.len())],
                 ) {
                     let mut temp = [0u8; 320];
                     let mut out = [0u8; 320];
@@ -266,7 +272,11 @@ fn paint_scene(frame: &mut [u8], scene: &Scene) {
         } => {
             let show_footer = !*cracked;
             let (bmp, bw, bh) = if *cracked {
-                (icons::HEART_CRACK, icons::HEART_CRACK_W, icons::HEART_CRACK_H)
+                (
+                    icons::HEART_CRACK,
+                    icons::HEART_CRACK_W,
+                    icons::HEART_CRACK_H,
+                )
             } else {
                 (icons::HEART, icons::HEART_W, icons::HEART_H)
             };

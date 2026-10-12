@@ -1,12 +1,12 @@
 //! E-Paper redraw task.
+use crate::async_rt::state::*;
+use chaya_fw::core::display::{DisplayHeartIcon, DISPLAY_OFFLINE_GRACE_MS};
 use chaya_fw::display::epd::{EpdPanel, Scene};
 use chaya_fw::display::DisplayService;
 use chaya_fw::heart::HeartCounters;
-use crate::core::display::{DisplayHeartIcon, DISPLAY_OFFLINE_GRACE_MS};
 use embassy_futures::select::{select3, Either3};
 use embassy_time::{Duration, Instant, Timer};
 use esp_println::println;
-use crate::async_rt::state::*;
 
 async fn heart_snapshot() -> HeartCounters {
     HeartCounters {

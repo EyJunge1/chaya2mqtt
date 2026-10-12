@@ -6,12 +6,12 @@ use embassy_sync::mutex::Mutex;
 use embassy_sync::signal::Signal;
 
 use crate::audio::AudioConfig;
+use crate::config::flash_kv::FlashKv;
+use crate::core::audio::AudioKind;
 use crate::led::LedPreset;
 use crate::ota::client::OtaStatus;
-use crate::config::flash_kv::FlashKv;
 use crate::wifi::scan::ScanCache;
 use crate::wifi::WlanConfig;
-use crate::core::audio::AudioKind;
 
 pub type Cs = CriticalSectionRawMutex;
 pub type KvMutex = Mutex<Cs, FlashKv>;
@@ -51,4 +51,3 @@ pub struct HttpShared {
     pub scan_kick: &'static Signal<Cs, ()>,
     pub wifi_test_kick: &'static Signal<Cs, ()>,
 }
-

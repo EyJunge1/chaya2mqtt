@@ -38,6 +38,6 @@ impl NetworkService {
 }
 
 #[cfg(feature = "device")]
-pub mod ntp;
-#[cfg(feature = "device")]
 pub mod mdns;
+#[cfg(feature = "device")]
+pub mod ntp;

@@ -1,11 +1,11 @@
 //! Heart persist + periodic baseline reset + reboot tasks.
+use crate::async_rt::state::*;
 use chaya_fw::config::UiPrefs;
+use chaya_fw::core::heart::{calendar_day_since_epoch_utc, ntp_time_looks_synced};
 use chaya_fw::heart::HeartCounters;
-use crate::core::heart::{calendar_day_since_epoch_utc, ntp_time_looks_synced};
 use embassy_futures::select::{select, Either};
 use embassy_time::{Duration, Timer};
 use esp_println::println;
-use crate::async_rt::state::*;
 
 async fn snapshot_heart_from_runtime() -> HeartCounters {
     HeartCounters {
@@ -34,12 +34,7 @@ async fn persist_heart(kv: &KvMutex, heart: &HeartCounters) -> bool {
 #[embassy_executor::task]
 pub async fn heart_persist_task(kv: &'static KvMutex) {
     loop {
-        match select(
-            HEART_DIRTY.wait(),
-            Timer::after(Duration::from_secs(2)),
-        )
-        .await
-        {
+        match select(HEART_DIRTY.wait(), Timer::after(Duration::from_secs(2))).await {
             Either::First(()) => {
                 // coalesce bursts
                 Timer::after(Duration::from_millis(80)).await;
@@ -72,7 +67,7 @@ pub async fn heart_persist_task(kv: &'static KvMutex) {
                     continue;
                 }
                 publish_heart_to_runtime(&heart).await;
-                sse_mark(crate::core::constants::SSE_CHAYA);
+                sse_mark(chaya_fw::core::constants::SSE_CHAYA);
                 if persist_heart(kv, &heart).await {
                     let baselines_moved =
                         heart.rx_baseline != old_rx_b || heart.tx_baseline != old_tx_b;

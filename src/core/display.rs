@@ -226,9 +226,7 @@ mod tests {
 
     #[test]
     fn redraw_defer() {
-        let d = display_heart_redraw_decide(
-            1, 0, 0, 0, false, false, 100, 50, 200, 1, 0, 0, 0,
-        );
+        let d = display_heart_redraw_decide(1, 0, 0, 0, false, false, 100, 50, 200, 1, 0, 0, 0);
         assert_eq!(d, DisplayHeartRedrawDecision::DeferPending);
     }
 }

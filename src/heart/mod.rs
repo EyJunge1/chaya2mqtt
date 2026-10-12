@@ -1,13 +1,13 @@
 //! Heart RX/TX counters + NVS (uses `crate::core`).
 
 use crate::config::NS_CHAYA;
-use crate::util::platform::KvStore;
 use crate::core::constants::HEART_LAST_RESET_DAY_UNSET;
 use crate::core::heart::{
     heart_apply_allowed, heart_counter_shown_delta_pure, heart_display_baseline_needs_cap_reset,
     heart_periodic_reset_decide, heart_sent_counter_next_pure, heart_sent_remote_should_apply,
     HeartPeriodicResetDecide,
 };
+use crate::util::platform::KvStore;
 
 const KEY_RX: &str = "rx";
 const KEY_TX: &str = "tx";
@@ -108,7 +108,8 @@ impl HeartCounters {
     pub fn maybe_periodically_reset(&mut self, period_days: u8, current_day: u32) -> bool {
         match heart_periodic_reset_decide(self.last_reset_day, current_day, period_days) {
             HeartPeriodicResetDecide::None => false,
-            HeartPeriodicResetDecide::AnchorDay(day) | HeartPeriodicResetDecide::ClampAnchor(day) => {
+            HeartPeriodicResetDecide::AnchorDay(day)
+            | HeartPeriodicResetDecide::ClampAnchor(day) => {
                 self.last_reset_day = day;
                 true
             }

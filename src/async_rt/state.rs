@@ -1,18 +1,14 @@
 //! Shared Embassy signals / mutexes for device tasks.
 
 use chaya_fw::audio::AudioConfig;
+use chaya_fw::config::flash_kv::FlashKv;
+use chaya_fw::core::audio::AudioKind;
 use chaya_fw::led::LedPreset;
 use chaya_fw::network::ntp::WallClock;
 use chaya_fw::ota::client::OtaStatus;
-use chaya_fw::config::flash_kv::FlashKv;
 use chaya_fw::wifi::scan::{ScanCache, ScanStatus};
 use chaya_fw::wifi::{IpMode, WlanConfig};
-use crate::core::audio::AudioKind;
-use embassy_sync::{
-    blocking_mutex::raw::CriticalSectionRawMutex,
-    mutex::Mutex,
-    signal::Signal,
-};
+use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex, mutex::Mutex, signal::Signal};
 
 // SSE dirty-bit hub (PERF-03) — critical-section pending bits; producers call [`sse_mark`].
 pub use chaya_fw::sse_dirty::{sse_consume, sse_mark, SSE_PENDING};
@@ -86,4 +82,3 @@ pub static WIFI_TEST_SSID: Mutex<Cs, heapless::String<33>> = Mutex::new(heapless
 pub static WIFI_TEST_OWNS: Mutex<Cs, bool> = Mutex::new(false);
 pub static STA_SSID: Mutex<Cs, heapless::String<33>> = Mutex::new(heapless::String::new());
 pub static STA_RSSI: Mutex<Cs, i32> = Mutex::new(0);
-

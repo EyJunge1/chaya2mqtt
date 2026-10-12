@@ -2,12 +2,13 @@
 
 use alloc::string::String;
 use edge_http::Method;
-use crate::web::form;
-use crate::web::json;
-use crate::web::shared::HttpShared;
+
 use crate::config::UiPrefs;
 use crate::ota::{OtaChannel, OtaService};
 use crate::util::platform::KvStore;
+use crate::web::form;
+use crate::web::json;
+use crate::web::shared::HttpShared;
 
 pub async fn handle(
     s: &HttpShared,
@@ -20,8 +21,6 @@ pub async fn handle(
     _bat_pct: i32,
     _bat_mv: i32,
 ) -> Option<(u16, String, &'static str)> {
-    use alloc::string::String;
-
     if path == "/api/settings" && method == Method::Get {
         let audio = s.audio_cfg.lock().await.clone();
         let ui = {
@@ -94,7 +93,7 @@ pub async fn handle(
                 }
             }
         } else if let Some(ch) = form::form_value(body, "otaChannel") {
-            let channel = OtaChannel::parse(ch);
+            let channel = OtaChannel::parse(ch.as_str());
             let mut kv = s.kv.lock().await;
             let mut ota = OtaService::load(&mut *kv);
             ota.channel = channel;
