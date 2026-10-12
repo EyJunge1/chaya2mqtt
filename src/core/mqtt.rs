@@ -1,7 +1,7 @@
 //! From `src/mqtt/*_pure.h` and MQTT admin POST validation (`admin_routes_api_mqtt.cpp`).
 
-use crate::constants::device_id_syntax_ok;
-use crate::heart::heart_sent_remote_should_apply;
+use super::constants::device_id_syntax_ok;
+use super::heart::heart_sent_remote_should_apply;
 
 pub const MQTT_BROKER_MISSING_BACKOFF_MS: u32 = 60_000;
 pub const MQTT_BACKOFF_INITIAL_MS: u32 = 30_000;

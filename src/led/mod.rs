@@ -2,7 +2,7 @@
 
 use crate::hw::pins;
 use crate::util::platform::GpioOut;
-use chaya_pure::led::{led_pattern_advance, led_pattern_begin, LedPatternRuntime};
+use crate::core::led::{led_pattern_advance, led_pattern_begin, LedPatternRuntime};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum LedPreset {

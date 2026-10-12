@@ -4,9 +4,9 @@ use embassy_net::{IpEndpoint, Stack, dns::DnsQueryType, tcp::TcpSocket};
 use embassy_time::{Duration, Instant, Timer, with_timeout};
 use embedded_io_async::{Read, Write};
 use crate::led::LedPreset;
-use chaya_pure::audio::AudioKind;
-use chaya_pure::heart::heart_sent_counter_next_pure;
-use chaya_pure::mqtt::{mqtt_own_topic_tx_should_apply, MQTT_PUBLISH_ACK_WAIT_MS};
+use crate::core::audio::AudioKind;
+use crate::core::heart::heart_sent_counter_next_pure;
+use crate::core::mqtt::{mqtt_own_topic_tx_should_apply, MQTT_PUBLISH_ACK_WAIT_MS};
 use esp_println::println;
 use rand_core::{CryptoRng, Error as RandError, RngCore};
 
@@ -249,7 +249,7 @@ async fn mqtt_session_body<S: Read + Write>(
                                     *t = pending_expected;
                                 }
                                 heart_dirty.signal(());
-                                crate::sse_dirty::sse_mark(chaya_pure::constants::SSE_CHAYA);
+                                crate::sse_dirty::sse_mark(crate::core::constants::SSE_CHAYA);
                                 if pending_led {
                                     led_preset.signal(LedPreset::TxAck);
                                 }
@@ -281,7 +281,7 @@ async fn mqtt_session_body<S: Read + Write>(
                                         println!("MQTT: rx heart={v}");
                                         rx_beep.signal(AudioKind::Rx);
                                         heart_dirty.signal(());
-                                        crate::sse_dirty::sse_mark(chaya_pure::constants::SSE_CHAYA);
+                                        crate::sse_dirty::sse_mark(crate::core::constants::SSE_CHAYA);
                                     }
                                 } else if !own_topic_bytes.is_empty()
                                     && topic == own_topic_bytes
@@ -296,7 +296,7 @@ async fn mqtt_session_body<S: Read + Write>(
                                         *local = v;
                                         println!("MQTT: own-topic heart={v}");
                                         heart_dirty.signal(());
-                                        crate::sse_dirty::sse_mark(chaya_pure::constants::SSE_CHAYA);
+                                        crate::sse_dirty::sse_mark(crate::core::constants::SSE_CHAYA);
                                     }
                                 }
                             }
@@ -371,7 +371,7 @@ pub async fn session_loop(
             *ok = false;
         }
         crate::sse_dirty::sse_mark(
-            chaya_pure::constants::SSE_CHAYA | chaya_pure::constants::SSE_MQTT,
+            crate::core::constants::SSE_CHAYA | crate::core::constants::SSE_MQTT,
         );
         let Some(addr) = resolve(stack, host).await else {
             Timer::after(Duration::from_secs(5)).await;
@@ -403,7 +403,7 @@ pub async fn session_loop(
                 *ok = true;
             }
             crate::sse_dirty::sse_mark(
-                chaya_pure::constants::SSE_CHAYA | chaya_pure::constants::SSE_MQTT,
+                crate::core::constants::SSE_CHAYA | crate::core::constants::SSE_MQTT,
             );
             mqtt_session_body(
                 &mut tls,
@@ -429,7 +429,7 @@ pub async fn session_loop(
                 *ok = true;
             }
             crate::sse_dirty::sse_mark(
-                chaya_pure::constants::SSE_CHAYA | chaya_pure::constants::SSE_MQTT,
+                crate::core::constants::SSE_CHAYA | crate::core::constants::SSE_MQTT,
             );
             mqtt_session_body(
                 &mut socket,

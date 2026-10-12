@@ -1,8 +1,8 @@
 //! Cached Wi-Fi AP scan snapshot (OpenAPI `WifiScanSnapshot`).
 
 use alloc::string::String;
-use chaya_pure::constants::WIFI_SSID_MAX_LEN;
-use chaya_pure::wifi::{wifi_scan_service_may_start_kick, wifi_scan_service_should_defer_kick};
+use crate::core::constants::WIFI_SSID_MAX_LEN;
+use crate::core::wifi::{wifi_scan_service_may_start_kick, wifi_scan_service_should_defer_kick};
 
 pub const WIFI_SCAN_CACHE_MAX: usize = 24;
 

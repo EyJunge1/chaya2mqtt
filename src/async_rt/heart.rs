@@ -1,7 +1,7 @@
 //! Heart persist + periodic baseline reset + reboot tasks.
 use chaya_fw::config::UiPrefs;
 use chaya_fw::heart::HeartCounters;
-use chaya_pure::heart::{calendar_day_since_epoch_utc, ntp_time_looks_synced};
+use crate::core::heart::{calendar_day_since_epoch_utc, ntp_time_looks_synced};
 use embassy_futures::select::{select, Either};
 use embassy_time::{Duration, Timer};
 use esp_println::println;
@@ -72,7 +72,7 @@ pub async fn heart_persist_task(kv: &'static KvMutex) {
                     continue;
                 }
                 publish_heart_to_runtime(&heart).await;
-                sse_mark(chaya_pure::constants::SSE_CHAYA);
+                sse_mark(crate::core::constants::SSE_CHAYA);
                 if persist_heart(kv, &heart).await {
                     let baselines_moved =
                         heart.rx_baseline != old_rx_b || heart.tx_baseline != old_tx_b;

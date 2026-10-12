@@ -9,7 +9,7 @@ function findRoot(): string {
   for (let i = 0; i < 6; i++) {
     if (
       existsSync(resolve(dir, "docs/api/openapi.yaml")) &&
-      existsSync(resolve(dir, "rust/chaya-fw/src/web"))
+      existsSync(resolve(dir, "src/web"))
     ) {
       return dir;
     }
@@ -26,7 +26,7 @@ function read(rel: string): string {
 
 /** Concatenate Rust firmware web API sources (routes + server/shared/sse + json DTOs). */
 function readFirmwareApiRoutes(): string {
-  const web = resolve(root, "rust/chaya-fw/src/web");
+  const web = resolve(root, "src/web");
   const chunks: string[] = [];
 
   const routesDir = resolve(web, "routes");
@@ -195,7 +195,7 @@ describe("api contract", () => {
   });
 
   it("keeps the device-specific STA hostname aligned", () => {
-    const appConfig = read("rust/chaya-fw/src/config/app_config.rs");
+    const appConfig = read("src/config/app_config.rs");
     const firmware = readFirmwareApiRoutes();
     const mock = read("frontend/mock/deviceState.ts");
     expect(appConfig).toContain('STA_HOSTNAME_PREFIX: &str = "chaya2mqtt-"');
@@ -206,7 +206,7 @@ describe("api contract", () => {
 
   it("keeps SSE events aligned with AsyncAPI", () => {
     // Typed SSE event names live in the hub (`sse_typed("chaya", …)`), not helpers alone.
-    const firmwareEvents = read("rust/chaya-fw/src/web/server.rs");
+    const firmwareEvents = read("src/web/server.rs");
     const mock = read("frontend/mock/mockPlugin.ts");
     const mockState = read("frontend/mock/deviceState.ts");
     for (const event of sseEvents) {
@@ -267,15 +267,15 @@ describe("api contract", () => {
 
   it("applies Host once on the server and mode gates via ap_mode", () => {
     const firmware = readFirmwareApiRoutes();
-    const server = read("rust/chaya-fw/src/web/server.rs");
+    const server = read("src/web/server.rs");
     // SEC-04: Host allowlist is centralized in the edge-http handler.
     expect(server).toContain("web_host_allowed");
     expect(firmware).toContain("web_host_allowed");
     // Routes must not re-check Host; they gate STA/SoftAP via HttpShared.ap_mode.
-    const routesOnly = readdirSync(resolve(root, "rust/chaya-fw/src/web/routes"))
+    const routesOnly = readdirSync(resolve(root, "src/web/routes"))
       .filter((n) => n.endsWith(".rs"))
       .sort()
-      .map((n) => read(`rust/chaya-fw/src/web/routes/${n}`))
+      .map((n) => read(`src/web/routes/${n}`))
       .join("\n");
     expect(routesOnly).not.toContain("web_host_allowed");
     expect(routesOnly).toContain("!s.ap_mode");

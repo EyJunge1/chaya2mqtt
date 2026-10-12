@@ -1,6 +1,6 @@
 //! From `src/heart/counter_pure.h` + periodic baseline reset (C++ `counter_sync.cpp`).
 
-use crate::constants::{
+use super::constants::{
     DISPLAY_COUNTER_MAX, HEART_LAST_RESET_DAY_UNSET, NTP_MIN_VALID_UTC_EPOCH,
 };
 

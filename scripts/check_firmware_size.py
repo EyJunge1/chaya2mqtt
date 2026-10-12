@@ -81,7 +81,7 @@ def ram_from_elf(elf: Path) -> int | None:
 
 
 def measure(root: Path) -> dict[str, Sizes]:
-    """Read firmware.bin size and ELF RAM for each shipping env."""
+    """Read firmware.bin size and ELF RAM for each release target."""
     reports: dict[str, Sizes] = {}
     for name in TARGETS:
         build = root / BUILD_DIRS[name]

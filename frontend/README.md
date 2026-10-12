@@ -21,4 +21,4 @@ npm test
 npm run build
 ```
 
-`npm run build` creates `dist/` with hashed asset filenames. Production firmware embeds that tree via `rust/chaya-fw/build.rs` (gzip SPA blob from `frontend/dist` when present). Assets are served with `Content-Encoding: gzip` using normal `.js`/`.css` URLs (never `.gz`).
+`npm run build` creates `dist/` with hashed asset filenames. Production firmware embeds that tree via root `build.rs` (gzip SPA blob from `frontend/dist` when present). Assets are served with `Content-Encoding: gzip` using normal `.js`/`.css` URLs (never `.gz`).

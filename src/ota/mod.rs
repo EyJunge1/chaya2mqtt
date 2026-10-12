@@ -2,7 +2,7 @@
 
 use crate::config::NS_CFG;
 use crate::util::platform::KvStore;
-use chaya_pure::ota::ota_github_check_may_clear_pending_release;
+use crate::core::ota::ota_github_check_may_clear_pending_release;
 
 const KEY_CHANNEL: &str = "upd_chan";
 const KEY_UPD_DAY: &str = "upd_day";

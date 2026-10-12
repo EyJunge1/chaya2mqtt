@@ -3,7 +3,7 @@
 use core::fmt::{Debug, Display, Write as _};
 use core::net::{IpAddr, Ipv4Addr, SocketAddr};
 
-use chaya_pure::web::web_host_allowed;
+use crate::core::web::web_host_allowed;
 use edge_http::io::server::{Connection, DefaultServer, Handler};
 use edge_http::io::Error as HttpError;
 use edge_http::Method;
@@ -219,10 +219,10 @@ async fn run_sse_hub<T, const N: usize>(
 where
     T: Read + Write + TcpSplit,
 {
-    use chaya_pure::constants::{
+    use crate::core::constants::{
         SSE_ALL, SSE_CHAYA, SSE_DEVICE, SSE_MQTT, SSE_OTA, SSE_WIFI,
     };
-    use chaya_pure::web::{sse_tick_mask_for_ap_mode, sse_tick_select_bits};
+    use crate::core::web::{sse_tick_mask_for_ap_mode, sse_tick_select_bits};
     use crate::mqtt::MqttConfig;
     use crate::sse_dirty::{sse_consume, sse_mark};
     use crate::web::routes::wifi_status_json;

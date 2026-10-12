@@ -13,7 +13,7 @@ use crate::ota::{OtaChannel, OtaService};
 use crate::util::platform::KvStore;
 use crate::wifi::WlanConfig;
 use crate::led::LedPreset;
-use chaya_pure::audio::AudioKind;
+use crate::core::audio::AudioKind;
 
 pub async fn handle(
     s: &HttpShared,

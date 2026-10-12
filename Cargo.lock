@@ -372,7 +372,6 @@ checksum = "f079e83a288787bcd14a6aea84cee5c87a67c5a3e660c30f557a3d24761b3527"
 name = "chaya-fw"
 version = "0.1.0"
 dependencies = [
- "chaya-pure",
  "critical-section",
  "edge-captive",
  "edge-dhcp",
@@ -417,10 +416,6 @@ dependencies = [
  "static_cell",
  "tinyrlibc",
 ]
-
-[[package]]
-name = "chaya-pure"
-version = "0.1.0"
 
 [[package]]
 name = "chrono"
@@ -3751,9 +3746,9 @@ checksum = "357cc3acc6a036009fd6c973ed009037c732d60d0b4f6c673e9041497482a28f"
 
 [[package]]
 name = "unicode-ident"
-version = "1.0.26"
+version = "1.0.27"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d245f478577f809a851594d02313b640fb437e0bb33866753cff937863096954"
+checksum = "a2c754d6c33795a1c324727428e5a7dedb5b06195f9890bdbcba760d3e246563"
 
 [[package]]
 name = "unicode-xid"

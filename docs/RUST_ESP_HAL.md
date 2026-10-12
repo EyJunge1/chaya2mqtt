@@ -1,13 +1,13 @@
 # Rust / esp-hal (production)
 
-Production firmware is Rust (`chaya-fw` / `chaya-pure`) on branch `feat/rust-esp-hal` (not yet merged to `main`).
+Production firmware is Rust-only (`src/` in the repo root). The legacy C++/PlatformIO tree has been removed.
 
 ## Status
 
 | Piece | State |
 |-------|--------|
-| Pure logic (`chaya-pure`) | Done |
-| App modules (`chaya-fw` lib) | Done |
+| Host-testable core logic (`src/core`) | Done |
+| App / device modules (`src/`) | Done |
 | **Device ELF** | **Builds** (needs espup toolchain) |
 | SoftAP (WPA2 PSK, **APSTA**) + DHCP + captive + WIFI QR on EPD | Live |
 | STA + DHCPv4 + SNTP + **edge-mdns** (`chaya2mqtt-<id>.local`) | Live |
@@ -26,6 +26,7 @@ Production firmware is Rust (`chaya-fw` / `chaya-pure`) on branch `feat/rust-esp
 | Gzip SPA blob assets (`Content-Encoding: gzip`) | Live |
 | Full CA TLS via **mbedtls-rs** | Optional `--features device,mbedtls` (see TLS section) |
 | **Production flash** | **Rust** (`make upload` / `scripts/build_rust_release.sh`) |
+| FreeRTOS `diag/` (stack HWM / task WDT) | N/A — C++ used ESP-IDF TWDT/`uxTaskGetStackHighWaterMark`; embassy/esp-hal has no FreeRTOS task model |
 
 ## Dependencies (device)
 
@@ -44,7 +45,7 @@ Production firmware is Rust (`chaya-fw` / `chaya-pure`) on branch `feat/rust-esp
 
 **Skipped:** `reqwless` (TLS/io-async version clash with current `embedded-tls`). **Not used (yet):** `rust-mqtt` — MQTT 3.1.1 (`v3`) feature is still an empty stub; hearts stay on the thin custom 3.1.1 client. `webpki`/`ring` is unsuitable for Xtensa without a full C toolchain.
 
-## Source layout (`chaya-fw/src`)
+## Source layout (`src/`)
 
 Host logic and device backends share a theme folder; device code is `#[cfg(feature = "device")]`.
 
@@ -83,9 +84,10 @@ make monitor           # serial
 bash scripts/build_rust_release.sh
 
 # Optional CA TLS (cmake + `xtensa-esp-elf-gcc` on PATH; mbedtls `use-gcc`):
-cd rust/chaya-fw && cargo +esp build --features device,mbedtls --release
+cargo +esp build --features device,mbedtls --release \
+  --target xtensa-esp32s3-none-elf -Z build-std=core,alloc
 
-cd rust && cargo test -p chaya-pure -p chaya-fw
+cargo test
 ```
 
 ### TLS: default vs `mbedtls`
@@ -99,7 +101,7 @@ MQTT / OTA call a thin `crate::tls::connect(...)` wrapper; buffers are used only
 
 **mbedtls gaps / notes:**
 
-- No esp32s3 “system” CRT bundle in mbedtls-rs — trust store is `rust/chaya-fw/certs/ca-subset.pem` (~15 Mozilla roots for GitHub / Let’s Encrypt / common MQTT). Extend that PEM for uncommon broker CAs; full Mozilla is ~225 KiB.
+- No esp32s3 “system” CRT bundle in mbedtls-rs — trust store is `certs/ca-subset.pem` (~15 Mozilla roots for GitHub / Let’s Encrypt / common MQTT). Extend that PEM for uncommon broker CAs; full Mozilla is ~225 KiB.
 - Certificate date window (`notBefore`/`notAfter`) is **not** checked unless `hook-wall-clock` + a wall clock are enabled (mbedtls-rs default).
 - One global `Tls` singleton (mbedtls-rs); MQTT and OTA share it.
 - Needs extra heap for the parsed CA chain vs the default path (esp-mbedtls examples use ~140 KiB heap).
@@ -107,4 +109,4 @@ MQTT / OTA call a thin `crate::tls::connect(...)` wrapper; buffers are used only
 - Build uses mbedtls `use-gcc` (`xtensa-esp-elf-gcc` on `PATH`); Apple clang cannot target `esp32s3`.
 - CA PEM is re-parsed per `connect` (`Certificate` is `!Send`, so no shared cache).
 
-Partition table: root `partitions_chaya_8mb.csv` (synced into `rust/chaya-fw/partitions.csv` on release build).
+Partition table: root `partitions_chaya_8mb.csv` (synced into `partitions.csv` on release build).

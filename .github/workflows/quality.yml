@@ -63,7 +63,7 @@ jobs:
                 flasher/*)
                   flasher=true
                   ;;
-                rust/*|Makefile|partitions_chaya_8mb.csv|scripts/build_rust_release.sh|scripts/prepare_release_artifacts.py|scripts/check_firmware_size.py)
+                src/*|build.rs|certs/*|partitions.csv|.cargo/*|Cargo.toml|Cargo.lock|Makefile|partitions_chaya_8mb.csv|scripts/build_rust_release.sh|scripts/prepare_release_artifacts.py|scripts/check_firmware_size.py)
                   firmware_tests=true
                   firmware_build=true
                   ;;

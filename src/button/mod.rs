@@ -2,7 +2,7 @@
 
 use crate::hw::pins;
 use crate::util::platform::{ClockMs, GpioIn};
-use chaya_pure::button::{
+use crate::core::button::{
     debounce_update, soft_off_may_arm_ext1_wake, soft_off_release_settled, DebouncedGpioState,
     SoftOffReleaseSettle,
 };

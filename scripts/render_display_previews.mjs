@@ -2,7 +2,7 @@
 /**
  * Render simulated 1.54" E-Ink views (200×200, 4-color) as PNGs for the docs.
  *
- * Lucide bitmaps come from rust/chaya-fw/src/display/icons.rs (same assets as
+ * Lucide bitmaps come from src/display/icons.rs (same assets as
  * firmware). Text uses the Adafruit GFX classic 5×7 font so counters/titles
  * match the panel.
  *
@@ -21,7 +21,7 @@ import { fileURLToPath } from "node:url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, "..");
-const iconsRust = path.join(repoRoot, "rust/chaya-fw/src/display/icons.rs");
+const iconsRust = path.join(repoRoot, "src/display/icons.rs");
 const outDir = path.join(repoRoot, "docs/images");
 
 const PANEL = 200;

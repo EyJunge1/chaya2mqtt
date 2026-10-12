@@ -1,7 +1,5 @@
-//! Host-testable business rules ported from C++ `*_pure.h`.
-//! `no_std` so the same crate can later link into an esp-hal firmware binary.
-
-#![cfg_attr(not(test), no_std)]
+//! Host-testable business rules (no hardware I/O).
+//! Kept as `core` so unit tests run on the host without the `device` feature.
 
 pub mod async_shutdown;
 pub mod audio;

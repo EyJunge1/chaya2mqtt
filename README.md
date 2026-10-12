@@ -34,7 +34,7 @@ Open the [web flasher](https://eyjunge1.github.io/chaya2mqtt/) in Chrome or Edge
 
 ## Firmware (Rust / esp-hal)
 
-Production firmware lives under [`rust/`](rust/) (`chaya-pure` + `chaya-fw`). Flash with `make upload` (espup + espflash). Details: [`docs/RUST_ESP_HAL.md`](docs/RUST_ESP_HAL.md).
+Production firmware is Rust at the repo root (`src/`). Flash with `make upload` (espup + espflash). Details: [`docs/RUST_ESP_HAL.md`](docs/RUST_ESP_HAL.md).
 
 ## License
 

@@ -2,7 +2,7 @@
 
 use crate::config::flash_shared::{FlashCell, FlashProxy};
 use crate::config::APP_VERSION;
-use chaya_pure::ota::{
+use crate::core::ota::{
     ota_release_download_redirect_url_allowed, ota_release_download_url_allowed, ota_release_tag_is_allowed,
     ota_select_best_release_tag, ota_version_is_newer, ota_version_is_rc, OtaDownloadAsset,
 };

@@ -12,6 +12,7 @@ pub mod audio;
 pub mod battery;
 pub mod button;
 pub mod config;
+pub mod core;
 pub mod display;
 pub mod heart;
 pub mod hw;

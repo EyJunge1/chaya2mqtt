@@ -3,8 +3,8 @@
 use chaya_fw::hw::pins;
 use chaya_fw::led::LedPreset;
 use chaya_fw::util::platform::{GpioIn, GpioOut};
-use chaya_pure::async_shutdown::soft_off_allowed;
-use chaya_pure::audio::AudioKind;
+use crate::core::async_shutdown::soft_off_allowed;
+use crate::core::audio::AudioKind;
 use embassy_time::{Duration, Timer};
 use esp_hal::gpio::{Input, Level, Output};
 use esp_println::println;

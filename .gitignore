@@ -25,4 +25,4 @@ flasher/dist/
 flasher/_site/
 out/
 baseline/
-rust/target/
+/target/

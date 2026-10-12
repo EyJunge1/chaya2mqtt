@@ -14,7 +14,7 @@ use esp_println::println;
 use static_cell::StaticCell;
 
 use super::icons;
-use chaya_pure::display::{display_battery_color, display_battery_icon, DisplayBatteryColor, DisplayBatteryIcon};
+use crate::core::display::{display_battery_color, display_battery_icon, DisplayBatteryColor, DisplayBatteryIcon};
 
 // GDEM0154F51H visible geometry (epdsi panel trait WIDTH/HEIGHT).
 const W: u32 = 200;

@@ -113,7 +113,7 @@ pub async fn run_sta(
     stack.wait_config_up().await;
     fw.flags.wifi_ok = true;
     *crate::async_rt::state::WIFI_OK.lock().await = true;
-    crate::async_rt::state::sse_mark(chaya_pure::constants::SSE_WIFI);
+    crate::async_rt::state::sse_mark(crate::core::constants::SSE_WIFI);
     println!("STA: IP up");
     crate::async_rt::state::LED_PRESET.signal(LedPreset::WifiUp);
 

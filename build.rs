@@ -29,12 +29,12 @@ fn content_type(path: &str) -> &'static str {
 fn main() {
     let manifest_dir = PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap());
     let dist = manifest_dir
-        .join("../../frontend/dist")
+        .join("frontend/dist")
         .canonicalize()
         .ok();
     let out = PathBuf::from(env::var("OUT_DIR").unwrap());
 
-    println!("cargo:rerun-if-changed=../../frontend/dist");
+    println!("cargo:rerun-if-changed=frontend/dist");
     println!("cargo:rerun-if-changed=src/web/assets/admin.html");
 
     let Some(dist) = dist.filter(|p| p.join("index.html").is_file()) else {

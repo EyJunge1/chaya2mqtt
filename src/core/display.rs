@@ -1,6 +1,6 @@
 //! From display `*_pure.h` and `view_state.h` helpers used by pure code.
 
-pub use crate::constants::DISPLAY_OFFLINE_GRACE_MS;
+pub use super::constants::DISPLAY_OFFLINE_GRACE_MS;
 
 pub const HEART_REDRAW_MIN_INTERVAL_MS: u32 = 20_000;
 

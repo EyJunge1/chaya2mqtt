@@ -2,7 +2,7 @@
 
 use crate::config::NS_CFG;
 use crate::util::platform::KvStore;
-use chaya_pure::audio::{audio_playback_allowed, AudioKind};
+use crate::core::audio::{audio_playback_allowed, AudioKind};
 
 const KEY_QUIET0: &str = "quiet0";
 const KEY_QUIET1: &str = "quiet1";

@@ -3,8 +3,8 @@ use chaya_fw::config::APP_VERSION;
 use chaya_fw::config::flash_shared::FlashCell;
 use chaya_fw::ota::OtaService;
 use chaya_fw::ota::client::{self as ota_client, EspRng as OtaRng};
-use chaya_pure::heart::{calendar_day_since_epoch_utc, ntp_time_looks_synced};
-use chaya_pure::ota::ota_daily_check_due;
+use crate::core::heart::{calendar_day_since_epoch_utc, ntp_time_looks_synced};
+use crate::core::ota::ota_daily_check_due;
 use embassy_futures::select::{select3, Either3};
 use embassy_net::Stack;
 use embassy_time::{Duration, Timer};
@@ -44,7 +44,7 @@ async fn run_github_check(
         let mut st = OTA_STATUS.lock().await;
         st.checking = true;
     }
-    sse_mark(chaya_pure::constants::SSE_OTA);
+    sse_mark(crate::core::constants::SSE_OTA);
     println!(
         "OTA: {} update check started (channel={})",
         if automatic { "Automatic" } else { "Manual" },
@@ -59,7 +59,7 @@ async fn run_github_check(
         let mut st = OTA_STATUS.lock().await;
         *st = local;
     }
-    sse_mark(chaya_pure::constants::SSE_OTA);
+    sse_mark(crate::core::constants::SSE_OTA);
     ok
 }
 
@@ -139,13 +139,13 @@ pub async fn ota_task(
                     let mut st = OTA_STATUS.lock().await;
                     st.installing = true;
                 }
-                sse_mark(chaya_pure::constants::SSE_OTA);
+                sse_mark(crate::core::constants::SSE_OTA);
                 let ok = ota_client::install_latest(stack, &mut rng, flash, &mut local).await;
                 {
                     let mut st = OTA_STATUS.lock().await;
                     *st = local;
                 }
-                sse_mark(chaya_pure::constants::SSE_OTA);
+                sse_mark(crate::core::constants::SSE_OTA);
                 if ok {
                     println!("OTA: rebooting into new image");
                     REBOOT.signal(());

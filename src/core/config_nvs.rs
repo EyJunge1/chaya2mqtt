@@ -1,6 +1,6 @@
 //! From `src/config/nvs_blob_load_pure.h` and `nvs_write_gate_pure.h`.
 
-use crate::constants::NVS_NS_CHAYA;
+use super::constants::NVS_NS_CHAYA;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum NvsBlobLoad {

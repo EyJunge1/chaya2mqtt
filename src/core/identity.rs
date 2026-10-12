@@ -1,6 +1,6 @@
 //! From `src/identity/device_identity_pure.h`.
 
-use crate::constants::{device_id_syntax_ok, DEVICE_ID_BUF_LEN, DEVICE_ID_HEX_LEN};
+use super::constants::{device_id_syntax_ok, DEVICE_ID_BUF_LEN, DEVICE_ID_HEX_LEN};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum DeviceIdFormatError {

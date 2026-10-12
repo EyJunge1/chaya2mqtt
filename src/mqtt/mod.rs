@@ -2,8 +2,8 @@
 
 use crate::config::NS_MQTT;
 use crate::util::platform::KvStore;
-use chaya_pure::constants::DEVICE_ID_HEX_LEN;
-use chaya_pure::mqtt::{
+use crate::core::constants::DEVICE_ID_HEX_LEN;
+use crate::core::mqtt::{
     mqtt_own_topic_tx_should_apply, MQTT_BACKOFF_INITIAL_MS, MQTT_PUBLISH_ACK_WAIT_MS,
 };
 

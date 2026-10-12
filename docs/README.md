@@ -2,7 +2,7 @@
 
 Chaya2MQTT is firmware for two [Waveshare ESP32-S3-ePaper-1.54G](https://docs.waveshare.com/ESP32-S3-ePaper-1.54G) boards (SKU **34586**). Press BOOT on one; a red heart appears on the other via MQTT.
 
-Product page: [README.md](../README.md). Board: [Waveshare 1.54G](https://docs.waveshare.com/ESP32-S3-ePaper-1.54G) (pins in `rust/chaya-fw/src/hw/mod.rs`). Tests: [TESTING.md](TESTING.md). Admin: [WEB_ADMIN.md](WEB_ADMIN.md).
+Product page: [README.md](../README.md). Board: [Waveshare 1.54G](https://docs.waveshare.com/ESP32-S3-ePaper-1.54G) (pins in `src/hw/mod.rs`). Tests: [TESTING.md](TESTING.md). Admin: [WEB_ADMIN.md](WEB_ADMIN.md).
 
 ## Build
 
@@ -69,7 +69,7 @@ Daily automatic GitHub check in STA once NTP is synced (`stable` / `beta`, skipp
 ## Layout
 
 ```
-rust/         production firmware (esp-hal) — [RUST_ESP_HAL.md](RUST_ESP_HAL.md)
+src/          firmware (esp-hal) — [RUST_ESP_HAL.md](RUST_ESP_HAL.md)
 frontend/     Svelte admin SPA — [frontend/README.md](../frontend/README.md)
 flasher/      browser installer — [flasher/README.md](../flasher/README.md)
 docs/         this folder; REST [api/openapi.yaml](api/openapi.yaml), SSE [api/asyncapi.yaml](api/asyncapi.yaml)

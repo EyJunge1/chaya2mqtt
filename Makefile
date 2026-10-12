@@ -6,7 +6,7 @@ FLASHER_NPM_CI ?= npm ci
 UPLOAD_PORT ?=
 UPLOAD_PORT_FLAG := $(if $(UPLOAD_PORT),--port $(UPLOAD_PORT),)
 PARTITIONS := partitions_chaya_8mb.csv
-RUST_ELF := rust/target/xtensa-esp32s3-none-elf/release/chaya-fw
+RUST_ELF := target/xtensa-esp32s3-none-elf/release/chaya-fw
 RUST_OUT := out/rust-release
 
 .PHONY: help check check-frontend check-flasher check-firmware check-firmware-tests check-firmware-build \
@@ -42,7 +42,7 @@ check-flasher:
 check-firmware: check-firmware-tests check-firmware-build
 
 check-firmware-tests:
-	cd rust && cargo test -p chaya-pure -p chaya-fw
+	cargo test
 
 check-firmware-build:
 	bash scripts/build_rust_release.sh
@@ -75,4 +75,4 @@ dev:
 
 clean:
 	$(RM) -r frontend/dist flasher/dist flasher/_site $(RUST_OUT)
-	$(RM) -r rust/target
+	$(RM) -r target

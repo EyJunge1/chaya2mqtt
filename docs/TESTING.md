@@ -1,6 +1,6 @@
 # Testing
 
-Host tests use `cargo test` (`chaya-pure` / `chaya-fw`). The Svelte UI uses Vitest + Playwright against the device mock. No CI HIL.
+Host tests use `cargo test` on the firmware crate. The Svelte UI uses Vitest + Playwright against the device mock. No CI HIL.
 
 Primary firmware gate is Rust (`make check-firmware` → `cargo test` + release images).
 
@@ -8,7 +8,7 @@ Primary firmware gate is Rust (`make check-firmware` → `cargo test` + release 
 make check                 # full hardware-free gate
 make check-frontend
 make check-flasher
-make check-firmware        # cargo test (chaya-pure, chaya-fw) + rust-build + size check
+make check-firmware        # cargo test + rust-build + size check
 cd frontend && npm test
 cd frontend && npm run test:e2e
 python3 scripts/simulator.py --smoke

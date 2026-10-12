@@ -1,4 +1,4 @@
-//! Network task stand-in: Wi-Fi + MQTT loops share one service.
+//! Network service helpers: Wi-Fi + MQTT command queue (device loops live in `async_rt`).
 
 use crate::mqtt::MqttService;
 use crate::wifi::{WlanMode, WlanService};

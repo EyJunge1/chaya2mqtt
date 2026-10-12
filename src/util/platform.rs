@@ -1,4 +1,4 @@
-//! Thin platform traits so the app builds on host (`Sim*`) and later on esp-hal.
+//! Thin platform traits so the app builds on host (`Sim*`) and on device (esp-hal).
 
 /// Digital output by GPIO number (board pin constants).
 pub trait GpioOut {

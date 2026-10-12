@@ -2,7 +2,7 @@
 
 use crate::hw::{audio_amp_enable, audio_rail_enable, pins};
 use crate::util::platform::GpioOut;
-use chaya_pure::audio::AudioKind;
+use crate::core::audio::AudioKind;
 use embassy_time::{Duration, Timer};
 use es8311::{ClockConfig, Es8311, Resolution};
 use esp_hal::{

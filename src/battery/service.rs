@@ -2,7 +2,7 @@
 
 use crate::hw::pins;
 use crate::util::platform::{GpioIn, GpioOut};
-use chaya_pure::battery::{battery_critical_low, battery_pct_from_milli_volts};
+use crate::core::battery::{battery_critical_low, battery_pct_from_milli_volts};
 
 #[derive(Clone, Debug, Default)]
 pub struct BatteryService {

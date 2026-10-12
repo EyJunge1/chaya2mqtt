@@ -1,7 +1,7 @@
 //! Mark OTA image valid after a stable STA window (cancel rollback).
 
 use chaya_fw::config::flash_shared::{FlashCell, FlashProxy};
-use chaya_pure::ota::{ota_health_window_elapsed, OTA_HEALTH_STABLE_MS};
+use crate::core::ota::{ota_health_window_elapsed, OTA_HEALTH_STABLE_MS};
 use embassy_time::{Duration, Instant, Timer};
 use esp_hal_ota::Ota;
 use esp_println::println;

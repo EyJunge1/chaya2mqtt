@@ -1,8 +1,6 @@
-[build]
-target = "xtensa-esp32s3-none-elf"
-
-[unstable]
-build-std = ["core", "alloc"]
+# Device-target settings only. Do NOT set [build].target here — host
+# `cargo test` must stay on the host triple. esp-hal builds pass
+# `--target xtensa-esp32s3-none-elf` explicitly (see scripts/build_rust_release.sh).
 
 [target.xtensa-esp32s3-none-elf]
 linker = "rust-lld"

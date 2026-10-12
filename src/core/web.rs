@@ -1,6 +1,6 @@
 //! From `src/web/*_pure.h` and `src/web/host_validate.h`.
 
-use crate::constants::{IPV4_STR_MAX_LEN, SSE_ALL, SSE_DEVICE, SSE_WIFI, WIFI_SSID_MAX_LEN};
+use super::constants::{IPV4_STR_MAX_LEN, SSE_ALL, SSE_DEVICE, SSE_WIFI, WIFI_SSID_MAX_LEN};
 
 /// Case-insensitive full-string host equality (C++ `hostEqualsIgnoreCase`).
 pub fn host_equals_ignore_case(host: &str, reference: &str) -> bool {

@@ -40,13 +40,13 @@ jobs:
         run: |
           set -euo pipefail
           version="${GITHUB_REF_NAME#v}"
-          file_ver="$(sed -n 's/^pub const APP_VERSION: &str = "\([^"]*\)";.*/\1/p' rust/chaya-fw/src/config/version.rs)"
+          file_ver="$(sed -n 's/^pub const APP_VERSION: &str = "\([^"]*\)";.*/\1/p' src/config/version.rs)"
           if [[ -z "$file_ver" ]]; then
-            echo "Could not parse APP_VERSION from rust/chaya-fw/src/config/version.rs" >&2
+            echo "Could not parse APP_VERSION from src/config/version.rs" >&2
             exit 1
           fi
           if [[ "$file_ver" != "$version" ]]; then
-            echo "rust/chaya-fw/src/config/version.rs APP_VERSION=\"$file_ver\" does not match tag v$version." >&2
+            echo "src/config/version.rs APP_VERSION=\"$file_ver\" does not match tag v$version." >&2
             echo "Bump APP_VERSION by hand, commit, then tag." >&2
             exit 1
           fi

@@ -3,10 +3,9 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-FW="$ROOT/rust/chaya-fw"
 OUT="${RUST_RELEASE_OUT:-$ROOT/out/rust-release}"
 PARTITIONS="${PARTITIONS:-$ROOT/partitions_chaya_8mb.csv}"
-ELF="$ROOT/rust/target/xtensa-esp32s3-none-elf/release/chaya-fw"
+ELF="$ROOT/target/xtensa-esp32s3-none-elf/release/chaya-fw"
 
 # espup export (optional local)
 if [[ -f "${HOME}/export-esp.sh" ]]; then
@@ -24,11 +23,15 @@ command -v cargo >/dev/null
 command -v espflash >/dev/null
 
 # Keep device partition table in sync with production CSV
-cp "$PARTITIONS" "$FW/partitions.csv"
+cp "$PARTITIONS" "$ROOT/partitions.csv"
 
 (
-  cd "$FW"
-  cargo +esp build --features device --release
+  cd "$ROOT"
+  cargo +esp build \
+    --features device \
+    --release \
+    --target xtensa-esp32s3-none-elf \
+    -Z build-std=core,alloc
 )
 
 test -f "$ELF"

@@ -53,7 +53,7 @@ pub struct BackendsReport {
     pub audio: &'static str,
 }
 
-/// Full boot sequence (hardware I/O via traits; RF/EPD not live yet).
+/// Full boot sequence (hardware I/O via traits; device RF/EPD run in `main` / `async_rt`).
 pub fn boot(
     gpio: &mut dyn GpioOut,
     kv: &mut dyn KvStore,

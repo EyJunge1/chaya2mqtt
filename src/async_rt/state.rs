@@ -7,7 +7,7 @@ use chaya_fw::ota::client::OtaStatus;
 use chaya_fw::config::flash_kv::FlashKv;
 use chaya_fw::wifi::scan::{ScanCache, ScanStatus};
 use chaya_fw::wifi::{IpMode, WlanConfig};
-use chaya_pure::audio::AudioKind;
+use crate::core::audio::AudioKind;
 use embassy_sync::{
     blocking_mutex::raw::CriticalSectionRawMutex,
     mutex::Mutex,

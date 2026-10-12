@@ -21,7 +21,7 @@ import { fileURLToPath } from "node:url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, "..");
-const outRust = path.join(repoRoot, "rust/chaya-fw/src/display/icons.rs");
+const outRust = path.join(repoRoot, "src/display/icons.rs");
 
 /** Pin Lucide icon source for reproducible bitmaps. */
 const LUCIDE_REF = "0.468.0";

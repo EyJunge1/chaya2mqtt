@@ -1,6 +1,6 @@
 //! Admin HTTP + SSE tick helpers (edge-http server owns the live transport).
 
-use chaya_pure::web::{
+use crate::core::web::{
     mqtt_page_conn, sse_tick_mask_for_ap_mode, sse_tick_select_bits, web_admin_restart_blocked,
 };
 

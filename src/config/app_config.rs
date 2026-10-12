@@ -26,7 +26,7 @@ pub struct RuntimeFlags {
 
 impl RuntimeFlags {
     pub fn soft_off_allowed(&self) -> bool {
-        chaya_pure::async_shutdown::soft_off_allowed(
+        crate::core::async_shutdown::soft_off_allowed(
             self.ota_busy,
             self.shutdown,
             self.factory_queued,

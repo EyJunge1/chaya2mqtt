@@ -1,9 +1,9 @@
-//! Heart RX/TX counters + NVS (uses `chaya-pure`).
+//! Heart RX/TX counters + NVS (uses `crate::core`).
 
 use crate::config::NS_CHAYA;
 use crate::util::platform::KvStore;
-use chaya_pure::constants::HEART_LAST_RESET_DAY_UNSET;
-use chaya_pure::heart::{
+use crate::core::constants::HEART_LAST_RESET_DAY_UNSET;
+use crate::core::heart::{
     heart_apply_allowed, heart_counter_shown_delta_pure, heart_display_baseline_needs_cap_reset,
     heart_periodic_reset_decide, heart_sent_counter_next_pure, heart_sent_remote_should_apply,
     HeartPeriodicResetDecide,

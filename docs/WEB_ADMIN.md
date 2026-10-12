@@ -18,7 +18,7 @@ REST: [api/openapi.yaml](api/openapi.yaml). SSE: [api/asyncapi.yaml](api/asyncap
 ```bash
 cd frontend && npm ci && npm run dev   # mock device, http://127.0.0.1:5173/
 cd frontend && npm test && npm run build
-# Device embed: rust/chaya-fw/build.rs packs frontend/dist into the firmware SPA blob
+# Device embed: build.rs packs frontend/dist into the firmware SPA blob
 ```
 
 More: [frontend/README.md](../frontend/README.md).

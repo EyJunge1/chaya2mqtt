@@ -1,6 +1,6 @@
 //! From `src/audio/audio_pure.h` and `audio_drain_pure.h`.
 
-use crate::constants::AUDIO_HOUR_MAX;
+use super::constants::AUDIO_HOUR_MAX;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum AudioKind {

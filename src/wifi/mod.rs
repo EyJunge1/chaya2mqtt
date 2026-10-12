@@ -5,8 +5,8 @@ use core::str::FromStr;
 
 use crate::config::{NS_CFG, NS_WIFI, SETUP_AP_SSID};
 use crate::util::platform::KvStore;
-use chaya_pure::constants::{WIFI_PASS_MAX_LEN, WIFI_SSID_MAX_LEN};
-use chaya_pure::wifi::{wifi_qr_build_wpa_payload, WIFI_QR_PAYLOAD_MAX_LEN};
+use crate::core::constants::{WIFI_PASS_MAX_LEN, WIFI_SSID_MAX_LEN};
+use crate::core::wifi::{wifi_qr_build_wpa_payload, WIFI_QR_PAYLOAD_MAX_LEN};
 
 const KEY_SSID: &str = "ssid";
 const KEY_PASS: &str = "pass";

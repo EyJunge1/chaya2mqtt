@@ -1,6 +1,6 @@
 //! From `src/wifi/*_pure.h`.
 
-use crate::constants::{WIFI_PASS_MAX_LEN, WIFI_SSID_MAX_LEN};
+use super::constants::{WIFI_PASS_MAX_LEN, WIFI_SSID_MAX_LEN};
 
 /// Max MeCard WIFI payload: prefix + escaped SSID/pass + separators + NUL.
 pub const WIFI_QR_PAYLOAD_MAX_LEN: usize =

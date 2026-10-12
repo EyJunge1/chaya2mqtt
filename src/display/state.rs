@@ -1,11 +1,11 @@
 //! E-Paper UI orchestration (host state; device panel driver in `epd`).
 
-use chaya_pure::display::{
+use crate::core::display::{
     display_battery_icon, display_heart_icon_decide, display_view_for_heart_icon, DisplayHeartIcon,
     DisplayLinkState, DisplayView, HEART_REDRAW_MIN_INTERVAL_MS,
 };
 
-pub use chaya_pure::display::{DisplayBatteryIcon, DisplayHeartRedrawDecision};
+pub use crate::core::display::{DisplayBatteryIcon, DisplayHeartRedrawDecision};
 
 #[derive(Clone, Debug)]
 pub struct DisplayState {
@@ -122,7 +122,7 @@ impl DisplayService {
     }
 }
 
-/// SPI / epdsi bring-up lives here later. Returns why hardware paint is blocked.
+/// Panel backend status string for diagnostics / boot report.
 pub fn panel_backend_status() -> &'static str {
     "device: epdsi GDEM0154F51H SoftAP/heart+TX/RX/battery live redraw"
 }

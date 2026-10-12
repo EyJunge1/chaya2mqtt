@@ -1,4 +1,4 @@
-/** Shared audio UI ranges — keep aligned with `rust/chaya-fw/src/audio` (QUAL-06). */
+/** Shared audio UI ranges — keep aligned with `src/audio` (QUAL-06). */
 export const AUDIO_VOLUME_MIN = 0;
 export const AUDIO_VOLUME_MAX = 100;
 export const AUDIO_TONE_HZ_MIN = 40;

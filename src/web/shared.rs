@@ -11,7 +11,7 @@ use crate::ota::client::OtaStatus;
 use crate::config::flash_kv::FlashKv;
 use crate::wifi::scan::ScanCache;
 use crate::wifi::WlanConfig;
-use chaya_pure::audio::AudioKind;
+use crate::core::audio::AudioKind;
 
 pub type Cs = CriticalSectionRawMutex;
 pub type KvMutex = Mutex<Cs, FlashKv>;

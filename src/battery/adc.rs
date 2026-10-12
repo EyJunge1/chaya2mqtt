@@ -48,7 +48,7 @@ impl BatteryAdc {
         let pin_mv = ((avg as u32) * 3100) / 4095;
         let pack_mv = (pin_mv as i32) * DIVIDER;
         self.last_mv = pack_mv;
-        self.last_pct = chaya_pure::battery::battery_pct_from_milli_volts(pack_mv);
+        self.last_pct = crate::core::battery::battery_pct_from_milli_volts(pack_mv);
         println!("BAT: {pack_mv} mV ({}%)", self.last_pct);
         pack_mv
     }

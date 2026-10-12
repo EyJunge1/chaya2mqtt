@@ -1,6 +1,6 @@
 //! From `src/battery/battery_pure.h`.
 
-use crate::constants::BATTERY_CRITICAL_PCT;
+use super::constants::BATTERY_CRITICAL_PCT;
 
 const CURVE: [(i32, i32); 9] = [
     (3300, 0),

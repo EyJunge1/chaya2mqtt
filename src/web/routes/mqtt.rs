@@ -11,8 +11,8 @@ use crate::mqtt::MqttConfig;
 use crate::ota::{OtaChannel, OtaService};
 use crate::util::platform::KvStore;
 use crate::wifi::WlanConfig;
-use chaya_pure::audio::AudioKind;
-use chaya_pure::mqtt::{
+use crate::core::audio::AudioKind;
+use crate::core::mqtt::{
     mqtt_derived_topics_valid, mqtt_server_syntax_ok, normalize_hex_id, pairing_id_input_valid,
     partner_id_input_valid, MQTT_SERVER_BUF_LEN, MQTT_TOPIC_BUF_LEN,
 };
@@ -172,7 +172,7 @@ pub async fn handle(
 
         let _ = cfg.save(&mut *kv);
         crate::sse_dirty::sse_mark(
-            chaya_pure::constants::SSE_CHAYA | chaya_pure::constants::SSE_MQTT,
+            crate::core::constants::SSE_CHAYA | crate::core::constants::SSE_MQTT,
         );
         return Some((200, String::from(json::json_ok()), "application/json"));
     }
