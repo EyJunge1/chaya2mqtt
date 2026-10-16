@@ -1,5 +1,7 @@
 @import "tailwindcss";
 
+/* Palette — keep in sync with frontend/src/index.css and docs/COLORS.md */
+
 @theme {
   --color-bg: var(--ui-bg);
   --color-surface: var(--ui-surface);
