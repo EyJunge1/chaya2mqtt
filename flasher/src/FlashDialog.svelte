@@ -227,11 +227,7 @@
       <label
         class="flex cursor-pointer items-start gap-3 rounded-xl border border-border bg-bg/60 p-3"
       >
-        <input
-          type="checkbox"
-          bind:checked={eraseFirst}
-          class="mt-1 size-4 accent-(--ui-accent)"
-        />
+        <input type="checkbox" bind:checked={eraseFirst} class="mt-1 size-4 accent-(--ui-accent)" />
         <span>
           <span class="block text-sm font-semibold text-text-bright">{t("flash.eraseLabel")}</span>
           <span class="mt-1 block text-xs leading-5 text-muted">{t("flash.eraseHint")}</span>

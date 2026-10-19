@@ -4,8 +4,7 @@
 
 #include <Arduino.h>
 
-Jd79660Panel::Jd79660Panel(int16_t cs, int16_t dc, int16_t rst, int16_t busy)
-    : hw_(cs, dc, rst, busy) {}
+Jd79660Panel::Jd79660Panel(int16_t cs, int16_t dc, int16_t rst, int16_t busy) : hw_(cs, dc, rst, busy) {}
 
 void Jd79660Panel::begin(uint16_t resetDurationMs, bool useFastUpdate) {
     resetDurationMs_ = resetDurationMs;

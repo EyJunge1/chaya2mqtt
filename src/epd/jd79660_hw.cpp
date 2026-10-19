@@ -3,8 +3,7 @@
 #include <Arduino.h>
 #include <cstring>
 
-Jd79660Hw::Jd79660Hw(int16_t cs, int16_t dc, int16_t rst, int16_t busy)
-    : cs_(cs), dc_(dc), rst_(rst), busy_(busy) {}
+Jd79660Hw::Jd79660Hw(int16_t cs, int16_t dc, int16_t rst, int16_t busy) : cs_(cs), dc_(dc), rst_(rst), busy_(busy) {}
 
 void Jd79660Hw::beginPins() {
     if (cs_ >= 0) {

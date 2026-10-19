@@ -10,9 +10,7 @@ void ChayaEpd4c::init(uint32_t, bool, uint16_t resetDurationMs, bool) {
     setFullWindow();
 }
 
-void ChayaEpd4c::setBusyCallback(Jd79660Hw::BusyCallback cb, const void *param) {
-    panel_.hw().setBusyCallback(cb, param);
-}
+void ChayaEpd4c::setBusyCallback(Jd79660Hw::BusyCallback cb, const void *param) { panel_.hw().setBusyCallback(cb, param); }
 
 void ChayaEpd4c::setFullWindow() {
     // Full-screen only; kept for API parity with draw.cpp.
