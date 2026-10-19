@@ -69,7 +69,7 @@ add_header() {
   [[ -n "$h" ]] || return 0
   [[ -f "$h" ]] || return 0
   case "$h" in
-    src/display/qr/*|src/web/assets/*) return 0 ;;
+    src/web/assets/*) return 0 ;;
   esac
   if grep -Fxq "$h" "$seen_file"; then
     return 0
@@ -95,7 +95,7 @@ while IFS= read -r h; do
   if header_compiles "$h"; then
     add_header "$h"
   fi
-done < <(find src \( -name '*.h' -o -name '*.hpp' \) ! -path 'src/display/qr/*' | LC_ALL=C sort)
+done < <(find src \( -name '*.h' -o -name '*.hpp' \) | LC_ALL=C sort)
 
 found=0
 fails=0

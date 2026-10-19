@@ -13,7 +13,7 @@
 #include "wifi/wlan.hpp"
 #include "wifi/wlan_config.hpp"
 
-#include "qr/qrcodegen.h"
+#include <qrcodegen.h>
 
 #include "util/format_buf.hpp"
 

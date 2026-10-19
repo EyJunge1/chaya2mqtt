@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Apply .clang-format to firmware C/C++ (excludes vendored qrcodegen).
+# Apply .clang-format to firmware C/C++.
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
@@ -21,7 +21,7 @@ files=()
 while IFS= read -r f; do
   [[ -n "$f" ]] || continue
   files+=("$f")
-done < <(find src sim test \( -iname '*.h' -o -iname '*.hpp' -o -iname '*.c' -o -iname '*.cpp' \) ! -path 'src/display/qr/qrcodegen.c' ! -path 'src/display/qr/qrcodegen.h' | LC_ALL=C sort)
+done < <(find src sim test \( -iname '*.h' -o -iname '*.hpp' -o -iname '*.c' -o -iname '*.cpp' \) | LC_ALL=C sort)
 
 if [[ "${#files[@]}" -eq 0 ]]; then
   echo "no C/C++ files to format"
