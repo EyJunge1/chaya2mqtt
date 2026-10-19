@@ -1,3 +1,5 @@
+> **Beta**: ist noch in Beta
+
 ![Chaya2MQTT – send a little heart](docs/images/social-preview.png)
 
 [![Release](https://img.shields.io/github/v/release/EyJunge1/chaya2mqtt?style=for-the-badge)](https://github.com/EyJunge1/chaya2mqtt/releases/latest) [![License: GPL-3.0](https://img.shields.io/github/license/EyJunge1/chaya2mqtt?style=for-the-badge)](LICENSE) [![Web flasher](https://img.shields.io/badge/Web%20flasher-install-red?style=for-the-badge)](https://eyjunge1.github.io/chaya2mqtt/)
