@@ -1,6 +1,6 @@
-#include "jd79660_panel.h"
+#include "jd79660_panel.hpp"
 
-#include "colors.h"
+#include "colors.hpp"
 
 #include <Arduino.h>
 

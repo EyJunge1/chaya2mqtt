@@ -1,16 +1,16 @@
-#include "audio.h"
+#include "audio.hpp"
 
-#include "audio_config.h"
-#include "audio_drain_pure.h"
-#include "audio_pure.h"
+#include "audio_config.hpp"
+#include "audio_drain_pure.hpp"
+#include "audio_pure.hpp"
 
-#include "async/task_config.h"
-#include "async/task_handles.h"
-#include "config/app_config.h"
-#include "diag/stack_monitor.h"
-#include "diag/task_watchdog.h"
-#include "hw/pins.h"
-#include "wifi/wlan.h"
+#include "async/task_config.hpp"
+#include "async/task_handles.hpp"
+#include "config/app_config.hpp"
+#include "diag/stack_monitor.hpp"
+#include "diag/task_watchdog.hpp"
+#include "hw/pins.hpp"
+#include "wifi/wlan.hpp"
 
 #include <Arduino.h>
 #include <Wire.h>
@@ -25,7 +25,7 @@
 #include <freertos/queue.h>
 #include <freertos/task.h>
 
-#include "util/log_tag.h"
+#include "util/log_tag.hpp"
 
 DEFINE_LOG_TAG("AUDIO");
 

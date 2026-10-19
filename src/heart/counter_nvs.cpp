@@ -1,13 +1,13 @@
-#include "counter.h"
-#include "counter_internal.h"
+#include "counter.hpp"
+#include "counter_internal.hpp"
 
-#include "async/system_lifecycle.h"
-#include "config/nvs_blob_load_pure.h"
-#include "config/nvs_utils.h"
-#include "constants.h"
-#include "util/time_helpers.h"
+#include "async/system_lifecycle.hpp"
+#include "config/nvs_blob_load_pure.hpp"
+#include "config/nvs_utils.hpp"
+#include "constants.hpp"
+#include "util/time_helpers.hpp"
 
-#include "util/log_tag.h"
+#include "util/log_tag.hpp"
 
 #include <algorithm>
 #include <cstring>

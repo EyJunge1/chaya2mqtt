@@ -1,10 +1,10 @@
-#include "counter.h"
-#include "counter_internal.h"
-#include "counter_pure.h"
+#include "counter.hpp"
+#include "counter_internal.hpp"
+#include "counter_pure.hpp"
 
-#include "async/sse_dirty.h"
-#include "async/system_lifecycle.h"
-#include "config/app_config.h"
+#include "async/sse_dirty.hpp"
+#include "async/system_lifecycle.hpp"
+#include "config/app_config.hpp"
 
 #include <Arduino.h>
 #include <atomic>

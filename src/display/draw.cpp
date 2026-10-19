@@ -1,21 +1,21 @@
-#include "display.h"
-#include "internal.h"
+#include "display.hpp"
+#include "internal.hpp"
 
-#include "battery/battery.h"
-#include "constants.h"
-#include "display_config.h"
-#include "draw_pure.h"
-#include "heart/counter.h"
-#include "heart/counter_pure.h"
-#include "hw/pins.h"
-#include "icons_lucide.h"
-#include "wifi/wifi_qr_pure.h"
-#include "wifi/wlan.h"
-#include "wifi/wlan_config.h"
+#include "battery/battery.hpp"
+#include "constants.hpp"
+#include "display_config.hpp"
+#include "draw_pure.hpp"
+#include "heart/counter.hpp"
+#include "heart/counter_pure.hpp"
+#include "hw/pins.hpp"
+#include "icons_lucide.hpp"
+#include "wifi/wifi_qr_pure.hpp"
+#include "wifi/wlan.hpp"
+#include "wifi/wlan_config.hpp"
 
 #include "qr/qrcodegen.h"
 
-#include "util/format_buf.h"
+#include "util/format_buf.hpp"
 
 #include <Arduino.h>
 #include <algorithm>
@@ -26,7 +26,7 @@
 #include <span>
 #include <utility>
 
-#include "util/log_tag.h"
+#include "util/log_tag.hpp"
 
 DEFINE_LOG_TAG("DISP");
 

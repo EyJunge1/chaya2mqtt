@@ -1,9 +1,9 @@
-#include "identity/device_identity.h"
+#include "identity/device_identity.hpp"
 
-#include "config/nvs_keys.h"
-#include "config/nvs_utils.h"
-#include "identity/device_identity_pure.h"
-#include "util/log_tag.h"
+#include "config/nvs_keys.hpp"
+#include "config/nvs_utils.hpp"
+#include "identity/device_identity_pure.hpp"
+#include "util/log_tag.hpp"
 
 #include <atomic>
 #include <cstdint>

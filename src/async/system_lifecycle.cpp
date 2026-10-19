@@ -1,4 +1,4 @@
-#include "system_lifecycle.h"
+#include "system_lifecycle.hpp"
 
 std::atomic<bool> g_systemShutdownInProgress{false};
 std::atomic<bool> g_chayaNvsWritesSuspended{false};

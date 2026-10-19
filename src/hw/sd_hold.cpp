@@ -1,8 +1,8 @@
-#include "hw/sd_hold.h"
+#include "hw/sd_hold.hpp"
 
 #include <Arduino.h>
 
-#include "hw/pins.h"
+#include "hw/pins.hpp"
 
 void sdHoldOff() {
     pinMode(pins::kSdClk, OUTPUT);

@@ -3,7 +3,7 @@
  * Render simulated 1.54" E-Ink views (200×200, 4-color) as PNGs for the docs.
  *
  * Layout mirrors src/display/draw.cpp. Lucide bitmaps come from
- * src/display/icons_lucide.h (same assets as firmware). Text uses the
+ * src/display/icons_lucide.hpp (same assets as firmware). Text uses the
  * Adafruit GFX classic 5×7 font so counters/titles match the panel.
  *
  * Usage (from repo root):
@@ -21,7 +21,7 @@ import { fileURLToPath } from "node:url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, "..");
-const iconsHeader = path.join(repoRoot, "src/display/icons_lucide.h");
+const iconsHeader = path.join(repoRoot, "src/display/icons_lucide.hpp");
 const outDir = path.join(repoRoot, "docs/images");
 
 const PANEL = 200;

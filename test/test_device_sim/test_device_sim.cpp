@@ -1,8 +1,8 @@
 #include <unity.h>
 
-#include "device_runtime.h"
-#include "mqtt/mqtt_apply_pure.h"
-#include "mqtt/mqtt_pack.h"
+#include "device_runtime.hpp"
+#include "mqtt/mqtt_apply_pure.hpp"
+#include "mqtt/mqtt_pack.hpp"
 
 void test_sim_first_connect_and_pair() {
     DeviceRuntime dev("a1b2c3");

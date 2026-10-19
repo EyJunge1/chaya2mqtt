@@ -73,6 +73,8 @@ paths:
                     type: [object, "null"]
                   settings:
                     type: [object, "null"]
+        "403":
+          $ref: "#/components/responses/ApiError"
   /api/chaya/send:
     post:
       tags: [chaya]
@@ -109,6 +111,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/WifiConfig"
+        "403":
+          $ref: "#/components/responses/ApiError"
   /api/wifi/scan:
     get:
       tags: [wifi]
@@ -123,6 +127,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/WifiScanSnapshot"
+        "403":
+          $ref: "#/components/responses/ApiError"
     post:
       tags: [wifi]
       summary: Start access-point scan
@@ -141,6 +147,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiOk"
+        "403":
+          $ref: "#/components/responses/ApiError"
         "503":
           description: Connection test or OTA in progress
           content:
@@ -798,7 +806,9 @@ components:
         generation: { type: integer }
   responses:
     ApiError:
-      description: Request failed. HTTP 403 host-allowlist is `{ ok: false, error: "host" }`.
+      description: >
+        Request failed. HTTP 403 host-allowlist body:
+        ok false, error host.
       content:
         application/json:
           schema:

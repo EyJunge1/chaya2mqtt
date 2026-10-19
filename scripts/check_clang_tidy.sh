@@ -95,7 +95,7 @@ while IFS= read -r h; do
   if header_compiles "$h"; then
     add_header "$h"
   fi
-done < <(find src -name '*.h' ! -path 'src/display/qr/*' | LC_ALL=C sort)
+done < <(find src \( -name '*.h' -o -name '*.hpp' \) ! -path 'src/display/qr/*' | LC_ALL=C sort)
 
 found=0
 fails=0

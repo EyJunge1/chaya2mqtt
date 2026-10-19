@@ -1,12 +1,12 @@
 #include <Arduino.h>
 
-#include "admin_routes.h"
+#include "admin_routes.hpp"
 
-#include "constants.h"
-#include "web/assets/web_ui_manifest.h"
-#include "web/spa_asset_lookup.h"
-#include "web/web_utils.h"
-#include "wifi/wlan.h"
+#include "constants.hpp"
+#include "web/assets/web_ui_manifest.hpp"
+#include "web/spa_asset_lookup.hpp"
+#include "web/web_utils.hpp"
+#include "wifi/wlan.hpp"
 
 #include <ESPAsyncWebServer.h>
 #include <algorithm>

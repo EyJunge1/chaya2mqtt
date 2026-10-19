@@ -1,10 +1,10 @@
-#include "web_utils.h"
+#include "web_utils.hpp"
 
-#include "config/app_config.h"
-#include "constants.h"
-#include "host_validate.h"
-#include "identity/device_identity.h"
-#include "wifi/wlan.h"
+#include "config/app_config.hpp"
+#include "constants.hpp"
+#include "host_validate.hpp"
+#include "identity/device_identity.hpp"
+#include "wifi/wlan.hpp"
 
 #include <AsyncJson.h>
 #include <ESPAsyncWebServer.h>

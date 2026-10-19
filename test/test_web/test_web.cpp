@@ -1,14 +1,14 @@
 #include <cstring>
 #include <unity.h>
 
-#include "async/system_shutdown_pure.h"
-#include "constants.h"
-#include "web/admin_restart_pure.h"
-#include "web/host_validate.h"
-#include "web/spa_asset_lookup.h"
-#include "web/sse_dirty_pure.h"
-#include "web/sse_send_pure.h"
-#include "web/wifi_status_cache_pure.h"
+#include "async/system_shutdown_pure.hpp"
+#include "constants.hpp"
+#include "web/admin_restart_pure.hpp"
+#include "web/host_validate.hpp"
+#include "web/spa_asset_lookup.hpp"
+#include "web/sse_dirty_pure.hpp"
+#include "web/sse_send_pure.hpp"
+#include "web/wifi_status_cache_pure.hpp"
 
 void test_ui_pref_syntax() {
     TEST_ASSERT_TRUE(uiLangSyntaxOk("de"));

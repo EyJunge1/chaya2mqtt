@@ -1,15 +1,15 @@
-#include "counter.h"
-#include "counter_internal.h"
+#include "counter.hpp"
+#include "counter_internal.hpp"
 
-#include "config/app_config.h"
-#include "config/nvs_utils.h"
-#include "constants.h"
-#include "display/display.h"
-#include "display/display_config.h"
-#include "util/time_helpers.h"
-#include "wifi/wlan.h"
+#include "config/app_config.hpp"
+#include "config/nvs_utils.hpp"
+#include "constants.hpp"
+#include "display/display.hpp"
+#include "display/display_config.hpp"
+#include "util/time_helpers.hpp"
+#include "wifi/wlan.hpp"
 
-#include "util/log_tag.h"
+#include "util/log_tag.hpp"
 
 #include <Arduino.h>
 #include <Preferences.h>

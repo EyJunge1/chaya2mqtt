@@ -1,17 +1,17 @@
 #include <Arduino.h>
 
-#include "../admin_globals.h"
-#include "admin_routes_api_internal.h"
+#include "../admin_globals.hpp"
+#include "admin_routes_api_internal.hpp"
 
-#include "battery/battery.h"
-#include "battery/battery_pure.h"
-#include "constants.h"
-#include "identity/device_identity.h"
-#include "mqtt/config.h"
-#include "mqtt/mqtt.h"
-#include "ota/ota.h"
-#include "util/log_tag.h"
-#include "web/web_utils.h"
+#include "battery/battery.hpp"
+#include "battery/battery_pure.hpp"
+#include "constants.hpp"
+#include "identity/device_identity.hpp"
+#include "mqtt/config.hpp"
+#include "mqtt/mqtt.hpp"
+#include "ota/ota.hpp"
+#include "util/log_tag.hpp"
+#include "web/web_utils.hpp"
 
 #include <ESPAsyncWebServer.h>
 #include <cstring>

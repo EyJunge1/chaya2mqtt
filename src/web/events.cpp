@@ -1,17 +1,17 @@
-#include "events.h"
+#include "events.hpp"
 
-#include "async/sse_dirty.h"
-#include "battery/battery.h"
-#include "heart/counter.h"
-#include "json_payloads.h"
-#include "mqtt/config.h"
-#include "mqtt/mqtt.h"
-#include "ota/ota.h"
-#include "ota/ota_json.h"
-#include "sse_dirty_pure.h"
-#include "sse_send_pure.h"
-#include "web_utils.h"
-#include "wifi/wlan.h"
+#include "async/sse_dirty.hpp"
+#include "battery/battery.hpp"
+#include "heart/counter.hpp"
+#include "json_payloads.hpp"
+#include "mqtt/config.hpp"
+#include "mqtt/mqtt.hpp"
+#include "ota/ota.hpp"
+#include "ota/ota_json.hpp"
+#include "sse_dirty_pure.hpp"
+#include "sse_send_pure.hpp"
+#include "web_utils.hpp"
+#include "wifi/wlan.hpp"
 
 #include <Arduino.h>
 #include <ArduinoJson.h>
@@ -23,7 +23,7 @@
 #include <cstdio>
 #include <cstring>
 
-#include "util/log_tag.h"
+#include "util/log_tag.hpp"
 
 DEFINE_LOG_TAG("SSE");
 

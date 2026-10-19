@@ -1,10 +1,10 @@
-#include "ota_task.h"
+#include "ota_task.hpp"
 
-#include "ota/ota.h"
+#include "ota/ota.hpp"
 
-#include "async/task_config.h"
-#include "diag/stack_monitor.h"
-#include "diag/task_watchdog.h"
+#include "async/task_config.hpp"
+#include "diag/stack_monitor.hpp"
+#include "diag/task_watchdog.hpp"
 
 #include <Arduino.h>
 #include <cstdint>
@@ -13,7 +13,7 @@
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
 
-#include "util/log_tag.h"
+#include "util/log_tag.hpp"
 
 DEFINE_LOG_TAG("OTATASK");
 

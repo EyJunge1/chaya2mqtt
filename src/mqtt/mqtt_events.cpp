@@ -1,23 +1,23 @@
-#include "mqtt_internal.h"
+#include "mqtt_internal.hpp"
 
-#include "backoff.h"
-#include "counter_payload.h"
-#include "mqtt_event_live_pure.h"
+#include "backoff.hpp"
+#include "counter_payload.hpp"
+#include "mqtt_event_live_pure.hpp"
 
-#include "async/event_types.h"
-#include "async/sse_dirty.h"
-#include "async/system_lifecycle.h"
-#include "async/task_handles.h"
-#include "audio/audio.h"
-#include "config.h"
-#include "display/display.h"
-#include "heart/counter.h"
-#include "heart/counter_pure.h"
-#include "identity/device_identity.h"
-#include "led/led.h"
-#include "led/led_config.h"
-#include "pairing.h"
-#include "wifi/wlan.h"
+#include "async/event_types.hpp"
+#include "async/sse_dirty.hpp"
+#include "async/system_lifecycle.hpp"
+#include "async/task_handles.hpp"
+#include "audio/audio.hpp"
+#include "config.hpp"
+#include "display/display.hpp"
+#include "heart/counter.hpp"
+#include "heart/counter_pure.hpp"
+#include "identity/device_identity.hpp"
+#include "led/led.hpp"
+#include "led/led_config.hpp"
+#include "pairing.hpp"
+#include "wifi/wlan.hpp"
 
 #include <Arduino.h>
 
@@ -29,7 +29,7 @@
 #include <freertos/FreeRTOS.h>
 #include <freertos/queue.h>
 
-#include "util/log_tag.h"
+#include "util/log_tag.hpp"
 
 DEFINE_LOG_TAG("MQTT");
 

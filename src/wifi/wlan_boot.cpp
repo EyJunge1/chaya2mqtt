@@ -1,15 +1,15 @@
-#include "wlan.h"
+#include "wlan.hpp"
 
-#include "test.h"
-#include "wlan_config.h"
-#include "wlan_internal.h"
+#include "test.hpp"
+#include "wlan_config.hpp"
+#include "wlan_internal.hpp"
 
-#include "constants.h"
-#include "display/display.h"
-#include "identity/device_identity.h"
-#include "led/led.h"
-#include "mqtt/config.h"
-#include "util/ip_format.h"
+#include "constants.hpp"
+#include "display/display.hpp"
+#include "identity/device_identity.hpp"
+#include "led/led.hpp"
+#include "mqtt/config.hpp"
+#include "util/ip_format.hpp"
 
 #include <Arduino.h>
 #include <ESPmDNS.h>
@@ -20,7 +20,7 @@
 #include <esp_wifi.h>
 #include <lwip/ip_addr.h>
 
-#include "util/log_tag.h"
+#include "util/log_tag.hpp"
 
 DEFINE_LOG_TAG("WIFI");
 

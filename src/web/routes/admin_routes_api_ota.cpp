@@ -1,15 +1,15 @@
 #include <Arduino.h>
 
-#include "../admin_globals.h"
-#include "admin_routes_api_internal.h"
+#include "../admin_globals.hpp"
+#include "admin_routes_api_internal.hpp"
 
-#include "battery/battery.h"
-#include "battery/battery_pure.h"
-#include "ota/ota.h"
-#include "ota/ota_json.h"
-#include "util/log_tag.h"
-#include "web/admin.h"
-#include "web/web_utils.h"
+#include "battery/battery.hpp"
+#include "battery/battery_pure.hpp"
+#include "ota/ota.hpp"
+#include "ota/ota_json.hpp"
+#include "util/log_tag.hpp"
+#include "web/admin.hpp"
+#include "web/web_utils.hpp"
 
 #include <ESPAsyncWebServer.h>
 #include <cstring>

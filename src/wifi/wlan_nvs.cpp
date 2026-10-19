@@ -1,17 +1,17 @@
-#include "wlan.h"
+#include "wlan.hpp"
 
-#include "wlan_config.h"
-#include "wlan_internal.h"
-#include "wlan_pack.h"
+#include "wlan_config.hpp"
+#include "wlan_internal.hpp"
+#include "wlan_pack.hpp"
 
-#include "config/nvs_blob_load_pure.h"
-#include "config/nvs_keys.h"
-#include "config/nvs_utils.h"
+#include "config/nvs_blob_load_pure.hpp"
+#include "config/nvs_keys.hpp"
+#include "config/nvs_utils.hpp"
 
 #include <Preferences.h>
 #include <esp_log.h>
 
-#include "util/log_tag.h"
+#include "util/log_tag.hpp"
 
 DEFINE_LOG_TAG("WIFI");
 

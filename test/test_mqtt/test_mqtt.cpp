@@ -1,18 +1,18 @@
 #include <cstring>
 #include <unity.h>
 
-#include "constants.h"
-#include "identity/device_identity.h"
-#include "identity/device_identity_pure.h"
-#include "mqtt/backoff.h"
-#include "mqtt/counter_payload.h"
-#include "mqtt/mqtt.h"
-#include "mqtt/mqtt_apply_pure.h"
-#include "mqtt/mqtt_config.h"
-#include "mqtt/mqtt_event_live_pure.h"
-#include "mqtt/mqtt_pack.h"
-#include "mqtt/mqtt_publish_ack.h"
-#include "mqtt/pairing.h"
+#include "constants.hpp"
+#include "identity/device_identity.hpp"
+#include "identity/device_identity_pure.hpp"
+#include "mqtt/backoff.hpp"
+#include "mqtt/counter_payload.hpp"
+#include "mqtt/mqtt.hpp"
+#include "mqtt/mqtt_apply_pure.hpp"
+#include "mqtt/mqtt_config.hpp"
+#include "mqtt/mqtt_event_live_pure.hpp"
+#include "mqtt/mqtt_pack.hpp"
+#include "mqtt/mqtt_publish_ack.hpp"
+#include "mqtt/pairing.hpp"
 
 void test_mqtt_topic_syntax() {
     TEST_ASSERT_TRUE(mqttTopicSyntaxOk("chaya2mqtt/a1b2c3", 128));

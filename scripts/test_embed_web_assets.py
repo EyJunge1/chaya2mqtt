@@ -122,7 +122,7 @@ class EmbedWebAssetsTests(unittest.TestCase):
                 self.assertEqual(mod.main(), 0)
                 first_bin = (out / "web_ui.bin").read_bytes()
                 first_asm = (out / "web_ui_blob.S").read_text(encoding="utf-8")
-                first_manifest = (out / "web_ui_manifest.h").read_text(encoding="utf-8")
+                first_manifest = (out / "web_ui_manifest.hpp").read_text(encoding="utf-8")
                 self.assertTrue((out / "web_ui_blob.S").is_file())
                 self.assertIn("Blob SHA-256:", first_asm)
                 self.assertIn('.incbin "out/web_ui.bin"', first_asm)

@@ -1,16 +1,16 @@
-#include "github.h"
+#include "github.hpp"
 
-#include "github_parse.h"
-#include "ota_url_allow.h"
-#include "version_cmp.h"
+#include "github_parse.hpp"
+#include "ota_url_allow.hpp"
+#include "version_cmp.hpp"
 
-#include "config/version.h"
-#include "tls/tls_bundle_setup.h"
-#include "wifi/wlan.h"
+#include "config/version.hpp"
+#include "tls/tls_bundle_setup.hpp"
+#include "wifi/wlan.hpp"
 
-#include "tls/tls_bundle.h"
+#include "tls/tls_bundle.hpp"
 
-#include "util/format_buf.h"
+#include "util/format_buf.hpp"
 
 #include <Arduino.h>
 #include <HTTPClient.h>
@@ -19,8 +19,8 @@
 #include <esp_log.h>
 #include <span>
 
-#include "diag/task_watchdog.h"
-#include "util/log_tag.h"
+#include "diag/task_watchdog.hpp"
+#include "util/log_tag.hpp"
 
 DEFINE_LOG_TAG("OTA");
 

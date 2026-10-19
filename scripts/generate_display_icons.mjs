@@ -21,7 +21,7 @@ import { fileURLToPath } from "node:url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, "..");
-const outHeader = path.join(repoRoot, "src/display/icons_lucide.h");
+const outHeader = path.join(repoRoot, "src/display/icons_lucide.hpp");
 
 /** Pin Lucide icon source for reproducible bitmaps. */
 const LUCIDE_REF = "0.468.0";

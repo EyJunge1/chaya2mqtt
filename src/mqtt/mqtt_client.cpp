@@ -1,15 +1,15 @@
-#include "mqtt_internal.h"
+#include "mqtt_internal.hpp"
 
-#include "async/sse_dirty.h"
-#include "async/task_config.h"
-#include "constants.h"
-#include "identity/device_identity.h"
-#include "mqtt_config.h"
-#include "pairing.h"
-#include "tls/tls_bundle.h"
-#include "tls/tls_bundle_setup.h"
+#include "async/sse_dirty.hpp"
+#include "async/task_config.hpp"
+#include "constants.hpp"
+#include "identity/device_identity.hpp"
+#include "mqtt_config.hpp"
+#include "pairing.hpp"
+#include "tls/tls_bundle.hpp"
+#include "tls/tls_bundle_setup.hpp"
 
-#include "util/format_buf.h"
+#include "util/format_buf.hpp"
 
 #include <cstring>
 #include <span>
@@ -23,9 +23,9 @@
 #include <freertos/FreeRTOS.h>
 #include <freertos/semphr.h>
 
-#include "async/task_handles.h"
-#include "diag/task_watchdog.h"
-#include "util/log_tag.h"
+#include "async/task_handles.hpp"
+#include "diag/task_watchdog.hpp"
+#include "util/log_tag.hpp"
 
 DEFINE_LOG_TAG("MQTT");
 

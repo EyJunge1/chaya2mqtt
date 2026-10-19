@@ -1,7 +1,7 @@
-#include "internal.h"
+#include "internal.hpp"
 
-#include "hw/pins.h"
-#include "util/log_tag.h"
+#include "hw/pins.hpp"
+#include "util/log_tag.hpp"
 
 #include <Arduino.h>
 #include <SPI.h>

@@ -1,17 +1,17 @@
-#include "wlan.h"
+#include "wlan.hpp"
 
-#include "test.h"
-#include "wlan_config.h"
-#include "wlan_event_pure.h"
-#include "wlan_internal.h"
+#include "test.hpp"
+#include "wlan_config.hpp"
+#include "wlan_event_pure.hpp"
+#include "wlan_internal.hpp"
 
-#include "async/task_handles.h"
-#include "config/nvs_keys.h"
-#include "config/nvs_utils.h"
-#include "constants.h"
-#include "identity/device_identity.h"
-#include "util/ip_format.h"
-#include "util/net_validate.h"
+#include "async/task_handles.hpp"
+#include "config/nvs_keys.hpp"
+#include "config/nvs_utils.hpp"
+#include "constants.hpp"
+#include "identity/device_identity.hpp"
+#include "util/ip_format.hpp"
+#include "util/net_validate.hpp"
 
 #include <Arduino.h>
 #include <DNSServer.h>
@@ -26,7 +26,7 @@
 #include <freertos/FreeRTOS.h>
 #include <time.h>
 
-#include "util/log_tag.h"
+#include "util/log_tag.hpp"
 
 DEFINE_LOG_TAG("WIFI");
 

@@ -1,17 +1,17 @@
-#include "flash.h"
+#include "flash.hpp"
 
-#include "ota.h"
-#include "ota_url_allow.h"
-#include "tls/tls_bundle.h"
-#include "tls/tls_bundle_setup.h"
+#include "ota.hpp"
+#include "ota_url_allow.hpp"
+#include "tls/tls_bundle.hpp"
+#include "tls/tls_bundle_setup.hpp"
 
 #include <Arduino.h>
 #include <HTTPClient.h>
 #include <HTTPUpdate.h>
 #include <WiFiClientSecure.h>
 
-#include "diag/task_watchdog.h"
-#include "util/log_tag.h"
+#include "diag/task_watchdog.hpp"
+#include "util/log_tag.hpp"
 
 #include <cstdio>
 #include <cstring>

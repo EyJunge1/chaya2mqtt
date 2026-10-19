@@ -1,14 +1,14 @@
-#include "config.h"
+#include "config.hpp"
 
-#include "mqtt_pack.h"
-#include "pairing.h"
+#include "mqtt_pack.hpp"
+#include "pairing.hpp"
 
-#include "async/sse_dirty.h"
-#include "config/nvs_keys.h"
-#include "config/nvs_utils.h"
-#include "identity/device_identity.h"
+#include "async/sse_dirty.hpp"
+#include "config/nvs_keys.hpp"
+#include "config/nvs_utils.hpp"
+#include "identity/device_identity.hpp"
 
-#include "util/log_tag.h"
+#include "util/log_tag.hpp"
 
 #include <Arduino.h>
 #include <Preferences.h>

@@ -1,27 +1,27 @@
 #include <Arduino.h>
 
-#include "admin.h"
+#include "admin.hpp"
 
-#include "admin_globals.h"
-#include "routes/admin_routes.h"
-#include "web/admin_restart_pure.h"
-#include "web/web_middleware.h"
+#include "admin_globals.hpp"
+#include "routes/admin_routes.hpp"
+#include "web/admin_restart_pure.hpp"
+#include "web/web_middleware.hpp"
 
-#include "async/app_task.h"
-#include "async/event_types.h"
-#include "async/system_lifecycle.h"
-#include "async/task_handles.h"
-#include "async/web_server_hooks.h"
-#include "config/app_config.h"
-#include "config/nvs_utils.h"
-#include "diag/task_watchdog.h"
-#include "events.h"
-#include "heart/counter.h"
-#include "led/led.h"
-#include "mqtt/config.h"
-#include "mqtt/mqtt.h"
-#include "ota/ota.h"
-#include "wifi/wlan.h"
+#include "async/app_task.hpp"
+#include "async/event_types.hpp"
+#include "async/system_lifecycle.hpp"
+#include "async/task_handles.hpp"
+#include "async/web_server_hooks.hpp"
+#include "config/app_config.hpp"
+#include "config/nvs_utils.hpp"
+#include "diag/task_watchdog.hpp"
+#include "events.hpp"
+#include "heart/counter.hpp"
+#include "led/led.hpp"
+#include "mqtt/config.hpp"
+#include "mqtt/mqtt.hpp"
+#include "ota/ota.hpp"
+#include "wifi/wlan.hpp"
 
 #include <ESPAsyncWebServer.h>
 #include <atomic>
@@ -29,7 +29,7 @@
 #include <cstring>
 #include <esp_log.h>
 
-#include "util/log_tag.h"
+#include "util/log_tag.hpp"
 
 DEFINE_LOG_TAG("ADMIN");
 

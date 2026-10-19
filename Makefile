@@ -74,4 +74,4 @@ dev:
 clean:
 	"$(PIO)" run -e $(ENV) -t clean
 	$(RM) -r frontend/dist flasher/dist flasher/_site
-	$(RM) src/web/assets/web_ui.bin src/web/assets/web_ui_blob.S src/web/assets/web_ui_manifest.h
+	$(RM) src/web/assets/web_ui.bin src/web/assets/web_ui_blob.S src/web/assets/web_ui_manifest.hpp

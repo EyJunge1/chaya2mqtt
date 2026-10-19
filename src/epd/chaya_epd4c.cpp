@@ -1,4 +1,4 @@
-#include "chaya_epd4c.h"
+#include "chaya_epd4c.hpp"
 
 ChayaEpd4c::ChayaEpd4c(int16_t cs, int16_t dc, int16_t rst, int16_t busy)
     : Adafruit_GFX(WIDTH, HEIGHT), panel_(cs, dc, rst, busy) {

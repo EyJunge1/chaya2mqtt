@@ -1,6 +1,6 @@
-#include "admin_globals.h"
+#include "admin_globals.hpp"
 
-#include "constants.h"
+#include "constants.hpp"
 
 #include <Arduino.h>
 #include <climits>

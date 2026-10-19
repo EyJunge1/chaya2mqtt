@@ -1,22 +1,22 @@
-#include "mqtt.h"
+#include "mqtt.hpp"
 
-#include "mqtt_internal.h"
-#include "mqtt_publish_ack.h"
+#include "mqtt_internal.hpp"
+#include "mqtt_publish_ack.hpp"
 
-#include "async/event_types.h"
-#include "async/system_lifecycle.h"
-#include "async/task_handles.h"
-#include "audio/audio.h"
-#include "config.h"
-#include "display/display.h"
-#include "heart/counter.h"
-#include "heart/counter_pure.h"
-#include "led/led.h"
-#include "wifi/wlan.h"
+#include "async/event_types.hpp"
+#include "async/system_lifecycle.hpp"
+#include "async/task_handles.hpp"
+#include "audio/audio.hpp"
+#include "config.hpp"
+#include "display/display.hpp"
+#include "heart/counter.hpp"
+#include "heart/counter_pure.hpp"
+#include "led/led.hpp"
+#include "wifi/wlan.hpp"
 
 #include <Arduino.h>
 
-#include "util/format_buf.h"
+#include "util/format_buf.hpp"
 
 #include <climits>
 #include <cstring>
@@ -28,7 +28,7 @@
 #include <freertos/semphr.h>
 #include <mqtt_client.h>
 
-#include "util/log_tag.h"
+#include "util/log_tag.hpp"
 
 DEFINE_LOG_TAG("MQTT");
 

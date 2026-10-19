@@ -1,20 +1,20 @@
 #include <climits>
 #include <unity.h>
 
-#include "async/event_types.h"
-#include "audio/audio_drain_pure.h"
-#include "audio/audio_pure.h"
-#include "battery/battery_pure.h"
-#include "button/button_debounce_pure.h"
-#include "button/button_soft_off_pure.h"
-#include "config/nvs_blob_load_pure.h"
-#include "display/display_config.h"
-#include "display/display_link_pure.h"
-#include "display/display_refresh_pure.h"
-#include "display/draw_pure.h"
-#include "display/view_state.h"
-#include "led/led_internal.h"
-#include "led/led_pattern_pure.h"
+#include "async/event_types.hpp"
+#include "audio/audio_drain_pure.hpp"
+#include "audio/audio_pure.hpp"
+#include "battery/battery_pure.hpp"
+#include "button/button_debounce_pure.hpp"
+#include "button/button_soft_off_pure.hpp"
+#include "config/nvs_blob_load_pure.hpp"
+#include "display/display_config.hpp"
+#include "display/display_link_pure.hpp"
+#include "display/display_refresh_pure.hpp"
+#include "display/draw_pure.hpp"
+#include "display/view_state.hpp"
+#include "led/led_internal.hpp"
+#include "led/led_pattern_pure.hpp"
 
 void test_battery_pct_curve() {
     TEST_ASSERT_EQUAL_INT(0, batteryPctFromMilliVolts(3200));

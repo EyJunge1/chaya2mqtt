@@ -1,10 +1,10 @@
-#include "mqtt.h"
+#include "mqtt.hpp"
 
-#include "mqtt_internal.h"
+#include "mqtt_internal.hpp"
 
-#include "backoff.h"
-#include "config.h"
-#include "wifi/wlan.h"
+#include "backoff.hpp"
+#include "config.hpp"
+#include "wifi/wlan.hpp"
 
 #include <Arduino.h>
 
@@ -12,7 +12,7 @@
 #include <freertos/FreeRTOS.h>
 #include <mqtt_client.h>
 
-#include "util/log_tag.h"
+#include "util/log_tag.hpp"
 
 DEFINE_LOG_TAG("MQTT");
 

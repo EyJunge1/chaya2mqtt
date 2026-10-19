@@ -1,0 +1,70 @@
+#pragma once
+
+#include <cstdint>
+
+#include "constants.hpp"
+#include "mqtt_config.hpp"
+
+struct MqttConfig {
+    char server[128] = "";
+    uint16_t port = kMqttDefaultTlsPort;
+    /** true = mqtts (TLS), false = mqtt (plain TCP). TLS/8883 is the secure default. */
+    bool tls = true;
+    char username[64] = "";
+    char password[64] = "";
+    /** Derived: chaya2mqtt/<pairing id or own device id>. Not user-editable. */
+    char topicPub[128] = "";
+    /** Derived: chaya2mqtt/<partner id>, or empty when unpaired. Not user-editable. */
+    char topicSub[128] = "";
+    char partnerDeviceId[kDeviceIdBufLen] = "";
+    /** Empty means use this device's own ID as the publish identity. */
+    char pairingDeviceId[kDeviceIdBufLen] = "";
+};
+
+/** Derive topicPub/topicSub from pairing + partner IDs (empty topicSub when unpaired). */
+void mqttCfgApplyPairingTopics(MqttConfig *cfg);
+
+/** Active broker config lives in mqtt/config.cpp — use mqttCfgSnapshot / mqttCfgStorePendingTimed /
+ *  mqttCfgApplyPendingToActive / mqttCfgTopicPubLockedCopy only (FreeRTOS mutex, not ISR-safe).
+ */
+void loadMQTTConfig();
+auto saveMQTTConfig() -> bool;
+
+void mqttCfgSnapshot(MqttConfig *out);
+auto mqttCfgIsBrokerConfigured() -> bool;
+/** True when a partner device ID is set (non-empty after sanitization). */
+auto mqttCfgIsPaired() -> bool;
+/** True when broker and partner are set — ready for the operational heart view. */
+auto mqttCfgIsHeartReady() -> bool;
+void mqttCfgTopicPubLockedCopy(char *out, size_t outLen);
+
+/** Store pending with bounded wait; false if cfg mutex unavailable (RC-WEB-17). */
+auto mqttCfgStorePendingTimed(const MqttConfig *pending, uint32_t timeoutMs) -> bool;
+void mqttCfgApplyPendingToActive();
+auto mqttCfgConsumeDirtySnapshotNeeded() -> bool;
+
+/** True when pending differs from active (saved banner still applying). */
+auto mqttCfgHasUnappliedPending() -> bool;
+
+/** True when active in-RAM config matches persisted NVS (no write needed). */
+auto mqttCfgMatchesNvs() -> bool;
+
+/** True when two config snapshots are identical. */
+auto mqttCfgEquals(const MqttConfig *a, const MqttConfig *b) -> bool;
+
+/** Snapshot with bounded wait; false if cfg mutex unavailable. */
+auto mqttCfgSnapshotTimed(MqttConfig *out, uint32_t timeoutMs) -> bool;
+/** Active cfg + applyPending + nvsOk under one cfg-mutex hold (GET /api/mqtt). */
+auto mqttCfgSnapshotWithApplyFlagsTimed(MqttConfig *out, bool *applyPending, bool *nvsOk, uint32_t timeoutMs) -> bool;
+/** Pending snapshot with bounded wait; false if cfg mutex unavailable. */
+auto mqttCfgPendingSnapshotTimed(MqttConfig *out, uint32_t timeoutMs) -> bool;
+
+/** Last MQTT NVS save failed (web MQTT page status). Owner: mqtt/config (QUAL-06). */
+void mqttCfgSetNvsWriteFailed(bool failed);
+
+/** True from a changing POST /api/mqtt until network-task apply finishes (including NVS). */
+void mqttCfgSetApplyPending(bool pending);
+auto mqttCfgApplyPending() -> bool;
+
+/** Drop active + pending MQTT RAM after factory NVS wipe (RC-LIFE-07). */
+void mqttCfgResetRamAfterFactoryClear();

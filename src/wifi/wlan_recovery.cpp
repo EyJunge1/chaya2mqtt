@@ -1,14 +1,14 @@
-#include "wlan.h"
+#include "wlan.hpp"
 
-#include "wlan_config.h"
-#include "wlan_internal.h"
-#include "wlan_recovery.h"
-#include "wlan_soft_reconnect.h"
+#include "wlan_config.hpp"
+#include "wlan_internal.hpp"
+#include "wlan_recovery.hpp"
+#include "wlan_soft_reconnect.hpp"
 
-#include "async/system_lifecycle.h"
-#include "config/nvs_keys.h"
-#include "config/nvs_utils.h"
-#include "ota/ota.h"
+#include "async/system_lifecycle.hpp"
+#include "config/nvs_keys.hpp"
+#include "config/nvs_utils.hpp"
+#include "ota/ota.hpp"
 
 #include <Arduino.h>
 #include <Preferences.h>
@@ -18,7 +18,7 @@
 #include <inttypes.h>
 #include <time.h>
 
-#include "util/log_tag.h"
+#include "util/log_tag.hpp"
 
 DEFINE_LOG_TAG("WIFI");
 

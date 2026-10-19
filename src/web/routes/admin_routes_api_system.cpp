@@ -1,19 +1,19 @@
 #include <Arduino.h>
 
-#include "../admin_globals.h"
-#include "admin_routes_api_internal.h"
+#include "../admin_globals.hpp"
+#include "admin_routes_api_internal.hpp"
 
-#include "async/event_types.h"
-#include "async/system_lifecycle.h"
-#include "async/system_shutdown_pure.h"
-#include "async/task_handles.h"
-#include "battery/battery.h"
-#include "battery/battery_pure.h"
-#include "mqtt/config.h"
-#include "ota/ota.h"
-#include "util/log_tag.h"
-#include "web/admin.h"
-#include "web/admin_restart_pure.h"
+#include "async/event_types.hpp"
+#include "async/system_lifecycle.hpp"
+#include "async/system_shutdown_pure.hpp"
+#include "async/task_handles.hpp"
+#include "battery/battery.hpp"
+#include "battery/battery_pure.hpp"
+#include "mqtt/config.hpp"
+#include "ota/ota.hpp"
+#include "util/log_tag.hpp"
+#include "web/admin.hpp"
+#include "web/admin_restart_pure.hpp"
 #include <ESPAsyncWebServer.h>
 #include <esp_log.h>
 

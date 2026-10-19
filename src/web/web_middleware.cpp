@@ -1,7 +1,7 @@
-#include "web_middleware.h"
+#include "web_middleware.hpp"
 
-#include "web_utils.h"
-#include "wifi/wlan.h"
+#include "web_utils.hpp"
+#include "wifi/wlan.hpp"
 
 #include <Arduino.h>
 

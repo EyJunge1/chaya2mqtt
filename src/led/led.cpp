@@ -1,13 +1,13 @@
-#include "led.h"
+#include "led.hpp"
 
-#include "led_config.h"
-#include "led_internal.h"
-#include "led_pattern_pure.h"
+#include "led_config.hpp"
+#include "led_internal.hpp"
+#include "led_pattern_pure.hpp"
 
-#include "button/button.h"
-#include "config/app_config.h"
-#include "mqtt/mqtt.h"
-#include "util/time_helpers.h"
+#include "button/button.hpp"
+#include "config/app_config.hpp"
+#include "mqtt/mqtt.hpp"
+#include "util/time_helpers.hpp"
 
 #include <Arduino.h>
 #include <cstdint>
@@ -16,7 +16,7 @@
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
 
-#include "util/log_tag.h"
+#include "util/log_tag.hpp"
 
 DEFINE_LOG_TAG("LED");
 

@@ -1,11 +1,11 @@
 #include <Arduino.h>
 
-#include "admin_routes.h"
-#include "admin_routes_api_internal.h"
+#include "admin_routes.hpp"
+#include "admin_routes_api_internal.hpp"
 
-#include "util/log_tag.h"
-#include "web/web_middleware.h"
-#include "web/web_utils.h"
+#include "util/log_tag.hpp"
+#include "web/web_middleware.hpp"
+#include "web/web_utils.hpp"
 
 #include <AsyncJson.h>
 #include <ESPAsyncWebServer.h>

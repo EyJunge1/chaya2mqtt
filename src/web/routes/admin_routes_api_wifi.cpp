@@ -1,19 +1,19 @@
 #include <Arduino.h>
 
-#include "../admin_globals.h"
-#include "admin_routes_api_internal.h"
+#include "../admin_globals.hpp"
+#include "admin_routes_api_internal.hpp"
 
-#include "async/system_lifecycle.h"
-#include "config/app_config.h"
-#include "constants.h"
-#include "ota/ota.h"
-#include "util/format_buf.h"
-#include "util/log_tag.h"
-#include "web/deferred_reboot.h"
-#include "web/web_utils.h"
-#include "wifi/test.h"
-#include "wifi/wlan.h"
-#include "wifi/wlan_config.h"
+#include "async/system_lifecycle.hpp"
+#include "config/app_config.hpp"
+#include "constants.hpp"
+#include "ota/ota.hpp"
+#include "util/format_buf.hpp"
+#include "util/log_tag.hpp"
+#include "web/deferred_reboot.hpp"
+#include "web/web_utils.hpp"
+#include "wifi/test.hpp"
+#include "wifi/wlan.hpp"
+#include "wifi/wlan_config.hpp"
 
 #include <ESPAsyncWebServer.h>
 #include <cstring>

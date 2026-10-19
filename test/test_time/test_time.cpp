@@ -1,9 +1,9 @@
 #include <climits>
 #include <unity.h>
 
-#include "constants.h"
-#include "heart/counter_pure.h"
-#include "util/time_helpers.h"
+#include "constants.hpp"
+#include "heart/counter_pure.hpp"
+#include "util/time_helpers.hpp"
 
 void test_calendar_day_since_epoch() {
     TEST_ASSERT_EQUAL_UINT32(0U, calendarDaySinceEpochUtc(0));

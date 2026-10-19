@@ -1,4 +1,4 @@
-#include "sse_dirty.h"
+#include "sse_dirty.hpp"
 
 #include <atomic>
 

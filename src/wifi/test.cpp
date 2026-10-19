@@ -1,13 +1,13 @@
-#include "test.h"
+#include "test.hpp"
 
-#include "util/ip_format.h"
+#include "util/ip_format.hpp"
 
-#include "async/task_handles.h"
-#include "constants.h"
-#include "diag/task_watchdog.h"
-#include "identity/device_identity.h"
-#include "wlan.h"
-#include "wlan_internal.h"
+#include "async/task_handles.hpp"
+#include "constants.hpp"
+#include "diag/task_watchdog.hpp"
+#include "identity/device_identity.hpp"
+#include "wlan.hpp"
+#include "wlan_internal.hpp"
 
 #include <Arduino.h>
 #include <WiFi.h>
@@ -16,7 +16,7 @@
 #include <cstring>
 #include <esp_log.h>
 
-#include "util/log_tag.h"
+#include "util/log_tag.hpp"
 
 DEFINE_LOG_TAG("WIFI_TST");
 

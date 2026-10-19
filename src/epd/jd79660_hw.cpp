@@ -1,4 +1,4 @@
-#include "jd79660_hw.h"
+#include "jd79660_hw.hpp"
 
 #include <Arduino.h>
 #include <cstring>

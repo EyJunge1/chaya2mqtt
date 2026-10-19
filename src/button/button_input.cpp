@@ -1,25 +1,25 @@
-#include "button.h"
+#include "button.hpp"
 
-#include "button_actions.h"
-#include "button_config.h"
-#include "button_internal.h"
-#include "button_soft_off_pure.h"
+#include "button_actions.hpp"
+#include "button_config.hpp"
+#include "button_internal.hpp"
+#include "button_soft_off_pure.hpp"
 
-#include "async/system_lifecycle.h"
-#include "async/task_config.h"
-#include "async/web_server_hooks.h"
-#include "battery/battery.h"
-#include "config/app_config.h"
-#include "display/display.h"
-#include "heart/counter.h"
-#include "hw/pins.h"
-#include "led/led.h"
-#include "led/led_internal.h"
-#include "mqtt/mqtt.h"
-#include "ota/ota.h"
+#include "async/system_lifecycle.hpp"
+#include "async/task_config.hpp"
+#include "async/web_server_hooks.hpp"
+#include "battery/battery.hpp"
+#include "config/app_config.hpp"
+#include "display/display.hpp"
+#include "heart/counter.hpp"
+#include "hw/pins.hpp"
+#include "led/led.hpp"
+#include "led/led_internal.hpp"
+#include "mqtt/mqtt.hpp"
+#include "ota/ota.hpp"
 
-#include "diag/stack_monitor.h"
-#include "diag/task_watchdog.h"
+#include "diag/stack_monitor.hpp"
+#include "diag/task_watchdog.hpp"
 
 #include <atomic>
 #include <cstdlib>
@@ -31,7 +31,7 @@
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
 
-#include "util/log_tag.h"
+#include "util/log_tag.hpp"
 
 DEFINE_LOG_TAG("BTN");
 

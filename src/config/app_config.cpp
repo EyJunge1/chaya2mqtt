@@ -1,10 +1,10 @@
-#include "app_config.h"
+#include "app_config.hpp"
 
-#include "audio/audio_config.h"
-#include "constants.h"
-#include "nvs_blob_load_pure.h"
-#include "nvs_keys.h"
-#include "nvs_utils.h"
+#include "audio/audio_config.hpp"
+#include "constants.hpp"
+#include "nvs_blob_load_pure.hpp"
+#include "nvs_keys.hpp"
+#include "nvs_utils.hpp"
 
 #include <Arduino.h>
 #include <atomic>
@@ -12,7 +12,7 @@
 #include <cstring>
 #include <esp_log.h>
 
-#include "util/log_tag.h"
+#include "util/log_tag.hpp"
 
 DEFINE_LOG_TAG("CFG");
 

@@ -1,20 +1,20 @@
 #include <cstring>
 #include <unity.h>
 
-#include "async/system_shutdown_pure.h"
-#include "config/nvs_blob_load_pure.h"
-#include "config/nvs_write_gate_pure.h"
-#include "constants.h"
-#include "util/net_validate.h"
-#include "wifi/factory_wipe_pure.h"
-#include "wifi/test.h"
-#include "wifi/wifi_qr_pure.h"
-#include "wifi/wlan.h"
-#include "wifi/wlan_config.h"
-#include "wifi/wlan_event_pure.h"
-#include "wifi/wlan_pack.h"
-#include "wifi/wlan_recovery.h"
-#include "wifi/wlan_soft_reconnect.h"
+#include "async/system_shutdown_pure.hpp"
+#include "config/nvs_blob_load_pure.hpp"
+#include "config/nvs_write_gate_pure.hpp"
+#include "constants.hpp"
+#include "util/net_validate.hpp"
+#include "wifi/factory_wipe_pure.hpp"
+#include "wifi/test.hpp"
+#include "wifi/wifi_qr_pure.hpp"
+#include "wifi/wlan.hpp"
+#include "wifi/wlan_config.hpp"
+#include "wifi/wlan_event_pure.hpp"
+#include "wifi/wlan_pack.hpp"
+#include "wifi/wlan_recovery.hpp"
+#include "wifi/wlan_soft_reconnect.hpp"
 
 void test_setup_ap_pass_syntax_and_format() {
     TEST_ASSERT_FALSE(setupApPassSyntaxOk("00000000")); // too short

@@ -1,11 +1,11 @@
-#include "battery.h"
+#include "battery.hpp"
 
-#include "async/sse_dirty.h"
-#include "battery_config.h"
-#include "battery_pure.h"
-#include "button/button_config.h"
-#include "button/button_soft_off_pure.h"
-#include "hw/pins.h"
+#include "async/sse_dirty.hpp"
+#include "battery_config.hpp"
+#include "battery_pure.hpp"
+#include "button/button_config.hpp"
+#include "button/button_soft_off_pure.hpp"
+#include "hw/pins.hpp"
 
 #include <Arduino.h>
 #include <atomic>
@@ -14,7 +14,7 @@
 #include <esp_sleep.h>
 #include <esp_system.h>
 
-#include "util/log_tag.h"
+#include "util/log_tag.hpp"
 
 DEFINE_LOG_TAG("BAT");
 

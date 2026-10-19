@@ -2,11 +2,11 @@
 #include <string>
 #include <unity.h>
 
-#include "ota/github_parse.h"
-#include "ota/ota_health.h"
-#include "ota/ota_queue_pure.h"
-#include "ota/ota_url_allow.h"
-#include "ota/version_cmp.h"
+#include "ota/github_parse.hpp"
+#include "ota/ota_health.hpp"
+#include "ota/ota_queue_pure.hpp"
+#include "ota/ota_url_allow.hpp"
+#include "ota/version_cmp.hpp"
 
 void test_ota_queue_check_keeps_pending_release() {
     TEST_ASSERT_FALSE(otaGithubCheckMayClearPendingRelease(true));

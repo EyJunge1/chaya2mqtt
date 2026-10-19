@@ -1,22 +1,22 @@
-#include "ota.h"
-#include "ota_json.h"
-#include "ota_queue_pure.h"
+#include "ota.hpp"
+#include "ota_json.hpp"
+#include "ota_queue_pure.hpp"
 
-#include "flash.h"
-#include "github.h"
-#include "ota_task.h"
+#include "flash.hpp"
+#include "github.hpp"
+#include "ota_task.hpp"
 
-#include "async/sse_dirty.h"
-#include "async/system_lifecycle.h"
-#include "async/web_server_hooks.h"
-#include "battery/battery.h"
-#include "battery/battery_config.h"
-#include "config/nvs_keys.h"
-#include "config/nvs_utils.h"
-#include "config/version.h"
-#include "constants.h"
-#include "heart/counter.h"
-#include "wifi/wlan.h"
+#include "async/sse_dirty.hpp"
+#include "async/system_lifecycle.hpp"
+#include "async/web_server_hooks.hpp"
+#include "battery/battery.hpp"
+#include "battery/battery_config.hpp"
+#include "config/nvs_keys.hpp"
+#include "config/nvs_utils.hpp"
+#include "config/version.hpp"
+#include "constants.hpp"
+#include "heart/counter.hpp"
+#include "wifi/wlan.hpp"
 
 #include <Arduino.h>
 #include <atomic>
@@ -27,7 +27,7 @@
 #include <esp_partition.h>
 #include <utility>
 
-#include "util/log_tag.h"
+#include "util/log_tag.hpp"
 
 DEFINE_LOG_TAG("OTA");
 

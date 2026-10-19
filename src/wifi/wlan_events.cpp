@@ -1,11 +1,11 @@
-#include "wlan_config.h"
-#include "wlan_event_pure.h"
-#include "wlan_internal.h"
-#include "wlan_soft_reconnect.h"
+#include "wlan_config.hpp"
+#include "wlan_event_pure.hpp"
+#include "wlan_internal.hpp"
+#include "wlan_soft_reconnect.hpp"
 
-#include "async/event_types.h"
-#include "async/sse_dirty.h"
-#include "async/task_handles.h"
+#include "async/event_types.hpp"
+#include "async/sse_dirty.hpp"
+#include "async/task_handles.hpp"
 
 #include <Arduino.h>
 #include <WiFi.h>
@@ -14,7 +14,7 @@
 #include <freertos/FreeRTOS.h>
 #include <freertos/queue.h>
 
-#include "util/log_tag.h"
+#include "util/log_tag.hpp"
 
 DEFINE_LOG_TAG("WIFI");
 

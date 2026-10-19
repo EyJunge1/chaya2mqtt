@@ -1,8 +1,8 @@
-#include "admin_routes.h"
+#include "admin_routes.hpp"
 
-#include "constants.h"
-#include "web/web_utils.h"
-#include "wifi/wlan.h"
+#include "constants.hpp"
+#include "web/web_utils.hpp"
+#include "wifi/wlan.hpp"
 
 #include <ESPAsyncWebServer.h>
 

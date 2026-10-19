@@ -1,9 +1,9 @@
-#include "display.h"
-#include "display_task_internal.h"
-#include "internal.h"
+#include "display.hpp"
+#include "display_task_internal.hpp"
+#include "internal.hpp"
 
-#include "async/system_lifecycle.h"
-#include "util/log_tag.h"
+#include "async/system_lifecycle.hpp"
+#include "util/log_tag.hpp"
 
 #include <Arduino.h>
 #include <atomic>

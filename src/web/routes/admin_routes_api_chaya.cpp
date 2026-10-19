@@ -1,8 +1,8 @@
 #include <Arduino.h>
 
-#include "admin_routes_api_internal.h"
+#include "admin_routes_api_internal.hpp"
 
-#include "mqtt/mqtt.h"
+#include "mqtt/mqtt.hpp"
 
 #include <ESPAsyncWebServer.h>
 

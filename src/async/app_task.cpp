@@ -1,23 +1,23 @@
-#include "app_task.h"
+#include "app_task.hpp"
 
-#include "async/task_handles.h"
-#include "battery/battery.h"
-#include "battery/battery_config.h"
-#include "config/app_config.h"
-#include "display/display.h"
-#include "display/display_config.h"
-#include "display/display_link_pure.h"
-#include "heart/counter.h"
-#include "led/led.h"
-#include "mqtt/mqtt.h"
-#include "ota/ota.h"
-#include "ota/ota_health.h"
-#include "web/admin.h"
-#include "wifi/wlan.h"
+#include "async/task_handles.hpp"
+#include "battery/battery.hpp"
+#include "battery/battery_config.hpp"
+#include "config/app_config.hpp"
+#include "display/display.hpp"
+#include "display/display_config.hpp"
+#include "display/display_link_pure.hpp"
+#include "heart/counter.hpp"
+#include "led/led.hpp"
+#include "mqtt/mqtt.hpp"
+#include "ota/ota.hpp"
+#include "ota/ota_health.hpp"
+#include "web/admin.hpp"
+#include "wifi/wlan.hpp"
 
-#include "async/task_config.h"
-#include "diag/stack_monitor.h"
-#include "diag/task_watchdog.h"
+#include "async/task_config.hpp"
+#include "diag/stack_monitor.hpp"
+#include "diag/task_watchdog.hpp"
 
 #include <Arduino.h>
 #include <cstdint>
@@ -27,7 +27,7 @@
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
 
-#include "util/log_tag.h"
+#include "util/log_tag.hpp"
 
 DEFINE_LOG_TAG("APP");
 

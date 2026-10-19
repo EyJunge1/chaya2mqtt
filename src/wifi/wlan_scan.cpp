@@ -1,13 +1,13 @@
-#include "wlan.h"
+#include "wlan.hpp"
 
-#include "test.h"
-#include "wlan_config.h"
-#include "wlan_event_pure.h"
-#include "wlan_internal.h"
+#include "test.hpp"
+#include "wlan_config.hpp"
+#include "wlan_event_pure.hpp"
+#include "wlan_internal.hpp"
 
-#include "ota/ota.h"
+#include "ota/ota.hpp"
 
-#include "util/log_tag.h"
+#include "util/log_tag.hpp"
 
 #include <Arduino.h>
 #include <WiFi.h>
