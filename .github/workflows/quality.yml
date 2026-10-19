@@ -181,7 +181,7 @@ jobs:
             pio-${{ runner.os }}-
 
       - name: Install PlatformIO
-        run: pip install platformio==6.1.19
+        run: pip install platformio==6.2.0
 
       - name: Install clang-tidy and clang-format
         run: bash scripts/ci_install_clang_tools.sh
@@ -223,7 +223,7 @@ jobs:
             pio-${{ runner.os }}-
 
       - name: Install PlatformIO
-        run: pip install platformio==6.1.19
+        run: pip install platformio==6.2.0
 
       - name: Build and validate release firmware
         run: make check-firmware-build PIO=pio

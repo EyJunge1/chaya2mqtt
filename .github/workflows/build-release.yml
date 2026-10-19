@@ -71,7 +71,7 @@ jobs:
           cache-dependency-path: frontend/package-lock.json
 
       - name: Install PlatformIO
-        run: pip install platformio==6.1.19
+        run: pip install platformio==6.2.0
 
       - name: Install clang-tidy and clang-format
         run: bash scripts/ci_install_clang_tools.sh
