@@ -1,0 +1,8 @@
+# Name,   Type, SubType, Offset,  Size, Flags
+# 8 MB flash (ESP32-S3-PICO-1-N8R8) — dual OTA; ota_0 and ota_1 each 3.75 MB
+nvs,      data, nvs,     0x9000,  0x5000,
+otadata,  data, ota,     0xe000,  0x2000,
+ota_0,    app,  ota_0,   0x10000, 0x3C0000,
+ota_1,    app,  ota_1,   0x3D0000,0x3C0000,
+coredump, data, coredump,0x790000,0x10000,
+spiffs,   data, spiffs,  0x7A0000,0x60000,

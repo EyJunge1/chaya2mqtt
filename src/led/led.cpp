@@ -1,0 +1,414 @@
+#include "led.h"
+
+#include "led_config.h"
+#include "led_internal.h"
+#include "led_pattern_pure.h"
+
+#include "button/button.h"
+#include "config/app_config.h"
+#include "mqtt/mqtt.h"
+#include "util/time_helpers.h"
+
+#include <Arduino.h>
+#include <cstdint>
+
+#include <esp_log.h>
+#include <freertos/FreeRTOS.h>
+#include <freertos/task.h>
+
+#include "util/log_tag.h"
+
+DEFINE_LOG_TAG("LED");
+
+std::atomic<LedTxPhase> ledTxPhase{LedTxPhase::Idle};
+unsigned long ledPhaseStartMs = 0;
+unsigned long ledPhaseDurationMs = 0;
+
+static std::atomic<bool> s_refreshWanted{false};
+static std::atomic<bool> s_refreshHold{false};
+static std::atomic<bool> s_refreshHasDeadline{false};
+static std::atomic<uint32_t> s_refreshDeadlineStartMs{0};
+static std::atomic<uint32_t> s_refreshDeadlineDurMs{0};
+
+static std::atomic<bool> s_patternWanted{false};
+static std::atomic<bool> s_sendWanted{false};
+static std::atomic<bool> s_applyEnabledWanted{false};
+static std::atomic<uint8_t> s_patternCount{0};
+static std::atomic<uint16_t> s_patternOnMs{0};
+static std::atomic<uint16_t> s_patternOffMs{0};
+static LedPatternRuntime s_patternRt{};
+
+static bool ledIsRefreshPhase(LedTxPhase p) { return p == LedTxPhase::RefreshOn || p == LedTxPhase::RefreshOff; }
+
+static bool ledIsPatternPhase(LedTxPhase p) { return p == LedTxPhase::PatternOn || p == LedTxPhase::PatternOff; }
+
+static bool startPatternFromQueue() {
+    if (!s_patternWanted.load(std::memory_order_acquire)) {
+        return false;
+    }
+    LedTxPhase expected = ledTxPhase.load(std::memory_order_relaxed);
+    if (!ledTxPhaseAllowsSendStart(expected)) {
+        return false;
+    }
+    s_patternWanted.store(false, std::memory_order_release);
+    uint8_t count = s_patternCount.load(std::memory_order_relaxed);
+    uint16_t onMs = s_patternOnMs.load(std::memory_order_relaxed);
+    uint16_t offMs = s_patternOffMs.load(std::memory_order_relaxed);
+    if (!ledPatternBegin(s_patternRt, count, onMs, offMs)) {
+        s_patternWanted.store(true, std::memory_order_release);
+        return false;
+    }
+    if (!ledTxPhase.compare_exchange_strong(expected, LedTxPhase::PatternOn, std::memory_order_acq_rel,
+                                            std::memory_order_relaxed)) {
+        s_patternWanted.store(true, std::memory_order_release);
+        return false;
+    }
+    ledOutput(HIGH);
+    armLedPhase(s_patternRt.onMs);
+    return true;
+}
+
+static bool ledTxPhaseCas(LedTxPhase from, LedTxPhase to) {
+    LedTxPhase expected = from;
+    return ledTxPhase.compare_exchange_strong(expected, to, std::memory_order_acq_rel, std::memory_order_relaxed);
+}
+
+static void startRefreshIfIdle() {
+    if (ledTxPhaseCas(LedTxPhase::Idle, LedTxPhase::RefreshOn)) {
+        ledOutput(HIGH);
+        armLedPhase(kLedRefreshPulseMs);
+    }
+}
+
+void ledRefreshPulseBegin() {
+    s_refreshWanted.store(true, std::memory_order_release);
+    buttonNotifyTask();
+}
+
+void ledRefreshPulseHold() {
+    s_refreshHold.store(true, std::memory_order_release);
+    s_refreshHasDeadline.store(false, std::memory_order_relaxed);
+    s_refreshWanted.store(true, std::memory_order_release);
+    buttonNotifyTask();
+}
+
+void ledRefreshPulseEnd() {
+    s_refreshHold.store(false, std::memory_order_release);
+    s_refreshWanted.store(false, std::memory_order_release);
+    s_refreshHasDeadline.store(false, std::memory_order_relaxed);
+    buttonNotifyTask();
+}
+
+void ledRefreshPulseEndAfter(unsigned long durationMs) {
+    if (!ledRefreshEndAfterApplies(s_refreshHold.load(std::memory_order_acquire))) {
+        return;
+    }
+    s_refreshDeadlineStartMs.store(static_cast<uint32_t>(millis()), std::memory_order_relaxed);
+    s_refreshDeadlineDurMs.store(static_cast<uint32_t>(durationMs), std::memory_order_relaxed);
+    s_refreshHasDeadline.store(true, std::memory_order_release);
+    buttonNotifyTask();
+}
+
+void armLedPhase(unsigned long durationMs) {
+    ledPhaseStartMs = millis();
+    ledPhaseDurationMs = durationMs;
+}
+
+void ledOutputForced(int level) {
+    // Header user LED is active-low: HIGH in the state machine means "on".
+    digitalWrite(kButtonLedPin, level == HIGH ? LOW : HIGH);
+}
+
+void ledOutput(int level) {
+    if (!configGetLedEnabled()) {
+        ledOutputForced(LOW);
+        return;
+    }
+    ledOutputForced(level);
+}
+
+void ledInit() {
+    pinMode(kButtonLedPin, OUTPUT);
+    ledOutput(LOW); // active-low LED off
+}
+
+void ledApplyEnabled() {
+    s_applyEnabledWanted.store(true, std::memory_order_release);
+    buttonNotifyTask();
+}
+
+bool ledActivityActive() { return ledTxPhase.load(std::memory_order_relaxed) != LedTxPhase::Idle; }
+
+bool ledIsActivityActive() { return ledActivityActive(); }
+
+bool ledTxBusy() {
+    const LedTxPhase p = ledTxPhase.load(std::memory_order_relaxed);
+    return p != LedTxPhase::Idle && !ledIsRefreshPhase(p) && !ledIsPatternPhase(p);
+}
+
+bool ledIsTxSendBusy() { return s_sendWanted.load(std::memory_order_acquire) || ledTxBusy(); }
+
+static LedBlinkPattern ledPresetToPattern(LedPreset preset) {
+    switch (preset) {
+    case LedPreset::Boot:
+        return {kLedPresetBootCount, kLedPresetBootOnMs, kLedPresetBootOffMs};
+    case LedPreset::WifiUp:
+        return {kLedPresetWifiUpCount, kLedPresetWifiUpOnMs, kLedPresetWifiUpOffMs};
+    case LedPreset::MqttUp:
+        return {kLedPresetMqttUpCount, kLedPresetMqttUpOnMs, kLedPresetMqttUpOffMs};
+    case LedPreset::LinkDown:
+        return {kLedPresetLinkDownCount, kLedPresetLinkDownOnMs, kLedPresetLinkDownOffMs};
+    case LedPreset::SoftOff:
+        return {kLedPresetSoftOffCount, kLedPresetSoftOffOnMs, kLedPresetSoftOffOffMs};
+    }
+    return {kLedPresetBootCount, kLedPresetBootOnMs, kLedPresetBootOffMs};
+}
+
+static void ledPlayPattern(LedBlinkPattern pattern) {
+    ledPatternNormalize(pattern.count, pattern.onMs, pattern.offMs);
+    s_patternCount.store(pattern.count, std::memory_order_relaxed);
+    s_patternOnMs.store(pattern.onMs, std::memory_order_relaxed);
+    s_patternOffMs.store(pattern.offMs, std::memory_order_relaxed);
+    s_patternWanted.store(true, std::memory_order_release);
+    buttonNotifyTask();
+}
+
+void ledPlayPreset(LedPreset preset) { ledPlayPattern(ledPresetToPattern(preset)); }
+
+static void ledPlayPatternBlocking(LedBlinkPattern pattern) {
+    if (!configGetLedEnabled()) {
+        ledOutput(LOW);
+        return;
+    }
+    ledPatternNormalize(pattern.count, pattern.onMs, pattern.offMs);
+    for (uint8_t i = 0; i < pattern.count; i++) {
+        ledOutput(HIGH);
+        vTaskDelay(pdMS_TO_TICKS(pattern.onMs));
+        ledOutput(LOW);
+        if (pattern.offMs > 0) {
+            vTaskDelay(pdMS_TO_TICKS(pattern.offMs));
+        }
+    }
+}
+
+void ledPlayPresetBlocking(LedPreset preset) { ledPlayPatternBlocking(ledPresetToPattern(preset)); }
+
+struct LedPhaseRow {
+    LedTxPhase from;
+    int ledLevel;
+    LedTxPhase next;
+    unsigned long durationMs;
+};
+
+static constexpr LedPhaseRow kLedPhaseRows[] = {
+    {LedTxPhase::PreOn1, LOW, LedTxPhase::PreOff1, kLedSequenceStepMs},
+    {LedTxPhase::PreOff1, HIGH, LedTxPhase::PreOn2, kLedSequenceStepMs},
+    {LedTxPhase::PreOn2, LOW, LedTxPhase::PreOff2, kLedSequenceStepMs},
+    {LedTxPhase::PostWait, HIGH, LedTxPhase::PostOn1, kLedSequenceStepMs},
+    {LedTxPhase::PostOn1, LOW, LedTxPhase::PostOff1, kLedSequenceStepMs},
+    {LedTxPhase::PostOff1, HIGH, LedTxPhase::PostOn2, kLedSequenceStepMs},
+    {LedTxPhase::PostOn2, LOW, LedTxPhase::PostOff2, kLedSequenceStepMs},
+    {LedTxPhase::FailOn1, LOW, LedTxPhase::FailOff1, kFailFlashMs},
+    {LedTxPhase::FailOff1, HIGH, LedTxPhase::FailOn2, kFailFlashMs},
+    {LedTxPhase::FailOn2, LOW, LedTxPhase::FailOff2, kFailFlashMs},
+    {LedTxPhase::FailOff2, HIGH, LedTxPhase::FailOn3, kFailFlashMs},
+    {LedTxPhase::FailOn3, LOW, LedTxPhase::FailOff3, kFailFlashMs},
+};
+
+bool startMqttSendLedSequence() {
+    LedTxPhase expected = ledTxPhase.load(std::memory_order_relaxed);
+    while (ledTxPhaseAllowsSendStart(expected)) {
+        if (ledTxPhase.compare_exchange_strong(expected, LedTxPhase::PreOn1, std::memory_order_acq_rel,
+                                               std::memory_order_relaxed)) {
+            ESP_LOGI(TAG, "Chaya send: MQTT TX LED sequence");
+            s_patternWanted.store(false, std::memory_order_release);
+            ledOutput(HIGH);
+            armLedPhase(kLedSequenceStepMs);
+            return true;
+        }
+    }
+    return false;
+}
+
+static bool startSendIfWanted() { return s_sendWanted.load(std::memory_order_acquire) && startMqttSendLedSequence(); }
+
+void ledCancelChayaSend() {
+    s_sendWanted.store(false, std::memory_order_release);
+    ledTxPhase.store(LedTxPhase::Idle, std::memory_order_release);
+    ledOutput(LOW);
+}
+
+bool ledStartChayaSendSequence() {
+    if (ledIsTxSendBusy()) {
+        return false;
+    }
+    const LedTxPhase phase = ledTxPhase.load(std::memory_order_relaxed);
+    if (!ledTxPhaseAllowsSendStart(phase)) {
+        return false;
+    }
+    bool expected = false;
+    if (!s_sendWanted.compare_exchange_strong(expected, true, std::memory_order_acq_rel, std::memory_order_relaxed)) {
+        return false;
+    }
+    buttonNotifyTask();
+    return true;
+}
+
+static void finishToIdleOrBackground() {
+    if (startSendIfWanted()) {
+        return;
+    }
+    if (startPatternFromQueue()) {
+        return;
+    }
+    LedTxPhase expected = ledTxPhase.load(std::memory_order_relaxed);
+    if (!ledTxPhaseCanFinishToBackground(expected)) {
+        return;
+    }
+    if (s_refreshWanted.load(std::memory_order_acquire)) {
+        if (ledTxPhase.compare_exchange_strong(expected, LedTxPhase::RefreshOn, std::memory_order_acq_rel,
+                                               std::memory_order_relaxed)) {
+            ledOutput(HIGH);
+            armLedPhase(kLedRefreshPulseMs);
+        }
+        return;
+    }
+    (void)ledTxPhase.compare_exchange_strong(expected, LedTxPhase::Idle, std::memory_order_acq_rel, std::memory_order_relaxed);
+}
+
+void advanceLedSequence() {
+    if (s_applyEnabledWanted.exchange(false, std::memory_order_acq_rel) && !configGetLedEnabled()) {
+        ledOutputForced(LOW);
+    }
+
+    if (s_refreshHasDeadline.load(std::memory_order_acquire) &&
+        deadlineReached(s_refreshDeadlineStartMs.load(std::memory_order_relaxed),
+                        s_refreshDeadlineDurMs.load(std::memory_order_relaxed), static_cast<uint32_t>(millis()))) {
+        s_refreshWanted.store(false, std::memory_order_release);
+        s_refreshHasDeadline.store(false, std::memory_order_relaxed);
+    }
+
+    // TX preempts pattern and refresh; armLedPhase/ledOutput stay on this task.
+    if (startSendIfWanted()) {
+        return;
+    }
+
+    const LedTxPhase phaseNow = ledTxPhase.load(std::memory_order_relaxed);
+
+    if (ledIsPatternPhase(phaseNow) && s_patternWanted.load(std::memory_order_acquire)) {
+        (void)startPatternFromQueue();
+        return;
+    }
+
+    if (ledIsRefreshPhase(phaseNow) && s_patternWanted.load(std::memory_order_acquire)) {
+        (void)startPatternFromQueue();
+        return;
+    }
+
+    if (phaseNow == LedTxPhase::Idle) {
+        if (startPatternFromQueue()) {
+            return;
+        }
+        if (s_refreshWanted.load(std::memory_order_acquire)) {
+            startRefreshIfIdle();
+        }
+        return;
+    }
+
+    const unsigned long now = millis();
+    if (now - ledPhaseStartMs < ledPhaseDurationMs) {
+        return;
+    }
+
+    if (ledIsPatternPhase(phaseNow)) {
+        const LedPatternAdvanceResult r = ledPatternAdvance(s_patternRt);
+        if (r.done) {
+            finishToIdleOrBackground();
+            return;
+        }
+        const LedTxPhase next = r.ledOn ? LedTxPhase::PatternOn : LedTxPhase::PatternOff;
+        if (!ledTxPhaseCas(phaseNow, next)) {
+            return;
+        }
+        ledOutput(r.ledOn ? HIGH : LOW);
+        armLedPhase(r.durationMs);
+        return;
+    }
+
+    for (const LedPhaseRow &row : kLedPhaseRows) {
+        if (ledTxPhase.load(std::memory_order_relaxed) == row.from) {
+            ledOutput(row.ledLevel);
+            ledTxPhase.store(row.next, std::memory_order_relaxed);
+            armLedPhase(row.durationMs);
+            return;
+        }
+    }
+
+    switch (ledTxPhase.load(std::memory_order_relaxed)) {
+    case LedTxPhase::PreOff2:
+        ledTxPhase.store(LedTxPhase::PublishTry, std::memory_order_relaxed);
+        armLedPhase(0);
+        break;
+
+    case LedTxPhase::PublishTry: {
+        const MqttChayaPublishAsync st = mqttRequestChayaPublishAsync();
+        if (st == MqttChayaPublishAsync::Pending || st == MqttChayaPublishAsync::Idle) {
+            // Stay in PublishTry; short poll so button/PWR keep running (STAB-02).
+            armLedPhase(50);
+            break;
+        }
+        mqttClearChayaPublishAsync();
+        if (st == MqttChayaPublishAsync::Ok) {
+            ESP_LOGI(TAG, "MQTT message acknowledged by broker");
+            ledTxPhase.store(LedTxPhase::PostWait, std::memory_order_relaxed);
+            armLedPhase(kPostPublishWaitMs);
+        } else {
+            ESP_LOGW(TAG, "MQTT publish was not acknowledged");
+            ledOutput(HIGH);
+            ledTxPhase.store(LedTxPhase::FailOn1, std::memory_order_relaxed);
+            armLedPhase(kFailFlashMs);
+        }
+        break;
+    }
+
+    case LedTxPhase::PostOff2:
+    case LedTxPhase::FailOff3:
+        // Drop the reservation only after the send sequence ends (single-flight).
+        s_sendWanted.store(false, std::memory_order_release);
+        finishToIdleOrBackground();
+        break;
+
+    case LedTxPhase::RefreshOn:
+        if (s_patternWanted.load(std::memory_order_acquire)) {
+            (void)startPatternFromQueue();
+            break;
+        }
+        if (!s_refreshWanted.load(std::memory_order_acquire)) {
+            (void)ledTxPhaseCas(LedTxPhase::RefreshOn, LedTxPhase::Idle);
+            break;
+        }
+        if (ledTxPhaseCas(LedTxPhase::RefreshOn, LedTxPhase::RefreshOff)) {
+            ledOutput(LOW);
+            armLedPhase(kLedRefreshPulseMs);
+        }
+        break;
+
+    case LedTxPhase::RefreshOff:
+        if (s_patternWanted.load(std::memory_order_acquire)) {
+            (void)startPatternFromQueue();
+            break;
+        }
+        if (!s_refreshWanted.load(std::memory_order_acquire)) {
+            (void)ledTxPhaseCas(LedTxPhase::RefreshOff, LedTxPhase::Idle);
+            break;
+        }
+        if (ledTxPhaseCas(LedTxPhase::RefreshOff, LedTxPhase::RefreshOn)) {
+            ledOutput(HIGH);
+            armLedPhase(kLedRefreshPulseMs);
+        }
+        break;
+
+    default:
+        break;
+    }
+}

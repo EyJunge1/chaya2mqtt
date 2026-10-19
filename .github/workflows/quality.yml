@@ -1,0 +1,363 @@
+name: Quality gate
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+concurrency:
+  group: quality-${{ github.repository }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  changes:
+    name: Classify changes
+    runs-on: ubuntu-latest
+    outputs:
+      frontend: ${{ steps.classify.outputs.frontend }}
+      flasher: ${{ steps.classify.outputs.flasher }}
+      firmware_tests: ${{ steps.classify.outputs.firmware_tests }}
+      firmware_build: ${{ steps.classify.outputs.firmware_build }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Select affected quality jobs
+        id: classify
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+
+          frontend=false
+          flasher=false
+          firmware_tests=false
+          firmware_build=false
+          all=false
+
+          if [[ "$EVENT_NAME" != "pull_request" ]]; then
+            all=true
+          else
+            while IFS= read -r path; do
+              [[ -z "$path" ]] && continue
+              echo "changed: $path"
+
+              case "$path" in
+                docs/api/openapi.yaml|docs/api/asyncapi.yaml)
+                  frontend=true
+                  ;;
+                docs/*|*.md|LICENSE|.github/ISSUE_TEMPLATE/*)
+                  ;;
+                frontend/*)
+                  frontend=true
+                  firmware_build=true
+                  ;;
+                flasher/*)
+                  flasher=true
+                  ;;
+                src/*|sim/*|test/*|platformio.ini|partitions_chaya_8mb.csv|sdkconfig.defaults)
+                  firmware_tests=true
+                  firmware_build=true
+                  ;;
+                .clang-tidy|.clang-format|.clangd)
+                  firmware_tests=true
+                  ;;
+                scripts/embed_web_assets.py|scripts/test_embed_web_assets.py|scripts/pio_pre_frontend.py|scripts/prepare_release_artifacts.py)
+                  firmware_build=true
+                  ;;
+                scripts/test_check_firmware_size.py)
+                  firmware_tests=true
+                  ;;
+                scripts/check_firmware_size.py)
+                  firmware_tests=true
+                  firmware_build=true
+                  ;;
+                scripts/fetch_flasher_releases.py|scripts/generate_flasher_site.py|scripts/test_flasher_site.py)
+                  flasher=true
+                  ;;
+                scripts/pio_native_asan.py)
+                  firmware_tests=true
+                  firmware_build=true
+                  ;;
+                scripts/check_clang_tidy.sh|scripts/check_firmware_format.sh|scripts/format.sh)
+                  firmware_tests=true
+                  ;;
+                *)
+                  echo "Central or unknown path; enabling the complete gate: $path"
+                  all=true
+                  ;;
+              esac
+            done < <(git diff --name-only --diff-filter=ACMR "$BASE_SHA" "$HEAD_SHA")
+          fi
+
+          if [[ "$all" == "true" ]]; then
+            frontend=true
+            flasher=true
+            firmware_tests=true
+            firmware_build=true
+          fi
+
+          {
+            echo "frontend=$frontend"
+            echo "flasher=$flasher"
+            echo "firmware_tests=$firmware_tests"
+            echo "firmware_build=$firmware_build"
+          } | tee -a "$GITHUB_OUTPUT"
+
+  frontend:
+    name: Frontend
+    needs: changes
+    if: needs.changes.outputs.frontend == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install frontend dependencies and Playwright
+        working-directory: frontend
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+
+      - name: npm audit (fail on high/critical)
+        working-directory: frontend
+        run: npm audit --audit-level=high
+
+      - name: Run frontend quality gate
+        run: "make check-frontend FRONTEND_NPM_CI=:"
+
+  flasher:
+    name: Web flasher
+    needs: changes
+    if: needs.changes.outputs.flasher == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: flasher/package-lock.json
+
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+
+      - name: Run web-flasher quality gate
+        run: make check-flasher
+
+  firmware_tests:
+    name: Firmware tests
+    needs: changes
+    if: needs.changes.outputs.firmware_tests == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+
+      - name: Cache PlatformIO
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.platformio
+          key: pio-${{ runner.os }}-${{ hashFiles('platformio.ini') }}
+          restore-keys: |
+            pio-${{ runner.os }}-
+
+      - name: Install PlatformIO
+        run: pip install platformio==6.2.0
+
+      - name: Install clang-tidy and clang-format
+        run: bash scripts/ci_install_clang_tools.sh
+
+      - name: Run native and static firmware checks
+        run: make check-firmware-tests PIO=pio
+        env:
+          CLANG_FORMAT: clang-format-23
+          CLANG_TIDY: clang-tidy-22
+
+  firmware_build:
+    name: Firmware release build
+    needs: changes
+    if: needs.changes.outputs.firmware_build == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Cache PlatformIO
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.platformio
+          key: pio-${{ runner.os }}-${{ hashFiles('platformio.ini') }}
+          restore-keys: |
+            pio-${{ runner.os }}-
+
+      - name: Install PlatformIO
+        run: pip install platformio==6.2.0
+
+      - name: Build and validate release firmware
+        run: make check-firmware-build PIO=pio
+
+      - name: Upload PR firmware artifacts
+        if: github.event_name == 'pull_request'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: firmware-pr-${{ github.event.pull_request.number }}-${{ github.sha }}
+          path: |
+            .pio/build/esp32s3-release/firmware.bin
+            .pio/build/esp32s3-release/firmware.sha512
+            .pio/build/esp32s3-release/firmware.factory.bin
+            .pio/build/esp32s3-release/firmware.factory.sha512
+          retention-days: 7
+          if-no-files-found: error
+
+      - name: Fetch main size baseline
+        id: baseline
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          mkdir -p baseline
+          run_id="$(
+            gh run list \
+              --repo "$GITHUB_REPOSITORY" \
+              --workflow quality.yml \
+              --branch main \
+              --status success \
+              --limit 20 \
+              --json databaseId,event \
+              --jq '[.[] | select(.event == "push")][0].databaseId' \
+            || true
+          )"
+          if [[ -z "${run_id}" || "${run_id}" == "null" ]]; then
+            echo "No main baseline run found"
+            echo "path=" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if gh run download "$run_id" --repo "$GITHUB_REPOSITORY" --name firmware-sizes --dir baseline; then
+            if [[ -f baseline/sizes.json ]]; then
+              echo "path=baseline/sizes.json" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+          fi
+          echo "path=" >> "$GITHUB_OUTPUT"
+
+      - name: Measure firmware sizes
+        env:
+          BASELINE_PATH: ${{ steps.baseline.outputs.path }}
+        run: |
+          set -euo pipefail
+          extra=()
+          if [[ -n "${BASELINE_PATH}" ]]; then
+            extra+=(--baseline)
+          fi
+          python3 scripts/check_firmware_size.py \
+            --json \
+            --markdown \
+            --commit "${GITHUB_SHA}" \
+            "${extra[@]}"
+
+      - name: Upload main size baseline
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: firmware-sizes
+          path: out/sizes.json
+          retention-days: 90
+          if-no-files-found: error
+
+      - name: Write size job summary
+        if: always()
+        run: |
+          if [[ -f out/sizes.md ]]; then
+            cat out/sizes.md >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Upsert firmware size PR comment
+        if: always() && github.event_name == 'pull_request'
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          set -euo pipefail
+          if [[ ! -f out/sizes.md ]]; then
+            echo "No size report to comment"
+            exit 0
+          fi
+          set +o pipefail
+          comment_id="$(
+            gh api --paginate "repos/${GITHUB_REPOSITORY}/issues/${PR_NUMBER}/comments" \
+              --jq '.[] | select(.body | contains("<!-- chaya2mqtt-firmware-size -->")) | .id' \
+            | awk 'NF { print; exit }'
+          )"
+          set -o pipefail
+          jq -n --rawfile body out/sizes.md '{body: $body}' > /tmp/size-comment.json
+          if [[ -n "${comment_id}" ]]; then
+            gh api --method PATCH "repos/${GITHUB_REPOSITORY}/issues/comments/${comment_id}" --input /tmp/size-comment.json
+          else
+            gh api --method POST "repos/${GITHUB_REPOSITORY}/issues/${PR_NUMBER}/comments" --input /tmp/size-comment.json
+          fi
+
+  check:
+    name: check
+    if: always()
+    needs:
+      - changes
+      - frontend
+      - flasher
+      - firmware_tests
+      - firmware_build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require all selected quality jobs
+        shell: bash
+        env:
+          CHANGES_RESULT: ${{ needs.changes.result }}
+          FRONTEND_RESULT: ${{ needs.frontend.result }}
+          FLASHER_RESULT: ${{ needs.flasher.result }}
+          FIRMWARE_TESTS_RESULT: ${{ needs.firmware_tests.result }}
+          FIRMWARE_BUILD_RESULT: ${{ needs.firmware_build.result }}
+        run: |
+          set -euo pipefail
+          for result in \
+            "$CHANGES_RESULT" \
+            "$FRONTEND_RESULT" \
+            "$FLASHER_RESULT" \
+            "$FIRMWARE_TESTS_RESULT" \
+            "$FIRMWARE_BUILD_RESULT"; do
+            case "$result" in
+              success|skipped) ;;
+              *) echo "Quality job did not pass: $result"; exit 1 ;;
+            esac
+          done

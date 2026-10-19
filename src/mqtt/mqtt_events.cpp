@@ -1,0 +1,443 @@
+#include "mqtt_internal.h"
+
+#include "backoff.h"
+#include "counter_payload.h"
+#include "mqtt_event_live_pure.h"
+
+#include "async/event_types.h"
+#include "async/sse_dirty.h"
+#include "async/system_lifecycle.h"
+#include "async/task_handles.h"
+#include "audio/audio.h"
+#include "config.h"
+#include "display/display.h"
+#include "heart/counter.h"
+#include "heart/counter_pure.h"
+#include "identity/device_identity.h"
+#include "led/led.h"
+#include "led/led_config.h"
+#include "pairing.h"
+#include "wifi/wlan.h"
+
+#include <Arduino.h>
+
+#include <cinttypes>
+#include <cstring>
+#include <utility>
+
+#include <esp_log.h>
+#include <freertos/FreeRTOS.h>
+#include <freertos/queue.h>
+
+#include "util/log_tag.h"
+
+DEFINE_LOG_TAG("MQTT");
+
+unsigned long lastMqttAttemptAt = 0;
+unsigned long mqttBackoffMs = 0;
+unsigned long mqttCurrentBackoffMs = kMqttBackoffInitialMs;
+portMUX_TYPE s_mqttBackoffMux = portMUX_INITIALIZER_UNLOCKED;
+
+static char s_fragAccBuf[16];
+static uint32_t s_fragExpectTotal = 0;
+static unsigned s_fragHave = 0;
+static portMUX_TYPE s_mqttFragmentMux = portMUX_INITIALIZER_UNLOCKED;
+
+enum class MqttHeartTopicKind : uint8_t { None = 0, Partner = 1, Own = 2 };
+static MqttHeartTopicKind s_fragTopicKind = MqttHeartTopicKind::None;
+
+void mqttResetFragmentState() {
+    portENTER_CRITICAL(&s_mqttFragmentMux);
+    s_fragExpectTotal = 0;
+    s_fragHave = 0;
+    portEXIT_CRITICAL(&s_mqttFragmentMux);
+    s_fragTopicKind = MqttHeartTopicKind::None;
+}
+
+void applyDisconnectFailureBackoff(bool wifiSuspectDuringFailure) {
+    MqttBackoffState st{};
+    portENTER_CRITICAL(&s_mqttBackoffMux);
+    st.currentBackoffMs = mqttCurrentBackoffMs;
+    portEXIT_CRITICAL(&s_mqttBackoffMux);
+
+    const bool wifiSuspect = wifiSuspectDuringFailure || !wlanStaConnectedOk();
+    const unsigned long waitMs = mqttNextFailureBackoffMs(st, wifiSuspect);
+    if (wifiSuspect) {
+        ESP_LOGW(TAG, "Wi-Fi not healthy after MQTT disconnect — backing off %lu s", waitMs / 1000UL);
+    }
+    portENTER_CRITICAL(&s_mqttBackoffMux);
+    mqttCurrentBackoffMs = st.currentBackoffMs;
+    mqttBackoffMs = waitMs;
+    lastMqttAttemptAt = millis();
+    portEXIT_CRITICAL(&s_mqttBackoffMux);
+    ESP_LOGI(TAG, "Next connect attempt in %lu s", waitMs / 1000UL);
+}
+
+static void requestHeartContentRedraw() {
+    audioRequest(AudioMsg::Kind::Rx);
+    ledRefreshPulseBegin();
+    ledRefreshPulseEndAfter(kLedRefreshAckMs); // Display Begin overrides if a refresh actually starts.
+    (void)displayRequest(DisplayMsg::Cmd::DrawHeart, DisplayRequestMode::Content, 0U);
+}
+
+static void handlePartnerCounterPayload(const char *payload, unsigned int length) {
+    long parsed = 0;
+    if (!mqttParseCounterPayload(payload, length, &parsed)) {
+        ESP_LOGD(TAG, "Invalid counter payload (len=%u)", length);
+        return;
+    }
+
+    const int newCounter = static_cast<int>(parsed);
+    if (newCounter == heartCounter.load(std::memory_order_relaxed)) {
+        return;
+    }
+    if (!heartApplyAllowed(g_systemShutdownInProgress.load(std::memory_order_acquire),
+                           g_chayaNvsWritesSuspended.load(std::memory_order_acquire))) {
+        ESP_LOGD(TAG, "Heart counter from MQTT ignored (shutdown or factory suspend)");
+        return;
+    }
+
+    ESP_LOGI(TAG, "Heart counter from MQTT (remote): %d", newCounter);
+    heartCounterStoreFromRemote(newCounter);
+    requestHeartContentRedraw();
+}
+
+static void handleOwnCounterPayload(const char *payload, unsigned int length) {
+    long parsed = 0;
+    if (!mqttParseCounterPayload(payload, length, &parsed)) {
+        ESP_LOGD(TAG, "Invalid own-topic counter payload (len=%u)", length);
+        return;
+    }
+
+    const int newCounter = static_cast<int>(parsed);
+    const int localTx = heartSentCounter.load(std::memory_order_relaxed);
+    if (mqttOwnPublishEchoShouldIgnore(newCounter) || !heartSentRemoteShouldApply(newCounter, localTx)) {
+        return;
+    }
+    if (!heartApplyAllowed(g_systemShutdownInProgress.load(std::memory_order_acquire),
+                           g_chayaNvsWritesSuspended.load(std::memory_order_acquire))) {
+        ESP_LOGD(TAG, "Own-topic heart counter ignored (shutdown or factory suspend)");
+        return;
+    }
+
+    ESP_LOGI(TAG, "Heart counter from MQTT (own pairing): %d", newCounter);
+    if (heartSentCounterStoreFromRemoteIfGreater(newCounter)) {
+        requestHeartContentRedraw();
+    }
+}
+
+static bool feedFragmentedPayload(esp_mqtt_event_handle_t ev) {
+    if (ev == nullptr || ev->data == nullptr || ev->data_len <= 0) {
+        return false;
+    }
+
+    char completePayload[sizeof(s_fragAccBuf)]{};
+    uint32_t completeLength = 0;
+    bool rejected = false;
+    bool partial = false;
+    [[maybe_unused]] unsigned partialHave = 0;
+    [[maybe_unused]] uint32_t partialTotal = 0;
+
+    portENTER_CRITICAL(&s_mqttFragmentMux);
+    if (ev->topic != nullptr && ev->topic_len > 0 && ev->current_data_offset == 0) {
+        s_fragHave = 0;
+        s_fragExpectTotal = static_cast<uint32_t>(ev->total_data_len);
+        const uint32_t kMaxStored = sizeof(s_fragAccBuf) - 1U;
+        if (s_fragExpectTotal == 0U || s_fragExpectTotal > kMaxStored) {
+            s_fragExpectTotal = 0;
+            rejected = true;
+        }
+    }
+
+    if (!rejected && s_fragExpectTotal > 0U) {
+        const unsigned add = static_cast<unsigned>(ev->data_len);
+        const bool offsetMatches = std::cmp_equal(ev->current_data_offset, s_fragHave);
+        if (!offsetMatches || s_fragHave > s_fragExpectTotal || add > s_fragExpectTotal - s_fragHave) {
+            s_fragExpectTotal = 0;
+            s_fragHave = 0;
+            rejected = true;
+        } else {
+            memcpy(s_fragAccBuf + s_fragHave, ev->data, add);
+            s_fragHave += add;
+            if (s_fragHave < s_fragExpectTotal) {
+                partial = true;
+                partialHave = s_fragHave;
+                partialTotal = s_fragExpectTotal;
+            } else {
+                completeLength = s_fragExpectTotal;
+                memcpy(completePayload, s_fragAccBuf, completeLength);
+                s_fragExpectTotal = 0;
+                s_fragHave = 0;
+            }
+        }
+    }
+    portEXIT_CRITICAL(&s_mqttFragmentMux);
+
+    if (rejected) {
+        s_fragTopicKind = MqttHeartTopicKind::None;
+        ESP_LOGD(TAG, "Ignoring malformed MQTT fragment");
+        return false;
+    }
+    if (partial) {
+        ESP_LOGV(TAG, "MQTT fragment: partial %u/%" PRIu32 " bytes", partialHave, partialTotal);
+        return false;
+    }
+    if (completeLength == 0U) {
+        return false;
+    }
+    ESP_LOGV(TAG, "MQTT fragment: complete %" PRIu32 " bytes", completeLength);
+    if (s_fragTopicKind == MqttHeartTopicKind::Own) {
+        handleOwnCounterPayload(completePayload, completeLength);
+    } else if (s_fragTopicKind == MqttHeartTopicKind::Partner) {
+        handlePartnerCounterPayload(completePayload, completeLength);
+    }
+    return true;
+}
+
+static bool topicMatchesCached(const esp_mqtt_event_handle_t ev, const char *cache, size_t cachedLen) {
+    return (ev->topic != nullptr) && (ev->topic_len > 0) && (cachedLen > 0U) &&
+           (static_cast<size_t>(ev->topic_len) == cachedLen) && (memcmp(ev->topic, cache, cachedLen) == 0);
+}
+
+static MqttHeartTopicKind classifyHeartTopic(const esp_mqtt_event_handle_t ev) {
+    if (ev->topic == nullptr || ev->topic_len <= 0) {
+        return MqttHeartTopicKind::None;
+    }
+    portENTER_CRITICAL(&s_mqttSubTopicMux);
+    const bool partner = topicMatchesCached(ev, s_mqttSubTopicCache, s_mqttSubTopicLen);
+    const bool own = topicMatchesCached(ev, s_mqttOwnTopicCache, s_mqttOwnTopicLen);
+    portEXIT_CRITICAL(&s_mqttSubTopicMux);
+    if (partner) {
+        return MqttHeartTopicKind::Partner;
+    }
+    if (own) {
+        return MqttHeartTopicKind::Own;
+    }
+    return MqttHeartTopicKind::None;
+}
+
+static bool mqttEventClientStillLive(esp_mqtt_client_handle_t cli, uint32_t *outGeneration) {
+    const esp_mqtt_client_handle_t live = s_client.load(std::memory_order_acquire);
+    const uint32_t gen = s_clientGeneration.load(std::memory_order_acquire);
+    if (!mqttEventIsLive(cli, live, gen, gen)) {
+        return false;
+    }
+    if (outGeneration != nullptr) {
+        *outGeneration = gen;
+    }
+    return true;
+}
+
+static bool mqttEventGenerationStillValid(uint32_t generation) {
+    const esp_mqtt_client_handle_t live = s_client.load(std::memory_order_acquire);
+    return mqttEventIsLive(live, live, generation, s_clientGeneration.load(std::memory_order_acquire));
+}
+
+template <typename Fn> static bool mqttWithLiveClient(esp_mqtt_client_handle_t cli, uint32_t generation, Fn &&fn) {
+    if (!mqttClientLockTimed()) {
+        return false;
+    }
+    const bool live = mqttEventIsLive(cli, s_client.load(std::memory_order_acquire), generation,
+                                      s_clientGeneration.load(std::memory_order_acquire));
+    if (live) {
+        fn(cli);
+    }
+    mqttClientUnlock();
+    return live;
+}
+
+static bool mqttEventDisconnectIfLive(esp_mqtt_client_handle_t cli, uint32_t generation) {
+    return mqttWithLiveClient(cli, generation, [](esp_mqtt_client_handle_t c) { (void)esp_mqtt_client_disconnect(c); });
+}
+
+static void mqttAbortConnectPendingIfLive(esp_mqtt_client_handle_t cli, uint32_t generation) {
+    s_connectPending.store(false, std::memory_order_release);
+    (void)mqttEventDisconnectIfLive(cli, generation);
+}
+
+void mqttEventHandler(void * /*handler_args*/, esp_event_base_t /*base*/, int32_t event_id, void *event_data) {
+    const esp_mqtt_event_handle_t ev = static_cast<esp_mqtt_event_handle_t>(event_data);
+    if (ev == nullptr) {
+        return;
+    }
+    uint32_t handlerGeneration = 0;
+    if (!mqttEventClientStillLive(ev->client, &handlerGeneration)) {
+        return;
+    }
+
+    switch (static_cast<esp_mqtt_event_id_t>(event_id)) {
+    case MQTT_EVENT_CONNECTED: {
+        if (!mqttEventGenerationStillValid(handlerGeneration)) {
+            break;
+        }
+
+        MqttConfig cfg{};
+        if (!mqttCfgSnapshotTimed(&cfg, 2000U)) {
+            ESP_LOGW(TAG, "MQTT connected: cfg snapshot timeout — disconnecting");
+            mqttAbortConnectPendingIfLive(ev->client, handlerGeneration);
+            break;
+        }
+        char deviceId[kDeviceIdBufLen]{};
+        buildDeviceId(deviceId, sizeof(deviceId));
+        char lwtPublishTopic[sizeof(s_lwtTopicBuf)];
+        mqttFormatDeviceLwtTopic(lwtPublishTopic, sizeof(lwtPublishTopic), deviceId);
+
+        portENTER_CRITICAL(&s_mqttBackoffMux);
+        mqttCurrentBackoffMs = kMqttBackoffInitialMs;
+        portEXIT_CRITICAL(&s_mqttBackoffMux);
+
+        const bool paired = cfg.partnerDeviceId[0] != '\0';
+        const bool shouldSubscribePartner = paired && mqttTopicSyntaxOk(cfg.topicSub, sizeof(cfg.topicSub));
+        const bool shouldSubscribeOwn = paired && mqttTopicSyntaxOk(cfg.topicPub, sizeof(cfg.topicPub)) &&
+                                        (!shouldSubscribePartner || strcmp(cfg.topicPub, cfg.topicSub) != 0);
+        if (shouldSubscribePartner || shouldSubscribeOwn) {
+            portENTER_CRITICAL(&s_mqttSubTopicMux);
+            if (shouldSubscribePartner) {
+                strlcpy(s_mqttSubTopicCache, cfg.topicSub, sizeof(s_mqttSubTopicCache));
+                s_mqttSubTopicLen = strlen(s_mqttSubTopicCache);
+            } else {
+                s_mqttSubTopicCache[0] = '\0';
+                s_mqttSubTopicLen = 0U;
+            }
+            if (shouldSubscribeOwn) {
+                strlcpy(s_mqttOwnTopicCache, cfg.topicPub, sizeof(s_mqttOwnTopicCache));
+                s_mqttOwnTopicLen = strlen(s_mqttOwnTopicCache);
+            } else {
+                s_mqttOwnTopicCache[0] = '\0';
+                s_mqttOwnTopicLen = 0U;
+            }
+            portEXIT_CRITICAL(&s_mqttSubTopicMux);
+            ESP_LOGI(TAG, "MQTT connected; subscribing (QoS 1): partner=%s own=%s", shouldSubscribePartner ? cfg.topicSub : "-",
+                     shouldSubscribeOwn ? cfg.topicPub : "-");
+        } else {
+            portENTER_CRITICAL(&s_mqttSubTopicMux);
+            s_mqttSubTopicCache[0] = '\0';
+            s_mqttSubTopicLen = 0U;
+            s_mqttOwnTopicCache[0] = '\0';
+            s_mqttOwnTopicLen = 0U;
+            portEXIT_CRITICAL(&s_mqttSubTopicMux);
+            ESP_LOGI(TAG, "MQTT connected; no partner — skipping subscribe");
+        }
+
+        constexpr const char kOnline[] = "online";
+        constexpr int kOnlineLen = sizeof(kOnline) - 1;
+
+        // One mutex take for subscribe + LWT + mark connected (PERF-06).
+        bool subscribeFailed = false;
+        bool publishFailed = false;
+        const bool live = mqttWithLiveClient(ev->client, handlerGeneration, [&](esp_mqtt_client_handle_t c) {
+            if (shouldSubscribePartner) {
+                const int mid = esp_mqtt_client_subscribe(c, cfg.topicSub, 1);
+                if (mid < 0) {
+                    subscribeFailed = true;
+                    return;
+                }
+            }
+            if (shouldSubscribeOwn) {
+                const int mid = esp_mqtt_client_subscribe(c, cfg.topicPub, 1);
+                if (mid < 0) {
+                    subscribeFailed = true;
+                    return;
+                }
+            }
+            if (lwtPublishTopic[0] != '\0' && esp_mqtt_client_publish(c, lwtPublishTopic, kOnline, kOnlineLen, 1, 1) < 0) {
+                publishFailed = true;
+                return;
+            }
+            s_connected.store(true, std::memory_order_release);
+            s_connectPending.store(false, std::memory_order_release);
+            sseMarkDirty(kSseChaya | kSseMqtt);
+        });
+        if (!live) {
+            s_connectPending.store(false, std::memory_order_release);
+            break;
+        }
+        if (subscribeFailed) {
+            ESP_LOGE(TAG, "MQTT subscribe failed — disconnecting for retry");
+            mqttAbortConnectPendingIfLive(ev->client, handlerGeneration);
+            break;
+        }
+        if (publishFailed) {
+            ESP_LOGW(TAG, "MQTT publish retained online failed — disconnecting for retry");
+            mqttAbortConnectPendingIfLive(ev->client, handlerGeneration);
+            break;
+        }
+
+        ledPlayPreset(LedPreset::MqttUp);
+        break;
+    }
+    case MQTT_EVENT_DATA:
+        if (!mqttEventGenerationStillValid(handlerGeneration)) {
+            mqttResetFragmentState();
+            break;
+        }
+        if (ev->topic == nullptr || ev->topic_len <= 0) {
+            feedFragmentedPayload(ev);
+        } else {
+            const MqttHeartTopicKind kind = classifyHeartTopic(ev);
+            if (kind == MqttHeartTopicKind::None) {
+                ESP_LOGD(TAG, "Ignoring MQTT payload (wrong topic)");
+                mqttResetFragmentState();
+            } else {
+                s_fragTopicKind = kind;
+                feedFragmentedPayload(ev);
+            }
+        }
+        break;
+
+    case MQTT_EVENT_PUBLISHED:
+        if (mqttEventGenerationStillValid(handlerGeneration)) {
+            ESP_LOGD(TAG, "PUBACK msg_id=%d gen=%u", ev->msg_id, static_cast<unsigned>(handlerGeneration));
+            mqttHandlePublishedAck(ev->msg_id, handlerGeneration);
+        }
+        break;
+
+    case MQTT_EVENT_DISCONNECTED: {
+        if (!mqttEventGenerationStillValid(handlerGeneration)) {
+            break;
+        }
+        mqttAbortPendingPublish(handlerGeneration);
+        s_connected.store(false, std::memory_order_release);
+        s_connectPending.store(false, std::memory_order_release);
+        sseMarkDirty(kSseChaya | kSseMqtt);
+        mqttResetFragmentState();
+        const bool intentional = s_disconnectIntentional.load(std::memory_order_acquire);
+        if (intentional) {
+            ESP_LOGI(TAG, "MQTT disconnected (intentional teardown)");
+            s_disconnectIntentional.store(false, std::memory_order_release);
+        } else {
+            const esp_mqtt_error_codes_t *eh = ev->error_handle;
+            if (eh != nullptr) {
+                ESP_LOGW(TAG, "MQTT disconnected: error_type=%d connect_rc=%d tls=%s sock_errno=%d",
+                         static_cast<int>(eh->error_type), static_cast<int>(eh->connect_return_code),
+                         esp_err_to_name(eh->esp_tls_last_esp_err), eh->esp_transport_sock_errno);
+            } else {
+                ESP_LOGW(TAG, "MQTT disconnected");
+            }
+        }
+        if (!intentional) {
+            applyDisconnectFailureBackoff(/*wifiSuspect=*/!wlanStaConnectedOk());
+            // Keep the client handle; mqttLoop will reconnect (PERF-02).
+        }
+        break;
+    }
+
+    case MQTT_EVENT_ERROR:
+        if (ev->error_handle != nullptr) {
+            const esp_mqtt_error_codes_t *eh = ev->error_handle;
+            ESP_LOGW(TAG, "MQTT EVENT_ERROR: error_type=%d connect_rc=%d tls=%s sock_errno=%d", static_cast<int>(eh->error_type),
+                     static_cast<int>(eh->connect_return_code), esp_err_to_name(eh->esp_tls_last_esp_err),
+                     eh->esp_transport_sock_errno);
+            if (eh->error_type == MQTT_ERROR_TYPE_SUBSCRIBE_FAILED) {
+                ESP_LOGE(TAG, "MQTT subscribe rejected by broker");
+                mqttAbortConnectPendingIfLive(ev->client, handlerGeneration);
+            }
+        } else {
+            ESP_LOGW(TAG, "MQTT EVENT_ERROR (no error_handle)");
+        }
+        break;
+
+    default:
+        break;
+    }
+}

@@ -1,0 +1,228 @@
+#include <Arduino.h>
+
+#include "../admin_globals.h"
+#include "admin_routes_api_internal.h"
+
+#include "battery/battery.h"
+#include "battery/battery_pure.h"
+#include "constants.h"
+#include "identity/device_identity.h"
+#include "mqtt/config.h"
+#include "mqtt/mqtt.h"
+#include "ota/ota.h"
+#include "util/log_tag.h"
+#include "web/web_utils.h"
+
+#include <ESPAsyncWebServer.h>
+#include <cstring>
+#include <esp_log.h>
+
+DEFINE_LOG_TAG("WEBAPI");
+
+void fillMqttStatusJson(JsonObject obj, bool connected) { obj["connected"] = connected; }
+
+void fillMqttConfigJson(JsonObject obj, const MqttConfig &cfg, bool applyPending, bool nvsOk) {
+    // buildDeviceId may take g_nvsMutex on first miss — never call it while holding s_mqttCfgMutex.
+    char deviceId[kDeviceIdBufLen]{};
+    buildDeviceId(deviceId, sizeof(deviceId));
+    obj["deviceId"] = deviceId;
+    obj["server"] = cfg.server;
+    obj["port"] = cfg.port;
+    obj["tls"] = cfg.tls;
+    obj["username"] = cfg.username;
+    obj["hasPassword"] = cfg.password[0] != '\0';
+    obj["topicPub"] = cfg.topicPub;
+    obj["topicSub"] = cfg.topicSub;
+    obj["partnerId"] = cfg.partnerDeviceId;
+    obj["pairingId"] = cfg.pairingDeviceId;
+    obj["nvsOk"] = nvsOk;
+    obj["applyPending"] = applyPending;
+}
+
+void handleApiMqttGet(AsyncWebServerRequest *req) {
+    MqttConfig cfg{};
+    bool applyPending = false;
+    bool nvsOk = false;
+    if (!mqttCfgSnapshotWithApplyFlagsTimed(&cfg, &applyPending, &nvsOk, 2000U)) {
+        sendErr(req, 503, "busy");
+        return;
+    }
+    JsonDocument doc;
+    fillMqttConfigJson(doc.to<JsonObject>(), cfg, applyPending, nvsOk);
+    webSendJsonDoc(req, 200, doc);
+}
+
+void normalizeHexIdInput(char *id, size_t idLen) {
+    if (id == nullptr || idLen == 0U) {
+        return;
+    }
+    for (size_t i = 0; i < idLen && id[i] != '\0'; ++i) {
+        if (id[i] >= 'A' && id[i] <= 'F') {
+            id[i] = static_cast<char>(id[i] - 'A' + 'a');
+        }
+    }
+}
+
+bool pairingIdInputValid(const char *pairingId) {
+    return pairingId != nullptr && (pairingId[0] == '\0' || deviceIdSyntaxOk(pairingId));
+}
+
+bool partnerIdInputValid(const char *partnerId, const char *pairingId, const char *ownId) {
+    if (!deviceIdSyntaxOk(partnerId) || ownId == nullptr) {
+        return false;
+    }
+    if (strcmp(partnerId, ownId) == 0) {
+        return false;
+    }
+    if (pairingId != nullptr && pairingId[0] != '\0' && strcmp(partnerId, pairingId) == 0) {
+        return false;
+    }
+    return true;
+}
+
+void handleApiMqttPost(AsyncWebServerRequest *req, JsonVariant &json) {
+    if (!adminJsonRequireObject(req, json)) {
+        return;
+    }
+    if (g_systemShutdownInProgress.load(std::memory_order_acquire) || g_factoryResetQueued.load(std::memory_order_acquire)) {
+        sendErr(req, 503, "shutdown");
+        return;
+    }
+    if (adminApplyBlockedByOta(otaBlocksDestructiveAction())) {
+        sendErr(req, 503, "busy");
+        return;
+    }
+    const ScopedWebAdminApplyInFlight applyInFlight;
+    if (!applyInFlight) {
+        sendErr(req, 503, "shutdown");
+        return;
+    }
+    if (batteryCriticalLow(batteryPercent())) {
+        sendErr(req, 503, "battery_low");
+        return;
+    }
+    // BUG-WEB-03: do not clear nvsOk on POST accept (unchanged POST would paint success).
+    // Track A clears the flag only after a successful saveMQTTConfig.
+    MqttConfig base{};
+    if (mqttCfgApplyPending()) {
+        if (!mqttCfgPendingSnapshotTimed(&base, 2000U)) {
+            sendErr(req, 503, "busy");
+            return;
+        }
+    } else if (!mqttCfgSnapshotTimed(&base, 2000U)) {
+        sendErr(req, 503, "busy");
+        return;
+    }
+    MqttConfig pending = base;
+    if (!adminApplyOptionalString(json, "mqtt_server", pending.server, sizeof(pending.server))) {
+        sendErr(req, 400, "broker");
+        return;
+    }
+    {
+        int portIn = static_cast<int>(pending.port);
+        if (!adminApplyOptionalInt(json, "mqtt_port", nullptr, &portIn)) {
+            sendErr(req, 400, "port");
+            return;
+        }
+        pending.port = normalizeMqttPort(portIn);
+    }
+    if (!adminApplyOptionalBool(json, "mqtt_tls", &pending.tls)) {
+        sendErr(req, 400, "tls");
+        return;
+    }
+    if (!adminApplyOptionalString(json, "mqtt_user", pending.username, sizeof(pending.username))) {
+        sendErr(req, 400, "username");
+        return;
+    }
+    if (!mqttUsernameSyntaxOk(pending.username, sizeof(pending.username))) {
+        sendErr(req, 400, "username");
+        return;
+    }
+    {
+        char passBuf[sizeof(pending.password)];
+        passBuf[0] = '\0';
+        if (!adminApplyOptionalString(json, "mqtt_pass", passBuf, sizeof(passBuf))) {
+            sendErr(req, 400, "password");
+            return;
+        }
+        // Empty password field means "leave unchanged" (also when absent — passBuf stays empty).
+        if (adminJsonHasField(json, "mqtt_pass") && passBuf[0] != '\0') {
+            if (!mqttPasswordSyntaxOk(passBuf, sizeof(passBuf))) {
+                sendErr(req, 400, "password");
+                return;
+            }
+            strlcpy(pending.password, passBuf, sizeof(pending.password));
+        }
+    }
+    if (!adminApplyOptionalString(json, "pairing_id", pending.pairingDeviceId, sizeof(pending.pairingDeviceId))) {
+        sendErr(req, 400, "pairing");
+        return;
+    }
+    if (!adminApplyOptionalString(json, "partner_id", pending.partnerDeviceId, sizeof(pending.partnerDeviceId))) {
+        sendErr(req, 400, "partner");
+        return;
+    }
+    char ownId[kDeviceIdBufLen];
+    buildDeviceId(ownId, sizeof(ownId));
+    if (adminJsonHasField(json, "pairing_id")) {
+        normalizeHexIdInput(pending.pairingDeviceId, sizeof(pending.pairingDeviceId));
+        if (!pairingIdInputValid(pending.pairingDeviceId)) {
+            sendErr(req, 400, "pairing");
+            return;
+        }
+        if (pending.pairingDeviceId[0] != '\0' && strcmp(pending.pairingDeviceId, ownId) == 0) {
+            pending.pairingDeviceId[0] = '\0';
+        }
+    }
+    if (adminJsonHasField(json, "partner_id")) {
+        normalizeHexIdInput(pending.partnerDeviceId, sizeof(pending.partnerDeviceId));
+        if (pending.partnerDeviceId[0] != '\0' && !partnerIdInputValid(pending.partnerDeviceId, pending.pairingDeviceId, ownId)) {
+            sendErr(req, 400, "partner");
+            return;
+        }
+    }
+    if (pending.partnerDeviceId[0] != '\0' && pending.pairingDeviceId[0] != '\0' &&
+        strcmp(pending.partnerDeviceId, pending.pairingDeviceId) == 0) {
+        sendErr(req, 400, "partner");
+        return;
+    }
+    mqttCfgApplyPairingTopics(&pending);
+    if (!mqttServerSyntaxOk(pending.server, sizeof(pending.server))) {
+        sendErr(req, 400, "broker");
+        return;
+    }
+    if (!mqttTopicSyntaxOk(pending.topicPub, sizeof(pending.topicPub))) {
+        sendErr(req, 400, "topics");
+        return;
+    }
+    if (pending.partnerDeviceId[0] != '\0') {
+        if (!mqttTopicSyntaxOk(pending.topicSub, sizeof(pending.topicSub)) || strcmp(pending.topicPub, pending.topicSub) == 0) {
+            sendErr(req, 400, "partner");
+            return;
+        }
+    } else {
+        pending.topicSub[0] = '\0';
+    }
+    if (!mqttCfgEquals(&pending, &base)) {
+        if (!applyInFlight.commitAllowed()) {
+            sendErr(req, 503, "shutdown");
+            return;
+        }
+        if (!mqttCfgStorePendingTimed(&pending, 2000U)) {
+            sendErr(req, 503, "busy");
+            return;
+        }
+        mqttCfgSetApplyPending(true);
+        g_webAdminMqttApplyVersion.fetch_add(1U, std::memory_order_acq_rel);
+        ESP_LOGI(TAG, "MQTT settings accepted broker=%s:%u tls=%s", pending.server, static_cast<unsigned>(pending.port),
+                 pending.tls ? "yes" : "no");
+    } else {
+        ESP_LOGI(TAG, "MQTT settings unchanged");
+    }
+    sendOk(req, 200, "saved");
+}
+
+void adminRoutesRegisterApiMqtt(AsyncWebServer &ws) {
+    adminOnGet(ws, "/api/mqtt", handleApiMqttGet, ApiGuard::Sta);
+    adminAddJsonPost(ws, "/api/mqtt", handleApiMqttPost, ApiGuard::Sta);
+}

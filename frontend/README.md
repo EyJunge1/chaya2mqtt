@@ -1,0 +1,30 @@
+# Chaya2MQTT Web-UI
+
+The little control room behind each heart: connect it to Wi-Fi, introduce it to
+its partner, send a heart, and keep it up to date.
+
+Built with Svelte 5, Vite, Tailwind CSS, and Lucide Icons.
+
+## Development without the ESP32-S3
+
+```bash
+npm ci
+npm run dev
+```
+
+Open `http://127.0.0.1:5173/`. The integrated mock in `mock/` provides `/api/*` and SSE `/events`. Use the simulator bar in the upper-right corner to switch between scenarios (STA, AP setup, MQTT, OTA).
+
+## Tests / production build
+
+```bash
+npm test
+npm run build
+```
+
+`npm run build` creates `dist/` with hashed asset filenames. Then run the following from the repository root:
+
+```bash
+python3 scripts/embed_web_assets.py
+```
+
+This writes the gzip asset blob, manifest, and assembler stub to `src/web/assets/` (also done automatically by the PlatformIO pre-script). Assets are served with `Content-Encoding: gzip` using normal `.js`/`.css` URLs (never `.gz`).

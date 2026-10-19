@@ -1,0 +1,130 @@
+name: Build and release firmware
+
+on:
+  push:
+    tags:
+      - "v*"
+
+concurrency:
+  group: release-${{ github.repository }}-${{ github.ref_name }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Validate CalVer release tag
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin main
+          tag="${GITHUB_REF_NAME}"
+          # Stable: vYYYY.M.PATCH  |  Beta: vYYYY.M.PATCH-rc.N  (month without leading zero)
+          if [[ "$tag" =~ ^v[0-9]{4}\.([1-9]|1[0-2])\.[0-9]+(-rc\.[1-9][0-9]*)?$ ]]; then
+            git merge-base --is-ancestor "$GITHUB_SHA" origin/main
+            exit 0
+          fi
+          echo "Unsupported release tag: $tag"
+          echo "Expected: vYYYY.M.PATCH or vYYYY.M.PATCH-rc.N (e.g. v2026.8.1 or v2026.8.1-rc.1)"
+          exit 1
+
+      - name: Check kAppVersion matches release tag
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="${GITHUB_REF_NAME#v}"
+          file_ver="$(sed -n 's/^inline constexpr const char kAppVersion\[\] = "\([^"]*\)";.*/\1/p' src/config/version.h)"
+          if [[ -z "$file_ver" ]]; then
+            echo "Could not parse kAppVersion from src/config/version.h (must stay one line)." >&2
+            exit 1
+          fi
+          if [[ "$file_ver" != "$version" ]]; then
+            echo "src/config/version.h kAppVersion=\"$file_ver\" does not match tag v$version." >&2
+            echo "Bump kAppVersion by hand, commit, then tag." >&2
+            exit 1
+          fi
+          echo "kAppVersion=$file_ver"
+
+      - name: Cache PlatformIO
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.platformio
+          key: pio-${{ runner.os }}-${{ hashFiles('platformio.ini') }}
+          restore-keys: |
+            pio-${{ runner.os }}-
+
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install PlatformIO
+        run: pip install platformio==6.2.0
+
+      - name: Install clang-tidy and clang-format
+        run: bash scripts/ci_install_clang_tools.sh
+
+      - name: Install Playwright browser
+        run: |
+          cd frontend
+          npm ci
+          npx playwright install --with-deps chromium
+
+      - name: Run quality gate and build release firmware
+        run: "make check PIO=pio FRONTEND_NPM_CI=:"
+        env:
+          CLANG_FORMAT: clang-format-23
+          CLANG_TIDY: clang-tidy-22
+
+      - name: Prepare release artifacts
+        id: hashes
+        run: |
+          python3 scripts/prepare_release_artifacts.py \
+            --build-dir .pio/build/esp32s3-release \
+            --github-output "$GITHUB_OUTPUT"
+
+      # Immutable releases lock assets after publish. Prereleases publish immediately,
+      # so attach files to a draft first, then publish (stable already uploads first).
+      - name: Upload release artifact
+        uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          generate_release_notes: true
+          draft: ${{ contains(github.ref_name, '-rc.') }}
+          prerelease: ${{ contains(github.ref_name, '-rc.') }}
+          make_latest: ${{ !contains(github.ref_name, '-rc.') }}
+          body: |
+            ## Firmware ${{ github.ref_name }}
+
+            | File | Purpose | Hash |
+            |------|---------|------|
+            | `firmware.bin` | OTA app image | SHA-512 `${{ steps.hashes.outputs.sha512 }}` |
+            | `firmware.factory.bin` | USB / web flasher (full chip image) | SHA-512 `${{ steps.hashes.outputs.factory_sha512 }}` |
+
+            - OTA verifies `firmware.bin` against the published `firmware.sha512` sidecar (`HTTPUpdate::setSHA512sumUrl()`).
+            - Browser install: use the [web flasher](https://eyjunge1.github.io/chaya2mqtt/) once GitHub Pages is enabled.
+          files: |
+            .pio/build/esp32s3-release/firmware.bin
+            .pio/build/esp32s3-release/firmware.sha512
+            .pio/build/esp32s3-release/firmware.factory.bin
+            .pio/build/esp32s3-release/firmware.factory.sha512
+
+      - name: Publish beta after assets
+        if: contains(github.ref_name, '-rc.')
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          gh release edit "${GITHUB_REF_NAME}" --draft=false --prerelease
