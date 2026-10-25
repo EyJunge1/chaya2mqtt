@@ -245,7 +245,7 @@ void test_sim_mqtt_pack_and_apply_finish() {
     cfg.tls = true;
     std::strncpy(cfg.username, "u", sizeof(cfg.username) - 1U);
     std::strncpy(cfg.password, "p", sizeof(cfg.password) - 1U);
-    std::strncpy(cfg.partnerDeviceId, "f5e6d7", sizeof(cfg.partnerDeviceId) - 1U);
+    static_cast<void>(std::snprintf(cfg.partnerDeviceId, sizeof(cfg.partnerDeviceId), "%s", "f5e6d7"));
 
     PackedMqttConfigV1 pk{};
     mqttPackConfigV1(cfg, &pk);
@@ -259,7 +259,7 @@ void test_sim_mqtt_pack_and_apply_finish() {
     pk.magic = 0xDEADBEEFU;
     TEST_ASSERT_FALSE(mqttUnpackConfigV1(pk, &loaded));
 
-    std::strncpy(cfg.pairingDeviceId, "a1b2c3", sizeof(cfg.pairingDeviceId) - 1U);
+    static_cast<void>(std::snprintf(cfg.pairingDeviceId, sizeof(cfg.pairingDeviceId), "%s", "a1b2c3"));
     PackedMqttConfigV2 pk2{};
     mqttPackConfigV2(cfg, &pk2);
     TEST_ASSERT_EQUAL_UINT32(kMqttCfgPackedMagicV2, pk2.magic);

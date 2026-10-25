@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstdio>
 #include <cstring>
 #include <string>
 
@@ -60,8 +61,7 @@ class DeviceRuntime {
         if (partnerId == nullptr) {
             mqtt_.partnerDeviceId[0] = '\0';
         } else {
-            std::strncpy(mqtt_.partnerDeviceId, partnerId, sizeof(mqtt_.partnerDeviceId) - 1U);
-            mqtt_.partnerDeviceId[sizeof(mqtt_.partnerDeviceId) - 1U] = '\0';
+            static_cast<void>(std::snprintf(mqtt_.partnerDeviceId, sizeof(mqtt_.partnerDeviceId), "%s", partnerId));
         }
         mqttSanitizeConfigAfterLoad(mqtt_, ownId_.c_str());
         return mqtt_.partnerDeviceId[0] != '\0' || partnerId == nullptr || partnerId[0] == '\0';
@@ -71,8 +71,7 @@ class DeviceRuntime {
         if (pairingId == nullptr || pairingId[0] == '\0') {
             mqtt_.pairingDeviceId[0] = '\0';
         } else {
-            std::strncpy(mqtt_.pairingDeviceId, pairingId, sizeof(mqtt_.pairingDeviceId) - 1U);
-            mqtt_.pairingDeviceId[sizeof(mqtt_.pairingDeviceId) - 1U] = '\0';
+            static_cast<void>(std::snprintf(mqtt_.pairingDeviceId, sizeof(mqtt_.pairingDeviceId), "%s", pairingId));
         }
         mqttSanitizeConfigAfterLoad(mqtt_, ownId_.c_str());
         return mqtt_.pairingDeviceId[0] != '\0' || pairingId == nullptr || pairingId[0] == '\0';
