@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Render simulated 1.54" E-Ink views (200×200, 4-color) as PNGs for the docs.
+ * Render simulated 1.54" E-Ink views (200×200, 4-color) as PNGs for README pics.
  *
  * Layout mirrors src/display/draw.cpp. Lucide bitmaps come from
  * src/display/icons_lucide.hpp (same assets as firmware). Text uses the
@@ -9,7 +9,7 @@
  * Usage (from repo root):
  *   node scripts/render_display_previews.mjs
  *
- * Writes docs/images/{heart-online,heart-offline,setup-qr,product-title,power-off}.png
+ * Writes .github/pics/{heart-online,heart-offline,setup-qr,product-title,power-off}.png
  */
 
 import { execFileSync } from "node:child_process";
@@ -22,7 +22,7 @@ import { fileURLToPath } from "node:url";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, "..");
 const iconsHeader = path.join(repoRoot, "src/display/icons_lucide.hpp");
-const outDir = path.join(repoRoot, "docs/images");
+const outDir = path.join(repoRoot, ".github/pics");
 
 const PANEL = 200;
 const SCALE = 4; // docs show 800×800

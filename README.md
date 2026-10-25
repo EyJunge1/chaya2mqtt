@@ -1,4 +1,4 @@
-![Chaya2MQTT – send a little heart](docs/images/social-preview.png)
+![Chaya2MQTT – send a little heart](.github/pics/social-preview.png)
 
 ![Release](https://img.shields.io/github/v/release/EyJunge1/chaya2mqtt?style=flat-square&logo=github&logoColor=white&color=blue) ![Web flasher](https://img.shields.io/badge/web%20flasher-install-red?style=flat-square&logo=googlechrome&logoColor=white) ![License](https://img.shields.io/github/license/EyJunge1/chaya2mqtt?style=flat-square&logo=gnu&logoColor=white&color=blueviolet)
 
@@ -16,15 +16,15 @@ Every display keeps track of the hearts you have sent and received, while MQTT q
 
 **Online**
 
-![Online heart with RX/TX](docs/images/heart-online.png)
+![Online heart with RX/TX](.github/pics/heart-online.png)
 
 | Product title                                            | SoftAP setup                                      |
 | -------------------------------------------------------- | ------------------------------------------------- |
-| ![Centered product title](docs/images/product-title.png) | ![WIFI QR setup splash](docs/images/setup-qr.png) |
+| ![Centered product title](.github/pics/product-title.png) | ![WIFI QR setup splash](.github/pics/setup-qr.png) |
 
 | Offline                                                      | Power-off                                         |
 | ------------------------------------------------------------ | ------------------------------------------------- |
-| ![Cracked heart when offline](docs/images/heart-offline.png) | ![Power-off heart-off](docs/images/power-off.png) |
+| ![Cracked heart when offline](.github/pics/heart-offline.png) | ![Power-off heart-off](.github/pics/power-off.png) |
 
 Optional **E-Ink dark mode** (black background, white text; heart stays red) can be toggled in Settings → Display. SoftAP setup stays light.
 
