@@ -146,6 +146,7 @@ export interface MockState {
   lang: "de" | "en";
   theme: "dark" | "light" | "system";
   ledEnabled: boolean;
+  einkDark: boolean;
   audioTxEnabled: boolean;
   audioRxEnabled: boolean;
   audioTxVolume: number;
@@ -349,6 +350,7 @@ function resetBaselineSettings(target: MockState): void {
   target.quietHourStart = 0;
   target.quietHourEnd = 0;
   target.ledEnabled = true;
+  target.einkDark = false;
   target.resetDays = 7;
   target.lang = "en";
   target.theme = "system";
@@ -388,6 +390,7 @@ export function createInitialState(scenario: MockScenario = "sta-connected"): Mo
     lang: "en",
     theme: "system",
     ledEnabled: true,
+    einkDark: false,
     audioTxEnabled: false,
     audioRxEnabled: false,
     audioTxVolume: 70,

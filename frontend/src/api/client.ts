@@ -154,6 +154,7 @@ export const api = {
     lang?: string;
     theme?: string;
     led_enabled?: boolean;
+    eink_dark?: boolean;
     audio_tx_enabled?: boolean;
     audio_rx_enabled?: boolean;
     audio_tx_volume?: number;

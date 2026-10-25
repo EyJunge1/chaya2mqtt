@@ -125,6 +125,7 @@ export interface SettingsInfo {
   lang: UiLang;
   theme: UiTheme;
   ledEnabled: boolean;
+  einkDark: boolean;
   audioTxEnabled: boolean;
   audioRxEnabled: boolean;
   audioTxVolume: number;

@@ -45,6 +45,9 @@ static std::atomic<uint8_t> s_lastDrawnHeartIcon{std::to_underlying(DisplayHeart
 /** Sentinel until the first heart paint records a real battery glyph. */
 static constexpr uint8_t kBatteryIconUnset = 0xFFU;
 static std::atomic<uint8_t> s_lastDrawnBatteryIcon{kBatteryIconUnset};
+/** Sentinel until the first heart paint records E-Ink dark mode. */
+static constexpr uint8_t kEinkDarkUnset = 0xFFU;
+static std::atomic<uint8_t> s_lastDrawnEinkDark{kEinkDarkUnset};
 /** True only while a soft-off that will enter deep sleep has queued DrawPowerOff. */
 static std::atomic<bool> s_powerOffPending{false};
 static std::atomic<bool> s_powerOffDrawSucceeded{false};
@@ -100,10 +103,12 @@ bool displayPostHeartRedraw(TickType_t waitTicks) {
         s_desiredHeartIcon.load(std::memory_order_acquire) != s_lastDrawnHeartIcon.load(std::memory_order_acquire);
     const uint8_t batteryIcon = std::to_underlying(displayBatteryIcon(batteryPercent()));
     const bool batteryIconChanged = batteryIcon != s_lastDrawnBatteryIcon.load(std::memory_order_acquire);
+    const uint8_t einkDark = configGetEinkDark() ? 1U : 0U;
+    const bool einkDarkChanged = einkDark != s_lastDrawnEinkDark.load(std::memory_order_acquire);
     const DisplayHeartRedrawDecision decision = displayHeartRedrawDecide(
         rx, tx, s_lastDrawnRx.load(std::memory_order_relaxed), s_lastDrawnTx.load(std::memory_order_relaxed), iconChanged,
         batteryIconChanged, nowMs, lastMs, kHeartRedrawMinIntervalMs, shownRx, shownTx,
-        s_lastDrawnShownRx.load(std::memory_order_relaxed), s_lastDrawnShownTx.load(std::memory_order_relaxed));
+        s_lastDrawnShownRx.load(std::memory_order_relaxed), s_lastDrawnShownTx.load(std::memory_order_relaxed), einkDarkChanged);
     if (displayHeartSkipClearsPending(decision)) {
         const int rxAgain = heartCounter.load(std::memory_order_relaxed);
         const int txAgain = heartSentCounter.load(std::memory_order_relaxed);
@@ -113,11 +118,13 @@ bool displayPostHeartRedraw(TickType_t waitTicks) {
             s_desiredHeartIcon.load(std::memory_order_acquire) != s_lastDrawnHeartIcon.load(std::memory_order_acquire);
         const uint8_t batteryIconAgain = std::to_underlying(displayBatteryIcon(batteryPercent()));
         const bool batteryIconChangedAgain = batteryIconAgain != s_lastDrawnBatteryIcon.load(std::memory_order_acquire);
+        const uint8_t einkDarkAgain = configGetEinkDark() ? 1U : 0U;
+        const bool einkDarkChangedAgain = einkDarkAgain != s_lastDrawnEinkDark.load(std::memory_order_acquire);
         const DisplayHeartRedrawDecision again = displayHeartRedrawDecide(
             rxAgain, txAgain, s_lastDrawnRx.load(std::memory_order_relaxed), s_lastDrawnTx.load(std::memory_order_relaxed),
             iconChangedAgain, batteryIconChangedAgain, millis(), s_lastHeartRedrawEnqueueMs.load(std::memory_order_relaxed),
             kHeartRedrawMinIntervalMs, shownRxAgain, shownTxAgain, s_lastDrawnShownRx.load(std::memory_order_relaxed),
-            s_lastDrawnShownTx.load(std::memory_order_relaxed));
+            s_lastDrawnShownTx.load(std::memory_order_relaxed), einkDarkChangedAgain);
         if (displayHeartSkipClearsPendingAfterReread(decision, again)) {
             s_heartDrawPending.store(false, std::memory_order_release);
             return true;
@@ -309,14 +316,17 @@ static void displayTaskFn(void *) {
             s_lastDrawnHeartIcon.store(std::to_underlying(icon), std::memory_order_release);
             const uint8_t paintedBatteryIcon = drawn.batteryIcon;
             s_lastDrawnBatteryIcon.store(paintedBatteryIcon, std::memory_order_release);
+            const uint8_t paintedEinkDark = configGetEinkDark() ? 1U : 0U;
+            s_lastDrawnEinkDark.store(paintedEinkDark, std::memory_order_release);
             s_heartDrawQueued.store(false, std::memory_order_release);
             const bool hadPending = s_heartDrawPending.exchange(false, std::memory_order_acq_rel);
             const bool iconChanged = displayTaskDesiredHeartIcon() != icon;
             const bool batteryIconChanged = std::to_underlying(displayBatteryIcon(batteryPercent())) != paintedBatteryIcon;
+            const bool einkDarkChanged = (configGetEinkDark() ? 1U : 0U) != paintedEinkDark;
             if (displayHeartNeedsFollowUpRedraw(
                     drawn.heartCounterRaw, drawn.heartSentCounterRaw, heartCounter.load(std::memory_order_relaxed),
                     heartSentCounter.load(std::memory_order_relaxed), iconChanged, batteryIconChanged, hadPending, paintedShownRx,
-                    paintedShownTx, heartDisplayRxDelta(), heartDisplayTxDelta())) {
+                    paintedShownTx, heartDisplayRxDelta(), heartDisplayTxDelta(), einkDarkChanged)) {
                 (void)displayPostHeartRedraw(0);
             }
             break;

@@ -14,6 +14,7 @@ constexpr const char kNvsKeyCfgRstPeriod[] = "rstPeriod";
 constexpr const char kNvsKeyCfgUiLang[] = "ui_lang";
 constexpr const char kNvsKeyCfgUiTheme[] = "ui_theme";
 constexpr const char kNvsKeyCfgLedEn[] = "led_en";
+constexpr const char kNvsKeyCfgEpdDark[] = "epd_dark";
 constexpr const char kNvsKeyCfgDispView[] = "disp_view";
 constexpr const char kNvsKeyCfgSndTxEn[] = "snd_tx_en";
 constexpr const char kNvsKeyCfgSndRxEn[] = "snd_rx_en";

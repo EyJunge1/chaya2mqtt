@@ -14,8 +14,8 @@ enum class DisplayHeartRedrawDecision : uint8_t {
 
 /**
  * Decide whether a heart redraw should queue now, wait for the min interval
- * (trailing edge), or skip because raw counters, shown deltas, heart icon, and
- * battery icon already match the last painted frame.
+ * (trailing edge), or skip because raw counters, shown deltas, heart icon,
+ * battery icon, and E-Ink dark mode already match the last painted frame.
  *
  * Shown deltas default to 0/0 so older call sites stay raw-only. After a
  * baseline roll the raw values match but shown drops (999+ → 0) — that must
@@ -24,9 +24,10 @@ enum class DisplayHeartRedrawDecision : uint8_t {
 inline auto displayHeartRedrawDecide(int currentRx, int currentTx, int lastDrawnRx, int lastDrawnTx, bool iconChanged,
                                      bool batteryIconChanged, unsigned long nowMs, unsigned long lastEnqueueMs,
                                      unsigned long minIntervalMs, int currentShownRx = 0, int currentShownTx = 0,
-                                     int lastDrawnShownRx = 0, int lastDrawnShownTx = 0) -> DisplayHeartRedrawDecision {
+                                     int lastDrawnShownRx = 0, int lastDrawnShownTx = 0, bool einkDarkChanged = false)
+    -> DisplayHeartRedrawDecision {
     if (currentRx == lastDrawnRx && currentTx == lastDrawnTx && currentShownRx == lastDrawnShownRx &&
-        currentShownTx == lastDrawnShownTx && !iconChanged && !batteryIconChanged) {
+        currentShownTx == lastDrawnShownTx && !iconChanged && !batteryIconChanged && !einkDarkChanged) {
         return DisplayHeartRedrawDecision::SkipUnchanged;
     }
     if (lastEnqueueMs != 0UL && (nowMs - lastEnqueueMs) < minIntervalMs) {
@@ -68,7 +69,8 @@ inline auto displayHeartRedrawWaitMs(unsigned long nowMs, unsigned long lastEnqu
 /** True when a follow-up redraw is needed after a completed heart paint. */
 inline auto displayHeartNeedsFollowUpRedraw(int drawnRx, int drawnTx, int currentRx, int currentTx, bool iconChanged,
                                             bool batteryIconChanged, bool hadPending, int drawnShownRx = 0, int drawnShownTx = 0,
-                                            int currentShownRx = 0, int currentShownTx = 0) -> bool {
-    return hadPending || iconChanged || batteryIconChanged || currentRx != drawnRx || currentTx != drawnTx ||
+                                            int currentShownRx = 0, int currentShownTx = 0, bool einkDarkChanged = false)
+    -> bool {
+    return hadPending || iconChanged || batteryIconChanged || einkDarkChanged || currentRx != drawnRx || currentTx != drawnTx ||
            currentShownRx != drawnShownRx || currentShownTx != drawnShownTx;
 }

@@ -25,6 +25,11 @@ void configLoadLedFromNvs();
 auto configGetLedEnabled() -> bool;
 auto configSetLedEnabled(bool enabled) -> bool;
 
+/** E-Ink dark mode: black background / white fg (default false = light). */
+void configLoadEinkDarkFromNvs();
+auto configGetEinkDark() -> bool;
+auto configSetEinkDark(bool dark) -> bool;
+
 /** Last successfully painted E-Ink view (Unknown when missing/invalid). */
 void configLoadDisplayViewFromNvs();
 auto configGetDisplayView() -> DisplayView;

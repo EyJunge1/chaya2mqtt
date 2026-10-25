@@ -26,6 +26,8 @@ Every display keeps track of the hearts you have sent and received, while MQTT q
 | ------------------------------------------------------------ | ------------------------------------------------- |
 | ![Cracked heart when offline](docs/images/heart-offline.png) | ![Power-off heart-off](docs/images/power-off.png) |
 
+Optional **E-Ink dark mode** (black background, white text; heart stays red) can be toggled in Settings → Display. SoftAP setup stays light.
+
 > [!NOTE]
 > Open the [web flasher](https://eyjunge1.github.io/chaya2mqtt/) in Chrome or Edge, connect USB-C, and install.
 

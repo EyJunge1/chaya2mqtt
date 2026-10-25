@@ -39,6 +39,7 @@ static std::atomic<uint8_t> s_resetPeriodDaysCached{7};
 static char s_uiLangCached[3] = "en";
 static char s_uiThemeCached[8] = "system";
 static std::atomic<bool> s_ledEnabledCached{true};
+static std::atomic<bool> s_einkDarkCached{false};
 static std::atomic<DisplayView> s_displayViewCached{DisplayView::Unknown};
 static std::atomic<bool> s_audioTxEnabledCached{false};
 static std::atomic<bool> s_audioRxEnabledCached{false};
@@ -192,6 +193,17 @@ bool configGetLedEnabled() { return s_ledEnabledCached.load(std::memory_order_re
 
 bool configSetLedEnabled(bool enabled) {
     return setCachedBoolAsUChar(s_ledEnabledCached, enabled, kNvsKeyCfgLedEn, "NVS cfg: failed to persist led_en");
+}
+
+void configLoadEinkDarkFromNvs() {
+    const uint8_t raw = app_nvs::readUChar(kNvsNsCfg, kNvsKeyCfgEpdDark, 0);
+    s_einkDarkCached.store(raw != 0U, std::memory_order_relaxed);
+}
+
+bool configGetEinkDark() { return s_einkDarkCached.load(std::memory_order_relaxed); }
+
+bool configSetEinkDark(bool dark) {
+    return setCachedBoolAsUChar(s_einkDarkCached, dark, kNvsKeyCfgEpdDark, "NVS cfg: failed to persist epd_dark");
 }
 
 void configLoadDisplayViewFromNvs() {
@@ -377,6 +389,7 @@ bool configSetAudioTones(uint16_t txHz, uint16_t txMs, uint16_t rxHz, uint16_t r
 void app_configResetRamAfterFactoryClear() {
     s_resetPeriodDaysCached.store(7, std::memory_order_relaxed);
     s_ledEnabledCached.store(true, std::memory_order_relaxed);
+    s_einkDarkCached.store(false, std::memory_order_relaxed);
     s_displayViewCached.store(DisplayView::Unknown, std::memory_order_relaxed);
     s_audioTxEnabledCached.store(false, std::memory_order_relaxed);
     s_audioRxEnabledCached.store(false, std::memory_order_relaxed);

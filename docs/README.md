@@ -59,7 +59,7 @@ Payload is a decimal absolute counter, QoS 1, retained. Display shows deltas (`r
 |----|------|
 | `wifi` | STA + SoftAP PSK |
 | `mqtt` | Broker + partner + pairing (`cfg_v2`; legacy `cfg_v1` still loads) |
-| `cfg` | Device ID, UI, LED, audio, display view, OTA day/channel |
+| `cfg` | Device ID, UI, LED, E-Ink dark, audio, display view, OTA day/channel |
 | `chaya` | Absolute counters + baselines |
 
 Device ID is 6 hex in `cfg/device_id`. Wipe/erase → new ID and new topics.

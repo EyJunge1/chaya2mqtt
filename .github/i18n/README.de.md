@@ -26,6 +26,8 @@ Jedes Display zählt die Herzen, die du gesendet und empfangen hast—MQTT träg
 | ------------------------------------------------------------------ | --------------------------------------------------------- |
 | ![Cracked heart when offline](../../docs/images/heart-offline.png) | ![Power-off heart-off](../../docs/images/power-off.png)   |
 
+Optionaler **E-Ink Dark Mode** (schwarzer Hintergrund, weiße Schrift; Herz bleibt rot) unter Einstellungen → Display. SoftAP-Setup bleibt hell.
+
 > [!NOTE]
 > Öffne den [Web-Flasher](https://eyjunge1.github.io/chaya2mqtt/) in Chrome oder Edge, schließe USB-C an und installiere.
 

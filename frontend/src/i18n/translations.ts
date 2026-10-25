@@ -147,6 +147,9 @@ export const translations = {
     "settings.led-enabled": "Status LED",
     "settings.led-enabled-hint":
       "The LED at the bottom of the device. Off keeps it dark except during factory reset.",
+    "settings.display": "Display",
+    "settings.eink-dark": "E-Ink dark mode",
+    "settings.eink-dark-hint": "Black background with white text; heart stays red.",
     "settings.sound": "Sound",
     "settings.audio-tx": "Sound on send",
     "settings.audio-tx-hint": "Click when a heart is sent",
@@ -370,6 +373,9 @@ export const translations = {
     "settings.led-enabled": "Status-LED",
     "settings.led-enabled-hint":
       "Die LED unten am Gerät. Aus lässt sie dunkel, außer beim Werksreset.",
+    "settings.display": "Display",
+    "settings.eink-dark": "E-Ink Dark Mode",
+    "settings.eink-dark-hint": "Schwarzer Hintergrund mit weißer Schrift; Herz bleibt rot.",
     "settings.sound": "Ton",
     "settings.audio-tx": "Ton beim Senden",
     "settings.audio-tx-hint": "Klick, wenn ein Herz gesendet wird",

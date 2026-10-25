@@ -103,6 +103,7 @@ type SettingsSnapshot = {
   lang: ReturnType<typeof getState>["lang"];
   theme: ReturnType<typeof getState>["theme"];
   ledEnabled: boolean;
+  einkDark: boolean;
   audioTxEnabled: boolean;
   audioRxEnabled: boolean;
   audioTxVolume: number;
@@ -129,6 +130,7 @@ function snapshotSettings(state: ReturnType<typeof getState>): SettingsSnapshot 
     lang: state.lang,
     theme: state.theme,
     ledEnabled: state.ledEnabled,
+    einkDark: state.einkDark,
     audioTxEnabled: state.audioTxEnabled,
     audioRxEnabled: state.audioRxEnabled,
     audioTxVolume: state.audioTxVolume,
@@ -147,6 +149,7 @@ function applySettingsSnapshot(state: ReturnType<typeof getState>, snap: Setting
   state.lang = snap.lang;
   state.theme = snap.theme;
   state.ledEnabled = snap.ledEnabled;
+  state.einkDark = snap.einkDark;
   state.audioTxEnabled = snap.audioTxEnabled;
   state.audioRxEnabled = snap.audioRxEnabled;
   state.audioTxVolume = snap.audioTxVolume;
@@ -225,6 +228,7 @@ export async function handleApi(req: IncomingMessage, res: ServerResponse): Prom
             lang: state.lang,
             theme: state.theme,
             ledEnabled: state.ledEnabled,
+            einkDark: state.einkDark,
             audioTxEnabled: state.audioTxEnabled,
             audioRxEnabled: state.audioRxEnabled,
             audioTxVolume: state.audioTxVolume,
@@ -598,6 +602,7 @@ export async function handleApi(req: IncomingMessage, res: ServerResponse): Prom
       lang: state.lang,
       theme: state.theme,
       ledEnabled: state.ledEnabled,
+      einkDark: state.einkDark,
       audioTxEnabled: state.audioTxEnabled,
       audioRxEnabled: state.audioRxEnabled,
       audioTxVolume: state.audioTxVolume,
@@ -642,6 +647,11 @@ export async function handleApi(req: IncomingMessage, res: ServerResponse): Prom
     if (typeof body.led_enabled === "boolean") pending.ledEnabled = body.led_enabled;
     else if (body.led_enabled !== undefined) {
       sendJson(res, 400, { ok: false, error: "led_enabled" });
+      return true;
+    }
+    if (typeof body.eink_dark === "boolean") pending.einkDark = body.eink_dark;
+    else if (body.eink_dark !== undefined) {
+      sendJson(res, 400, { ok: false, error: "eink_dark" });
       return true;
     }
     if (typeof body.audio_tx_enabled === "boolean") pending.audioTxEnabled = body.audio_tx_enabled;

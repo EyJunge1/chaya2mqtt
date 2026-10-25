@@ -2,6 +2,7 @@
 #include "internal.hpp"
 
 #include "battery/battery.hpp"
+#include "config/app_config.hpp"
 #include "constants.hpp"
 #include "display_config.hpp"
 #include "draw_pure.hpp"
@@ -43,9 +44,9 @@ static char s_wifiQrPayload[kWifiQrPayloadMaxLen];
 static constexpr int kDisplayRightMargin = 4;
 static constexpr int16_t kBatteryTopMargin = 4;
 
-uint16_t displayFgColor() { return EPD_BLACK; }
+uint16_t displayFgColor() { return configGetEinkDark() ? EPD_WHITE : EPD_BLACK; }
 
-uint16_t displayBgColor() { return EPD_WHITE; }
+uint16_t displayBgColor() { return configGetEinkDark() ? EPD_BLACK : EPD_WHITE; }
 
 static void drawLucideIcon(int16_t x, int16_t y, const uint8_t *bitmap, int16_t w, int16_t h, uint16_t color) {
     displayPanel().drawBitmap(x, y, bitmap, w, h, color);
@@ -436,7 +437,7 @@ void drawPowerOffScreen() {
         epd.setTextSize(kTitleSize);
         epd.setCursor(titleX, kTitleTop);
         epd.print(kTitle);
-        drawLucideIcon(heartX, heartY, kIconHeartOff, kIconHeartOffW, kIconHeartOffH, EPD_BLACK);
+        drawLucideIcon(heartX, heartY, kIconHeartOff, kIconHeartOffW, kIconHeartOffH, displayFgColor());
     } while (epd.nextPage());
 
     epd.hibernate();

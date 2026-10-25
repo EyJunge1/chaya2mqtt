@@ -200,6 +200,7 @@
         lang: getLanguage(),
         theme: getThemePreference(),
         led_enabled: settings.ledEnabled,
+        eink_dark: settings.einkDark,
         audio_tx_enabled: settings.audioTxEnabled,
         audio_rx_enabled: settings.audioRxEnabled,
         audio_tx_volume: settings.audioTxVolume,
@@ -327,6 +328,20 @@
               disabled={busy}
               onChange={(ledEnabled) => {
                 if (settings) settings = { ...settings, ledEnabled };
+              }}
+            />
+          </Field>
+        </div>
+
+        <div class="space-y-3 border-t border-border pt-3">
+          <h3 class="text-base font-semibold text-text-bright">{i18n.t("settings.display")}</h3>
+          <Field label={i18n.t("settings.eink-dark")} hint={i18n.t("settings.eink-dark-hint")}>
+            <Switch
+              label={i18n.t("settings.eink-dark")}
+              checked={settings.einkDark}
+              disabled={busy}
+              onChange={(einkDark) => {
+                if (settings) settings = { ...settings, einkDark };
               }}
             />
           </Field>

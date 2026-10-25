@@ -409,6 +409,7 @@ paths:
                 lang: { type: string, enum: [de, en] }
                 theme: { type: string, enum: [system, dark, light] }
                 led_enabled: { type: boolean, description: User LED (false = off) }
+                eink_dark: { type: boolean, description: E-Ink dark mode (black bg / white fg) }
                 audio_tx_enabled: { type: boolean, description: Click on send }
                 audio_rx_enabled: { type: boolean, description: Click on receive }
                 audio_tx_volume: { type: integer, minimum: 0, maximum: 100, description: TX volume }
@@ -718,6 +719,7 @@ components:
           lang,
           theme,
           ledEnabled,
+          einkDark,
           audioTxEnabled,
           audioRxEnabled,
           audioTxVolume,
@@ -736,6 +738,9 @@ components:
         ledEnabled:
           type: boolean
           description: User LED (false = off)
+        einkDark:
+          type: boolean
+          description: E-Ink dark mode (black bg / white fg)
         audioTxEnabled:
           type: boolean
           description: Click on send

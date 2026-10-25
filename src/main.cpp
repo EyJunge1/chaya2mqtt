@@ -93,6 +93,7 @@ void setup() {
     configLoadResetPeriodFromNvs();
     configLoadUiPrefsFromNvs();
     configLoadLedFromNvs();
+    configLoadEinkDarkFromNvs();
     configLoadAudioFromNvs();
     configLoadDisplayViewFromNvs();
     // Waveshare 08_E_paper_test: paint the panel before bringing up Wi-Fi RF.
