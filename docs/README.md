@@ -2,7 +2,7 @@
 
 Chaya2MQTT is firmware for two [Waveshare ESP32-S3-ePaper-1.54G](https://docs.waveshare.com/ESP32-S3-ePaper-1.54G) boards (SKU **34586**). Press BOOT on one; a red heart appears on the other via MQTT.
 
-Product page: [README.md](../README.md). Board: [Waveshare 1.54G](https://docs.waveshare.com/ESP32-S3-ePaper-1.54G) (pins in `src/hw/pins_esp32_waveshare.hpp`). Tests: [TESTING.md](TESTING.md). Admin: [WEB_ADMIN.md](WEB_ADMIN.md). UI colors: [COLORS.md](COLORS.md).
+Product page: [README.md](../README.md). Board: [Waveshare 1.54G](https://docs.waveshare.com/ESP32-S3-ePaper-1.54G) (pins in `src/hw/pins_esp32_waveshare.hpp`). UI colors: [COLORS.md](COLORS.md). Quality gate: `make check`.
 
 ## Build
 
@@ -69,6 +69,14 @@ Device ID is 6 hex in `cfg/device_id`. Wipe/erase → new ID and new topics.
 GitHub Releases, HTTPS + SHA-512 sidecar, Arduino `HTTPUpdate` into the next OTA slot. USB/first install uses `firmware.factory.bin` (bootloader + partitions + app). OTA uses **`firmware.bin` only**.
 
 Daily check in STA (`stable` / `beta`). Install is manual. After OTA, image stays pending until ~30 s stable STA. Brick: web flasher or `make upload-erase`.
+
+## Web admin
+
+Svelte SPA in firmware (gzip `/assets/*`). SoftAP: captive portal / `http://chaya2mqtt.local` / `http://4.3.2.1`. STA: `http://chaya2mqtt-<deviceId>.local`.
+
+UI routes: `/`, `/wifi`, `/wifi-testing`, `/mqtt`, `/settings`, `/settings/device`, `/update`.
+
+REST: [api/openapi.yaml](api/openapi.yaml). SSE: [api/asyncapi.yaml](api/asyncapi.yaml). More: [frontend/README.md](../frontend/README.md).
 
 ## Layout
 

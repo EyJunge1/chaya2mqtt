@@ -25,7 +25,7 @@ fi
 tmpdir="$(mktemp -d)"
 trap 'rm -rf "$tmpdir"' EXIT
 
-# Extra host-pure headers not named *_pure.h (see docs/TESTING.md).
+# Extra host-pure headers not named *_pure.h (host native / tidy gate).
 required_extra=(
   src/mqtt/backoff.h
   src/mqtt/counter_payload.h

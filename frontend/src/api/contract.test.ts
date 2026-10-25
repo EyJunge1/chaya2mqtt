@@ -192,7 +192,7 @@ describe("api contract", () => {
   });
 
   it("documents SPA routes and points at the YAML contracts", () => {
-    const docs = read("docs/WEB_ADMIN.md");
+    const docs = read("docs/README.md");
     for (const path of KNOWN_ROUTES) {
       expect(docs).toContain(path);
     }
