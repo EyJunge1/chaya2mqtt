@@ -22,7 +22,8 @@ namespace {
 
 constexpr int kHttpClientTimeoutMs = 30000;
 constexpr int kOtaMaxRedirects = 5;
-constexpr size_t kOtaResolvedUrlBytes = 768U;
+// GitHub signed CDN Locations are often ~900–1100 bytes (release-assets.githubusercontent.com).
+constexpr size_t kOtaResolvedUrlBytes = 2048U;
 
 bool isHttpRedirect(int code) {
     return code == HTTP_CODE_MOVED_PERMANENTLY || code == HTTP_CODE_FOUND || code == HTTP_CODE_SEE_OTHER ||
@@ -115,7 +116,8 @@ bool otaResolveDownloadUrl(WiFiClientSecure &tls, const char *startUrl, OtaDownl
             https.end();
             char next[kOtaResolvedUrlBytes]{};
             if (!resolveHttpLocation(outUrl, location, next, sizeof(next))) {
-                ESP_LOGE(TAG, "OTA redirect Location unusable (hop %d)", hop);
+                ESP_LOGE(TAG, "OTA redirect Location unusable (hop %d, len=%u, cap=%u)", hop,
+                         static_cast<unsigned>(location.length()), static_cast<unsigned>(sizeof(next)));
                 return false;
             }
             if (!otaReleaseDownloadRedirectUrlAllowed(next)) {
