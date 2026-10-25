@@ -1,6 +1,6 @@
 ![Chaya2MQTT – send a little heart](.github/pics/social-preview.png)
 
-![Release](https://img.shields.io/github/v/release/EyJunge1/chaya2mqtt?style=flat-square&logo=github&logoColor=white&color=blue) ![Web flasher](https://img.shields.io/badge/web%20flasher-install-red?style=flat-square&logo=googlechrome&logoColor=white) ![License](https://img.shields.io/github/license/EyJunge1/chaya2mqtt?style=flat-square&logo=gnu&logoColor=white&color=blueviolet)
+[![Release](https://img.shields.io/github/v/release/EyJunge1/chaya2mqtt?style=flat-square&logo=github&logoColor=white&color=blue)](https://github.com/EyJunge1/chaya2mqtt/releases/latest) [![Web flasher](https://img.shields.io/badge/web%20flasher-install-red?style=flat-square&logo=googlechrome&logoColor=white)](https://eyjunge1.github.io/chaya2mqtt/) [![License](https://img.shields.io/github/license/EyJunge1/chaya2mqtt?style=flat-square&logo=gnu&logoColor=white&color=blueviolet)](LICENSE)
 
 Languages: **🇬🇧** | [🇩🇪](./.github/i18n/README.de.md)
 
