@@ -11,6 +11,7 @@ LLVM_TIDY_MAJOR="${LLVM_TIDY_MAJOR:-22}"
 
 python3 -m pip install --disable-pip-version-check "clang-format==${LLVM_FORMAT_VERSION}"
 
+# shellcheck source=/dev/null
 . /etc/os-release
 codename="${VERSION_CODENAME:-}"
 if [[ -z "$codename" ]]; then

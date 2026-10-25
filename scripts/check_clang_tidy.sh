@@ -52,7 +52,8 @@ fi
 
 header_compiles() {
   local h="$1"
-  local stub="$tmpdir/probe_$(basename "$h").cpp"
+  local stub
+  stub="$tmpdir/probe_$(basename "$h").cpp"
   cat >"$stub" <<EOF
 #include "$ROOT/$h"
 auto main() -> int { return 0; }
