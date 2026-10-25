@@ -1,0 +1,12 @@
+* text=auto eol=lf
+*.ico binary
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.svg binary
+*.woff binary
+*.woff2 binary
+*.bin binary
+*.elf binary
+README.*.md linguist-documentation

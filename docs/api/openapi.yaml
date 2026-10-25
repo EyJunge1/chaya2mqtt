@@ -1,0 +1,821 @@
+openapi: 3.2.0
+info:
+  title: Chaya2MQTT Web Admin API
+  version: 1.0.0
+  description: |
+    HTTP JSON API for the device web admin.
+    Every operation may return 403 when the Host header is not on the device allowlist
+    (`Host rejected`): JSON `{ok:false, error:"host"}` (`ApiError`). Per-operation access is in `x-protection`
+    (`Host`, `Host + STA`, `AP + Host`).
+  contact:
+    name: Chaya2MQTT
+    url: https://eyjunge1.github.io/chaya2mqtt/
+  license:
+    name: GNU GPL v3.0 only
+    url: https://github.com/EyJunge1/chaya2mqtt/blob/main/LICENSE
+servers:
+  - url: http://chaya2mqtt-{deviceId}.local
+    description: STA mDNS hostname
+    variables:
+      deviceId:
+        default: deviceId
+  - url: http://4.3.2.1
+    description: AP setup mode
+security: []
+tags:
+  - name: device
+    description: Device identity and firmware mode
+  - name: chaya
+    description: Heart counters and send action
+  - name: wifi
+    description: Wi-Fi status, scan, and setup
+  - name: mqtt
+    description: MQTT broker, pairing and derived topics
+  - name: settings
+    description: General device settings and reboot
+  - name: update
+    description: Firmware OTA status and install
+  - name: reset
+    description: Factory reset
+paths:
+  /api/bootstrap:
+    get:
+      tags: [device]
+      summary: Cold-boot snapshot
+      operationId: getBootstrap
+      x-protection: Host
+      description: >
+        Always includes device and wifi. In STA mode also fills chaya, mqtt, update,
+        and settings; in AP those keys are null. Live updates after boot are SSE
+        (device, wifi, chaya, mqtt).
+      responses:
+        "200":
+          description: Aggregated boot payload
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [device, wifi]
+                properties:
+                  device:
+                    $ref: "#/components/schemas/DeviceInfo"
+                  wifi:
+                    $ref: "#/components/schemas/WifiStatus"
+                  chaya:
+                    oneOf:
+                      - $ref: "#/components/schemas/ChayaStatus"
+                      - type: "null"
+                  mqtt:
+                    oneOf:
+                      - $ref: "#/components/schemas/MqttStatus"
+                      - type: "null"
+                  update:
+                    type: [object, "null"]
+                  settings:
+                    type: [object, "null"]
+        "403":
+          $ref: "#/components/responses/ApiError"
+  /api/chaya/send:
+    post:
+      tags: [chaya]
+      summary: Queue heart send
+      operationId: sendChaya
+      x-protection: Host + STA
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EmptyJson"
+      responses:
+        "202":
+          description: Queued
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiOk"
+        "400":
+          $ref: "#/components/responses/ApiError"
+        "503":
+          $ref: "#/components/responses/ApiError"
+  /api/wifi/config:
+    get:
+      tags: [wifi]
+      summary: Stored Wi-Fi config (no password)
+      operationId: getWifiConfig
+      x-protection: Host
+      responses:
+        "200":
+          description: Config
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WifiConfig"
+        "403":
+          $ref: "#/components/responses/ApiError"
+  /api/wifi/scan:
+    get:
+      tags: [wifi]
+      summary: Read cached access-point scan
+      operationId: getWifiScan
+      x-protection: Host
+      description: Cached snapshot. POST starts a scan. `status` is idle, pending, ready, or failed.
+      responses:
+        "200":
+          description: Scan snapshot
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WifiScanSnapshot"
+        "403":
+          $ref: "#/components/responses/ApiError"
+    post:
+      tags: [wifi]
+      summary: Start access-point scan
+      operationId: startWifiScan
+      x-protection: Host
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EmptyJson"
+      responses:
+        "202":
+          description: Scan started; poll GET for results
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiOk"
+        "403":
+          $ref: "#/components/responses/ApiError"
+        "503":
+          description: Connection test or OTA in progress
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErr"
+              example:
+                ok: false
+                error: busy
+  /api/wifi/connect:
+    post:
+      tags: [wifi]
+      summary: Start AP test or save STA credentials
+      operationId: connectWifi
+      x-protection: Host
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [ssid, mode]
+              properties:
+                ssid: { type: string, minLength: 1, maxLength: 32 }
+                password:
+                  type: string
+                  maxLength: 63
+                  description: >
+                    Omit to keep the stored PSK (STA, same SSID). Empty string for an
+                    open network. A new SSID without a password is rejected.
+                mode: { type: string, enum: [dhcp, static] }
+                ip: { type: string, maxLength: 15 }
+                gateway: { type: string, maxLength: 15 }
+                netmask: { type: string, maxLength: 15 }
+                dns1: { type: string, maxLength: 15 }
+                dns2: { type: string, maxLength: 15 }
+                ntp1: { type: string, maxLength: 63 }
+                ntp2: { type: string, maxLength: 63 }
+      responses:
+        "200":
+          description: Accepted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiOk"
+        "400":
+          $ref: "#/components/responses/ApiError"
+        "500":
+          description: Failed to save credentials
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErr"
+              example:
+                ok: false
+                error: save
+        "503":
+          description: Test could not start
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErr"
+              example:
+                ok: false
+                error: test_start
+  /api/wifi/connect-status:
+    get:
+      tags: [wifi]
+      summary: AP connection test status
+      operationId: getWifiConnectStatus
+      x-protection: AP + Host
+      responses:
+        "200":
+          description: Test state
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [state, ssid]
+                properties:
+                  state:
+                    type: string
+                    enum: [idle, testing, ok, fail]
+                  ssid:
+                    type: string
+        "400":
+          $ref: "#/components/responses/ApiError"
+  /api/wifi/connect-commit:
+    post:
+      tags: [wifi]
+      summary: Commit successful AP test and reboot
+      operationId: commitWifiConnect
+      x-protection: AP + Host
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EmptyJson"
+      responses:
+        "200":
+          description: Saved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiOk"
+        "400":
+          $ref: "#/components/responses/ApiError"
+  /api/wifi/connect-abort:
+    post:
+      tags: [wifi]
+      summary: Abort AP connection test
+      operationId: abortWifiConnect
+      x-protection: AP + Host
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EmptyJson"
+      responses:
+        "200":
+          description: Aborted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiOk"
+        "400":
+          $ref: "#/components/responses/ApiError"
+  /api/wifi/connect-retry:
+    post:
+      tags: [wifi]
+      summary: Retry AP connection test
+      operationId: retryWifiConnect
+      x-protection: AP + Host
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EmptyJson"
+      responses:
+        "200":
+          description: Retry started
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiOk"
+        "400":
+          $ref: "#/components/responses/ApiError"
+        "503":
+          $ref: "#/components/responses/ApiError"
+  /api/mqtt:
+    get:
+      tags: [mqtt]
+      summary: MQTT config (no password)
+      operationId: getMqttConfig
+      x-protection: Host + STA
+      description: >
+        Broker and partner ID. Topics are derived. Password is never included.
+        Includes nvsOk and applyPending while a save is still being applied.
+      responses:
+        "200":
+          description: Config
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MqttConfigView"
+        "400":
+          $ref: "#/components/responses/ApiError"
+        "503":
+          $ref: "#/components/responses/ApiError"
+    post:
+      tags: [mqtt]
+      summary: Save MQTT config
+      operationId: saveMqttConfig
+      x-protection: Host + STA
+      description: >
+        Omitted fields keep their current value. Topics are derived.
+        Returns 503 busy while an OTA check or install owns the device.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                mqtt_server:
+                  type: string
+                  maxLength: 127
+                  description: Broker hostname or IP
+                mqtt_port:
+                  type: integer
+                  description: Port (1883 plain / 8883 TLS)
+                mqtt_tls:
+                  type: boolean
+                  description: true = TLS. Default for new NVS is true.
+                mqtt_user:
+                  type: string
+                  maxLength: 63
+                  description: Username; empty for anonymous
+                mqtt_pass:
+                  type: string
+                  maxLength: 63
+                  description: Omit or empty to keep the stored password
+                pairing_id:
+                  type: string
+                  maxLength: 6
+                  description: >
+                    Shared publish identity (6 hex digits). Empty or omitted-equal-to-deviceId
+                    uses this device's own ID. Extra own devices (office) copy the home pairing ID.
+                  pattern: "^([0-9a-f]{6})?$"
+                partner_id:
+                  type: string
+                  maxLength: 6
+                  description: Partner ID (6 hex digits) or empty to unpair
+                  pattern: "^([0-9a-f]{6})?$"
+      responses:
+        "200":
+          description: Saved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiOk"
+        "400":
+          $ref: "#/components/responses/ApiError"
+        "503":
+          $ref: "#/components/responses/ApiError"
+  /api/settings:
+    get:
+      tags: [settings]
+      summary: Device settings
+      operationId: getSettings
+      x-protection: Host + STA
+      responses:
+        "200":
+          description: Settings
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SettingsInfo"
+        "400":
+          $ref: "#/components/responses/ApiError"
+    post:
+      tags: [settings]
+      summary: Save settings
+      operationId: saveSettings
+      x-protection: Host + STA
+      description: Returns 503 busy while an OTA check or install owns the device.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                reset_days: { type: integer, minimum: 0, maximum: 30 }
+                lang: { type: string, enum: [de, en] }
+                theme: { type: string, enum: [system, dark, light] }
+                led_enabled: { type: boolean, description: User LED (false = off) }
+                audio_tx_enabled: { type: boolean, description: Click on send }
+                audio_rx_enabled: { type: boolean, description: Click on receive }
+                audio_tx_volume: { type: integer, minimum: 0, maximum: 100, description: TX volume }
+                audio_rx_volume: { type: integer, minimum: 0, maximum: 100, description: RX volume }
+                quiet_hour_start: { type: integer, minimum: 0, maximum: 23 }
+                quiet_hour_end: { type: integer, minimum: 0, maximum: 23 }
+                tx_hz: { type: integer, minimum: 40, maximum: 2000, description: Send click Hz }
+                tx_ms: { type: integer, minimum: 20, maximum: 500, description: Send click ms }
+                rx_hz: { type: integer, minimum: 40, maximum: 2000, description: Receive click Hz }
+                rx_ms: { type: integer, minimum: 20, maximum: 500, description: Receive click ms }
+      responses:
+        "200":
+          description: Saved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiOk"
+        "400":
+          $ref: "#/components/responses/ApiError"
+        "503":
+          $ref: "#/components/responses/ApiError"
+  /api/reboot:
+    post:
+      tags: [settings]
+      summary: Reboot device
+      operationId: rebootDevice
+      x-protection: Host + STA
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EmptyJson"
+      responses:
+        "200":
+          description: Reboot scheduled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiOk"
+        "400":
+          $ref: "#/components/responses/ApiError"
+        "503":
+          $ref: "#/components/responses/ApiError"
+  /api/factory-reset:
+    post:
+      tags: [reset]
+      summary: Factory reset
+      operationId: factoryReset
+      x-protection: Host + STA
+      description: Delete all NVS data and restart in AP setup mode.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EmptyJson"
+      responses:
+        "202":
+          description: Queued
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiOk"
+        "400":
+          $ref: "#/components/responses/ApiError"
+        "503":
+          $ref: "#/components/responses/ApiError"
+  /api/update/status:
+    get:
+      tags: [update]
+      summary: OTA status
+      operationId: getUpdateStatus
+      x-protection: Host + STA
+      responses:
+        "200":
+          description: Status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OtaStatus"
+        "400":
+          $ref: "#/components/responses/ApiError"
+  /api/update/check:
+    post:
+      tags: [update]
+      summary: Check GitHub for updates
+      operationId: checkUpdate
+      x-protection: Host + STA
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                channel:
+                  type: string
+                  enum: [stable, beta]
+      responses:
+        "200":
+          description: Check queued
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiOk"
+        "400":
+          $ref: "#/components/responses/ApiError"
+        "503":
+          description: OTA already busy, or Settings/MQTT apply still pending
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErr"
+              example:
+                ok: false
+                error: busy
+  /api/update/install:
+    post:
+      tags: [update]
+      summary: Install pending update
+      operationId: installUpdate
+      x-protection: Host + STA
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EmptyJson"
+      responses:
+        "200":
+          description: Install started
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiOk"
+        "400":
+          $ref: "#/components/responses/ApiError"
+        "409":
+          $ref: "#/components/responses/ApiError"
+        "503":
+          description: OTA already busy, or Settings/MQTT apply still pending
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErr"
+              example:
+                ok: false
+                error: busy
+components:
+  schemas:
+    EmptyJson:
+      type: object
+      additionalProperties: false
+    ApiOk:
+      type: object
+      required: [ok]
+      properties:
+        ok:
+          type: boolean
+          const: true
+        message:
+          type: string
+        queued:
+          type: boolean
+        next:
+          type: string
+          description: UI path after the operation
+    ApiErr:
+      type: object
+      required: [ok, error]
+      properties:
+        ok:
+          type: boolean
+          const: false
+        error:
+          type: string
+    DeviceInfo:
+      type: object
+      required: [hostname, version, mode, deviceId, batteryMv, batteryPct]
+      properties:
+        hostname:
+          type: string
+          description: "`chaya2mqtt` (AP) or `chaya2mqtt-<deviceId>` (STA)"
+        version: { type: string }
+        mode: { type: string, enum: [ap, sta] }
+        deviceId: { type: string }
+        batteryMv:
+          type: integer
+          description: Pack millivolts
+        batteryPct:
+          type: integer
+          minimum: 0
+          maximum: 100
+          description: Coarse percent
+        apSsid:
+          type: string
+          description: SoftAP SSID (AP mode)
+        apIp:
+          type: string
+          description: SoftAP IPv4 (AP mode)
+    ChayaStatus:
+      type: object
+      required: [rx, tx, connected, configured, paired]
+      properties:
+        rx:
+          type: integer
+          description: Received hearts since last reset
+        tx:
+          type: integer
+          description: Sent hearts since last reset
+        connected:
+          type: boolean
+          description: MQTT client connected
+        configured:
+          type: boolean
+          description: MQTT broker configured
+        paired:
+          type: boolean
+          description: Partner ID set
+    MqttStatus:
+      type: object
+      required: [connected]
+      properties:
+        connected: { type: boolean }
+    WifiStatus:
+      oneOf:
+        - type: object
+          required: [connected]
+          properties:
+            connected: { type: boolean, const: false }
+        - type: object
+          required: [connected, ssid, ip, gateway, netmask, dns1, dns2, rssi]
+          properties:
+            connected: { type: boolean, const: true }
+            ssid: { type: string }
+            ip: { type: string }
+            gateway: { type: string }
+            netmask: { type: string }
+            dns1: { type: string }
+            dns2: { type: string }
+            rssi: { type: integer }
+    WifiConfig:
+      type: object
+      required: [ssid, mode, ip, gateway, netmask, dns1, dns2, ntp1, ntp2]
+      properties:
+        ssid: { type: string }
+        mode: { type: string, enum: [dhcp, static] }
+        ip: { type: string }
+        gateway: { type: string }
+        netmask: { type: string }
+        dns1: { type: string }
+        dns2: { type: string }
+        ntp1: { type: string }
+        ntp2: { type: string }
+    WifiScanAp:
+      type: object
+      required: [ssid, rssi, open]
+      properties:
+        ssid: { type: string }
+        rssi: { type: integer }
+        open: { type: boolean }
+    WifiScanSnapshot:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+          enum: [idle, pending, ready, failed]
+        aps:
+          type: array
+          items:
+            $ref: "#/components/schemas/WifiScanAp"
+    MqttConfigView:
+      type: object
+      required: [deviceId, server, port, tls, username, hasPassword, topicPub, topicSub, partnerId, pairingId]
+      properties:
+        deviceId:
+          type: string
+          description: Own 6-char hex device ID
+        server: { type: string }
+        port: { type: integer }
+        tls:
+          type: boolean
+          description: true = TLS (mqtts)
+        username: { type: string }
+        hasPassword: { type: boolean }
+        topicPub:
+          type: string
+          description: "`chaya2mqtt/<pairingId or deviceId>`"
+        topicSub:
+          type: string
+          description: "`chaya2mqtt/<partnerId>`, empty if unpaired"
+        partnerId: { type: string }
+        pairingId:
+          type: string
+          description: Shared publish identity; empty means this device's own ID
+        nvsOk:
+          { type: boolean, description: false if last NVS persist failed }
+        applyPending:
+          { type: boolean, description: true while apply is in flight }
+    SettingsInfo:
+      type: object
+      required:
+        [
+          resetDays,
+          lang,
+          theme,
+          ledEnabled,
+          audioTxEnabled,
+          audioRxEnabled,
+          audioTxVolume,
+          audioRxVolume,
+          quietHourStart,
+          quietHourEnd,
+          txHz,
+          txMs,
+          rxHz,
+          rxMs,
+        ]
+      properties:
+        resetDays: { type: integer, minimum: 0, maximum: 30 }
+        lang: { type: string, enum: [de, en] }
+        theme: { type: string, enum: [system, dark, light] }
+        ledEnabled:
+          type: boolean
+          description: User LED (false = off)
+        audioTxEnabled:
+          type: boolean
+          description: Click on send
+        audioRxEnabled:
+          type: boolean
+          description: Click on receive
+        audioTxVolume:
+          type: integer
+          minimum: 0
+          maximum: 100
+          description: TX volume
+        audioRxVolume:
+          type: integer
+          minimum: 0
+          maximum: 100
+          description: RX volume
+        quietHourStart:
+          type: integer
+          minimum: 0
+          maximum: 23
+          description: Quiet hours start; equal to end = off
+        quietHourEnd:
+          type: integer
+          minimum: 0
+          maximum: 23
+        txHz:
+          type: integer
+          minimum: 40
+          maximum: 2000
+          description: Send click Hz
+        txMs:
+          type: integer
+          minimum: 20
+          maximum: 500
+          description: Send click ms
+        rxHz:
+          type: integer
+          minimum: 40
+          maximum: 2000
+          description: Receive click Hz
+        rxMs:
+          type: integer
+          minimum: 20
+          maximum: 500
+          description: Receive click ms
+        nvsOk:
+          type: boolean
+          description: false if last NVS persist failed
+        applyPending:
+          type: boolean
+          description: true while apply is in flight
+    OtaStatus:
+      type: object
+      required:
+        [phase, channel, localVersion, availableVersion, bytesDone, bytesTotal, error, generation]
+      properties:
+        phase:
+          type: string
+          enum: [idle, checking, available, downloading, verifying, rebooting, error]
+        channel:
+          type: string
+          enum: [stable, beta]
+        localVersion: { type: string }
+        availableVersion: { type: string }
+        bytesDone: { type: integer }
+        bytesTotal: { type: integer }
+        error: { type: string }
+        generation: { type: integer }
+  responses:
+    ApiError:
+      description: >
+        Request failed. HTTP 403 host-allowlist body:
+        ok false, error host.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ApiErr"
+          examples:
+            hostRejected:
+              summary: Host rejected
+              value:
+                ok: false
+                error: host

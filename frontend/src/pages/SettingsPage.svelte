@@ -1,0 +1,518 @@
+<script lang="ts" module>
+  import type { SettingsInfo } from "../api/types.ts";
+
+  let lastSubmittedSettings: SettingsInfo | null = null;
+  let settingsApplyToken = 0;
+
+  export function resetSettingsApplySession() {
+    settingsApplyToken += 1;
+    lastSubmittedSettings = null;
+  }
+</script>
+
+<script lang="ts">
+  import { onDestroy, untrack } from "svelte";
+  import { api, isApiBusyError } from "../api/client.ts";
+  import ConfirmDialog from "../components/ConfirmDialog.svelte";
+  import DangerButton from "../components/DangerButton.svelte";
+  import ErrorBlock from "../components/ErrorBlock.svelte";
+  import Field from "../components/Field.svelte";
+  import InfoTip from "../components/InfoTip.svelte";
+  import LoadingBlock from "../components/LoadingBlock.svelte";
+  import Panel from "../components/Panel.svelte";
+  import PrimaryButton from "../components/PrimaryButton.svelte";
+  import Switch from "../components/Switch.svelte";
+  import TextInput from "../components/TextInput.svelte";
+  import type { ShowToast } from "../components/toastStack.ts";
+  import { i18n } from "../i18n/i18n.svelte.ts";
+  import { getLanguage } from "../i18n/store.ts";
+  import {
+    applyDeviceUiPrefs,
+    cancelUiPrefsPersist,
+    enqueueSettingsWrite,
+  } from "../prefs/uiPrefs.ts";
+  import { setSettingsUiBusy } from "../prefs/settingsBusy.svelte.ts";
+  import { getThemePreference } from "../theme/store.ts";
+  import {
+    AUDIO_TONE_HZ_MAX,
+    AUDIO_TONE_HZ_MIN,
+    AUDIO_TONE_MS_MAX,
+    AUDIO_TONE_MS_MIN,
+    AUDIO_VOLUME_MAX,
+    AUDIO_VOLUME_MIN,
+  } from "../audio/ranges.ts";
+
+  const SETTINGS_APPLY_POLL_MS = 200;
+  const SETTINGS_APPLY_POLL_MAX = 150;
+
+  let {
+    onToast,
+    onDeviceRefresh,
+  }: {
+    onToast: ShowToast;
+    onDeviceRefresh: () => Promise<void>;
+  } = $props();
+
+  let settings = $state<SettingsInfo | null>(null);
+  let busy = $state(false);
+  let quietHoursEnabled = $state(false);
+  let loadError = $state(false);
+  let confirmReboot = $state(false);
+  let confirmFactory = $state(false);
+  let loadSeq = 0;
+
+  $effect(() => {
+    setSettingsUiBusy(busy);
+    return () => setSettingsUiBusy(false);
+  });
+
+  function applySettingsForm(s: SettingsInfo) {
+    settings = s;
+    quietHoursEnabled = s.quietHourStart !== s.quietHourEnd;
+  }
+
+  function restoreSubmittedSettings() {
+    if (!lastSubmittedSettings) return;
+    applySettingsForm({ ...lastSubmittedSettings });
+    busy = true;
+  }
+
+  async function load() {
+    const seq = ++loadSeq;
+    loadError = false;
+    try {
+      const s = await api.getSettings();
+      if (seq !== loadSeq) return;
+      if (s.applyPending) {
+        if (lastSubmittedSettings) {
+          restoreSubmittedSettings();
+        }
+        // Cold load: do not treat live GET as editable truth (BUG-FE-01).
+        busy = true;
+        void resumeApplyPoll(seq);
+        return;
+      }
+      lastSubmittedSettings = null;
+      applySettingsForm(s);
+      applyDeviceUiPrefs(s.lang, s.theme);
+      busy = false;
+    } catch (e) {
+      if (seq !== loadSeq) return;
+      if (isApiBusyError(e)) {
+        busy = true;
+        void resumeApplyPoll(seq);
+        return;
+      }
+      busy = false;
+      if (!settings) loadError = true;
+    }
+  }
+
+  /** Wait for deferred apply; surface NVS failure via nvsOk (QUAL-01). */
+  async function waitForSettingsPersist(
+    stillCurrent: () => boolean,
+  ): Promise<SettingsInfo | "aborted" | "timeout"> {
+    const delay = () => new Promise((r) => setTimeout(r, SETTINGS_APPLY_POLL_MS));
+    for (let i = 0; i < SETTINGS_APPLY_POLL_MAX; i++) {
+      if (!stillCurrent()) return "aborted";
+      let s: SettingsInfo;
+      try {
+        s = await api.getSettings();
+      } catch (e) {
+        if (isApiBusyError(e)) {
+          await delay();
+          continue;
+        }
+        throw e;
+      }
+      if (!stillCurrent()) return "aborted";
+      if (!s.applyPending) {
+        return s;
+      }
+      await delay();
+    }
+    if (!stillCurrent()) return "aborted";
+    let last: SettingsInfo;
+    try {
+      last = await api.getSettings();
+    } catch (e) {
+      if (isApiBusyError(e)) {
+        await delay();
+        last = await api.getSettings();
+      } else {
+        throw e;
+      }
+    }
+    if (!stillCurrent()) return "aborted";
+    return last.applyPending ? "timeout" : last;
+  }
+
+  async function resumeApplyPoll(seq: number) {
+    try {
+      const applied = await waitForSettingsPersist(() => seq === loadSeq);
+      if (applied === "aborted") return;
+      if (applied === "timeout") {
+        busy = false;
+        if (!settings) loadError = true;
+        return;
+      }
+      lastSubmittedSettings = null;
+      applySettingsForm(applied);
+      if (applied.nvsOk !== false) {
+        applyDeviceUiPrefs(applied.lang, applied.theme);
+      }
+      busy = false;
+    } catch {
+      if (seq !== loadSeq) return;
+      busy = false;
+      if (!settings) loadError = true;
+    }
+  }
+
+  $effect(() => {
+    untrack(() => {
+      restoreSubmittedSettings();
+      void load();
+    });
+    return () => {
+      loadSeq += 1;
+    };
+  });
+
+  onDestroy(() => {
+    settingsApplyToken += 1;
+  });
+
+  async function save(e: SubmitEvent) {
+    e.preventDefault();
+    if (!settings || busy) return;
+    const token = ++settingsApplyToken;
+    const quietEnd = quietHoursEnabled ? settings.quietHourEnd : settings.quietHourStart;
+    lastSubmittedSettings = {
+      ...settings,
+      quietHourEnd: quietEnd,
+      applyPending: true,
+    };
+    busy = true;
+    try {
+      const payload = {
+        reset_days: settings.resetDays,
+        lang: getLanguage(),
+        theme: getThemePreference(),
+        led_enabled: settings.ledEnabled,
+        audio_tx_enabled: settings.audioTxEnabled,
+        audio_rx_enabled: settings.audioRxEnabled,
+        audio_tx_volume: settings.audioTxVolume,
+        audio_rx_volume: settings.audioRxVolume,
+        quiet_hour_start: settings.quietHourStart,
+        quiet_hour_end: quietEnd,
+        tx_hz: settings.txHz,
+        tx_ms: settings.txMs,
+        rx_hz: settings.rxHz,
+        rx_ms: settings.rxMs,
+      };
+      cancelUiPrefsPersist();
+      if (token !== settingsApplyToken) return;
+      const res = await enqueueSettingsWrite(() => api.saveSettings(payload));
+      if (token !== settingsApplyToken) return;
+      if (!res.ok) {
+        lastSubmittedSettings = null;
+        onToast(i18n.t("toast.save-failed"), "error");
+        return;
+      }
+      const applied = await waitForSettingsPersist(() => token === settingsApplyToken);
+      if (token !== settingsApplyToken || applied === "aborted") return;
+      if (applied === "timeout") {
+        onToast(i18n.t("toast.save-failed"), "error");
+        return;
+      }
+      lastSubmittedSettings = null;
+      applySettingsForm(applied);
+      if (applied.nvsOk === false) {
+        onToast(i18n.t("toast.save-failed"), "error");
+        return;
+      }
+      onToast(i18n.t("toast.saved"), "success");
+      await onDeviceRefresh();
+    } catch {
+      if (token !== settingsApplyToken) return;
+      lastSubmittedSettings = null;
+      onToast(i18n.t("toast.save-failed"), "error");
+    } finally {
+      if (token === settingsApplyToken) busy = false;
+    }
+  }
+
+  async function reboot() {
+    busy = true;
+    try {
+      const res = await api.reboot();
+      if (!res.ok && res.error === "busy") {
+        onToast(i18n.t("toast.save-failed"), "error");
+      } else {
+        onToast(
+          res.ok ? i18n.t("toast.rebooting") : i18n.t("toast.reboot-failed"),
+          res.ok ? "info" : "error",
+        );
+      }
+      confirmReboot = false;
+    } catch {
+      onToast(i18n.t("toast.reboot-failed"), "error");
+    } finally {
+      busy = false;
+    }
+  }
+
+  async function factoryReset() {
+    busy = true;
+    try {
+      const res = await api.factoryReset();
+      onToast(
+        res.ok ? i18n.t("toast.reset-factory") : i18n.t("toast.reset-factory-failed"),
+        res.ok ? "info" : "error",
+      );
+      if (res.ok) {
+        confirmFactory = false;
+        try {
+          await onDeviceRefresh();
+        } catch {
+          // STA session may already be gone while the device comes back as AP.
+        }
+      }
+    } catch {
+      onToast(i18n.t("toast.reset-factory-failed"), "error");
+    } finally {
+      busy = false;
+    }
+  }
+
+  function hourToTimeValue(hour: number): string {
+    const h = Math.max(0, Math.min(23, Math.trunc(Number.isFinite(hour) ? hour : 0)));
+    return `${String(h).padStart(2, "0")}:00`;
+  }
+
+  function timeValueToHour(value: string): number {
+    const hour = Number.parseInt(value.slice(0, 2), 10);
+    if (!Number.isFinite(hour)) return 0;
+    return Math.max(0, Math.min(23, hour));
+  }
+</script>
+
+{#if loadError}
+  <ErrorBlock
+    title={i18n.t("settings.load-error-title")}
+    message={i18n.t("settings.load-error")}
+    retryLabel={i18n.t("common.retry")}
+    onRetry={() => void load()}
+  />
+{:else if !settings}
+  <LoadingBlock label={i18n.t("settings.loading")} />
+{:else}
+  <div class="space-y-4">
+    <Panel>
+      <form class="space-y-3" onsubmit={(e) => void save(e)}>
+        <div class="space-y-3">
+          <h3 class="text-base font-semibold text-text-bright">{i18n.t("settings.general")}</h3>
+          <Field label={i18n.t("settings.reset-days")} hint={i18n.t("settings.reset-hint")}>
+            <TextInput type="number" min={0} max={30} bind:value={settings.resetDays} />
+          </Field>
+        </div>
+
+        <div class="space-y-3 border-t border-border pt-3">
+          <h3 class="text-base font-semibold text-text-bright">{i18n.t("settings.led")}</h3>
+          <Field label={i18n.t("settings.led-enabled")} hint={i18n.t("settings.led-enabled-hint")}>
+            <Switch
+              label={i18n.t("settings.led-enabled")}
+              checked={settings.ledEnabled}
+              disabled={busy}
+              onChange={(ledEnabled) => {
+                if (settings) settings = { ...settings, ledEnabled };
+              }}
+            />
+          </Field>
+        </div>
+
+        <div class="space-y-3 border-t border-border pt-3">
+          <h3 class="text-base font-semibold text-text-bright">{i18n.t("settings.sound")}</h3>
+          <Field label={i18n.t("settings.audio-tx")} hint={i18n.t("settings.audio-tx-hint")}>
+            <Switch
+              label={i18n.t("settings.audio-tx")}
+              checked={settings.audioTxEnabled}
+              disabled={busy}
+              onChange={(audioTxEnabled) => {
+                if (settings) settings = { ...settings, audioTxEnabled };
+              }}
+            />
+          </Field>
+          {#if settings.audioTxEnabled}
+            <Field
+              label={i18n.t("settings.audio-volume")}
+              hint={i18n.t("settings.audio-volume-hint")}
+            >
+              <TextInput
+                type="number"
+                min={AUDIO_VOLUME_MIN}
+                max={AUDIO_VOLUME_MAX}
+                bind:value={settings.audioTxVolume}
+              />
+            </Field>
+            <div class="grid gap-3 sm:grid-cols-2">
+              <Field label={i18n.t("settings.tone-tx-hz")} hint={i18n.t("settings.tone-hz-hint")}>
+                <TextInput
+                  type="number"
+                  min={AUDIO_TONE_HZ_MIN}
+                  max={AUDIO_TONE_HZ_MAX}
+                  bind:value={settings.txHz}
+                />
+              </Field>
+              <Field label={i18n.t("settings.tone-tx-ms")} hint={i18n.t("settings.tone-ms-hint")}>
+                <TextInput
+                  type="number"
+                  min={AUDIO_TONE_MS_MIN}
+                  max={AUDIO_TONE_MS_MAX}
+                  bind:value={settings.txMs}
+                />
+              </Field>
+            </div>
+          {/if}
+          <Field label={i18n.t("settings.audio-rx")} hint={i18n.t("settings.audio-rx-hint")}>
+            <Switch
+              label={i18n.t("settings.audio-rx")}
+              checked={settings.audioRxEnabled}
+              disabled={busy}
+              onChange={(audioRxEnabled) => {
+                if (settings) settings = { ...settings, audioRxEnabled };
+              }}
+            />
+          </Field>
+          {#if settings.audioRxEnabled}
+            <Field
+              label={i18n.t("settings.audio-volume")}
+              hint={i18n.t("settings.audio-volume-hint")}
+            >
+              <TextInput
+                type="number"
+                min={AUDIO_VOLUME_MIN}
+                max={AUDIO_VOLUME_MAX}
+                bind:value={settings.audioRxVolume}
+              />
+            </Field>
+            <div class="grid gap-3 sm:grid-cols-2">
+              <Field label={i18n.t("settings.tone-rx-hz")} hint={i18n.t("settings.tone-hz-hint")}>
+                <TextInput
+                  type="number"
+                  min={AUDIO_TONE_HZ_MIN}
+                  max={AUDIO_TONE_HZ_MAX}
+                  bind:value={settings.rxHz}
+                />
+              </Field>
+              <Field label={i18n.t("settings.tone-rx-ms")} hint={i18n.t("settings.tone-ms-hint")}>
+                <TextInput
+                  type="number"
+                  min={AUDIO_TONE_MS_MIN}
+                  max={AUDIO_TONE_MS_MAX}
+                  bind:value={settings.rxMs}
+                />
+              </Field>
+            </div>
+          {/if}
+          {#if settings.audioTxEnabled || settings.audioRxEnabled}
+            <Field label={i18n.t("settings.quiet")} hint={i18n.t("settings.quiet-hint")}>
+              <Switch
+                label={i18n.t("settings.quiet")}
+                checked={quietHoursEnabled}
+                disabled={busy}
+                onChange={(on) => {
+                  quietHoursEnabled = on;
+                  if (on && settings && settings.quietHourStart === settings.quietHourEnd) {
+                    settings = { ...settings, quietHourStart: 23, quietHourEnd: 8 };
+                  }
+                }}
+              />
+            </Field>
+            {#if quietHoursEnabled}
+              <div class="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
+                <div class="rounded-xl border border-border bg-bg px-3 py-2">
+                  <input
+                    type="time"
+                    step="3600"
+                    value={hourToTimeValue(settings.quietHourStart)}
+                    aria-label={i18n.t("settings.quiet-start")}
+                    class="w-full bg-transparent text-center text-text tabular-nums outline-none"
+                    oninput={(e) => {
+                      if (!settings) return;
+                      settings = {
+                        ...settings,
+                        quietHourStart: timeValueToHour(e.currentTarget.value),
+                      };
+                    }}
+                  />
+                </div>
+                <span class="text-sm font-semibold text-muted" aria-hidden="true">–</span>
+                <div class="rounded-xl border border-border bg-bg px-3 py-2">
+                  <input
+                    type="time"
+                    step="3600"
+                    value={hourToTimeValue(settings.quietHourEnd)}
+                    aria-label={i18n.t("settings.quiet-end")}
+                    class="w-full bg-transparent text-center text-text tabular-nums outline-none"
+                    oninput={(e) => {
+                      if (!settings) return;
+                      settings = {
+                        ...settings,
+                        quietHourEnd: timeValueToHour(e.currentTarget.value),
+                      };
+                    }}
+                  />
+                </div>
+              </div>
+            {/if}
+          {/if}
+        </div>
+
+        <PrimaryButton type="submit" loading={busy}>
+          {i18n.t("common.save")}
+        </PrimaryButton>
+      </form>
+
+      <div class="mt-3">
+        <DangerButton disabled={busy} onclick={() => (confirmReboot = true)}>
+          {i18n.t("settings.reboot")}
+        </DangerButton>
+      </div>
+    </Panel>
+
+    <Panel>
+      <div class="flex flex-col gap-3">
+        <h3 class="inline-flex items-center gap-1.5 text-base font-semibold text-text-bright">
+          {i18n.t("settings.factory-reset")}
+          <InfoTip text={i18n.t("settings.factory-reset-hint")} />
+        </h3>
+        <DangerButton disabled={busy} onclick={() => (confirmFactory = true)}>
+          {i18n.t("settings.factory-reset-confirm")}
+        </DangerButton>
+      </div>
+    </Panel>
+
+    <ConfirmDialog
+      open={confirmReboot}
+      title={i18n.t("settings.reboot-title")}
+      description={i18n.t("settings.reboot-text")}
+      confirmLabel={i18n.t("settings.reboot-confirm")}
+      cancelLabel={i18n.t("common.cancel")}
+      confirming={busy}
+      onConfirm={() => void reboot()}
+      onCancel={() => (confirmReboot = false)}
+    />
+    <ConfirmDialog
+      open={confirmFactory}
+      title={i18n.t("settings.factory-reset-title")}
+      description={i18n.t("settings.factory-reset-text")}
+      confirmLabel={i18n.t("settings.factory-reset-confirm")}
+      cancelLabel={i18n.t("common.cancel")}
+      confirming={busy}
+      onConfirm={() => void factoryReset()}
+      onCancel={() => (confirmFactory = false)}
+    />
+  </div>
+{/if}

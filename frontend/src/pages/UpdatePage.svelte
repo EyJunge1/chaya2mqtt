@@ -1,0 +1,270 @@
+<script lang="ts">
+  import { untrack } from "svelte";
+  import { api } from "../api/client.ts";
+  import { otaHasPendingUpdate, otaStatusIsStale } from "../api/ota.ts";
+  import type { OtaChannel, OtaPhase, OtaStatus } from "../api/types.ts";
+  import ActionRow from "../components/ActionRow.svelte";
+  import Alert from "../components/Alert.svelte";
+  import ConfirmDialog from "../components/ConfirmDialog.svelte";
+  import ErrorBlock from "../components/ErrorBlock.svelte";
+  import Field from "../components/Field.svelte";
+  import KeyValueGrid from "../components/KeyValueGrid.svelte";
+  import LoadingBlock from "../components/LoadingBlock.svelte";
+  import Panel from "../components/Panel.svelte";
+  import PrimaryButton from "../components/PrimaryButton.svelte";
+  import ProgressBar from "../components/ProgressBar.svelte";
+  import SecondaryButton from "../components/SecondaryButton.svelte";
+  import SelectInput from "../components/SelectInput.svelte";
+  import type { ShowToast } from "../components/toastStack.ts";
+  import { i18n } from "../i18n/i18n.svelte.ts";
+
+  const emptyStatus = (): OtaStatus => ({
+    phase: "idle",
+    channel: "stable",
+    localVersion: "",
+    availableVersion: "",
+    bytesDone: 0,
+    bytesTotal: 0,
+    error: "",
+    generation: 0,
+  });
+
+  function phaseLabelKey(phase: OtaPhase): `update.phase.${OtaPhase}` {
+    return `update.phase.${phase}`;
+  }
+
+  let {
+    onToast,
+    otaStatus = null,
+  }: {
+    onToast: ShowToast;
+    otaStatus?: OtaStatus | null;
+  } = $props();
+
+  let status = $state<OtaStatus | null>(null);
+  let channel = $state<OtaChannel>("stable");
+  let channelDirty = $state(false);
+  let loadError = $state(false);
+  let busy = $state(false);
+  let confirmInstall = $state(false);
+  let toastedError = $state("");
+  /** Bumps on each load / unmount so late GET results are ignored. */
+  let loadSeq = 0;
+
+  function applyStatus(next: OtaStatus) {
+    // Ignore stale or same-generation snapshots (late GET after fresher SSE).
+    if (otaStatusIsStale(status, next)) return;
+    status = next;
+    if (!channelDirty) {
+      channel = next.channel;
+    }
+    if (next.phase === "error" && next.error) {
+      if (next.error !== toastedError) {
+        toastedError = next.error;
+        onToast(i18n.t("update.error-title"), "error");
+      }
+    } else if (toastedError !== "") {
+      toastedError = "";
+    }
+  }
+
+  async function load() {
+    const seq = ++loadSeq;
+    loadError = false;
+    try {
+      const next = await api.getUpdateStatus();
+      if (seq !== loadSeq) return;
+      applyStatus(next);
+    } catch {
+      if (seq !== loadSeq) return;
+      loadError = true;
+    }
+  }
+
+  $effect(() => {
+    untrack(() => {
+      void load();
+    });
+    return () => {
+      loadSeq += 1;
+    };
+  });
+
+  // Only track the prop; apply via untrack so writing local status cannot loop (FE-04).
+  $effect(() => {
+    const snap = otaStatus;
+    if (!snap) return;
+    untrack(() => applyStatus(snap));
+  });
+
+  const installing = $derived(
+    status?.phase === "downloading" ||
+      status?.phase === "verifying" ||
+      status?.phase === "rebooting",
+  );
+  const checking = $derived(status?.phase === "checking");
+  const pendingUpdate = $derived(otaHasPendingUpdate(status));
+  const canInstall = $derived(
+    !!status &&
+      pendingUpdate &&
+      (status.phase === "available" || status.phase === "error") &&
+      !installing &&
+      !checking,
+  );
+  const progressPct = $derived(
+    !status || status.bytesTotal <= 0
+      ? null
+      : Math.min(100, Math.round((status.bytesDone / status.bytesTotal) * 100)),
+  );
+
+  async function check() {
+    busy = true;
+    const previousStatus = status;
+    status = {
+      ...(status ?? emptyStatus()),
+      phase: "checking",
+      channel,
+      error: "",
+    };
+    try {
+      const res = await api.checkUpdate(channel);
+      onToast(
+        res.ok ? i18n.t("toast.update-checking") : i18n.t("toast.update-failed"),
+        res.ok ? "info" : "error",
+      );
+      if (!res.ok && (status?.generation ?? 0) <= (previousStatus?.generation ?? 0)) {
+        status = previousStatus;
+      }
+    } catch {
+      if ((status?.generation ?? 0) <= (previousStatus?.generation ?? 0)) {
+        status = previousStatus;
+      }
+      onToast(i18n.t("toast.update-failed"), "error");
+    } finally {
+      busy = false;
+    }
+  }
+
+  async function install() {
+    busy = true;
+    try {
+      const res = await api.installUpdate();
+      if (!res.ok) {
+        onToast(i18n.t("toast.update-install-failed"), "error");
+        confirmInstall = false;
+        return;
+      }
+      onToast(i18n.t("toast.update-installing"), "info");
+      confirmInstall = false;
+      status = {
+        ...(status ?? emptyStatus()),
+        phase: "downloading",
+        error: "",
+      };
+    } catch {
+      onToast(i18n.t("toast.update-install-failed"), "error");
+    } finally {
+      busy = false;
+    }
+  }
+</script>
+
+{#if loadError && !status}
+  <ErrorBlock
+    title={i18n.t("update.load-error-title")}
+    message={i18n.t("update.load-error")}
+    retryLabel={i18n.t("common.retry")}
+    onRetry={() => void load()}
+  />
+{:else if !status}
+  <LoadingBlock label={i18n.t("app.connecting")} />
+{:else}
+  <Panel title={i18n.t("update.title")} hint={i18n.t("update.text")}>
+    <div class="space-y-4">
+      <KeyValueGrid
+        items={[
+          { label: i18n.t("update.installed"), value: status.localVersion?.trim() || "-" },
+          {
+            label: i18n.t("update.available"),
+            value: status.availableVersion || i18n.t("update.none"),
+          },
+          {
+            label: i18n.t("update.status"),
+            value:
+              status.phase === "available" && !pendingUpdate
+                ? i18n.t("update.phase.idle")
+                : i18n.t(phaseLabelKey(status.phase)),
+            span: 2,
+            testId: "update-status-phase",
+          },
+        ]}
+      />
+
+      <Field label={i18n.t("update.channel")} hint={i18n.t("update.channel-hint")}>
+        <SelectInput
+          bind:value={channel}
+          disabled={busy || checking || installing}
+          onchange={() => {
+            channelDirty = true;
+          }}
+        >
+          <option value="stable">{i18n.t("update.channel.stable")}</option>
+          <option value="beta">{i18n.t("update.channel.beta")}</option>
+        </SelectInput>
+      </Field>
+
+      {#if channel === "beta"}
+        <Alert variant="warning" title={i18n.t("update.beta-warning-title")}>
+          <p>{i18n.t("update.beta-warning")}</p>
+        </Alert>
+      {/if}
+
+      {#if status.phase === "downloading" || status.phase === "verifying"}
+        <div class="space-y-2">
+          <ProgressBar value={progressPct} label={i18n.t("update.status")} />
+          <p class="text-sm text-muted">
+            {progressPct != null
+              ? i18n.t("update.progress", { pct: String(progressPct) })
+              : i18n.t("update.progress-unknown")}
+          </p>
+        </div>
+      {/if}
+
+      {#if status.phase === "rebooting"}
+        <p class="text-sm text-muted">{i18n.t("update.rebooting-hint")}</p>
+      {/if}
+
+      <ActionRow>
+        <PrimaryButton
+          loading={busy || checking}
+          disabled={installing}
+          onclick={() => void check()}
+          class="sm:flex-1"
+        >
+          {i18n.t("update.check")}
+        </PrimaryButton>
+        <SecondaryButton
+          disabled={!canInstall || busy}
+          onclick={() => (confirmInstall = true)}
+          class="sm:flex-1"
+        >
+          {i18n.t("update.install")}
+        </SecondaryButton>
+      </ActionRow>
+    </div>
+  </Panel>
+
+  <ConfirmDialog
+    open={confirmInstall}
+    title={i18n.t("update.confirm-title")}
+    description={i18n.t("update.confirm-text", {
+      version: status.availableVersion || "?",
+    })}
+    confirmLabel={i18n.t("update.install")}
+    cancelLabel={i18n.t("common.cancel")}
+    confirming={busy}
+    confirmVariant="primary"
+    onConfirm={() => void install()}
+    onCancel={() => (confirmInstall = false)}
+  />
+{/if}

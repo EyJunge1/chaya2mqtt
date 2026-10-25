@@ -1,0 +1,71 @@
+#pragma once
+
+#include <cstdint>
+
+/** ESP-IDF MQTT client + heart publish.
+ *  Lock order when acquiring multiple mutexes (never reverse):
+ *   1. g_chayaPublishMutex (`mqttPublishChaya*`),
+ *   2. g_mqttClientMutex (allocate client / esp_mqtt_*).
+ *  Access broker configuration only through mqtt/config.h APIs (mqttCfgSnapshot,
+ *  mqttCfgStorePendingTimed, …).
+ */
+auto mqttSetup() -> bool;
+auto mqttDisconnect() -> bool;
+void mqttLoop();
+
+/** Coalesce a client teardown for the network task (safe during EPD refresh). */
+void mqttRequestKillClientDeferred();
+
+void mqttPostponeConnect(unsigned long delayMs);
+
+/** Block publishes while broker settings are torn down/reapplied. */
+void mqttBeginSettingsApply();
+void mqttEndSettingsApply();
+
+auto mqttIsConnected() -> bool;
+
+enum class MqttChayaPublishTry : uint8_t { Ok = 0, Retry = 1, Fail = 2 };
+
+/** Start retained QoS 1 publish; Retry keeps LED Pending (RC-MQTT-02). */
+auto mqttPublishChayaAndApplySentCounters() -> MqttChayaPublishTry;
+
+inline auto mqttChayaPublishTryIsFail(MqttChayaPublishTry result) -> bool { return result == MqttChayaPublishTry::Fail; }
+
+/**
+ * Non-blocking heart publish for the LED TX sequence.
+ * LED/button task requests work; network task starts QoS-1 publish; PUBACK completes async.
+ */
+enum class MqttChayaPublishAsync : uint8_t {
+    Idle,
+    Pending,
+    Ok,
+    Fail,
+};
+
+/** Arm network-task publish if idle; returns current async state after arming. */
+auto mqttRequestChayaPublishAsync() -> MqttChayaPublishAsync;
+auto mqttPollChayaPublishAsync() -> MqttChayaPublishAsync;
+void mqttRunChayaPublishOnNetworkTask();
+void mqttClearChayaPublishAsync();
+/** True while a heart publish is queued or waiting for PUBACK. */
+auto mqttChayaPublishAsyncIsPending() -> bool;
+/** Fail queued / in-flight heart publish (disconnect or shutdown). Safe from any task. */
+void mqttAbortPendingPublish();
+
+/** True while broker settings are being torn down/reapplied (blocks publish). */
+auto mqttPublishBlocked() -> bool;
+/** True while a failed kill is waiting to be retried (RC-MQTT-11). */
+auto mqttKillClientPending() -> bool;
+
+/** Result of requesting a heart/Chaya TX (button and web share this entry). */
+enum class ChayaSendResult : uint8_t {
+    Started,     // LED TX sequence armed; publish runs on network task (STAB-02)
+    Unavailable, // shutdown, SoftAP, or broker not configured
+    Busy,        // TX sequence already running or publish blocked (settings apply)
+};
+
+/**
+ * Single entry for Chaya send: same LED TX sequence + publish path for button and web.
+ * Safe from any task.
+ */
+auto chayaRequestSend() -> ChayaSendResult;

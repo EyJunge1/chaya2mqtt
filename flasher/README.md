@@ -1,0 +1,48 @@
+# Browser web flasher
+
+The easiest way to bring a new Chaya heart to life. Connect the ESP32-S3 over USB,
+choose a version, and the browser installs everything it needs.
+
+Under the hood, this is a separate Svelte 5 + Vite + Tailwind 4 app that flashes
+Chaya2MQTT through Web Serial with `esptool-js`. Its look matches the device admin
+UI, but it does not depend on the device HTTP APIs.
+
+## UI development
+
+```bash
+cd flasher
+npm ci
+npm run dev
+```
+
+Open `http://127.0.0.1:4174/`. The Vite development server provides local
+Stable/Beta metadata and serves the current
+`.pio/build/esp32s3-release/firmware.factory.bin`. Build the release firmware
+first if you want to test the actual flash dialog.
+
+## Full local preview with firmware
+
+1. Build a release firmware once so a factory image exists:
+   ```bash
+   pio run -e esp32s3-release
+   ```
+2. Stage local release folders:
+   ```bash
+   mkdir -p /tmp/chaya-releases/v1.0.0
+   cp .pio/build/esp32s3-release/firmware.factory.bin /tmp/chaya-releases/v1.0.0/
+   make flasher RELEASES_DIR=/tmp/chaya-releases
+   ```
+3. Serve the site (Web Serial needs HTTPS or localhost):
+   ```bash
+   python3 -m http.server 8080 --directory flasher/_site
+   ```
+4. Open `http://localhost:8080/`.
+
+The generator copies the compiled `flasher/dist/` app and adds `versions.json`,
+channel manifests, and Stable/Beta factory images under `flasher/_site/`.
+
+## Production
+
+`.github/workflows/deploy-pages.yml` builds the site and deploys it to
+[GitHub Pages](https://eyjunge1.github.io/chaya2mqtt/). Use the local preview
+above when developing or testing unpublished firmware.

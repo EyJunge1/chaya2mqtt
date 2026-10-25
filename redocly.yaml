@@ -1,0 +1,6 @@
+extends:
+  - recommended
+
+# Admin has no login. AsyncAPI security-defined treats security: [] as missing.
+rules:
+  security-defined: off

@@ -1,0 +1,184 @@
+#pragma once
+
+#include "audio/audio_config.hpp"
+#include "util/net_validate.hpp"
+
+#include <cstddef>
+#include <cstdint>
+#include <cstring>
+#include <ctime>
+#include <utility>
+
+/** Minimum plausible Unix time (UTC) after NTP sync — rejects unset RTC (~1970). */
+constexpr uint32_t kNtpMinValidUtcEpoch = 1700000000U;
+
+/** Device pairing: randomly generated 6-character lowercase hexadecimal ID. */
+constexpr size_t kDeviceIdHexLen = 6U;
+constexpr size_t kDeviceIdBufLen = 7U;
+
+/** Setup-AP hostname (no dots); STA uses kDeviceStaHostnamePrefix + device ID. */
+constexpr const char kDeviceHostname[] = "chaya2mqtt";
+/** Prefix for the unique station / mDNS hostname. */
+constexpr const char kDeviceStaHostnamePrefix[] = "chaya2mqtt-";
+constexpr size_t kDeviceStaHostnameBufLen = sizeof(kDeviceStaHostnamePrefix) - 1U + kDeviceIdHexLen + 1U;
+/** Captive-portal AP SSID during setup. */
+constexpr const char kSetupApSsid[] = "Chaya2MQTT";
+/** SoftAP IPv4 shown on splash / captive clients. */
+constexpr const char kSetupApIp[] = "4.3.2.1";
+/** Absolute captive-portal landing URL (Android/Windows prefer absolute). */
+constexpr const char kSetupApCaptiveRedirect[] = "http://4.3.2.1/";
+
+[[nodiscard]] inline auto ntpTimeLooksSynced(time_t utcNow) -> bool {
+    return std::cmp_greater(utcNow, 0) && std::cmp_greater_equal(static_cast<uint64_t>(utcNow), kNtpMinValidUtcEpoch);
+}
+
+/**
+ * Basic MQTT topic rules: non-empty, within maxLen (including NUL), no spaces or wildcards.
+ */
+inline auto mqttTopicSyntaxOk(const char *topic, size_t maxLen) -> bool {
+    if (topic == nullptr || topic[0] == '\0' || maxLen == 0U) {
+        return false;
+    }
+    size_t len = 0;
+    for (const char *p = topic; *p != '\0'; ++p) {
+        ++len;
+        if (len >= maxLen) {
+            return false;
+        }
+        const auto c = static_cast<unsigned char>(*p);
+        if (c < 0x20U || c > 0x7EU || c == ' ' || c == '#' || c == '+') {
+            return false;
+        }
+    }
+    return true;
+}
+
+/**
+ * MQTT broker host field (hostname or IPv4 literal): fits in buffer with NUL, no control chars/spaces/wildcards.
+ * Rejects ':' so "host:8883" cannot be stored as hostname (DNS fails; port is a separate field).
+ * Not the same rules as MQTT topics (still rejects '#' / '+').
+ */
+inline auto mqttServerSyntaxOk(const char *host, size_t maxLen) -> bool {
+    if (!hostFieldSyntaxOk(host, maxLen)) {
+        return false;
+    }
+    for (const char *p = host; *p != '\0'; ++p) {
+        if (*p == ':') {
+            return false;
+        }
+    }
+    return true;
+}
+
+/**
+ * MQTT username: empty OK (anonymous); otherwise no control chars (< 0x20), fits in maxLen.
+ * UTF-8 broker users are allowed; same control-char rule as the password. SEC-09.
+ */
+inline auto mqttUsernameSyntaxOk(const char *user, size_t maxLen) -> bool {
+    if (user == nullptr || maxLen == 0U) {
+        return false;
+    }
+    if (user[0] == '\0') {
+        return true;
+    }
+    size_t len = 0;
+    for (const char *p = user; *p != '\0'; ++p) {
+        ++len;
+        if (len >= maxLen) {
+            return false;
+        }
+        if (static_cast<unsigned char>(*p) < 0x20U) {
+            return false;
+        }
+    }
+    return true;
+}
+
+/**
+ * MQTT password: empty OK; no control chars (< 0x20); fits in maxLen.
+ * Allows high-bit / punctuation for strong secrets; blocks embedded-NUL truncation class. SEC-09.
+ */
+inline auto mqttPasswordSyntaxOk(const char *pass, size_t maxLen) -> bool {
+    if (pass == nullptr || maxLen == 0U) {
+        return false;
+    }
+    if (pass[0] == '\0') {
+        return true;
+    }
+    size_t len = 0;
+    for (const char *p = pass; *p != '\0'; ++p) {
+        ++len;
+        if (len >= maxLen) {
+            return false;
+        }
+        if (static_cast<unsigned char>(*p) < 0x20U) {
+            return false;
+        }
+    }
+    return true;
+}
+
+/** UI language preference: "de" or "en". */
+inline auto uiLangSyntaxOk(const char *lang) -> bool {
+    return lang != nullptr && (strcmp(lang, "de") == 0 || strcmp(lang, "en") == 0);
+}
+
+/** UI theme preference: "system", "dark", or "light". */
+inline auto uiThemeSyntaxOk(const char *theme) -> bool {
+    return theme != nullptr && (strcmp(theme, "system") == 0 || strcmp(theme, "dark") == 0 || strcmp(theme, "light") == 0);
+}
+
+[[nodiscard]] inline auto audioVolumeInRange(int v) -> bool {
+    return std::cmp_greater_equal(v, 0) && std::cmp_less_equal(v, kAudioVolumeMax);
+}
+
+[[nodiscard]] inline auto quietHourInRange(int v) -> bool {
+    return std::cmp_greater_equal(v, 0) && std::cmp_less_equal(v, kAudioHourMax);
+}
+
+[[nodiscard]] inline auto audioToneHzInRange(int v) -> bool {
+    return std::cmp_greater_equal(v, kAudioToneHzMin) && std::cmp_less_equal(v, kAudioToneHzMax);
+}
+
+[[nodiscard]] inline auto audioToneMsInRange(int v) -> bool {
+    return std::cmp_greater_equal(v, kAudioToneMsMin) && std::cmp_less_equal(v, kAudioToneMsMax);
+}
+
+/** Display reset period days: 0 = off, otherwise 1–30. */
+[[nodiscard]] inline auto resetPeriodDaysInRange(int v) -> bool { return v >= 0 && v <= 30; }
+
+/** Six lowercase hex digits (a-f0-9), e.g. a1b2c3. */
+inline auto deviceIdSyntaxOk(const char *id) -> bool {
+    if (id == nullptr) {
+        return false;
+    }
+    for (size_t i = 0; i < kDeviceIdHexLen; ++i) {
+        const auto c = static_cast<unsigned char>(id[i]);
+        if (c == '\0') {
+            return false;
+        }
+        const bool hex = (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f');
+        if (!hex) {
+            return false;
+        }
+    }
+    return id[kDeviceIdHexLen] == '\0';
+}
+
+inline auto wifiSsidSyntaxOk(const char *ssid, size_t maxLen) -> bool {
+    if (ssid == nullptr || ssid[0] == '\0' || maxLen == 0U) {
+        return false;
+    }
+    size_t len = 0;
+    for (const char *p = ssid; *p != '\0'; ++p) {
+        ++len;
+        if (len >= maxLen) {
+            return false;
+        }
+        const auto c = static_cast<unsigned char>(*p);
+        if (c < 0x20U || c > 0x7EU) {
+            return false;
+        }
+    }
+    return true;
+}

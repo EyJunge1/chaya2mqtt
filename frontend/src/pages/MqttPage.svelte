@@ -1,0 +1,472 @@
+<script lang="ts" module>
+  import type { MqttConfigView } from "../api/types.ts";
+
+  let lastSubmittedMqtt: { view: MqttConfigView; partner: string; pairing: string } | null = null;
+  let mqttApplyToken = 0;
+
+  export function resetMqttApplySession() {
+    mqttApplyToken += 1;
+    lastSubmittedMqtt = null;
+  }
+</script>
+
+<script lang="ts">
+  import { Check, Copy, Radio, RadioOff } from "@lucide/svelte";
+  import { onDestroy, untrack } from "svelte";
+  import { api, isApiBusyError } from "../api/client.ts";
+  import type { MqttStatus } from "../api/types.ts";
+  import ActionRow from "../components/ActionRow.svelte";
+  import ErrorBlock from "../components/ErrorBlock.svelte";
+  import Field from "../components/Field.svelte";
+  import KeyValueGrid from "../components/KeyValueGrid.svelte";
+  import LoadingBlock from "../components/LoadingBlock.svelte";
+  import Panel from "../components/Panel.svelte";
+  import PrimaryButton from "../components/PrimaryButton.svelte";
+  import SecondaryButton from "../components/SecondaryButton.svelte";
+  import SegmentedControl from "../components/SegmentedControl.svelte";
+  import StatusBadge from "../components/StatusBadge.svelte";
+  import TextInput from "../components/TextInput.svelte";
+  import type { ShowToast } from "../components/toastStack.ts";
+  import { i18n } from "../i18n/i18n.svelte.ts";
+  import { copyText } from "../ui/clipboard.ts";
+  import { cn } from "../ui/cn.ts";
+  import { dash, HOVER_SURFACE } from "../ui/styles.ts";
+
+  const MQTT_PLAIN_PORT = 1883;
+  const MQTT_TLS_PORT = 8883;
+  const MQTT_APPLY_POLL_MS = 200;
+  const MQTT_APPLY_POLL_MAX = 150;
+
+  type MqttProtocol = "mqtt" | "mqtts";
+
+  let {
+    mqtt,
+    refreshSeq = 0,
+    onToast,
+    onDeviceRefresh,
+  }: {
+    mqtt: MqttStatus;
+    refreshSeq?: number;
+    onToast: ShowToast;
+    onDeviceRefresh?: () => Promise<void>;
+  } = $props();
+
+  let cfg = $state<MqttConfigView | null>(null);
+  let password = $state("");
+  let pairing = $state("");
+  let partner = $state("");
+  let busy = $state(false);
+  let loadError = $state(false);
+  let copiedKey = $state<string | null>(null);
+  let copiedReset: ReturnType<typeof setTimeout> | undefined;
+  let loadSeq = 0;
+
+  function effectivePairingId(view: MqttConfigView) {
+    return view.pairingId.trim() || view.deviceId.trim();
+  }
+
+  function applyMqttForm(next: MqttConfigView) {
+    cfg = next;
+    pairing = effectivePairingId(next);
+    partner = next.partnerId;
+  }
+
+  function restoreSubmittedMqtt() {
+    if (!lastSubmittedMqtt) return;
+    applyMqttForm({ ...lastSubmittedMqtt.view });
+    pairing = lastSubmittedMqtt.pairing;
+    partner = lastSubmittedMqtt.partner;
+    busy = true;
+  }
+
+  async function load() {
+    const seq = ++loadSeq;
+    loadError = false;
+    try {
+      const next = await api.getMqttConfig();
+      if (seq !== loadSeq) return;
+      if (next.applyPending) {
+        if (lastSubmittedMqtt) {
+          restoreSubmittedMqtt();
+        }
+        // Cold load: do not treat live GET as editable truth (BUG-FE-01).
+        busy = true;
+        void resumeApplyPoll(seq);
+        return;
+      }
+      lastSubmittedMqtt = null;
+      applyMqttForm(next);
+      busy = false;
+    } catch (e) {
+      if (seq !== loadSeq) return;
+      if (isApiBusyError(e)) {
+        busy = true;
+        void resumeApplyPoll(seq);
+        return;
+      }
+      busy = false;
+      if (!cfg) loadError = true;
+    }
+  }
+
+  async function resumeApplyPoll(seq: number) {
+    try {
+      const applied = await waitForMqttPersist(() => seq === loadSeq);
+      if (applied === "aborted") return;
+      if (applied === "timeout") {
+        busy = false;
+        if (!cfg) loadError = true;
+        return;
+      }
+      lastSubmittedMqtt = null;
+      applyMqttForm(applied);
+      busy = false;
+    } catch {
+      if (seq !== loadSeq) return;
+      busy = false;
+      if (!cfg) loadError = true;
+    }
+  }
+
+  $effect(() => {
+    void refreshSeq;
+    untrack(() => {
+      restoreSubmittedMqtt();
+      void load();
+    });
+    return () => {
+      loadSeq += 1;
+      clearTimeout(copiedReset);
+    };
+  });
+
+  onDestroy(() => {
+    mqttApplyToken += 1;
+  });
+
+  function protocolOf(tls: boolean): MqttProtocol {
+    return tls ? "mqtts" : "mqtt";
+  }
+
+  function setProtocol(next: MqttProtocol) {
+    if (!cfg) return;
+    const nextTls = next === "mqtts";
+    if (cfg.tls === nextTls) return;
+    const oldDefault = cfg.tls ? MQTT_TLS_PORT : MQTT_PLAIN_PORT;
+    const newDefault = nextTls ? MQTT_TLS_PORT : MQTT_PLAIN_PORT;
+    const port = Number(cfg.port);
+    if (port === oldDefault) {
+      cfg.port = newDefault;
+    }
+    cfg.tls = nextTls;
+  }
+
+  /** Wait for deferred apply; surface NVS failure via nvsOk (QUAL-01). */
+  async function waitForMqttPersist(
+    stillCurrent: () => boolean,
+  ): Promise<MqttConfigView | "aborted" | "timeout"> {
+    const delay = () => new Promise((r) => setTimeout(r, MQTT_APPLY_POLL_MS));
+    for (let i = 0; i < MQTT_APPLY_POLL_MAX; i++) {
+      if (!stillCurrent()) return "aborted";
+      let next: MqttConfigView;
+      try {
+        next = await api.getMqttConfig();
+      } catch (e) {
+        if (isApiBusyError(e)) {
+          await delay();
+          continue;
+        }
+        throw e;
+      }
+      if (!stillCurrent()) return "aborted";
+      if (!next.applyPending) {
+        return next;
+      }
+      await delay();
+    }
+    if (!stillCurrent()) return "aborted";
+    let last: MqttConfigView;
+    try {
+      last = await api.getMqttConfig();
+    } catch (e) {
+      if (isApiBusyError(e)) {
+        await delay();
+        last = await api.getMqttConfig();
+      } else {
+        throw e;
+      }
+    }
+    if (!stillCurrent()) return "aborted";
+    return last.applyPending ? "timeout" : last;
+  }
+
+  async function persist(nextPartner: string, nextPairing: string) {
+    if (!cfg || busy) return;
+    const token = ++mqttApplyToken;
+    const submittedTls = cfg.tls;
+    const submittedPartner = nextPartner.trim().toLowerCase();
+    const submittedPairing = nextPairing.trim().toLowerCase();
+    lastSubmittedMqtt = {
+      view: {
+        ...cfg,
+        pairingId: submittedPairing,
+        partnerId: submittedPartner,
+        applyPending: true,
+      },
+      pairing: submittedPairing,
+      partner: submittedPartner,
+    };
+    busy = true;
+    let accepted = false;
+    try {
+      const res = await api.saveMqtt({
+        mqtt_server: cfg.server,
+        mqtt_port: cfg.port,
+        mqtt_tls: cfg.tls,
+        mqtt_user: cfg.username,
+        mqtt_pass: password || undefined,
+        pairing_id: submittedPairing,
+        partner_id: submittedPartner,
+      });
+      if (token !== mqttApplyToken) return;
+      if (!res.ok) {
+        lastSubmittedMqtt = null;
+        onToast(
+          res.error === "partner"
+            ? i18n.t("toast.partner-invalid")
+            : res.error === "pairing"
+              ? i18n.t("toast.pairing-invalid")
+              : res.error === "broker"
+                ? i18n.t("toast.broker-invalid")
+                : i18n.t("toast.save-failed"),
+          "error",
+        );
+        return;
+      }
+      password = "";
+      accepted = true;
+      // Device accepted the write — never toast save-failed after this point.
+      // Follow-up GET/bootstrap flakes must not look like a failed save.
+      onToast(i18n.t("toast.mqtt-saved"), "success");
+      if (!submittedTls) {
+        onToast(i18n.t("toast.mqtt-tls-off"), "warning");
+      }
+      let applied: MqttConfigView | "aborted" | "timeout";
+      try {
+        applied = await waitForMqttPersist(() => token === mqttApplyToken);
+      } catch {
+        return;
+      }
+      if (token !== mqttApplyToken || applied === "aborted" || applied === "timeout") return;
+      lastSubmittedMqtt = null;
+      applyMqttForm(applied);
+      if (applied.nvsOk === false) {
+        onToast(i18n.t("toast.save-failed"), "error");
+        return;
+      }
+      try {
+        await onDeviceRefresh?.();
+      } catch {
+        /* bootstrap refresh is best-effort after a successful save */
+      }
+    } catch {
+      if (token !== mqttApplyToken || accepted) return;
+      lastSubmittedMqtt = null;
+      onToast(i18n.t("toast.save-failed"), "error");
+    } finally {
+      if (token === mqttApplyToken) busy = false;
+    }
+  }
+
+  async function save(e: SubmitEvent) {
+    e.preventDefault();
+    await persist(partner, pairing);
+  }
+
+  async function unpair() {
+    partner = "";
+    await persist("", pairing);
+  }
+
+  async function copyId(key: string, id: string | undefined) {
+    const value = id?.trim();
+    if (!value) return;
+    if (await copyText(value)) {
+      copiedKey = key;
+      clearTimeout(copiedReset);
+      copiedReset = setTimeout(() => {
+        copiedKey = null;
+      }, 1500);
+      return;
+    }
+    onToast(i18n.t("toast.id-copy-failed"), "error");
+  }
+
+  const brokerConfigured = $derived(Boolean(cfg?.server.trim()));
+  const paired = $derived(Boolean(cfg?.partnerId));
+  const MqttIcon = $derived(brokerConfigured ? Radio : RadioOff);
+  const shownPairingId = $derived(cfg ? effectivePairingId(cfg) : "");
+  const hasPairingId = $derived(Boolean(shownPairingId));
+  const hasPartnerId = $derived(Boolean(cfg?.partnerId?.trim()));
+  const brokerDisplay = $derived(
+    cfg && brokerConfigured ? `${cfg.tls ? "mqtts" : "mqtt"}://${cfg.server}:${cfg.port}` : "-",
+  );
+</script>
+
+{#if loadError}
+  <ErrorBlock
+    title={i18n.t("mqtt.load-error-title")}
+    message={i18n.t("mqtt.load-error")}
+    retryLabel={i18n.t("common.retry")}
+    onRetry={() => void load()}
+  />
+{:else if !cfg}
+  <LoadingBlock label={i18n.t("mqtt.loading")} />
+{:else}
+  <div class="space-y-4">
+    {#snippet copyableId(key: string, value: string, canCopy: boolean, copyLabel: string)}
+      <span class="inline-flex items-center gap-1.5 tracking-widest">
+        {dash(value)}
+        {#if canCopy}
+          <button
+            type="button"
+            aria-label={copyLabel}
+            class={cn(
+              "inline-flex size-7 shrink-0 items-center justify-center rounded-full text-muted transition focus-ring",
+              HOVER_SURFACE,
+            )}
+            onclick={() => void copyId(key, value)}
+          >
+            {#if copiedKey === key}
+              <Check size={14} strokeWidth={2.25} class="pointer-events-none" aria-hidden="true" />
+            {:else}
+              <Copy size={14} strokeWidth={2.25} class="pointer-events-none" aria-hidden="true" />
+            {/if}
+          </button>
+        {/if}
+      </span>
+    {/snippet}
+    {#snippet pairingIdValue()}
+      {@render copyableId("pairing", shownPairingId, hasPairingId, i18n.t("mqtt.copy-pairing-id"))}
+    {/snippet}
+    {#snippet partnerIdValue()}
+      {@render copyableId(
+        "partner",
+        cfg?.partnerId ?? "",
+        hasPartnerId,
+        i18n.t("mqtt.copy-partner-id"),
+      )}
+    {/snippet}
+    <Panel>
+      {#snippet title()}
+        <StatusBadge
+          ok={mqtt.connected}
+          icon={MqttIcon}
+          neutral={!brokerConfigured}
+          label={i18n.t("mqtt.status")}
+          detailOk={i18n.t("status.mqtt-ok")}
+          detailBad={i18n.t(brokerConfigured ? "status.mqtt-bad" : "status.mqtt-unconfigured")}
+        />
+      {/snippet}
+      <KeyValueGrid
+        items={[
+          {
+            label: i18n.t("mqtt.pairing-id"),
+            value: pairingIdValue,
+          },
+          {
+            label: i18n.t("mqtt.partner-id"),
+            value: partnerIdValue,
+          },
+          {
+            label: i18n.t("mqtt.server"),
+            value: brokerDisplay,
+          },
+          { label: i18n.t("mqtt.user"), value: dash(cfg.username) },
+          { label: i18n.t("mqtt.topic-pub"), value: dash(cfg.topicPub) },
+          { label: i18n.t("mqtt.topic-sub"), value: dash(cfg.topicSub) },
+        ]}
+      />
+    </Panel>
+
+    <Panel>
+      <form class="space-y-3" onsubmit={(e) => void save(e)}>
+        <Field label={i18n.t("mqtt.server")} hint={i18n.t("mqtt.server-hint")}>
+          <div class="flex items-stretch gap-2">
+            <SegmentedControl
+              compact
+              class="w-34"
+              label={i18n.t("mqtt.protocol")}
+              value={protocolOf(cfg.tls)}
+              onChange={setProtocol}
+              options={[
+                { value: "mqtt", label: i18n.t("mqtt.protocol-mqtt"), testId: "mqtt-proto-mqtt" },
+                {
+                  value: "mqtts",
+                  label: i18n.t("mqtt.protocol-mqtts"),
+                  testId: "mqtt-proto-mqtts",
+                },
+              ]}
+            />
+            <div class="min-w-0 flex-1">
+              <TextInput bind:value={cfg.server} maxlength={127} required />
+            </div>
+          </div>
+        </Field>
+        <Field label={i18n.t("mqtt.port")} hint={i18n.t("mqtt.port-hint")}>
+          <TextInput type="number" min={1} max={65535} bind:value={cfg.port} required />
+        </Field>
+        <Field label={i18n.t("mqtt.user")} hint={i18n.t("mqtt.user-hint")}>
+          <TextInput bind:value={cfg.username} maxlength={63} />
+        </Field>
+        <Field
+          label={i18n.t("mqtt.pass")}
+          hint={cfg.hasPassword ? i18n.t("mqtt.pass-hint") : i18n.t("mqtt.pass-hint-empty")}
+        >
+          <TextInput
+            type="password"
+            bind:value={password}
+            maxlength={63}
+            autocomplete="current-password"
+            placeholder={cfg.hasPassword ? i18n.t("mqtt.pass-placeholder") : ""}
+          />
+        </Field>
+
+        <Field label={i18n.t("mqtt.pairing-id")} hint={i18n.t("mqtt.pairing-hint")}>
+          <TextInput
+            bind:value={pairing}
+            maxlength={6}
+            pattern={"[0-9a-fA-F]{6}"}
+            placeholder={cfg.deviceId || "a1b2c3"}
+            data-testid="mqtt-pairing-id"
+          />
+        </Field>
+        <Field label={i18n.t("mqtt.partner-id")} hint={i18n.t("mqtt.partner-hint")}>
+          <TextInput
+            bind:value={partner}
+            maxlength={6}
+            pattern={"[0-9a-fA-F]{6}"}
+            placeholder="f5e6d7"
+            data-testid="mqtt-partner-id"
+          />
+        </Field>
+
+        <ActionRow>
+          <PrimaryButton type="submit" loading={busy} class="sm:flex-1">
+            {i18n.t("common.save")}
+          </PrimaryButton>
+          {#if paired}
+            <SecondaryButton
+              type="button"
+              loading={busy}
+              onclick={() => void unpair()}
+              class="sm:flex-1"
+            >
+              {i18n.t("mqtt.unpair")}
+            </SecondaryButton>
+          {/if}
+        </ActionRow>
+      </form>
+    </Panel>
+  </div>
+{/if}
