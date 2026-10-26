@@ -120,108 +120,6 @@
       "allowedVersions": "<7"
     },
     {
-      "description": "Group frontend minor/patch updates",
-      "matchManagers": [
-        "npm"
-      ],
-      "matchFileNames": [
-        "frontend/package.json"
-      ],
-      "matchUpdateTypes": [
-        "minor",
-        "patch"
-      ],
-      "groupName": "frontend minor/patch"
-    },
-    {
-      "description": "Group frontend major updates (except typescript)",
-      "matchManagers": [
-        "npm"
-      ],
-      "matchFileNames": [
-        "frontend/package.json"
-      ],
-      "matchUpdateTypes": [
-        "major"
-      ],
-      "matchPackageNames": [
-        "!typescript"
-      ],
-      "groupName": "frontend major"
-    },
-    {
-      "description": "Group flasher minor/patch updates",
-      "matchManagers": [
-        "npm"
-      ],
-      "matchFileNames": [
-        "flasher/package.json"
-      ],
-      "matchUpdateTypes": [
-        "minor",
-        "patch"
-      ],
-      "groupName": "flasher minor/patch"
-    },
-    {
-      "description": "Group flasher major updates (except typescript)",
-      "matchManagers": [
-        "npm"
-      ],
-      "matchFileNames": [
-        "flasher/package.json"
-      ],
-      "matchUpdateTypes": [
-        "major"
-      ],
-      "matchPackageNames": [
-        "!typescript"
-      ],
-      "groupName": "flasher major"
-    },
-    {
-      "description": "Group GitHub Actions minor/patch updates",
-      "matchManagers": [
-        "github-actions"
-      ],
-      "matchUpdateTypes": [
-        "minor",
-        "patch"
-      ],
-      "groupName": "github-actions"
-    },
-    {
-      "description": "Group GitHub Actions major updates",
-      "matchManagers": [
-        "github-actions"
-      ],
-      "matchUpdateTypes": [
-        "major"
-      ],
-      "groupName": "github-actions (major)"
-    },
-    {
-      "description": "Group PlatformIO library minor/patch updates",
-      "matchDatasources": [
-        "custom.platformio-library"
-      ],
-      "matchUpdateTypes": [
-        "minor",
-        "patch"
-      ],
-      "groupName": "PlatformIO libraries"
-    },
-    {
-      "description": "Group PlatformIO library major updates",
-      "matchDatasources": [
-        "custom.platformio-library"
-      ],
-      "matchUpdateTypes": [
-        "major"
-      ],
-      "groupName": "PlatformIO libraries (major)"
-    },
-    {
       "description": "Keep the libs zip on its fixed version token",
       "matchDatasources": [
         "custom.arduino-esp32-libs"
@@ -237,42 +135,18 @@
       "enabled": false
     },
     {
-      "description": "Group platform, framework, and libs digest updates",
-      "matchDatasources": [
-        "git-refs",
-        "custom.arduino-esp32-libs"
-      ],
+      "description": "One weekly PR for all enabled updates (incl. Actions pin of node/python)",
       "matchUpdateTypes": [
-        "digest"
-      ],
-      "groupName": "PlatformIO platform and framework"
-    },
-    {
-      "description": "Group PlatformIO CLI minor/patch updates",
-      "matchDatasources": [
-        "pypi"
-      ],
-      "matchDepNames": [
-        "platformio"
-      ],
-      "matchUpdateTypes": [
+        "major",
         "minor",
-        "patch"
+        "patch",
+        "pin",
+        "digest",
+        "lockFileMaintenance",
+        "rollback",
+        "replacement"
       ],
-      "groupName": "PlatformIO CLI"
-    },
-    {
-      "description": "Group PlatformIO CLI major updates",
-      "matchDatasources": [
-        "pypi"
-      ],
-      "matchDepNames": [
-        "platformio"
-      ],
-      "matchUpdateTypes": [
-        "major"
-      ],
-      "groupName": "PlatformIO CLI (major)"
+      "groupName": "weekly dependencies"
     }
   ]
 }
