@@ -3,7 +3,7 @@
 # =====================================================
 [tool.ruff]
 line-length = 100
-target-version = "py315"
+target-version = "py312"
 fix = true
 show-fixes = true
 respect-gitignore = true
@@ -117,7 +117,7 @@ docstring-code-format = true
 # =====================================================
 [tool.pyright]
 include = ["scripts"]
-pythonVersion = "3.15"
+pythonVersion = "3.12"
 typeCheckingMode = "standard"
 exclude = [
   "**/__pycache__",
