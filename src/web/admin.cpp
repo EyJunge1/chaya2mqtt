@@ -12,6 +12,7 @@
 #include "async/system_lifecycle.hpp"
 #include "async/task_handles.hpp"
 #include "async/web_server_hooks.hpp"
+#include "audio/audio.hpp"
 #include "config/app_config.hpp"
 #include "config/nvs_utils.hpp"
 #include "diag/task_watchdog.hpp"
@@ -164,6 +165,9 @@ void webAdminLoop() {
         portEXIT_CRITICAL(&g_webAdminSettingsPendingMux);
         if (ok) {
             ledApplyEnabled();
+            if (speakerInstalledApply) {
+                (void)audioEnsureCodecProbed();
+            }
             (void)displayRequest(DisplayMsg::Cmd::DrawHeart, DisplayRequestMode::Content, 0U);
         }
         // On failure keep pending so a later loop can retry (QUAL-04).

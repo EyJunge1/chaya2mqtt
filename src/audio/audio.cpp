@@ -9,7 +9,9 @@
 #include "config/app_config.hpp"
 #include "diag/stack_monitor.hpp"
 #include "diag/task_watchdog.hpp"
+#include "hw/pcf85063_hold.hpp"
 #include "hw/pins.hpp"
+#include "hw/shtc3_hold.hpp"
 #include "wifi/wlan.hpp"
 
 #include <Arduino.h>
@@ -60,11 +62,42 @@ bool es8311Write(uint8_t reg, uint8_t val) {
     return Wire.endTransmission() == 0;
 }
 
-/** Mic/ADC off without clearing SYSTEM_REG0E (analog path needed for DAC). */
+/**
+ * Mic input/volume off without touching SYSTEM_REG0E.
+ * Safe during playback after Waveshare sets 0x0E for the DAC path.
+ */
 void es8311MuteMicOnly() {
-    (void)es8311Write(0x14, 0x00);
+    (void)es8311Write(0x14, 0x00); // no LINSEL / DMIC, PGA 0 dB
     (void)es8311Write(0x16, 0x00);
-    (void)es8311Write(0x17, 0x00);
+    (void)es8311Write(0x17, 0x00); // ADC volume -95.5 dB
+}
+
+/** Datasheet defaults: PDN_PGA + PDN_MOD (and related) — idle / post-playback only. */
+void es8311PowerDownAdcPath() {
+    (void)es8311Write(0x0E, 0x6A);
+    (void)es8311Write(0x0D, 0xFC);
+}
+
+/** Mic routing mute + ADC analog power-down (not for mid-playback). */
+void es8311ShutDownCapturePath() {
+    es8311MuteMicOnly();
+    es8311PowerDownAdcPath();
+}
+
+/**
+ * After PA rail off / I2S channel deleted: park the bus so mic capture pins
+ * cannot float. ASDOUT is input-only from the codec — pulldown; others drive LOW.
+ */
+void i2sBusHoldOff() {
+    pinMode(pins::kI2sMclk, OUTPUT);
+    digitalWrite(pins::kI2sMclk, LOW);
+    pinMode(pins::kI2sSclk, OUTPUT);
+    digitalWrite(pins::kI2sSclk, LOW);
+    pinMode(pins::kI2sLrck, OUTPUT);
+    digitalWrite(pins::kI2sLrck, LOW);
+    pinMode(pins::kI2sDsdin, OUTPUT);
+    digitalWrite(pins::kI2sDsdin, LOW);
+    pinMode(pins::kI2sAsdout, INPUT_PULLDOWN);
 }
 
 bool es8311ProbeAndMuteMic() {
@@ -72,12 +105,14 @@ bool es8311ProbeAndMuteMic() {
     delay(8);
     if (!es8311Write(0x00, 0x1F)) {
         paAudioPowerOff();
+        i2sBusHoldOff();
         return false;
     }
     delay(20);
     (void)es8311Write(0x00, 0x00);
-    es8311MuteMicOnly();
+    es8311ShutDownCapturePath();
     paAudioPowerOff();
+    i2sBusHoldOff();
     return true;
 }
 
@@ -126,7 +161,7 @@ bool es8311PreparePlayback(uint8_t volume0to100) {
 
 void es8311MuteAndSleep() {
     (void)es8311Write(0x31, 0x60);
-    es8311MuteMicOnly();
+    es8311ShutDownCapturePath();
 }
 
 bool i2sStart(i2s_chan_handle_t *outTx) {
@@ -231,8 +266,24 @@ bool playbackAllowedNow(AudioMsg::Kind kind) {
     return audioPlaybackAllowed(kindEnabled, volume, synced, hour, configGetAudioQuietStart(), configGetAudioQuietEnd());
 }
 
+bool ensureCodecProbed() {
+    if (s_codecPresent) {
+        return true;
+    }
+    if (!configGetSpeakerInstalled()) {
+        return false;
+    }
+    s_codecPresent = es8311ProbeAndMuteMic();
+    if (!s_codecPresent) {
+        ESP_LOGW(TAG, "ES8311 not found — audio disabled");
+        paAudioPowerOff();
+        i2sBusHoldOff();
+    }
+    return s_codecPresent;
+}
+
 void playKind(AudioMsg::Kind kind) {
-    if (!s_codecPresent || !configGetSpeakerInstalled()) {
+    if (!configGetSpeakerInstalled() || !ensureCodecProbed()) {
         ESP_LOGD(TAG, "skip %s — audio absent", kind == AudioMsg::Kind::Tx ? "Tx" : "Rx");
         return;
     }
@@ -249,12 +300,14 @@ void playKind(AudioMsg::Kind kind) {
     if (!i2sStart(&tx)) {
         ESP_LOGW(TAG, "I2S start failed");
         paAudioPowerOff();
+        i2sBusHoldOff();
         return;
     }
     if (!es8311PreparePlayback(vol)) {
         ESP_LOGW(TAG, "ES8311 playback setup failed");
         i2sStop(tx);
         paAudioPowerOff();
+        i2sBusHoldOff();
         return;
     }
     delay(30);
@@ -264,6 +317,7 @@ void playKind(AudioMsg::Kind kind) {
     delay(4);
     paAudioPowerOff();
     i2sStop(tx);
+    i2sBusHoldOff();
     ESP_LOGI(TAG, "done %s", kind == AudioMsg::Kind::Tx ? "Tx" : "Rx");
 }
 
@@ -290,19 +344,29 @@ void audioTaskFn(void *) {
 
 } // namespace
 
+bool audioEnsureCodecProbed() { return ensureCodecProbed(); }
+
 void audioInit() {
     pinMode(pins::kPaEn, OUTPUT);
     pinMode(pins::kPaCtrl, OUTPUT);
+    // Codec/mic/amp: MOSFET off (PA_EN HIGH) — only real VDD cut on this board.
     paAudioPowerOff();
+    i2sBusHoldOff();
     Wire.begin(pins::kI2cSda, pins::kI2cScl);
     Wire.setClock(100000);
-    s_codecPresent = es8311ProbeAndMuteMic();
-    if (!s_codecPresent) {
-        ESP_LOGW(TAG, "ES8311 not found — audio disabled");
-        paAudioPowerOff();
-        return;
+    // Unused I2C peripherals: no VDD switches — strongest software kill.
+    shtc3Sleep();
+    pcf85063Stop();
+    // Probe (brief rail on) only when a speaker is configured; otherwise stay dark.
+    if (configGetSpeakerInstalled()) {
+        if (!ensureCodecProbed()) {
+            return;
+        }
+        ESP_LOGI(TAG, "speaker present; mic rail off after probe; amp idle");
+    } else {
+        s_codecPresent = false;
+        ESP_LOGI(TAG, "no speaker — audio rail stays off");
     }
-    ESP_LOGI(TAG, "ES8311 capture path off; amp idle");
 }
 
 void audioStartTask() {
@@ -315,10 +379,10 @@ void audioStartTask() {
 
 bool audioCodecPresent() { return s_codecPresent; }
 
-bool audioPresent() { return s_codecPresent && configGetSpeakerInstalled(); }
+bool audioPresent() { return configGetSpeakerInstalled() && ensureCodecProbed(); }
 
 void audioRequest(AudioMsg::Kind kind) {
-    if (g_audioCmdQueue == nullptr || !audioPresent()) {
+    if (g_audioCmdQueue == nullptr || !configGetSpeakerInstalled()) {
         return;
     }
     AudioMsg msg{kind};

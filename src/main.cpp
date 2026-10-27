@@ -22,6 +22,7 @@
 #include "display/display.hpp"
 #include "heart/counter.hpp"
 #include "hw/sd_hold.hpp"
+#include "hw/touch_hold.hpp"
 #include "mqtt/config.hpp"
 #include "mqtt/mqtt.hpp"
 #include "network/network_task.hpp"
@@ -48,8 +49,9 @@ void setup() {
     pinMode(pins::kBatControl, OUTPUT);
     digitalWrite(pins::kBatControl, HIGH);
 
-    // microSD: no driver / mount; hold CLK/DAT0/CMD LOW so the slot cannot float-draw.
+    // Unused buses: no VDD switches on PCB — strongest pin/software kill.
     sdHoldOff();
+    touchHoldOff();
 
     asyncInfraInit();
     setCpuFrequencyMhz(240);
@@ -74,6 +76,8 @@ void setup() {
 
     buttonInit();
     batteryInit();
+    // Speaker flag before audioInit so the PA rail stays off when no speaker.
+    configLoadAudioFromNvs();
     audioInit();
 
 #if defined(CORE_DEBUG_LEVEL) && CORE_DEBUG_LEVEL > 0
@@ -94,7 +98,6 @@ void setup() {
     configLoadUiPrefsFromNvs();
     configLoadLedFromNvs();
     configLoadEinkDarkFromNvs();
-    configLoadAudioFromNvs();
     configLoadDisplayViewFromNvs();
     // Waveshare 08_E_paper_test: paint the panel before bringing up Wi-Fi RF.
     WlanConfig bootWlan{};
