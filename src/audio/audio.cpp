@@ -232,8 +232,8 @@ bool playbackAllowedNow(AudioMsg::Kind kind) {
 }
 
 void playKind(AudioMsg::Kind kind) {
-    if (!s_codecPresent) {
-        ESP_LOGD(TAG, "skip %s — codec absent", kind == AudioMsg::Kind::Tx ? "Tx" : "Rx");
+    if (!s_codecPresent || !configGetSpeakerInstalled()) {
+        ESP_LOGD(TAG, "skip %s — audio absent", kind == AudioMsg::Kind::Tx ? "Tx" : "Rx");
         return;
     }
     if (!playbackAllowedNow(kind)) {
@@ -313,8 +313,12 @@ void audioStartTask() {
     }
 }
 
+bool audioCodecPresent() { return s_codecPresent; }
+
+bool audioPresent() { return s_codecPresent && configGetSpeakerInstalled(); }
+
 void audioRequest(AudioMsg::Kind kind) {
-    if (g_audioCmdQueue == nullptr) {
+    if (g_audioCmdQueue == nullptr || !audioPresent()) {
         return;
     }
     AudioMsg msg{kind};

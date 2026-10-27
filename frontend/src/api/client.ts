@@ -155,6 +155,7 @@ export const api = {
     theme?: string;
     led_enabled?: boolean;
     eink_dark?: boolean;
+    speaker_installed?: boolean;
     audio_tx_enabled?: boolean;
     audio_rx_enabled?: boolean;
     audio_tx_volume?: number;

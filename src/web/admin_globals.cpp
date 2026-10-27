@@ -20,6 +20,7 @@ char g_webAdminPendingUiLang[3] = "en";
 char g_webAdminPendingUiTheme[8] = "system";
 bool g_webAdminPendingLedEnabled = true;
 bool g_webAdminPendingEinkDark = false;
+bool g_webAdminPendingSpeakerInstalled = true;
 bool g_webAdminPendingAudioTxEnabled = false;
 bool g_webAdminPendingAudioRxEnabled = false;
 uint8_t g_webAdminPendingAudioTxVolume = 70;

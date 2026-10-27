@@ -157,10 +157,13 @@ describe("mock API parity", () => {
     const pending = await callApi("GET", "/api/settings");
     expect(pending.status).toBe(200);
     expect(pending.body.applyPending).toBe(true);
-    expect(pending.body.lang).toBe("en");
+    // Firmware overlays pending values while apply is in flight (RC-FE-01).
+    expect(pending.body.lang).toBe("de");
+    expect(pending.body.speakerInstalled).toBe(true);
+    expect(pending.body.audioPresent).toBe(true);
     const pendingAgain = await callApi("GET", "/api/settings");
     expect(pendingAgain.body.applyPending).toBe(true);
-    expect(pendingAgain.body.lang).toBe("en");
+    expect(pendingAgain.body.lang).toBe("de");
     await vi.waitFor(async () => {
       const idle = await callApi("GET", "/api/settings");
       expect(idle.body.applyPending).toBe(false);

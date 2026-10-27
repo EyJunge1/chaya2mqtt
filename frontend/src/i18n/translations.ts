@@ -150,6 +150,10 @@ export const translations = {
     "settings.display": "Display",
     "settings.eink-dark": "E-Ink dark mode",
     "settings.eink-dark-hint": "Black background with white text; heart stays red.",
+    "settings.speaker": "Speaker",
+    "settings.speaker-installed": "Speaker installed",
+    "settings.speaker-installed-hint":
+      "Turn off for housings without a speaker. Sound settings stay hidden and no tones play.",
     "settings.sound": "Sound",
     "settings.audio-tx": "Sound on send",
     "settings.audio-tx-hint": "Click when a heart is sent",
@@ -376,6 +380,10 @@ export const translations = {
     "settings.display": "Display",
     "settings.eink-dark": "E-Ink Dark Mode",
     "settings.eink-dark-hint": "Schwarzer Hintergrund mit weißer Schrift; Herz bleibt rot.",
+    "settings.speaker": "Lautsprecher",
+    "settings.speaker-installed": "Lautsprecher vorhanden",
+    "settings.speaker-installed-hint":
+      "Ausschalten für Gehäuse ohne Lautsprecher. Ton-Einstellungen bleiben versteckt und es spielt kein Ton.",
     "settings.sound": "Ton",
     "settings.audio-tx": "Ton beim Senden",
     "settings.audio-tx-hint": "Klick, wenn ein Herz gesendet wird",

@@ -410,6 +410,7 @@ paths:
                 theme: { type: string, enum: [system, dark, light] }
                 led_enabled: { type: boolean, description: User LED (false = off) }
                 eink_dark: { type: boolean, description: E-Ink dark mode (black bg / white fg) }
+                speaker_installed: { type: boolean, description: Physical speaker installed }
                 audio_tx_enabled: { type: boolean, description: Click on send }
                 audio_rx_enabled: { type: boolean, description: Click on receive }
                 audio_tx_volume: { type: integer, minimum: 0, maximum: 100, description: TX volume }
@@ -720,6 +721,8 @@ components:
           theme,
           ledEnabled,
           einkDark,
+          speakerInstalled,
+          audioPresent,
           audioTxEnabled,
           audioRxEnabled,
           audioTxVolume,
@@ -741,6 +744,13 @@ components:
         einkDark:
           type: boolean
           description: E-Ink dark mode (black bg / white fg)
+        speakerInstalled:
+          type: boolean
+          description: Physical speaker installed (default true)
+        audioPresent:
+          type: boolean
+          description: Read-only capability — codec present and speaker installed
+          readOnly: true
         audioTxEnabled:
           type: boolean
           description: Click on send

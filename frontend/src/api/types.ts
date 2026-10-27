@@ -126,6 +126,10 @@ export interface SettingsInfo {
   theme: UiTheme;
   ledEnabled: boolean;
   einkDark: boolean;
+  /** Physical speaker installed (writable). */
+  speakerInstalled: boolean;
+  /** Read-only: codec present and speaker installed. */
+  audioPresent: boolean;
   audioTxEnabled: boolean;
   audioRxEnabled: boolean;
   audioTxVolume: number;

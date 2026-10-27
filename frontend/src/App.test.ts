@@ -39,6 +39,8 @@ const staBootstrap = () => ({
     theme: "light" as const,
     ledEnabled: true,
     einkDark: false,
+    speakerInstalled: true,
+    audioPresent: true,
     audioTxEnabled: false,
     audioRxEnabled: false,
     audioTxVolume: 70,

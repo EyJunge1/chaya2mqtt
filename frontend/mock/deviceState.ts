@@ -147,6 +147,9 @@ export interface MockState {
   theme: "dark" | "light" | "system";
   ledEnabled: boolean;
   einkDark: boolean;
+  /** Mock codec probe result (always true on Waveshare-like sim). */
+  codecPresent: boolean;
+  speakerInstalled: boolean;
   audioTxEnabled: boolean;
   audioRxEnabled: boolean;
   audioTxVolume: number;
@@ -343,6 +346,8 @@ function clearSimulatorControls(target: MockState): void {
 function resetBaselineSettings(target: MockState): void {
   target.batteryMv = 3900;
   target.batteryPct = 55;
+  target.codecPresent = true;
+  target.speakerInstalled = true;
   target.audioTxEnabled = false;
   target.audioRxEnabled = false;
   target.audioTxVolume = 70;
@@ -391,6 +396,8 @@ export function createInitialState(scenario: MockScenario = "sta-connected"): Mo
     theme: "system",
     ledEnabled: true,
     einkDark: false,
+    codecPresent: true,
+    speakerInstalled: true,
     audioTxEnabled: false,
     audioRxEnabled: false,
     audioTxVolume: 70,

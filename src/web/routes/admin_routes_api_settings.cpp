@@ -4,6 +4,7 @@
 #include "admin_routes_api_internal.hpp"
 
 #include "async/app_task.hpp"
+#include "audio/audio.hpp"
 #include "battery/battery.hpp"
 #include "battery/battery_pure.hpp"
 #include "config/app_config.hpp"
@@ -20,6 +21,7 @@ void fillSettingsJson(JsonObject obj) {
     char theme[8]{};
     bool ledEnabled = false;
     bool einkDark = false;
+    bool speakerInstalled = false;
     bool audioTxEnabled = false;
     bool audioRxEnabled = false;
     uint8_t audioTxVol = 0;
@@ -43,6 +45,7 @@ void fillSettingsJson(JsonObject obj) {
         strlcpy(theme, g_webAdminPendingUiTheme, sizeof(theme));
         ledEnabled = g_webAdminPendingLedEnabled;
         einkDark = g_webAdminPendingEinkDark;
+        speakerInstalled = g_webAdminPendingSpeakerInstalled;
         audioTxEnabled = g_webAdminPendingAudioTxEnabled;
         audioRxEnabled = g_webAdminPendingAudioRxEnabled;
         audioTxVol = g_webAdminPendingAudioTxVolume;
@@ -59,6 +62,7 @@ void fillSettingsJson(JsonObject obj) {
         days = configGetResetPeriodDays();
         ledEnabled = configGetLedEnabled();
         einkDark = configGetEinkDark();
+        speakerInstalled = configGetSpeakerInstalled();
         audioTxEnabled = configGetAudioTxEnabled();
         audioRxEnabled = configGetAudioRxEnabled();
         audioTxVol = configGetAudioTxVolume();
@@ -77,6 +81,8 @@ void fillSettingsJson(JsonObject obj) {
     obj["theme"] = theme;
     obj["ledEnabled"] = ledEnabled;
     obj["einkDark"] = einkDark;
+    obj["speakerInstalled"] = speakerInstalled;
+    obj["audioPresent"] = audioCodecPresent() && speakerInstalled;
     obj["audioTxEnabled"] = audioTxEnabled;
     obj["audioRxEnabled"] = audioRxEnabled;
     obj["audioTxVolume"] = audioTxVol;
@@ -124,6 +130,7 @@ void handleApiSettingsPost(AsyncWebServerRequest *req, JsonVariant &json) {
     char theme[8];
     bool ledEnabled;
     bool einkDark;
+    bool speakerInstalled;
     bool audioTxEnabled;
     bool audioRxEnabled;
     uint8_t audioTxVol;
@@ -141,6 +148,7 @@ void handleApiSettingsPost(AsyncWebServerRequest *req, JsonVariant &json) {
         strlcpy(theme, g_webAdminPendingUiTheme, sizeof(theme));
         ledEnabled = g_webAdminPendingLedEnabled;
         einkDark = g_webAdminPendingEinkDark;
+        speakerInstalled = g_webAdminPendingSpeakerInstalled;
         audioTxEnabled = g_webAdminPendingAudioTxEnabled;
         audioRxEnabled = g_webAdminPendingAudioRxEnabled;
         audioTxVol = g_webAdminPendingAudioTxVolume;
@@ -156,6 +164,7 @@ void handleApiSettingsPost(AsyncWebServerRequest *req, JsonVariant &json) {
         days = configGetResetPeriodDays();
         ledEnabled = configGetLedEnabled();
         einkDark = configGetEinkDark();
+        speakerInstalled = configGetSpeakerInstalled();
         audioTxEnabled = configGetAudioTxEnabled();
         audioRxEnabled = configGetAudioRxEnabled();
         audioTxVol = configGetAudioTxVolume();
@@ -188,6 +197,10 @@ void handleApiSettingsPost(AsyncWebServerRequest *req, JsonVariant &json) {
     }
     if (!adminApplyOptionalBool(json, "eink_dark", &einkDark)) {
         sendErr(req, 400, "eink_dark");
+        return;
+    }
+    if (!adminApplyOptionalBool(json, "speaker_installed", &speakerInstalled)) {
+        sendErr(req, 400, "speaker_installed");
         return;
     }
     if (!adminApplyOptionalBool(json, "audio_tx_enabled", &audioTxEnabled)) {
@@ -242,6 +255,7 @@ void handleApiSettingsPost(AsyncWebServerRequest *req, JsonVariant &json) {
     strlcpy(g_webAdminPendingUiTheme, theme, sizeof(g_webAdminPendingUiTheme));
     g_webAdminPendingLedEnabled = ledEnabled;
     g_webAdminPendingEinkDark = einkDark;
+    g_webAdminPendingSpeakerInstalled = speakerInstalled;
     g_webAdminPendingAudioTxEnabled = audioTxEnabled;
     g_webAdminPendingAudioRxEnabled = audioRxEnabled;
     g_webAdminPendingAudioTxVolume = audioTxVol;

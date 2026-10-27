@@ -63,6 +63,7 @@ extern char g_webAdminPendingUiLang[3];
 extern char g_webAdminPendingUiTheme[8];
 extern bool g_webAdminPendingLedEnabled;
 extern bool g_webAdminPendingEinkDark;
+extern bool g_webAdminPendingSpeakerInstalled;
 extern bool g_webAdminPendingAudioTxEnabled;
 extern bool g_webAdminPendingAudioRxEnabled;
 extern uint8_t g_webAdminPendingAudioTxVolume;

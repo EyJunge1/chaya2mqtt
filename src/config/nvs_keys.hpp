@@ -20,6 +20,7 @@ constexpr const char kNvsKeyCfgSndTxEn[] = "snd_tx_en";
 constexpr const char kNvsKeyCfgSndRxEn[] = "snd_rx_en";
 constexpr const char kNvsKeyCfgSndTxVol[] = "snd_tx_vol";
 constexpr const char kNvsKeyCfgSndRxVol[] = "snd_rx_vol";
+constexpr const char kNvsKeyCfgSndSpk[] = "snd_spk";
 constexpr const char kNvsKeyCfgSndQuietBlob[] = "snd_qB";
 constexpr const char kNvsKeyCfgSndToneBlob[] = "snd_tB";
 constexpr const char kNvsKeyCfgUpdDay[] = "upd_day";

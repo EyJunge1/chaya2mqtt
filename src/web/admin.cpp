@@ -95,6 +95,7 @@ void webAdminLoop() {
         char themeApply[8];
         bool ledEnabledApply;
         bool einkDarkApply;
+        bool speakerInstalledApply;
         bool audioTxEnabledApply;
         bool audioRxEnabledApply;
         uint8_t audioTxVolumeApply;
@@ -112,6 +113,7 @@ void webAdminLoop() {
         strlcpy(themeApply, g_webAdminPendingUiTheme, sizeof(themeApply));
         ledEnabledApply = g_webAdminPendingLedEnabled;
         einkDarkApply = g_webAdminPendingEinkDark;
+        speakerInstalledApply = g_webAdminPendingSpeakerInstalled;
         audioTxEnabledApply = g_webAdminPendingAudioTxEnabled;
         audioRxEnabledApply = g_webAdminPendingAudioRxEnabled;
         audioTxVolumeApply = g_webAdminPendingAudioTxVolume;
@@ -142,6 +144,7 @@ void webAdminLoop() {
         ok &= applyOne([&] { return configSetUiTheme(themeApply); });
         ok &= applyOne([&] { return configSetLedEnabled(ledEnabledApply); });
         ok &= applyOne([&] { return configSetEinkDark(einkDarkApply); });
+        ok &= applyOne([&] { return configSetSpeakerInstalled(speakerInstalledApply); });
         ok &= applyOne([&] { return configSetAudioTxEnabled(audioTxEnabledApply); });
         ok &= applyOne([&] { return configSetAudioRxEnabled(audioRxEnabledApply); });
         ok &= applyOne([&] { return configSetAudioTxVolume(audioTxVolumeApply); });

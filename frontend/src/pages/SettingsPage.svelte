@@ -201,6 +201,7 @@
         theme: getThemePreference(),
         led_enabled: settings.ledEnabled,
         eink_dark: settings.einkDark,
+        speaker_installed: settings.speakerInstalled,
         audio_tx_enabled: settings.audioTxEnabled,
         audio_rx_enabled: settings.audioRxEnabled,
         audio_tx_volume: settings.audioTxVolume,
@@ -348,142 +349,167 @@
         </div>
 
         <div class="space-y-3 border-t border-border pt-3">
-          <h3 class="text-base font-semibold text-text-bright">{i18n.t("settings.sound")}</h3>
-          <Field label={i18n.t("settings.audio-tx")} hint={i18n.t("settings.audio-tx-hint")}>
+          <h3 class="text-base font-semibold text-text-bright">{i18n.t("settings.speaker")}</h3>
+          <Field
+            label={i18n.t("settings.speaker-installed")}
+            hint={i18n.t("settings.speaker-installed-hint")}
+          >
             <Switch
-              label={i18n.t("settings.audio-tx")}
-              checked={settings.audioTxEnabled}
+              label={i18n.t("settings.speaker-installed")}
+              checked={settings.speakerInstalled}
               disabled={busy}
-              onChange={(audioTxEnabled) => {
-                if (settings) settings = { ...settings, audioTxEnabled };
+              onChange={(speakerInstalled) => {
+                if (!settings) return;
+                const codecLikelyPresent = settings.audioPresent || !settings.speakerInstalled;
+                settings = {
+                  ...settings,
+                  speakerInstalled,
+                  audioPresent: speakerInstalled && codecLikelyPresent,
+                };
               }}
             />
           </Field>
-          {#if settings.audioTxEnabled}
-            <Field
-              label={i18n.t("settings.audio-volume")}
-              hint={i18n.t("settings.audio-volume-hint")}
-            >
-              <TextInput
-                type="number"
-                min={AUDIO_VOLUME_MIN}
-                max={AUDIO_VOLUME_MAX}
-                bind:value={settings.audioTxVolume}
-              />
-            </Field>
-            <div class="grid gap-3 sm:grid-cols-2">
-              <Field label={i18n.t("settings.tone-tx-hz")} hint={i18n.t("settings.tone-hz-hint")}>
-                <TextInput
-                  type="number"
-                  min={AUDIO_TONE_HZ_MIN}
-                  max={AUDIO_TONE_HZ_MAX}
-                  bind:value={settings.txHz}
-                />
-              </Field>
-              <Field label={i18n.t("settings.tone-tx-ms")} hint={i18n.t("settings.tone-ms-hint")}>
-                <TextInput
-                  type="number"
-                  min={AUDIO_TONE_MS_MIN}
-                  max={AUDIO_TONE_MS_MAX}
-                  bind:value={settings.txMs}
-                />
-              </Field>
-            </div>
-          {/if}
-          <Field label={i18n.t("settings.audio-rx")} hint={i18n.t("settings.audio-rx-hint")}>
-            <Switch
-              label={i18n.t("settings.audio-rx")}
-              checked={settings.audioRxEnabled}
-              disabled={busy}
-              onChange={(audioRxEnabled) => {
-                if (settings) settings = { ...settings, audioRxEnabled };
-              }}
-            />
-          </Field>
-          {#if settings.audioRxEnabled}
-            <Field
-              label={i18n.t("settings.audio-volume")}
-              hint={i18n.t("settings.audio-volume-hint")}
-            >
-              <TextInput
-                type="number"
-                min={AUDIO_VOLUME_MIN}
-                max={AUDIO_VOLUME_MAX}
-                bind:value={settings.audioRxVolume}
-              />
-            </Field>
-            <div class="grid gap-3 sm:grid-cols-2">
-              <Field label={i18n.t("settings.tone-rx-hz")} hint={i18n.t("settings.tone-hz-hint")}>
-                <TextInput
-                  type="number"
-                  min={AUDIO_TONE_HZ_MIN}
-                  max={AUDIO_TONE_HZ_MAX}
-                  bind:value={settings.rxHz}
-                />
-              </Field>
-              <Field label={i18n.t("settings.tone-rx-ms")} hint={i18n.t("settings.tone-ms-hint")}>
-                <TextInput
-                  type="number"
-                  min={AUDIO_TONE_MS_MIN}
-                  max={AUDIO_TONE_MS_MAX}
-                  bind:value={settings.rxMs}
-                />
-              </Field>
-            </div>
-          {/if}
-          {#if settings.audioTxEnabled || settings.audioRxEnabled}
-            <Field label={i18n.t("settings.quiet")} hint={i18n.t("settings.quiet-hint")}>
+        </div>
+
+        {#if settings.audioPresent}
+          <div class="space-y-3 border-t border-border pt-3">
+            <h3 class="text-base font-semibold text-text-bright">{i18n.t("settings.sound")}</h3>
+            <Field label={i18n.t("settings.audio-tx")} hint={i18n.t("settings.audio-tx-hint")}>
               <Switch
-                label={i18n.t("settings.quiet")}
-                checked={quietHoursEnabled}
+                label={i18n.t("settings.audio-tx")}
+                checked={settings.audioTxEnabled}
                 disabled={busy}
-                onChange={(on) => {
-                  quietHoursEnabled = on;
-                  if (on && settings && settings.quietHourStart === settings.quietHourEnd) {
-                    settings = { ...settings, quietHourStart: 23, quietHourEnd: 8 };
-                  }
+                onChange={(audioTxEnabled) => {
+                  if (settings) settings = { ...settings, audioTxEnabled };
                 }}
               />
             </Field>
-            {#if quietHoursEnabled}
-              <div class="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
-                <div class="rounded-xl border border-border bg-bg px-3 py-2">
-                  <input
-                    type="time"
-                    step="3600"
-                    value={hourToTimeValue(settings.quietHourStart)}
-                    aria-label={i18n.t("settings.quiet-start")}
-                    class="w-full bg-transparent text-center text-text tabular-nums outline-none"
-                    oninput={(e) => {
-                      if (!settings) return;
-                      settings = {
-                        ...settings,
-                        quietHourStart: timeValueToHour(e.currentTarget.value),
-                      };
-                    }}
+            {#if settings.audioTxEnabled}
+              <Field
+                label={i18n.t("settings.audio-volume")}
+                hint={i18n.t("settings.audio-volume-hint")}
+              >
+                <TextInput
+                  type="number"
+                  min={AUDIO_VOLUME_MIN}
+                  max={AUDIO_VOLUME_MAX}
+                  bind:value={settings.audioTxVolume}
+                />
+              </Field>
+              <div class="grid gap-3 sm:grid-cols-2">
+                <Field label={i18n.t("settings.tone-tx-hz")} hint={i18n.t("settings.tone-hz-hint")}>
+                  <TextInput
+                    type="number"
+                    min={AUDIO_TONE_HZ_MIN}
+                    max={AUDIO_TONE_HZ_MAX}
+                    bind:value={settings.txHz}
                   />
-                </div>
-                <span class="text-sm font-semibold text-muted" aria-hidden="true">–</span>
-                <div class="rounded-xl border border-border bg-bg px-3 py-2">
-                  <input
-                    type="time"
-                    step="3600"
-                    value={hourToTimeValue(settings.quietHourEnd)}
-                    aria-label={i18n.t("settings.quiet-end")}
-                    class="w-full bg-transparent text-center text-text tabular-nums outline-none"
-                    oninput={(e) => {
-                      if (!settings) return;
-                      settings = {
-                        ...settings,
-                        quietHourEnd: timeValueToHour(e.currentTarget.value),
-                      };
-                    }}
+                </Field>
+                <Field label={i18n.t("settings.tone-tx-ms")} hint={i18n.t("settings.tone-ms-hint")}>
+                  <TextInput
+                    type="number"
+                    min={AUDIO_TONE_MS_MIN}
+                    max={AUDIO_TONE_MS_MAX}
+                    bind:value={settings.txMs}
                   />
-                </div>
+                </Field>
               </div>
             {/if}
-          {/if}
-        </div>
+            <Field label={i18n.t("settings.audio-rx")} hint={i18n.t("settings.audio-rx-hint")}>
+              <Switch
+                label={i18n.t("settings.audio-rx")}
+                checked={settings.audioRxEnabled}
+                disabled={busy}
+                onChange={(audioRxEnabled) => {
+                  if (settings) settings = { ...settings, audioRxEnabled };
+                }}
+              />
+            </Field>
+            {#if settings.audioRxEnabled}
+              <Field
+                label={i18n.t("settings.audio-volume")}
+                hint={i18n.t("settings.audio-volume-hint")}
+              >
+                <TextInput
+                  type="number"
+                  min={AUDIO_VOLUME_MIN}
+                  max={AUDIO_VOLUME_MAX}
+                  bind:value={settings.audioRxVolume}
+                />
+              </Field>
+              <div class="grid gap-3 sm:grid-cols-2">
+                <Field label={i18n.t("settings.tone-rx-hz")} hint={i18n.t("settings.tone-hz-hint")}>
+                  <TextInput
+                    type="number"
+                    min={AUDIO_TONE_HZ_MIN}
+                    max={AUDIO_TONE_HZ_MAX}
+                    bind:value={settings.rxHz}
+                  />
+                </Field>
+                <Field label={i18n.t("settings.tone-rx-ms")} hint={i18n.t("settings.tone-ms-hint")}>
+                  <TextInput
+                    type="number"
+                    min={AUDIO_TONE_MS_MIN}
+                    max={AUDIO_TONE_MS_MAX}
+                    bind:value={settings.rxMs}
+                  />
+                </Field>
+              </div>
+            {/if}
+            {#if settings.audioTxEnabled || settings.audioRxEnabled}
+              <Field label={i18n.t("settings.quiet")} hint={i18n.t("settings.quiet-hint")}>
+                <Switch
+                  label={i18n.t("settings.quiet")}
+                  checked={quietHoursEnabled}
+                  disabled={busy}
+                  onChange={(on) => {
+                    quietHoursEnabled = on;
+                    if (on && settings && settings.quietHourStart === settings.quietHourEnd) {
+                      settings = { ...settings, quietHourStart: 23, quietHourEnd: 8 };
+                    }
+                  }}
+                />
+              </Field>
+              {#if quietHoursEnabled}
+                <div class="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
+                  <div class="rounded-xl border border-border bg-bg px-3 py-2">
+                    <input
+                      type="time"
+                      step="3600"
+                      value={hourToTimeValue(settings.quietHourStart)}
+                      aria-label={i18n.t("settings.quiet-start")}
+                      class="w-full bg-transparent text-center text-text tabular-nums outline-none"
+                      oninput={(e) => {
+                        if (!settings) return;
+                        settings = {
+                          ...settings,
+                          quietHourStart: timeValueToHour(e.currentTarget.value),
+                        };
+                      }}
+                    />
+                  </div>
+                  <span class="text-sm font-semibold text-muted" aria-hidden="true">–</span>
+                  <div class="rounded-xl border border-border bg-bg px-3 py-2">
+                    <input
+                      type="time"
+                      step="3600"
+                      value={hourToTimeValue(settings.quietHourEnd)}
+                      aria-label={i18n.t("settings.quiet-end")}
+                      class="w-full bg-transparent text-center text-text tabular-nums outline-none"
+                      oninput={(e) => {
+                        if (!settings) return;
+                        settings = {
+                          ...settings,
+                          quietHourEnd: timeValueToHour(e.currentTarget.value),
+                        };
+                      }}
+                    />
+                  </div>
+                </div>
+              {/if}
+            {/if}
+          </div>
+        {/if}
 
         <PrimaryButton type="submit" loading={busy}>
           {i18n.t("common.save")}

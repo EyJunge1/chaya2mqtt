@@ -41,6 +41,7 @@ static char s_uiThemeCached[8] = "system";
 static std::atomic<bool> s_ledEnabledCached{true};
 static std::atomic<bool> s_einkDarkCached{false};
 static std::atomic<DisplayView> s_displayViewCached{DisplayView::Unknown};
+static std::atomic<bool> s_speakerInstalledCached{true};
 static std::atomic<bool> s_audioTxEnabledCached{false};
 static std::atomic<bool> s_audioRxEnabledCached{false};
 static std::atomic<uint8_t> s_audioTxVolumeCached{kAudioDefaultVolume};
@@ -230,6 +231,9 @@ bool configInvalidateDisplayView() {
 }
 
 void configLoadAudioFromNvs() {
+    const uint8_t spkRaw = app_nvs::readUChar(kNvsNsCfg, kNvsKeyCfgSndSpk, 1);
+    s_speakerInstalledCached.store(spkRaw != 0U, std::memory_order_relaxed);
+
     uint8_t q0 = kAudioDefaultQuiet0;
     uint8_t q1 = kAudioDefaultQuiet1;
     PackedQuietHoursV1 quietBlob{};
@@ -303,6 +307,12 @@ void configLoadAudioFromNvs() {
     s_audioTxMsCached.store(txMs, std::memory_order_relaxed);
     s_audioRxHzCached.store(rxHz, std::memory_order_relaxed);
     s_audioRxMsCached.store(rxMs, std::memory_order_relaxed);
+}
+
+bool configGetSpeakerInstalled() { return s_speakerInstalledCached.load(std::memory_order_relaxed); }
+
+bool configSetSpeakerInstalled(bool installed) {
+    return setCachedBoolAsUChar(s_speakerInstalledCached, installed, kNvsKeyCfgSndSpk, "NVS cfg: failed to persist snd_spk");
 }
 
 bool configGetAudioTxEnabled() { return s_audioTxEnabledCached.load(std::memory_order_relaxed); }
@@ -391,6 +401,7 @@ void app_configResetRamAfterFactoryClear() {
     s_ledEnabledCached.store(true, std::memory_order_relaxed);
     s_einkDarkCached.store(false, std::memory_order_relaxed);
     s_displayViewCached.store(DisplayView::Unknown, std::memory_order_relaxed);
+    s_speakerInstalledCached.store(true, std::memory_order_relaxed);
     s_audioTxEnabledCached.store(false, std::memory_order_relaxed);
     s_audioRxEnabledCached.store(false, std::memory_order_relaxed);
     s_audioTxVolumeCached.store(kAudioDefaultVolume, std::memory_order_relaxed);

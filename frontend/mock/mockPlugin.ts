@@ -104,6 +104,7 @@ type SettingsSnapshot = {
   theme: ReturnType<typeof getState>["theme"];
   ledEnabled: boolean;
   einkDark: boolean;
+  speakerInstalled: boolean;
   audioTxEnabled: boolean;
   audioRxEnabled: boolean;
   audioTxVolume: number;
@@ -115,6 +116,34 @@ type SettingsSnapshot = {
   rxHz: number;
   rxMs: number;
 };
+
+function settingsPayload(
+  state: ReturnType<typeof getState>,
+  pending: SettingsSnapshot | null = null,
+) {
+  const src = pending ?? snapshotSettings(state);
+  return {
+    resetDays: src.resetDays,
+    lang: src.lang,
+    theme: src.theme,
+    ledEnabled: src.ledEnabled,
+    einkDark: src.einkDark,
+    speakerInstalled: src.speakerInstalled,
+    audioPresent: state.codecPresent && src.speakerInstalled,
+    audioTxEnabled: src.audioTxEnabled,
+    audioRxEnabled: src.audioRxEnabled,
+    audioTxVolume: src.audioTxVolume,
+    audioRxVolume: src.audioRxVolume,
+    quietHourStart: src.quietHourStart,
+    quietHourEnd: src.quietHourEnd,
+    txHz: src.txHz,
+    txMs: src.txMs,
+    rxHz: src.rxHz,
+    rxMs: src.rxMs,
+    nvsOk: state.settingsNvsOk !== false,
+    applyPending: state.settingsApplyPending === true,
+  };
+}
 
 let mqttPending: MqttSnapshot | null = null;
 let settingsPending: SettingsSnapshot | null = null;
@@ -131,6 +160,7 @@ function snapshotSettings(state: ReturnType<typeof getState>): SettingsSnapshot 
     theme: state.theme,
     ledEnabled: state.ledEnabled,
     einkDark: state.einkDark,
+    speakerInstalled: state.speakerInstalled,
     audioTxEnabled: state.audioTxEnabled,
     audioRxEnabled: state.audioRxEnabled,
     audioTxVolume: state.audioTxVolume,
@@ -150,6 +180,7 @@ function applySettingsSnapshot(state: ReturnType<typeof getState>, snap: Setting
   state.theme = snap.theme;
   state.ledEnabled = snap.ledEnabled;
   state.einkDark = snap.einkDark;
+  state.speakerInstalled = snap.speakerInstalled;
   state.audioTxEnabled = snap.audioTxEnabled;
   state.audioRxEnabled = snap.audioRxEnabled;
   state.audioTxVolume = snap.audioTxVolume;
@@ -222,27 +253,7 @@ export async function handleApi(req: IncomingMessage, res: ServerResponse): Prom
       chaya: sta ? chayaPayload() : null,
       mqtt: sta ? mqttPayload() : null,
       update: sta ? otaPayload() : null,
-      settings: sta
-        ? {
-            resetDays: state.resetDays,
-            lang: state.lang,
-            theme: state.theme,
-            ledEnabled: state.ledEnabled,
-            einkDark: state.einkDark,
-            audioTxEnabled: state.audioTxEnabled,
-            audioRxEnabled: state.audioRxEnabled,
-            audioTxVolume: state.audioTxVolume,
-            audioRxVolume: state.audioRxVolume,
-            quietHourStart: state.quietHourStart,
-            quietHourEnd: state.quietHourEnd,
-            txHz: state.txHz,
-            txMs: state.txMs,
-            rxHz: state.rxHz,
-            rxMs: state.rxMs,
-            nvsOk: state.settingsNvsOk !== false,
-            applyPending: state.settingsApplyPending === true,
-          }
-        : null,
+      settings: sta ? settingsPayload(state, settingsPending) : null,
     });
     return true;
   }
@@ -597,25 +608,7 @@ export async function handleApi(req: IncomingMessage, res: ServerResponse): Prom
   if (path === "/api/settings" && method === "GET") {
     if (!requireStaMode(res)) return true;
     if (failIfFault("settings", res)) return true;
-    sendJson(res, 200, {
-      resetDays: state.resetDays,
-      lang: state.lang,
-      theme: state.theme,
-      ledEnabled: state.ledEnabled,
-      einkDark: state.einkDark,
-      audioTxEnabled: state.audioTxEnabled,
-      audioRxEnabled: state.audioRxEnabled,
-      audioTxVolume: state.audioTxVolume,
-      audioRxVolume: state.audioRxVolume,
-      quietHourStart: state.quietHourStart,
-      quietHourEnd: state.quietHourEnd,
-      txHz: state.txHz,
-      txMs: state.txMs,
-      rxHz: state.rxHz,
-      rxMs: state.rxMs,
-      nvsOk: state.settingsNvsOk !== false,
-      applyPending: state.settingsApplyPending === true,
-    });
+    sendJson(res, 200, settingsPayload(state, settingsPending));
     return true;
   }
 
@@ -652,6 +645,12 @@ export async function handleApi(req: IncomingMessage, res: ServerResponse): Prom
     if (typeof body.eink_dark === "boolean") pending.einkDark = body.eink_dark;
     else if (body.eink_dark !== undefined) {
       sendJson(res, 400, { ok: false, error: "eink_dark" });
+      return true;
+    }
+    if (typeof body.speaker_installed === "boolean")
+      pending.speakerInstalled = body.speaker_installed;
+    else if (body.speaker_installed !== undefined) {
+      sendJson(res, 400, { ok: false, error: "speaker_installed" });
       return true;
     }
     if (typeof body.audio_tx_enabled === "boolean") pending.audioTxEnabled = body.audio_tx_enabled;

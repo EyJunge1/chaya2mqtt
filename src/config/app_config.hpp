@@ -39,6 +39,9 @@ auto configInvalidateDisplayView() -> bool;
 
 /** Heart-click audio: per-kind enable, volume 0–100, quiet hours (local, equal = off), TX/RX Hz/ms. */
 void configLoadAudioFromNvs();
+/** Physical speaker installed (default true). Codec may still be absent. */
+auto configGetSpeakerInstalled() -> bool;
+auto configSetSpeakerInstalled(bool installed) -> bool;
 auto configGetAudioTxEnabled() -> bool;
 auto configSetAudioTxEnabled(bool enabled) -> bool;
 auto configGetAudioRxEnabled() -> bool;

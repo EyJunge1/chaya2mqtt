@@ -48,6 +48,8 @@ const bootstrap = (partial: Partial<BootstrapPayload> = {}): BootstrapPayload =>
     theme: "light",
     ledEnabled: true,
     einkDark: false,
+    speakerInstalled: true,
+    audioPresent: true,
     audioTxEnabled: false,
     audioRxEnabled: false,
     audioTxVolume: 70,
