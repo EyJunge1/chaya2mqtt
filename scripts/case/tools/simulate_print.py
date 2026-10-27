@@ -3,7 +3,7 @@
 Checks floating islands, overhangs >45°, bridge spans, thin walls, bed contact,
 and tip-over risk (center of mass above the first-layer footprint).
 
-Usage: python3 scripts/case/battery/simulate_print.py out/*.stl
+Usage: python3 scripts/case/tools/simulate_print.py out/*.stl
 """
 
 import sys

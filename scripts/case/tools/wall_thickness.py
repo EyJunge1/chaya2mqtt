@@ -3,7 +3,7 @@
 Thickness at a point = diameter of the largest sphere that fits in the material there.
 Evaluated on the medial ridge; corner-only ridges are ignored.
 
-Usage: python3 scripts/case/battery/wall_thickness.py out/*.stl
+Usage: python3 scripts/case/tools/wall_thickness.py out/*.stl
 """
 
 import sys

@@ -1,7 +1,9 @@
 """
 Battery case (602530 cell) + charging dock for Waveshare ESP32-S3-ePaper-1.54(G).
 
-Variant: scripts/case/battery/  (later: case without battery as its own variant)
+Variant: scripts/case/battery/
+Shared tools: scripts/case/tools/
+Sibling: scripts/case/no_battery/
 
 - Rear 2x6 pin header desoldered -> 602530 cell (6x25x30) lies flat over the PCB
 - Rear cover as snap cap, screwless: 4 snap hooks + bottom hanging tab

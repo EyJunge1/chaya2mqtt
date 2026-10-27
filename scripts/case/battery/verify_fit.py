@@ -214,7 +214,7 @@ inner_ok = (
 ok(
     f"Inner cavity keeps >= {ec.MIN_WALL} mm to outer contour (top view)",
     inner_ok,
-    "3D wall thickness see wall_thickness / analyze_print_walls",
+    "3D wall thickness see scripts/case/tools/wall_thickness.py",
 )
 # STL manifold
 for n in ["gehaeuse_front", "gehaeuse_deckel", "tasten_2x"]:
