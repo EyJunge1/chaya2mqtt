@@ -23,7 +23,7 @@ def load_module(name: str, relative: str) -> Any:
         message = f"cannot load module from {path}"
         raise ImportError(message)
     mod = importlib.util.module_from_spec(spec)
-    # Required so @dataclass works under Python 3.14 when loading via importlib.
+    # Required so @dataclass works under Python 3.15 when loading via importlib.
     sys.modules[name] = mod
     spec.loader.exec_module(mod)
     return mod

@@ -12,21 +12,13 @@ Press the button on yours and a red heart appears on theirs.
 
 Every display keeps track of the hearts you have sent and received, while MQTT quietly carries them between you.
 
-### What the display shows
+### Product
 
-**Online**
+![Chaya2MQTT on device](.github/pics/front.jpg)
 
-![Online heart with RX/TX](.github/pics/heart-online.png)
-
-| Product title                                            | SoftAP setup                                      |
-| -------------------------------------------------------- | ------------------------------------------------- |
-| ![Centered product title](.github/pics/product-title.png) | ![WIFI QR setup splash](.github/pics/setup-qr.png) |
-
-| Offline                                                      | Power-off                                         |
-| ------------------------------------------------------------ | ------------------------------------------------- |
-| ![Cracked heart when offline](.github/pics/heart-offline.png) | ![Power-off heart-off](.github/pics/power-off.png) |
-
-Optional **E-Ink dark mode** (black background, white text; heart stays red) can be toggled in Settings → Display. SoftAP setup stays light.
+| Online                                                    | Product title                                             | SoftAP setup                                       | Offline                                                       | Power-off                                          |
+| --------------------------------------------------------- | --------------------------------------------------------- | -------------------------------------------------- | ------------------------------------------------------------- | -------------------------------------------------- |
+| ![Online heart with RX/TX](.github/pics/heart-online.png) | ![Centered product title](.github/pics/product-title.png) | ![WIFI QR setup splash](.github/pics/setup-qr.png) | ![Cracked heart when offline](.github/pics/heart-offline.png) | ![Power-off heart-off](.github/pics/power-off.png) |
 
 > [!NOTE]
 > Open the [web flasher](https://eyjunge1.github.io/chaya2mqtt/) in Chrome or Edge, connect USB-C, and install.

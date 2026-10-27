@@ -12,21 +12,13 @@ Drück den Knopf auf deinem, und auf ihrem erscheint ein rotes Herz.
 
 Jedes Display zählt die Herzen, die du gesendet und empfangen hast—MQTT trägt sie leise zwischen euch hin und her.
 
-### Was das Display zeigt
+### Produkt
 
-**Online**
+![Chaya2MQTT am Gerät](../pics/front.jpg)
 
-![Online heart with RX/TX](../pics/heart-online.png)
-
-| Produkttitel                                                   | SoftAP-Setup                                              |
-| -------------------------------------------------------------- | --------------------------------------------------------- |
-| ![Centered product title](../pics/product-title.png) | ![WIFI QR setup splash](../pics/setup-qr.png)   |
-
-| Offline                                                            | Ausschalten                                               |
-| ------------------------------------------------------------------ | --------------------------------------------------------- |
-| ![Cracked heart when offline](../pics/heart-offline.png) | ![Power-off heart-off](../pics/power-off.png)   |
-
-Optionaler **E-Ink Dark Mode** (schwarzer Hintergrund, weiße Schrift; Herz bleibt rot) unter Einstellungen → Display. SoftAP-Setup bleibt hell.
+| Online                                               | Produkttitel                                         | SoftAP-Setup                                  | Offline                                                  | Ausschalten                                   |
+| ---------------------------------------------------- | ---------------------------------------------------- | --------------------------------------------- | -------------------------------------------------------- | --------------------------------------------- |
+| ![Online heart with RX/TX](../pics/heart-online.png) | ![Centered product title](../pics/product-title.png) | ![WIFI QR setup splash](../pics/setup-qr.png) | ![Cracked heart when offline](../pics/heart-offline.png) | ![Power-off heart-off](../pics/power-off.png) |
 
 > [!NOTE]
 > Öffne den [Web-Flasher](https://eyjunge1.github.io/chaya2mqtt/) in Chrome oder Edge, schließe USB-C an und installiere.
