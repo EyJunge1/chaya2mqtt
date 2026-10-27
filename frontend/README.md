@@ -24,7 +24,7 @@ npm run build
 `npm run build` creates `dist/` with hashed asset filenames. Then run the following from the repository root:
 
 ```bash
-python3 scripts/embed_web_assets.py
+python3 scripts/web/embed_web_assets.py
 ```
 
 This writes the gzip asset blob, manifest, and assembler stub to `src/web/assets/` (also done automatically by the PlatformIO pre-script). Assets are served with `Content-Encoding: gzip` using normal `.js`/`.css` URLs (never `.gz`).

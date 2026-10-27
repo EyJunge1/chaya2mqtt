@@ -3,7 +3,7 @@
 # - clang-format: PyPI wheel pinned to LLVM 23.1.x (matches Homebrew; apt.llvm.org
 #   snapshot meta still depends on missing clang-format-23).
 # - clang-tidy: apt.llvm.org qualification branch (stable package set).
-# Usage: bash scripts/ci_install_clang_tools.sh
+# Usage: bash scripts/quality/ci_install_clang_tools.sh
 set -euo pipefail
 
 LLVM_FORMAT_VERSION="${LLVM_FORMAT_VERSION:-23.1.1}"

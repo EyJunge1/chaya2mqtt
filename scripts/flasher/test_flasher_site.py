@@ -12,7 +12,7 @@ import unittest
 from pathlib import Path
 from typing import Any
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[2]
 
 
 def load_module(name: str, relative: str) -> Any:
@@ -34,7 +34,7 @@ class PrepareReleaseArtifactsTests(unittest.TestCase):
 
     def setUp(self) -> None:
         """Load the release artifact module for each test."""
-        self.mod = load_module("prepare_release_artifacts", "scripts/prepare_release_artifacts.py")
+        self.mod = load_module("prepare_release_artifacts", "scripts/flasher/prepare_release_artifacts.py")
 
     def _write_factory(
         self,
@@ -127,7 +127,7 @@ class GenerateFlasherSiteTests(unittest.TestCase):
 
     def setUp(self) -> None:
         """Load the flasher site generator for each test."""
-        self.mod = load_module("generate_flasher_site", "scripts/generate_flasher_site.py")
+        self.mod = load_module("generate_flasher_site", "scripts/flasher/generate_flasher_site.py")
 
     def test_tag_sort_stable_above_beta_same_base(self) -> None:
         """Sort stable releases above prereleases with the same base version."""
@@ -212,7 +212,7 @@ class FetchFlasherReleasesTests(unittest.TestCase):
 
     def setUp(self) -> None:
         """Load the release fetcher for each test."""
-        self.mod = load_module("fetch_flasher_releases", "scripts/fetch_flasher_releases.py")
+        self.mod = load_module("fetch_flasher_releases", "scripts/flasher/fetch_flasher_releases.py")
 
     def test_pick_latest_uses_semver_not_api_order(self) -> None:
         """Do not serve an older release merely because GitHub returns it first."""

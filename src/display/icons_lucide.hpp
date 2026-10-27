@@ -2,7 +2,7 @@
 
 /**
  * Auto-generated Lucide icon bitmaps for the 1.54" E-Ink panel (Adafruit GFX MSB format).
- * Do not edit by hand — regenerate with: node scripts/generate_display_icons.mjs
+ * Do not edit by hand — regenerate with: node scripts/display/generate_display_icons.mjs
  *
  * Source: Lucide Icons (0.468.0) — https://lucide.dev
  * License: ISC — https://github.com/lucide-icons/lucide/blob/main/LICENSE

@@ -2,7 +2,7 @@
 # TEST-05: clang-tidy on host-pure headers (no Arduino/FreeRTOS/ESP).
 # Required in CI (CI=true). Locally skipped only when clang-tidy is absent.
 set -euo pipefail
-ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 cd "$ROOT"
 
 if [[ -z "${CLANG_TIDY:-}" ]]; then

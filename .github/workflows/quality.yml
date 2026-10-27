@@ -70,25 +70,27 @@ jobs:
                 .clang-tidy|.clang-format|.clangd)
                   firmware_tests=true
                   ;;
-                scripts/embed_web_assets.py|scripts/test_embed_web_assets.py|scripts/pio_pre_frontend.py|scripts/prepare_release_artifacts.py)
+                scripts/web/*|scripts/pio/pio_pre_frontend.py|scripts/flasher/prepare_release_artifacts.py)
                   firmware_build=true
                   ;;
-                scripts/test_check_firmware_size.py)
+                scripts/quality/test_check_firmware_size.py)
                   firmware_tests=true
                   ;;
-                scripts/check_firmware_size.py)
+                scripts/quality/check_firmware_size.py)
                   firmware_tests=true
                   firmware_build=true
                   ;;
-                scripts/fetch_flasher_releases.py|scripts/generate_flasher_site.py|scripts/test_flasher_site.py)
+                scripts/flasher/*)
                   flasher=true
                   ;;
-                scripts/pio_native_asan.py)
+                scripts/pio/*)
                   firmware_tests=true
                   firmware_build=true
                   ;;
-                scripts/check_clang_tidy.sh|scripts/check_firmware_format.sh|scripts/format.sh)
+                scripts/quality/*)
                   firmware_tests=true
+                  ;;
+                scripts/display/*|scripts/tools/*)
                   ;;
                 *)
                   echo "Central or unknown path; enabling the complete gate: $path"
@@ -184,7 +186,7 @@ jobs:
         run: pip install platformio==6.2.0
 
       - name: Install clang-tidy and clang-format
-        run: bash scripts/ci_install_clang_tools.sh
+        run: bash scripts/quality/ci_install_clang_tools.sh
 
       - name: Run native and static firmware checks
         run: make check-firmware-tests PIO=pio
@@ -281,7 +283,7 @@ jobs:
           if [[ -n "${BASELINE_PATH}" ]]; then
             extra+=(--baseline)
           fi
-          python3 scripts/check_firmware_size.py \
+          python3 scripts/quality/check_firmware_size.py \
             --json \
             --markdown \
             --commit "${GITHUB_SHA}" \

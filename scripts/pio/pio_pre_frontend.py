@@ -11,7 +11,7 @@ environment = globals()["env"]
 
 root = Path(environment["PROJECT_DIR"])
 frontend = root / "frontend"
-embed = root / "scripts" / "embed_web_assets.py"
+embed = root / "scripts" / "web" / "embed_web_assets.py"
 dist_index = frontend / "dist" / "index.html"
 
 

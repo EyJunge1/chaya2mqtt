@@ -3,7 +3,7 @@
  * Rasterize Lucide SVGs into Adafruit-GFX 1-bit PROGMEM bitmaps for the E-Ink panel.
  *
  * Usage (from repo root, once when icons change):
- *   node scripts/generate_display_icons.mjs
+ *   node scripts/display/generate_display_icons.mjs
  *
  * Requires network access to fetch Lucide SVGs, and installs @resvg/resvg-js
  * into a temporary directory. The generated header is checked in so normal
@@ -20,7 +20,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const repoRoot = path.resolve(__dirname, "..");
+const repoRoot = path.resolve(__dirname, "../..");
 const outHeader = path.join(repoRoot, "src/display/icons_lucide.hpp");
 
 /** Pin Lucide icon source for reproducible bitmaps. */
@@ -193,7 +193,7 @@ static const uint8_t ${icon.symbol}[] PROGMEM = {${formatByteArray(bytes)}
 
 /**
  * Auto-generated Lucide icon bitmaps for the 1.54\" E-Ink panel (Adafruit GFX MSB format).
- * Do not edit by hand — regenerate with: node scripts/generate_display_icons.mjs
+ * Do not edit by hand — regenerate with: node scripts/display/generate_display_icons.mjs
  *
  * Source: Lucide Icons (${LUCIDE_REF}) — https://lucide.dev
  * License: ISC — https://github.com/lucide-icons/lucide/blob/main/LICENSE

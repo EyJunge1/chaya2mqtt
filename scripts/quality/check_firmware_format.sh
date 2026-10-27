@@ -2,7 +2,7 @@
 # TEST-06: clang-format --dry-run on firmware C/C++.
 # Required in CI (CI=true). Locally skipped only when clang-format is absent.
 set -euo pipefail
-ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 cd "$ROOT"
 
 # Prefer versioned clang-format matching CI (LLVM 23). Older majors still accepted locally.

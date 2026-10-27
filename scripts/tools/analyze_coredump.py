@@ -7,10 +7,10 @@ locates the matching firmware ELF, and runs xtensa-esp32s3-elf-gdb for a
 backtrace. Does not expose dumps over HTTP — pull the partition locally.
 
 Usage:
-    python3 scripts/analyze_coredump.py <coredump.bin> [environment_or_elf]
-    python3 scripts/analyze_coredump.py /tmp/coredump.bin
-    python3 scripts/analyze_coredump.py /tmp/coredump.bin esp32s3-release
-    python3 scripts/analyze_coredump.py /tmp/coredump.bin .pio/build/esp32s3/firmware.elf
+    python3 scripts/tools/analyze_coredump.py <coredump.bin> [environment_or_elf]
+    python3 scripts/tools/analyze_coredump.py /tmp/coredump.bin
+    python3 scripts/tools/analyze_coredump.py /tmp/coredump.bin esp32s3-release
+    python3 scripts/tools/analyze_coredump.py /tmp/coredump.bin .pio/build/esp32s3/firmware.elf
 
 How to obtain a dump (esptool):
     esptool.py --chip esp32s3 --port /dev/tty.usbmodem* read_flash 0x790000 0x10000 coredump.bin

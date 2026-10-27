@@ -33,7 +33,7 @@ check-flasher:
 	cd flasher && $(FLASHER_NPM_CI)
 	cd flasher && npm run lint && npm run format:check && npm run check && npm run test && npm run build
 	cd flasher && npm audit --audit-level=high
-	python3 scripts/test_flasher_site.py
+	python3 scripts/flasher/test_flasher_site.py
 
 check-firmware: check-firmware-tests check-firmware-build
 
@@ -42,21 +42,21 @@ check-firmware-tests:
 	"$(PIO)" test -e native-asan
 	"$(PIO)" pkg install -g -t tool-cppcheck
 	"$(PIO)" check -e esp32s3 --fail-on-defect=high -f "-<*>" -f "+<src/>"
-	bash scripts/check_clang_tidy.sh
-	bash scripts/check_firmware_format.sh
-	python3 scripts/test_check_firmware_size.py
+	bash scripts/quality/check_clang_tidy.sh
+	bash scripts/quality/check_firmware_format.sh
+	python3 scripts/quality/test_check_firmware_size.py
 
 check-firmware-build:
 	CHAYA_SKIP_FRONTEND_BUILD=1 "$(PIO)" run -e esp32s3-release
-	python3 scripts/test_embed_web_assets.py
-	python3 scripts/prepare_release_artifacts.py --build-dir .pio/build/esp32s3-release
-	python3 scripts/check_firmware_size.py
+	python3 scripts/web/test_embed_web_assets.py
+	python3 scripts/flasher/prepare_release_artifacts.py --build-dir .pio/build/esp32s3-release
+	python3 scripts/quality/check_firmware_size.py
 
 # Example: make flasher RELEASES_DIR=/tmp/chaya-releases
 flasher:
 	@test -n "$(RELEASES_DIR)" || (echo "Set RELEASES_DIR=... (tag folders with firmware.factory.bin)"; exit 1)
 	cd flasher && npm ci && npm run build
-	python3 scripts/generate_flasher_site.py --releases-dir "$(RELEASES_DIR)"
+	python3 scripts/flasher/generate_flasher_site.py --releases-dir "$(RELEASES_DIR)"
 
 upload:
 	"$(PIO)" run -e $(ENV) -t upload $(UPLOAD_PORT_FLAG)

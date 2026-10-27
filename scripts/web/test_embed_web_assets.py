@@ -13,8 +13,8 @@ import unittest
 from pathlib import Path
 from typing import Protocol, cast
 
-ROOT = Path(__file__).resolve().parents[1]
-SCRIPT = ROOT / "scripts" / "embed_web_assets.py"
+ROOT = Path(__file__).resolve().parents[2]
+SCRIPT = ROOT / "scripts" / "web" / "embed_web_assets.py"
 
 
 class EmbedModule(Protocol):

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Apply .clang-format to firmware C/C++.
 set -euo pipefail
-ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 cd "$ROOT"
 
 if [[ -z "${CLANG_FORMAT:-}" ]]; then

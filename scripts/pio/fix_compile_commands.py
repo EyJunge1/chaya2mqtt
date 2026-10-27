@@ -9,7 +9,7 @@ import sys
 
 
 def main() -> int:
-    root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+    root = os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
     path = os.path.join(root, "compile_commands.json")
     if not os.path.isfile(path):
         return 0

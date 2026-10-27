@@ -74,7 +74,7 @@ jobs:
         run: pip install platformio==6.2.0
 
       - name: Install clang-tidy and clang-format
-        run: bash scripts/ci_install_clang_tools.sh
+        run: bash scripts/quality/ci_install_clang_tools.sh
 
       - name: Install Playwright browser
         run: |
@@ -91,7 +91,7 @@ jobs:
       - name: Prepare release artifacts
         id: hashes
         run: |
-          python3 scripts/prepare_release_artifacts.py \
+          python3 scripts/flasher/prepare_release_artifacts.py \
             --build-dir .pio/build/esp32s3-release \
             --github-output "$GITHUB_OUTPUT"
 

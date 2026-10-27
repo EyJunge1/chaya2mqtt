@@ -7,7 +7,7 @@
  * Adafruit GFX classic 5×7 font so counters/titles match the panel.
  *
  * Usage (from repo root):
- *   node scripts/render_display_previews.mjs
+ *   node scripts/display/render_display_previews.mjs
  *
  * Writes .github/pics/{heart-online,heart-offline,setup-qr,product-title,power-off}.png
  */
@@ -20,7 +20,7 @@ import zlib from "node:zlib";
 import { fileURLToPath } from "node:url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const repoRoot = path.resolve(__dirname, "..");
+const repoRoot = path.resolve(__dirname, "../..");
 const iconsHeader = path.join(repoRoot, "src/display/icons_lucide.hpp");
 const outDir = path.join(repoRoot, ".github/pics");
 

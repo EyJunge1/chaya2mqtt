@@ -1,4 +1,4 @@
-# Host-pure header lint (clangd + scripts/check_clang_tidy.sh).
+# Host-pure header lint (clangd + scripts/quality/check_clang_tidy.sh).
 # Skip Arduino/ESP translation units; those stay on cppcheck + compiler warnings.
 #
 # modernize-* / cppcoreguidelines-* are on as groups. Remaining minus lines keep
