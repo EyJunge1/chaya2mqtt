@@ -54,12 +54,11 @@ function loadColors() {
   for (const m of block[1].matchAll(/--ui-([\w-]+)\s*:\s*(#[0-9a-fA-F]{3,8})\s*;/g)) {
     t[m[1]] = m[2].toLowerCase();
   }
-  for (const k of ["bg", "border", "text-bright", "muted", "accent"]) {
+  for (const k of ["bg", "text-bright", "muted", "accent"]) {
     if (!t[k]) throw new Error(`missing --ui-${k}`);
   }
   return {
     bg: t.bg,
-    border: t.border,
     textBright: t["text-bright"],
     muted: t.muted,
     accent: t.accent,
@@ -100,8 +99,6 @@ async function main() {
   const svg = `<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">
   <rect width="${W}" height="${H}" fill="${colors.bg}"/>
-  <rect x="2" y="2" width="${W - 4}" height="${H - 4}" rx="20"
-        fill="${colors.bg}" stroke="${colors.border}" stroke-width="2"/>
   <g transform="translate(${groupX}, 0)">
     ${brandMark(0, wellY, WELL, HEART, colors.accent)}
     <text x="${WELL + gap}" y="${Math.round(cy - TITLE * 0.22)}" text-anchor="start"
