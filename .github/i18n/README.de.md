@@ -23,6 +23,12 @@ Jedes Display zählt die Herzen, die du gesendet und empfangen hast—MQTT träg
 > [!NOTE]
 > Öffne den [Web-Flasher](https://eyjunge1.github.io/chaya2mqtt/) in Chrome oder Edge, schließe USB-C an und installiere.
 
+### Gehäuse
+
+Druckbares Snap-Fit-Gehäuse (Akku + nur USB): [MakerWorld](https://makerworld.com/de/models/3505578-waveshare-esp32-s3-epaper-1-54-case-chaya2mqtt#profileId-4005122).
+
+SPI-Leiste hinten und Lautsprecher vorher entfernen.
+
 ## Lizenz
 
 [GNU GPL v3.0 only](../../LICENSE)

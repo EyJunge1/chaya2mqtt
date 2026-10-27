@@ -23,6 +23,12 @@ Every display keeps track of the hearts you have sent and received, while MQTT q
 > [!NOTE]
 > Open the [web flasher](https://eyjunge1.github.io/chaya2mqtt/) in Chrome or Edge, connect USB-C, and install.
 
+### Case
+
+Printable snap-fit case (battery + USB-only): [MakerWorld](https://makerworld.com/de/models/3505578-waveshare-esp32-s3-epaper-1-54-case-chaya2mqtt#profileId-4005122).
+
+Remove the rear SPI header and the speaker before assembly.
+
 ## License
 
 [GNU GPL v3.0 only](LICENSE)
