@@ -506,15 +506,14 @@ def buttons_assembled():
 
 def buttons_print():
     """Print layout: large flange on bed, cap on top -> no overhang, 2 pcs."""
-    out = None
-    for i in range(2):
-        b = (
-            button(0)
-            .translate((0, 0, -BTN_Z))
-            .rotate((0, 0, 0), (0, 1, 0), 90)
-            .translate((0, i * 9.0, 0))
-        )
-        out = b if out is None else out.union(b)
+    pieces = [
+        button(0)
+        .translate((0, 0, -BTN_Z))
+        .rotate((0, 0, 0), (0, 1, 0), 90)
+        .translate((0, i * 9.0, 0))
+        for i in range(2)
+    ]
+    out = pieces[0].union(pieces[1])
     bb = out.val().BoundingBox()
     return out.translate((0, 0, -bb.zmin))
 

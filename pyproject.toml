@@ -125,3 +125,9 @@ exclude = [
 ]
 reportUnnecessaryTypeIgnoreComment = true
 reportMissingTypeStubs = false
+
+# Case CAD stack (cadquery/trimesh/…) is optional locally; still typecheck our logic.
+[[tool.pyright.executionEnvironments]]
+root = "scripts/case"
+reportMissingImports = false
+reportMissingModuleSource = false

@@ -64,8 +64,10 @@ def analyse(path):
                 continue
             # Bridge: area rests on both sides -> span = shorter rectangle side
             touch = p.buffer(0.3).intersection(prev)
-            r = p.minimum_rotated_rectangle
-            xs, ys = r.exterior.coords.xy
+            rotated = p.minimum_rotated_rectangle
+            if not isinstance(rotated, Polygon):
+                continue
+            xs, ys = rotated.exterior.coords.xy
             e = sorted([np.hypot(xs[k + 1] - xs[k], ys[k + 1] - ys[k]) for k in range(2)])
             span = e[0]
             n_supp = len(parts(touch))
@@ -95,7 +97,10 @@ def analyse(path):
     rep["bed_area"] = base.area
     rep["cg"] = cg
     rep["cg_inside"] = hull.contains(Point(cg[0], cg[1]))
-    rep["cg_margin"] = hull.exterior.distance(Point(cg[0], cg[1]))
+    if isinstance(hull, Polygon):
+        rep["cg_margin"] = hull.exterior.distance(Point(cg[0], cg[1]))
+    else:
+        rep["cg_margin"] = float(hull.distance(Point(cg[0], cg[1])))
     rep["h_ratio"] = m.extents[2] / min(m.extents[0], m.extents[1])
     rep["tip_angle"] = np.degrees(np.arctan2(rep["cg_margin"], cg[2] - m.bounds[0, 2]))
     rep["extents"] = m.extents

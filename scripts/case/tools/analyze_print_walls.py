@@ -43,7 +43,8 @@ def main(argv: list[str] | None = None) -> int:
     """Analyze wall thickness for one case variant's print STLs."""
     args = list(sys.argv[1:] if argv is None else argv)
     if len(args) != 1:
-        print(__doc__.strip(), file=sys.stderr)
+        usage = __doc__ or "Usage: analyze_print_walls.py battery|no_battery"
+        print(usage.strip(), file=sys.stderr)
         return 2
     variant = args[0]
     ec = load_model(variant)
