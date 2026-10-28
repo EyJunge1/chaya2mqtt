@@ -274,11 +274,11 @@ def front_shell():
     z0 = Z_SPLIT - LIP_H - TAB_DROP
     pk = [
         (IN_Y0 + 0.5, z0),
-        (IN_Y0 - 0.65, z0),
-        (IN_Y0 - 0.65, z0 + 1.85),
-        (IN_Y0 - 0.4, z0 + 1.6),
+        (IN_Y0 - 0.75, z0),
+        (IN_Y0 - 0.75, z0 + 1.85),
+        (IN_Y0 - 0.5, z0 + 1.6),
         (IN_Y0 + 0.5, z0 + 1.6),
-    ]  # 0.4 land, then 45°; 1.2 mm remaining wall
+    ]  # 0.5 land start, then 45°; ~1.1 mm remaining wall
     s = s.cut(
         cq.Workplane("YZ")
         .workplane(offset=17.0 - (TAB_W + 0.6) / 2)

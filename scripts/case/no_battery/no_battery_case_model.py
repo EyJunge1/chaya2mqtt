@@ -1,16 +1,17 @@
 """
 USB-powered slim case (no battery) for Waveshare ESP32-S3-ePaper-1.54(G).
 
+Same geometry as scripts/case/battery/, only thinner:
+  Z_LID_IN = MX1.25 battery connector (5.5 mm) + clearance — no 602530 cell.
+
 Variant: scripts/case/no_battery/
 Shared tools: scripts/case/tools/
 Sibling: scripts/case/battery/
 
-- USB-C power only, no battery. Inner height set by MX1.25 battery connector (5.5 mm)
-- Lid: 5 snap hooks (2 left, 3 right), no hanging tab (case too shallow)
 - Rear 2x6 pin header desoldered; battery connector remains
-- Rear cover as snap cap, screwless
+- Rear cover as snap cap, screwless: 4 snap hooks + bottom hanging tab
 - Openings: USB-C bottom, BOOT/PWR right (separate button caps)
-- Speaker + speaker connector removed, pin header desoldered
+- Speaker + speaker connector removed
 - LED hole bottom, guide ribs left/right for PCB/display, no battery frame
 - PCB screwed to domes with 4x M2 x 4 self-tapping screws
 - FDM optimized: walls >= 1.2 mm, overhangs <= 45°, hole ceilings teardrop/45°,
@@ -35,11 +36,12 @@ R_PLAN = 9.0  # large, soft corners top + bottom (Pala style)
 MIN_WALL = 1.2  # minimum wall at corners (inner cavity follows outer rounding there)
 EXTRA = 1.5  # extra wall so large corners do not clip the PCB
 R_FRONT = 3.5  # soft rounded transition front -> side
-R_BACK = 2.0  # shallower case -> slightly smaller rounding at rear
+R_BACK = 3.0  # soft rounded transition back -> side
 R_IN = 2.9  # inner corners
-R_IN_F = R_FRONT - 1.1  # inner fillet front slightly larger than concentric -> >= 1.2 mm wall
+# inner fillet front slightly larger than concentric -> >= 1.2 mm wall everywhere
+R_IN_F = R_FRONT - 1.1
 
-# 602530 cell (Pala note parts list) - measure to confirm (unused in no-battery build)
+# 602530 cell (Pala note parts list) - measure to confirm
 BAT_W, BAT_L, BAT_T = 25.0, 30.0, 6.0
 BAT_CX, BAT_CY = 16.4, 15.5  # clear of buttons, connectors, and coil
 BAT_CLR = 0.5
@@ -77,22 +79,15 @@ SCREW_HOLES = []  # lid: no screws, snap fit
 PCB_SCREW_PILOT = 1.7  # pilot hole in domes for M2 x 4 self-tapping (PCB is screwed on)
 HOLES = [(3.0, -2.3), (31.0, -2.3), (3.0, 41.7), (31.0, 41.7)]
 TAB_W = 14.0
-# Snap hooks on lid (2 left, 3 right); no hanging tab on slim case
-SNAP_Y = (24.0, 35.5)
-SNAP_POS = [
-    (-1, 24.0),
-    (-1, 35.5),
-    (1, 10.0),
-    (1, 24.0),
-    (1, 35.5),
-]  # (side, y); buttons lower left
+# Snap hooks on lid (2 each left/right) + bottom hanging tab
+SNAP_Y = (24.0, 35.5)  # slots stay on straight lip (not in corner fillet)
 SNAP_W = 7.0
-SNAP_Z0 = -0.8  # hooks extend beside PCB for enough flex length
-SNAP_BUMP = 0.40  # latch bump outward (slightly less strain, shorter hooks)
+SNAP_Z0 = 0.5  # hook lower edge
+SNAP_BUMP = 0.45  # latch bump outward
 SNAP_SLOT = 0.8
 SNAP_T = 1.2  # hook thickness (minimum wall 1.2)
 LIP_T = 1.2  # lid lip wall thickness
-FRAME_T = 1.2  # battery frame wall thickness (unused)
+FRAME_T = 1.2  # battery frame wall thickness
 ROOT_CH = 0.4  # 45° reinforcement at hook/lip root (reduce stress concentration)
 RIM_CH = 0.5  # chamfer on front shell inner rim (lead-in + room for ROOT_CH)
 TAB_DROP = 0.8  # hanging tab set lower -> enough material above pocket
@@ -101,12 +96,15 @@ TAB_DROP = 0.8  # hanging tab set lower -> enough material above pocket
 IN_X0, IN_X1 = -1.6, 35.6
 IN_Y0, IN_Y1 = -4.15, 43.8 + 0.15  # top: speaker removed -> inner cavity ends at PCB
 Z_GLASS = -4.55
-Z_LID_IN = 5.5 + 0.4  # MX1.25 battery connector (5.5 mm) + clearance; no cell
+Z_LID_IN = 5.5 + 0.4  # MX1.25 battery connector + clearance; no cell
 Z_FRONT, Z_BACK = Z_GLASS - WALL_FRONT, Z_LID_IN + LID_T
-Z_SPLIT = Z_BACK - (R_BACK + 0.4)  # seam just below rear rounding
-LIP_H = 2.0
+Z_SPLIT = Z_BACK - 3.5
+LIP_H = 2.5
 OUT_X0, OUT_X1 = IN_X0 - WALL_SIDE - EXTRA, IN_X1 + WALL_SIDE + EXTRA
-OUT_Y0, OUT_Y1 = -4.0 - USB_FACE_DIST, 43.8 + USB_FACE_DIST  # 2 mm PCB edge top/bottom -> outer
+OUT_Y0, OUT_Y1 = (
+    -4.0 - USB_FACE_DIST,
+    43.8 + USB_FACE_DIST,
+)  # top and bottom 2 mm PCB edge -> outer
 CX, CY = (OUT_X0 + OUT_X1) / 2, (OUT_Y0 + OUT_Y1) / 2
 W, H, T = OUT_X1 - OUT_X0, OUT_Y1 - OUT_Y0, Z_BACK - Z_FRONT
 AA_CX, AA_CY, WIN, WIN_R = 17.0, 22.2, 28.0, 1.5
@@ -131,7 +129,7 @@ def outer_body(c=0.0):
     b = rrect(W + 2 * c, H + 2 * c, R_PLAN + c, Z_FRONT - c, Z_BACK + c)
     b = b.faces("<Z").edges().fillet(R_FRONT + c).faces(">Z").edges().fillet(R_BACK + c)
     if PRINT_45:
-        # Print optimization "teardrop": flat part of rounding at print bed replaced by
+        # Print optimization "teardrop": flat part of rounding at the print bed replaced by
         # tangent 45° chamfer -> no steep overhang at front and lid edges
         k = 1 - 0.5**0.5
         for r, z_face, sgn in ((R_FRONT + c, Z_FRONT - c, 1), (R_BACK + c, Z_BACK + c, -1)):
@@ -258,7 +256,7 @@ def front_shell():
             .center(x, y)
             .circle(PCB_SCREW_PILOT / 2)
             .extrude(Z_GLASS - (-0.9))
-        )  # only in dome, front stays 1.2 mm
+        )  # only in dome, front stays full 1.2 mm
         s = s.cut(
             cq.Workplane("XY")
             .workplane(offset=-0.99)
@@ -270,10 +268,27 @@ def front_shell():
         )
 
     # Snap grooves for hooks
-    for side, y in SNAP_POS:
-        s = s.cut(snap_profile(side, y, SNAP_W + 1.0, grow=0.1))
+    for side in (-1, 1):
+        for y in SNAP_Y:
+            s = s.cut(snap_profile(side, y, SNAP_W + 1.0, grow=0.1))
 
-    # No hanging tab on slim case
+    # Pocket for hanging tab: ceiling rises outward at 45° (no horizontal overhang),
+    # tab latches on edge to inner wall
+    z0 = Z_SPLIT - LIP_H - TAB_DROP
+    pk = [
+        (IN_Y0 + 0.5, z0),
+        (IN_Y0 - 0.75, z0),
+        (IN_Y0 - 0.75, z0 + 1.85),
+        (IN_Y0 - 0.5, z0 + 1.6),
+        (IN_Y0 + 0.5, z0 + 1.6),
+    ]  # 0.5 land start, then 45°; ~1.1 mm remaining wall
+    s = s.cut(
+        cq.Workplane("YZ")
+        .workplane(offset=17.0 - (TAB_W + 0.6) / 2)
+        .polyline(pk)
+        .close()
+        .extrude(TAB_W + 0.6)
+    )
 
     # Chamfer on inner rim edge (lead-in, room for root reinforcement on lid)
     s = s.cut(
@@ -310,7 +325,8 @@ def front_shell():
             )
 
     # Guide ribs left/right: display only (under PCB, z < -1.15),
-    # to 0.1 mm from display glass (x 1.1 / 32.9), 45° lead-in on top. PCB held by screws.
+    # to 0.1 mm from display glass (x 1.1 / 32.9), 45° lead-in on top.
+    # PCB held by screws.
     for side, y in RIB_POS:
         xw = IN_X1 + 0.2 if side > 0 else IN_X0 - 0.2  # 0.2 into wall
         xd = DISP_X1 + RIB_CLR if side > 0 else DISP_X0 - RIB_CLR  # display edge
@@ -334,7 +350,7 @@ def front_shell():
     for side, x in RIB_Y_POS:
         yw = IN_Y1 + 0.2 if side > 0 else IN_Y0 - 0.2
         ye = DISP_Y1 + RIB_CLR if side > 0 else DISP_Y0 - RIB_CLR
-        zt = -2.0 if side < 0 else -1.6  # below LED/USB vs below PCB
+        zt = -2.0 if side < 0 else -1.6  # under LED/USB port or under PCB
         k = 0.4
         prof = [
             (yw, Z_GLASS - 0.01),
@@ -395,7 +411,7 @@ def front_shell():
             .fillet(2.0)
         )
 
-    # Separate button caps BOOT (y 5.5) + PWR (y 16.0): hole + guide pocket inside
+    # Separate button caps BOOT (y 5.5) + PWR (y 16.0): hole + guide recess inside
     a, b_, r = BTN_L / 2 + BTN_CLR, BTN_H / 2 + BTN_CLR, BTN_R + BTN_CLR
     for y in BTN_Y:
         # visible outside: rounded rectangle
@@ -408,13 +424,13 @@ def front_shell():
             .edges("|X")
             .fillet(r)
         )
-        # teardrop behind: 45° roof tangent to top corner radii -> no horizontal ceiling
+        # teardrop behind: 45° roof tangent to upper corner radii -> no horizontal ceiling
         k = r / 2**0.5
         tx, tz = a - r + k, b_ - r + k
         roof = [(y - tx, BTN_Z + tz), (y + tx, BTN_Z + tz), (y, BTN_Z + tz + tx)]
         s = s.cut(
             cq.Workplane("YZ")
-            .workplane(offset=OUT_X0 + 1.4)
+            .workplane(offset=OUT_X0 + 1.2)
             .polyline(roof)
             .close()
             .extrude(IN_X0 - OUT_X0)
@@ -425,14 +441,14 @@ def front_shell():
             cq.Workplane().add(
                 cq.Solid.makeLoft(
                     [
-                        rr_wire_x(2 * a + 0.6, 2 * b_ + 0.6, r + 0.3, xf + 0.01, y, BTN_Z),
-                        rr_wire_x(2 * a, 2 * b_, r, xf - 0.3, y, BTN_Z),
+                        rr_wire_x(2 * a + 1.0, 2 * b_ + 1.0, r + 0.5, xf + 0.01, y, BTN_Z),
+                        rr_wire_x(2 * a, 2 * b_, r, xf - 0.5, y, BTN_Z),
                     ],
                     True,
                 )
             )
         )
-        # flange pocket inside, 45° roof
+        # Inner flange recess, 45° roof
         zb, zt = BTN_Z - (FL_H + 0.4) / 2, BTN_Z + (FL_H + 0.4) / 2
         fm = [
             (IN_X0 + 0.5, zb),
@@ -452,18 +468,18 @@ def front_shell():
 
 
 # ------------------------------------------------------------------ Button caps
-BTN_Y, BTN_Z = (5.5, 16.0), 1.65  # switch plunger center (Waveshare STEP, x = -0.55)
+BTN_Y, BTN_Z = (5.5, 16.0), 1.65  # switch plunger center per Waveshare STEP (x = -0.55)
 BTN_L, BTN_H, BTN_CLR = 5.0, 4.0, 0.25  # rectangular, R1 corners; 0.25 clearance (holes shrink)
 BTN_R = 1.0
 BTN_PROUD = 0.6  # how far cap protrudes
-FL_L, FL_H = 7.0, 5.5  # inner flange (stays below lid seam)
-FL_RECESS = 0.4  # pocket in inner wall guides flange
+FL_L, FL_H = 7.0, 5.8  # inner flange (prevents falling out, presses switch)
+FL_RECESS = 0.4  # recess in inner wall guides flange
 NUB_GAP = 0.15  # gap flange <-> switch
 FL_T = (-0.55 - NUB_GAP) - (IN_X0 - FL_RECESS)  # = 1.3 mm: flange face presses directly
 
 
 def button(y):
-    """Single button cap at switch row y."""
+    """Single BOOT/PWR button cap with internal flange."""
     x_fl0 = IN_X0 - FL_RECESS
     head = (
         cq.Workplane("YZ")
@@ -488,24 +504,24 @@ def button(y):
         .faces(">X")
         .edges()
         .chamfer(0.3)
-    )  # chamfer against elephant foot (on bed)
+    )  # chamfer against elephant foot (lies on bed)
     b = head.union(fl)
+    sel = cq.selectors.BoxSelector(
+        (x_fl0 - 0.02, y - BTN_L / 2 - 0.1, BTN_Z - BTN_H / 2 - 0.1),
+        (x_fl0 + 0.02, y + BTN_L / 2 + 0.1, BTN_Z + BTN_H / 2 + 0.1),
+    )
     with contextlib.suppress(Exception):  # 0.4 groove between head and flange
-        sel = cq.selectors.BoxSelector(
-            (x_fl0 - 0.02, y - BTN_L / 2 - 0.1, BTN_Z - BTN_H / 2 - 0.1),
-            (x_fl0 + 0.02, y + BTN_L / 2 + 0.1, BTN_Z + BTN_H / 2 + 0.1),
-        )
-        b = b.edges(sel).fillet(0.25)
+        b = b.edges(sel).fillet(0.4)
     return b
 
 
 def buttons_assembled():
-    """Both caps at assembled positions on the case."""
+    """Both button caps in board positions (single solid)."""
     return button(BTN_Y[0]).union(button(BTN_Y[1]))
 
 
 def buttons_print():
-    """Print layout: large flange on bed, cap on top -> no overhang, 2 pcs."""
+    """Print bed: large flange face down, cap up -> no overhang, 2 pieces."""
     pieces = [
         button(0)
         .translate((0, 0, -BTN_Z))
@@ -518,17 +534,16 @@ def buttons_print():
     return out.translate((0, 0, -bb.zmin))
 
 
-# ------------------------------------------------------------------ Rear cover (lid)
 def lid():
-    """Snap-fit rear lid with hooks into front shell."""
+    """Snap-on rear lid with lip, hooks, and hanging tab."""
     cap = outer_body().intersect(slab(Z_SPLIT, Z_BACK + 1))
     io = 0.15 + LIP_T
     hollow = (
         rrect(IN_X1 - IN_X0 - 2 * io, IN_Y1 - IN_Y0 - 2 * io, R_IN - io, Z_SPLIT - 1, Z_LID_IN)
         .faces(">Z")
         .edges()
-        .fillet(0.5)
-    )  # small: room above connector
+        .fillet(1.0)
+    )
     lid_part = cap.cut(hollow)
     # Lip that engages front shell
     lip = (
@@ -540,50 +555,66 @@ def lid():
         )  # 45° root instead of 90° notch
         .cut(cavity(io, Z_SPLIT - LIP_H - 1, Z_SPLIT + 1, False))
     )
-    # Snap hooks: slot lip both sides, extend arm down, latch bump
-    # omit lip at button height (left, y to 21) -> room for button flanges
-    lip = lip.cut(
-        cq.Workplane("XY")
-        .workplane(offset=Z_SPLIT - LIP_H - 1)
-        .center(IN_X0 + 0.5, (IN_Y0 - 1 + 21.0) / 2)
-        .rect(3.0, 21.0 - IN_Y0 + 1)
-        .extrude(LIP_H + 1 - 0.005)
-    )
-    for side, y in SNAP_POS:
+    # Snap hooks: slot lip both sides, extend arm downward, latch bump
+    for side in (-1, 1):
         xo = (IN_X1 - 0.15) if side > 0 else (IN_X0 + 0.15)
         xm = xo - side * SNAP_T / 2
-        for dy in (-1, 1):
-            lip = lip.cut(
+        for y in SNAP_Y:
+            for dy in (-1, 1):
+                lip = lip.cut(
+                    cq.Workplane("XY")
+                    .workplane(offset=Z_SPLIT - LIP_H - 1)
+                    .center(xm, y + dy * (SNAP_W + SNAP_SLOT) / 2)
+                    .rect(3, SNAP_SLOT)
+                    .extrude(LIP_H + 1)
+                )
+            arm = (
                 cq.Workplane("XY")
-                .workplane(offset=Z_SPLIT - LIP_H - 1)
-                .center(xm, y + dy * (SNAP_W + SNAP_SLOT) / 2)
-                .rect(3, SNAP_SLOT)
-                .extrude(LIP_H + 1)
+                .workplane(offset=SNAP_Z0)
+                .center(xm, y)
+                .rect(SNAP_T, SNAP_W)
+                .extrude(Z_SPLIT - SNAP_Z0 + 0.01)
             )
-        arm = (
-            cq.Workplane("XY")
-            .workplane(offset=SNAP_Z0)
-            .center(xm, y)
-            .rect(SNAP_T, SNAP_W)
-            .extrude(Z_SPLIT - SNAP_Z0 + 0.01)
-        )
-        lip = lip.union(arm).union(snap_profile(side, y, SNAP_W))
-    # PCB is screwed on; no push tubes; no hanging tab; no battery frame
-    return lid_part.union(lip)
+            lip = lip.union(arm).union(snap_profile(side, y, SNAP_W))
+    lid_part = lid_part.union(lip)
+    # no push rods: PCB is screwed down
+    # Bottom hanging tab: tongue extends lip, nose top 0.45 flat (retaining edge),
+    # then 45° -> when printing (lid flipped) no horizontal overhang
+    z0 = Z_SPLIT - LIP_H - TAB_DROP
+    yl = IN_Y0 + 0.15
+    lid_part = lid_part.union(
+        cq.Workplane("XY")
+        .workplane(offset=z0)
+        .center(17.0, yl + LIP_T / 2)
+        .rect(TAB_W, LIP_T)
+        .extrude(LIP_H + TAB_DROP)
+    )
+    zb, zt = z0 + 0.2, z0 + 1.4  # nose 1.2 mm tall
+    nose = [
+        (yl + 0.6, zb),
+        (IN_Y0 - 0.55, zb),
+        (IN_Y0 - 0.55, zt - 0.25),
+        (IN_Y0 - 0.3, zt),
+        (yl + 0.6, zt),
+    ]
+    return lid_part.union(
+        cq.Workplane("YZ").workplane(offset=17.0 - TAB_W / 2).polyline(nose).close().extrude(TAB_W)
+    )
+    # no battery / no frame
 
 
 # ------------------------------------------------------------------ Charging dock
 TILT = 12.0  # tilt backward (deg)
 POCKET = 9.0  # how deep device sits in dock
 DOCK_CLR = 0.35
-PLUG_W, PLUG_T = 12.4, 6.8  # 90° USB-C plug overmold (measure!)
-PLUG_H = 14.0  # overmold height incl. cable bend
+PLUG_W, PLUG_T = 12.4, 6.8  # 90° USB-C plug overmold (measure to confirm!)
+PLUG_H = 14.0  # overmold height including cable bend
 CABLE_D = 4.6
 DOCK_W = 59.0
 
 
 def to_dock(shape, base_z):
-    """Device coords -> dock: USB port bottom center at origin, upright, tilted."""
+    """Device coordinates -> dock: USB bottom center = origin, upright, tilted."""
     return (
         shape.translate((-17.0, -OUT_Y0, -USB_Z))
         .rotate((0, 0, 0), (1, 0, 0), 90)
@@ -594,7 +625,7 @@ def to_dock(shape, base_z):
 
 
 def dock():
-    """Charging dock solid (optional accessory)."""
+    """Charging dock body (tilted pocket + cable channel)."""
     base_z = PLUG_H + 3.0  # support height under USB port
     top_z = base_z + POCKET
     c, sn = math.cos(math.radians(TILT)), math.sin(math.radians(TILT))
@@ -603,7 +634,7 @@ def dock():
         return (y * c + z * sn, -y * sn + z * c + base_z)
 
     lip_wall = 4.0  # wall thickness in front/behind device
-    # Front: parallel to display face, lip_wall in front
+    # Front: parallel to display front, lip_wall in front
     fy0, fz0 = tilt(Z_FRONT - DOCK_CLR - lip_wall, 0.0)
 
     def front_y(z):
