@@ -64,9 +64,18 @@ def main(argv: list[str] | None = None) -> int:
         return f"model x{x:.1f} y{y:.1f} z{z:.1f}"
 
     jobs = [
-        ("out/gehaeuse_front.stl", lab_front),
-        ("out/gehaeuse_deckel.stl", lab_lid),
-        ("out/tasten_2x.stl", None),
+        (
+            f"out/case_{variant}_front.stl",
+            lab_front,
+        ),
+        (
+            f"out/case_{variant}_bottom.stl",
+            lab_lid,
+        ),
+        (
+            f"out/case_{variant}_button.stl",
+            None,
+        ),
     ]
     for path, lab in jobs:
         wt.report(wt.local_thickness(path), label=lab)

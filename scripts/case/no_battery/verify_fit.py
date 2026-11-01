@@ -197,7 +197,7 @@ ok(
     "3D wall thickness see scripts/case/tools/wall_thickness.py",
 )
 # STL manifold
-for n in ["gehaeuse_front", "gehaeuse_deckel", "tasten_2x"]:
+for n in ["case_no_battery_front", "case_no_battery_bottom", "case_no_battery_button"]:
     m = trimesh.load(f"out/{n}.stl")
     ok(f"STL {n} watertight", m.is_watertight, f"{len(m.faces)} triangles")
 print("\n".join(R))

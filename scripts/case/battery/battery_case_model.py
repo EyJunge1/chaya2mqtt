@@ -724,9 +724,9 @@ def drop_to_bed(workplane):
 if __name__ == "__main__":
     os.makedirs("out", exist_ok=True)
     parts = [
-        ("gehaeuse_front", drop_to_bed(front_shell())),
-        ("gehaeuse_deckel", drop_to_bed(lid().rotate((0, 0, 0), (1, 0, 0), 180))),
-        ("tasten_2x", drop_to_bed(buttons_print())),
+        ("case_battery_front", drop_to_bed(front_shell())),
+        ("case_battery_bottom", drop_to_bed(lid().rotate((0, 0, 0), (1, 0, 0), 180))),
+        ("case_battery_button", drop_to_bed(buttons_print())),
     ]
     for name, part in parts:
         path = f"out/{name}.stl"
