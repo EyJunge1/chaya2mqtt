@@ -161,7 +161,7 @@ describe("api contract", () => {
   });
 
   it("keeps the client, mock and firmware paths aligned with OpenAPI", () => {
-    const mock = read("frontend/mock/mockPlugin.ts");
+    const mock = read("frontend/sim/mockPlugin.ts");
     const firmware = readFirmwareApiRoutes();
     const client = read("frontend/src/api/client.ts");
     expect(quotedApiPaths(mock)).toEqual(apiPaths);
@@ -172,7 +172,7 @@ describe("api contract", () => {
 
   it("keeps the device-specific STA hostname aligned", () => {
     const firmware = readFirmwareApiRoutes();
-    const mock = read("frontend/mock/deviceState.ts");
+    const mock = read("frontend/sim/deviceState.ts");
     expect(firmware).toContain("formatDeviceStaHostname");
     expect(mock).toContain("`chaya2mqtt-${deviceId}`");
     expect(openapi).toContain("http://chaya2mqtt-{deviceId}.local");
@@ -180,8 +180,8 @@ describe("api contract", () => {
 
   it("keeps SSE events aligned with AsyncAPI", () => {
     const firmwareEvents = read("src/web/events.cpp");
-    const mock = read("frontend/mock/mockPlugin.ts");
-    const mockState = read("frontend/mock/deviceState.ts");
+    const mock = read("frontend/sim/mockPlugin.ts");
+    const mockState = read("frontend/sim/deviceState.ts");
     for (const event of sseEvents) {
       expect(firmwareEvents).toContain(`"${event}"`);
       expect(mock).toContain(`write("${event}"`);
@@ -202,7 +202,7 @@ describe("api contract", () => {
 
   it("keeps Wi-Fi continuation URLs aligned", () => {
     const firmware = readFirmwareApiRoutes();
-    const mock = read("frontend/mock/mockPlugin.ts");
+    const mock = read("frontend/sim/mockPlugin.ts");
     expect(firmware).toContain("/wifi-testing");
     expect(mock).toContain("next:");
     expect(openapi).toContain("        next:");
@@ -210,7 +210,7 @@ describe("api contract", () => {
 
   it("keeps MQTT config fields aligned across client, mock and OpenAPI", () => {
     const client = read("frontend/src/api/client.ts");
-    const mock = read("frontend/mock/mockPlugin.ts");
+    const mock = read("frontend/sim/mockPlugin.ts");
     const firmware = readFirmwareApiRoutes();
     for (const field of [
       "mqtt_server",

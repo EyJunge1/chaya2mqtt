@@ -1,5 +1,5 @@
 import type { APIRequestContext, Page } from "@playwright/test";
-import type { MockScenario } from "../mock/deviceState.ts";
+import type { MockScenario } from "../sim/deviceState.ts";
 
 export type { MockScenario };
 

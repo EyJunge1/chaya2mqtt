@@ -6,11 +6,12 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:sim": "vite --mode sim",
     "build": "vite build",
     "check": "svelte-check --tsconfig ./tsconfig.app.json",
     "lint": "eslint .",
-    "format": "prettier --write \"src/**/*.{ts,svelte,css,html}\" \"mock/**/*.ts\" \"e2e/**/*.ts\" \"*.{ts,js,json,html}\" \".prettierrc\" \"eslint.config.js\"",
-    "format:check": "prettier --check \"src/**/*.{ts,svelte,css,html}\" \"mock/**/*.ts\" \"e2e/**/*.ts\" \"*.{ts,js,json,html}\" \".prettierrc\" \"eslint.config.js\"",
+    "format": "prettier --write \"src/**/*.{ts,svelte,css,html}\" \"sim/**/*.ts\" \"e2e/**/*.ts\" \"*.{ts,js,json,html}\" \".prettierrc\" \"eslint.config.js\"",
+    "format:check": "prettier --check \"src/**/*.{ts,svelte,css,html}\" \"sim/**/*.ts\" \"e2e/**/*.ts\" \"*.{ts,js,json,html}\" \".prettierrc\" \"eslint.config.js\"",
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
@@ -45,6 +46,9 @@
     "typescript-eslint": "^8.72.1",
     "vite": "^8.3.5",
     "vitest": "^5.0.5"
+  },
+  "overrides": {
+    "minimatch": "^11.0.4"
   },
   "allowScripts": {
     "fsevents@2.3.2": true,

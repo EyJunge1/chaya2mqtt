@@ -2,7 +2,7 @@ import type { Plugin } from "vite";
 import { defineConfig } from "vitest/config";
 import { svelte } from "@sveltejs/vite-plugin-svelte";
 import tailwindcss from "@tailwindcss/vite";
-import { mockDevicePlugin } from "./mock/mockPlugin.ts";
+import { mockDevicePlugin } from "./sim/mockPlugin.ts";
 
 /**
  * Tailwind Preflight sets `-webkit-text-size-adjust: 100%`. Firefox accepts only
@@ -48,13 +48,13 @@ function makeBuiltHtmlCaptiveCompatible(): Plugin {
   };
 }
 
-export default defineConfig({
+export default defineConfig(({ mode }) => ({
   plugins: [
     svelte(),
     tailwindcss(),
     fixFirefoxTextSizeAdjust(),
     makeBuiltHtmlCaptiveCompatible(),
-    mockDevicePlugin(),
+    ...(mode === "sim" ? [mockDevicePlugin()] : []),
   ],
   server: {
     host: "127.0.0.1",
@@ -83,7 +83,7 @@ export default defineConfig({
     environment: "jsdom",
     globals: true,
     setupFiles: "./src/test/setup.ts",
-    include: ["src/**/*.test.ts", "mock/**/*.test.ts"],
+    include: ["src/**/*.test.ts", "sim/**/*.test.ts"],
     coverage: {
       provider: "v8",
       reporter: ["text", "html", "lcov"],
@@ -105,4 +105,4 @@ export default defineConfig({
       },
     },
   },
-});
+}));

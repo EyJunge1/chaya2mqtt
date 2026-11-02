@@ -9,10 +9,18 @@ Built with Svelte 5, Vite, Tailwind CSS, and Lucide Icons.
 
 ```bash
 npm ci
-npm run dev
+npm run dev:sim
 ```
 
-Open `http://127.0.0.1:5173/`. The integrated mock in `mock/` provides `/api/*` and SSE `/events`. Use the simulator bar in the upper-right corner to switch between scenarios (STA, AP setup, MQTT, OTA).
+Open `http://127.0.0.1:5173/`. The simulator in `sim/` provides `/api/*` and SSE
+`/events`. Use the simulator bar in the upper-right corner to switch between
+scenarios (STA, AP setup, MQTT, OTA).
+
+Plain Vite without the API mock (no device data):
+
+```bash
+npm run dev
+```
 
 ## Tests / production build
 

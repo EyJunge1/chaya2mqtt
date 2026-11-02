@@ -39,7 +39,9 @@
 
 <DeviceRoot>
   {#snippet chrome()}
-    <MockToolbar onChanged={device.boot} mode={device.device?.mode} />
+    {#if import.meta.env.MODE === "sim"}
+      <MockToolbar onChanged={device.boot} mode={device.device?.mode} />
+    {/if}
   {/snippet}
 
   {#if device.device}

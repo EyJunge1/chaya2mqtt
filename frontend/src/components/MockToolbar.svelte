@@ -240,7 +240,8 @@
   }
 
   $effect(() => {
-    if (!import.meta.env.DEV || !panelEl) return;
+    if (import.meta.env.MODE !== "sim" && import.meta.env.MODE !== "test") return;
+    if (!panelEl) return;
     void open;
     ensurePos(panelEl);
     const onResize = () => {
@@ -258,7 +259,7 @@
   });
 
   $effect(() => {
-    if (!import.meta.env.DEV) return;
+    if (import.meta.env.MODE !== "sim" && import.meta.env.MODE !== "test") return;
     void mode;
     let cancelled = false;
     void (async () => {
@@ -327,7 +328,7 @@
   ></span>
 {/snippet}
 
-{#if import.meta.env.DEV}
+{#if import.meta.env.MODE === "sim" || import.meta.env.MODE === "test"}
   <div
     bind:this={panelEl}
     class="fixed z-40 w-[min(16rem,calc(100vw-1.5rem))] rounded-xl border border-border bg-surface/95 p-2 text-xs shadow-lg backdrop-blur"
