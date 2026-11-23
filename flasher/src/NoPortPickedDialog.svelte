@@ -63,8 +63,9 @@
           {t("noPortStepLinux")}
           <code
             class="mt-2 block rounded-xl border border-border bg-bg px-3 py-2 font-mono text-xs text-text-bright"
-            >sudo usermod -a -G dialout $USER</code
           >
+            sudo usermod -a -G dialout $USER
+          </code>
           <span class="mt-2 block text-xs text-muted">{t("noPortStepLinuxHint")}</span>
         </li>
       {/if}
@@ -77,8 +78,10 @@
               class="focus-ring rounded text-accent underline"
               href="https://www.silabs.com/developers/usb-to-uart-bridge-vcp-drivers"
               target="_blank"
-              rel="noopener noreferrer">{t("noPortDriversWinMac")}</a
+              rel="noopener noreferrer"
             >
+              {t("noPortDriversWinMac")}
+            </a>
           </li>
           <li>
             CH342 / CH343 / CH9102:
@@ -86,14 +89,18 @@
               class="focus-ring rounded text-accent underline"
               href="https://www.wch.cn/downloads/CH343SER_ZIP.html"
               target="_blank"
-              rel="noopener noreferrer">Windows</a
-            >,
+              rel="noopener noreferrer"
+            >
+              Windows
+            </a>,
             <a
               class="focus-ring rounded text-accent underline"
               href="https://www.wch.cn/downloads/CH34XSER_MAC_ZIP.html"
               target="_blank"
-              rel="noopener noreferrer">Mac</a
+              rel="noopener noreferrer"
             >
+              Mac
+            </a>
           </li>
           <li>
             CH340 / CH341:
@@ -101,14 +108,18 @@
               class="focus-ring rounded text-accent underline"
               href="https://www.wch.cn/downloads/CH341SER_ZIP.html"
               target="_blank"
-              rel="noopener noreferrer">Windows</a
-            >,
+              rel="noopener noreferrer"
+            >
+              Windows
+            </a>,
             <a
               class="focus-ring rounded text-accent underline"
               href="https://www.wch.cn/downloads/CH341SER_MAC_ZIP.html"
               target="_blank"
-              rel="noopener noreferrer">Mac</a
+              rel="noopener noreferrer"
             >
+              Mac
+            </a>
           </li>
         </ul>
       </li>
