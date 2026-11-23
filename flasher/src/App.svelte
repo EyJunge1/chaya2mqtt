@@ -201,9 +201,11 @@
         </span>
         <span>
           <span class="block text-base font-bold leading-none text-text-bright">Chaya2MQTT</span>
-          <span class="mt-1 block text-[0.68rem] font-semibold tracking-widest text-muted uppercase"
-            >Web Flasher</span
+          <span
+            class="mt-1 block text-[0.68rem] font-semibold tracking-widest text-muted uppercase"
           >
+            Web Flasher
+          </span>
         </span>
       </a>
 
@@ -424,8 +426,9 @@
                 <li class="flex gap-3">
                   <span
                     class="inline-flex size-7 shrink-0 items-center justify-center rounded-lg bg-accent/15 text-xs font-bold text-accent"
-                    >1</span
                   >
+                    1
+                  </span>
                   <div>
                     <p class="text-sm font-semibold text-text-bright">{t("connectUsb")}</p>
                     <p class="mt-1 text-xs leading-5 text-muted">
@@ -436,8 +439,9 @@
                 <li class="flex gap-3">
                   <span
                     class="inline-flex size-7 shrink-0 items-center justify-center rounded-lg bg-accent/15 text-xs font-bold text-accent"
-                    >2</span
                   >
+                    2
+                  </span>
                   <div>
                     <p class="text-sm font-semibold text-text-bright">{t("selectPort")}</p>
                     <p class="mt-1 text-xs leading-5 text-muted">
@@ -448,17 +452,18 @@
                 <li class="flex gap-3">
                   <span
                     class="inline-flex size-7 shrink-0 items-center justify-center rounded-lg bg-accent/15 text-xs font-bold text-accent"
-                    >3</span
                   >
+                    3
+                  </span>
                   <div>
                     <p class="text-sm font-semibold text-text-bright">{t("configure")}</p>
                     <p class="mt-1 text-xs leading-5 text-muted">
                       {t("configureBefore")}
                       <code class="font-mono text-text">Chaya2MQTT</code>
                       {t("configureAfter")}
-                      <a href="http://4.3.2.1/" class="focus-ring rounded text-accent underline"
-                        >4.3.2.1</a
-                      >{t("configureEnd")}
+                      <a href="http://4.3.2.1/" class="focus-ring rounded text-accent underline">
+                        4.3.2.1
+                      </a>{t("configureEnd")}
                     </p>
                   </div>
                 </li>

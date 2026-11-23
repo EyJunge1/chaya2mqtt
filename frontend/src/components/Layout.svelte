@@ -401,9 +401,9 @@
             >
               <ChevronLeft size={16} aria-hidden="true" />
             </Link>
-            <span class="text-sm font-semibold text-text-bright"
-              >{i18n.t("nav.back-to-settings")}</span
-            >
+            <span class="text-sm font-semibold text-text-bright">
+              {i18n.t("nav.back-to-settings")}
+            </span>
           </div>
         {/if}
         {@render children()}
